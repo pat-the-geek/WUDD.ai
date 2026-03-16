@@ -200,6 +200,27 @@ function buildPieMd(articles) {
   return `\`\`\`mermaid\n${diagram}\`\`\``
 }
 
+// ── Frontmatter Obsidian ───────────────────────────────────────────────────────
+function buildObsidianFrontmatter(title, tags) {
+  const date     = new Date().toISOString().slice(0, 10)
+  const dedupTags = [...new Set(
+    tags.filter(t => t && typeof t === 'string' && t.trim().length > 0)
+  )].slice(0, 30)
+  const tagLines = dedupTags
+    .map(t => `  - "${t.trim().replace(/"/g, "'")}"`)
+    .join('\n')
+  return (
+    `---\n` +
+    `title: "${title.replace(/"/g, "'")}"\n` +
+    `date: ${date}\n` +
+    `version: "1.0"\n` +
+    `tags:\n${tagLines || '  - rapport'}\n` +
+    `type: Rapport\n` +
+    `statut: generated\n` +
+    `---\n\n`
+  )
+}
+
 // ── Composant principal ────────────────────────────────────────────────────────
 
 export default function EntityFullReportDialog({
@@ -217,7 +238,8 @@ export default function EntityFullReportDialog({
   const [exportState, setExportState]   = useState({ local: null, obsidian: null })
   const [frozenMd, setFrozenMd]         = useState(null)
   const frozenComponentsRef             = useRef(null)
-  const abortRef = useRef(null)
+  const abortRef    = useRef(null)
+  const l1NodesRef  = useRef([])   // co-occurrences L1, conservées pour l'export Obsidian
 
   // ── Dérivé : markdown nettoyé ──────────────────────────────────────────────
   const cleanMd = reportMd
@@ -278,6 +300,7 @@ export default function EntityFullReportDialog({
           l1Nodes = gData.nodes.filter(n => n.level === 1).sort((a, b) => b.count - a.count)
         }
       } catch (_) {}
+      l1NodesRef.current = l1Nodes  // conserver pour l'export Obsidian
 
       if (l1Nodes.length > 0) {
         append(`## Cartographie des acteurs — Co-occurrences directes (L1)\n\n`)
@@ -388,11 +411,23 @@ export default function EntityFullReportDialog({
 
   const handleExport = async (target) => {
     setExportState(prev => ({ ...prev, [target]: 'saving' }))
+
+    // Pour l'export Obsidian : remplacer le frontmatter iA Writer par un frontmatter Obsidian
+    let markdown = cleanMd
+    if (target === 'obsidian') {
+      const title   = `Rapport — ${entityType} : ${entityValue}`
+      const l1Tags  = l1NodesRef.current.map(n => String(n.value ?? '')).filter(Boolean)
+      const tags    = [entityValue, ...l1Tags]
+      const front   = buildObsidianFrontmatter(title, tags)
+      // Supprimer le frontmatter iA Writer existant (bloc --- … ---)
+      markdown = front + cleanMd.replace(/^---[\s\S]*?---\n\n?/, '')
+    }
+
     try {
       const r = await fetch('/api/export/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markdown: cleanMd, filename: getFilename(), target }),
+        body: JSON.stringify({ markdown, filename: getFilename(), target }),
       })
       const d = await r.json()
       if (d.ok) {
