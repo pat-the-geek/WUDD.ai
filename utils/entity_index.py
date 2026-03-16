@@ -113,9 +113,51 @@ class EntityIndex:
                     if "caps" not in raw:
                         raw["caps"] = {}
                     self._data = raw
+                elif isinstance(raw, dict) and raw.get("version") in (1, None):
+                    # Migration automatique v1 → v2 : normaliser les clés en minuscules
+                    # et construire le dict caps pour conserver la forme canonique.
+                    version_found = raw.get("version")
+                    if version_found == 1:
+                        default_logger.warning(
+                            "entity_index.json : version v1 détectée, migration automatique v1→v2."
+                        )
+                    else:
+                        default_logger.warning(
+                            "entity_index.json : version absente (format hérité), migration automatique vers v2."
+                        )
+                    old_index = raw.get("index", {})
+                    new_index: dict[str, list[dict]] = {}
+                    new_caps: dict[str, str] = {}
+                    for key, refs in old_index.items():
+                        if ":" not in key or not isinstance(refs, list):
+                            continue
+                        etype, _, name = key.partition(":")
+                        if not name:
+                            continue
+                        norm_key = _normalize_entity_key(etype, name)
+                        _update_caps(new_caps, norm_key, name)
+                        # Dédupliquer les références (file, idx)
+                        seen_sigs: set = set()
+                        for ref in refs:
+                            sig = (ref.get("file", ""), ref.get("idx", -1))
+                            if sig not in seen_sigs:
+                                seen_sigs.add(sig)
+                                new_index.setdefault(norm_key, []).append(ref)
+                    self._data = {
+                        "version": _INDEX_VERSION,
+                        "index": new_index,
+                        "caps": new_caps,
+                    }
+                    # Persister la version migrée pour éviter de remigrer à chaque démarrage
+                    try:
+                        self._save()
+                    except OSError as e:
+                        default_logger.warning(
+                            f"entity_index.json : impossible de persister la migration v2 : {e}"
+                        )
                 else:
                     default_logger.warning(
-                        "entity_index.json : version incompatible ou ancienne (v1), "
+                        "entity_index.json : version incompatible, "
                         "reconstruction nécessaire. Lancez normalize_entity_index.py."
                     )
             except (json.JSONDecodeError, OSError) as e:
