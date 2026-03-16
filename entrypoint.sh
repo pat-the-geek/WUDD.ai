@@ -26,12 +26,22 @@ else
     echo "Aucune crontab personnalisée trouvée."
 fi
 
-# ── 3. Démarrer le viewer Flask en arrière-plan ──────────────────────────────
+# ── 3. Synchroniser le registre des sources ──────────────────────────────────
+# Ajoute dans sources_credibility.json les sources absentes détectées dans
+# WUDD.opml, web_sources.json et les articles existants.
+# Opération locale (< 10 s, aucun appel HTTP externe).
+echo "Synchronisation du registre des sources..."
+python3 /app/scripts/enrich_source_credibility.py --sync-only \
+    >> /app/rapports/sync_sources.log 2>&1 \
+    && echo "Registre sources synchronisé." \
+    || echo "Avertissement : synchronisation sources partiellement échouée (voir /app/rapports/sync_sources.log)."
+
+# ── 4. Démarrer le viewer Flask en arrière-plan ──────────────────────────────
 echo "Démarrage du viewer WUDD.ai sur le port 5050..."
 mkdir -p /app/rapports
 python3 /app/viewer/app.py >> /app/rapports/viewer.log 2>&1 &
 VIEWER_PID=$!
 echo "Viewer démarré (PID : $VIEWER_PID) — http://localhost:5050"
 
-# ── 4. Lancer cron en foreground ─────────────────────────────────────────────
+# ── 5. Lancer cron en foreground ─────────────────────────────────────────────
 exec cron -f
