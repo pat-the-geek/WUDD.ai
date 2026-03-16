@@ -46,6 +46,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Réparation des résumés en erreur : chaque dimanche à 4h00 (maintenance hebdomadaire)
 # Régénère les articles dont le Résumé contient un message d'erreur API EurIA
 0 4 * * 0 root cd /app && python3 scripts/repair_failed_summaries.py 2>&1 | tee -a /app/rapports/cron_repair.log
+# Enrichissement crédibilité sources (WHOIS + transparence + MBFC) : mensuel, 1er du mois à 4h30
+# Mode incrémental : enrichit uniquement les nouvelles sources sans données v2
+30 4 1 * * root cd /app && python3 scripts/enrich_source_credibility.py 2>&1 | tee -a /app/rapports/cron_enrich_credibility.log
 # Briefing exécutif hebdomadaire : chaque lundi à 6h30 (après trend_detector du lundi matin)
 # Synthèse IA : top entités, articles scorés, tendances — rapports/markdown/_BRIEFING_/
 30 6 * * 1 root cd /app && python3 scripts/generate_briefing.py --period weekly 2>&1 | tee -a /app/rapports/cron_briefing.log

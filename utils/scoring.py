@@ -1,11 +1,13 @@
 """Module de scoring de pertinence des articles.
 
 Calcule un score composite (0–100) pour chaque article selon :
-  - Fraîcheur      : pénalité exponentielle basée sur l'âge (24h=100, 7j=~20)
-  - Richesse NER   : nombre et diversité des entités nommées
-  - Densité mots-clés : occurrences des mots-clés de surveillance dans le résumé
-  - Complétude     : présence d'un résumé valide et d'une image
-  - Multiplicateur source : bonus si la source est fréquemment citée
+  - Fraîcheur           : pénalité exponentielle basée sur l'âge (24h=100, 7j=~20)
+  - Richesse NER        : nombre et diversité des entités nommées
+  - Densité mots-clés   : occurrences des mots-clés de surveillance dans le résumé
+  - Complétude          : présence d'un résumé valide et d'une image
+  - Multiplicateur source : score composite de crédibilité (v2)
+  - Triangulation       : bonus si plusieurs sources crédibles couvrent le même événement
+  - Régularité source   : malus si la source publie de façon erratique
 """
 
 import json
@@ -42,6 +44,13 @@ _ERROR_PREFIXES = (
     "échec",
     "aucune information",
 )
+
+# Seuil Jaccard bigrammes pour la triangulation (proximité thématique)
+_TRIANGULATION_JACCARD_THRESHOLD = 0.35
+# Score minimal d'une source pour compter dans la triangulation
+_TRIANGULATION_MIN_SOURCE_SCORE = 75
+# Nombre minimal d'articles d'une source sur 30 jours pour le critère régularité
+_REGULARITY_MIN_ARTICLES = 10
 
 
 def _parse_date(date_str: str) -> Optional[datetime]:
@@ -102,6 +111,111 @@ def _keyword_score(resume: str, keywords: list[str]) -> float:
     hits = sum(1 for kw in keywords if kw.lower() in resume_lower)
     # 3 mots-clés présents → score 100
     return min(100.0, hits * 33.3)
+
+
+def _bigrams(text: str) -> set:
+    """Retourne l'ensemble des bigrammes de mots d'un texte normalisé."""
+    words = re.sub(r"[^\w\s]", " ", text.lower()).split()
+    return {(words[i], words[i + 1]) for i in range(len(words) - 1)}
+
+
+def _jaccard(set_a: set, set_b: set) -> float:
+    """Similarité de Jaccard entre deux ensembles."""
+    if not set_a or not set_b:
+        return 0.0
+    inter = len(set_a & set_b)
+    union = len(set_a | set_b)
+    return inter / union if union > 0 else 0.0
+
+
+def _triangulation_bonus(article: dict, corpus: list[dict], credibility) -> float:
+    """Calcule le bonus de triangulation inter-sources (0–10 pts).
+
+    Compte le nombre de sources distinctes (score composite ≥ 75) qui couvrent
+    le même événement que l'article dans les 48h (similarité Jaccard ≥ 0.35).
+
+    Args:
+        article     : article à évaluer
+        corpus      : liste d'articles de référence (fenêtre 48h)
+        credibility : instance de CredibilityEngine (ou None)
+
+    Returns:
+        Bonus entre 0 et 10.
+    """
+    if not corpus or credibility is None:
+        return 0.0
+
+    resume_a = article.get("Résumé") or article.get("resume") or ""
+    if len(resume_a) < 50:
+        return 0.0
+
+    source_a = str(article.get("Sources") or article.get("source") or "")
+    bigrams_a = _bigrams(resume_a)
+    if not bigrams_a:
+        return 0.0
+
+    confirming_sources: set[str] = set()
+
+    for other in corpus:
+        source_b = str(other.get("Sources") or other.get("source") or "")
+        if source_b == source_a:
+            continue
+        # Vérifier que la source B est crédible
+        if credibility.get_composite_score(source_b) < _TRIANGULATION_MIN_SOURCE_SCORE:
+            continue
+        resume_b = other.get("Résumé") or other.get("resume") or ""
+        if len(resume_b) < 50:
+            continue
+        bigrams_b = _bigrams(resume_b)
+        if _jaccard(bigrams_a, bigrams_b) >= _TRIANGULATION_JACCARD_THRESHOLD:
+            confirming_sources.add(source_b)
+
+    n = len(confirming_sources)
+    if n >= 4:
+        return 10.0
+    if n == 3:
+        return 7.0
+    if n == 2:
+        return 4.0
+    return 0.0
+
+
+def _regularity_malus(source: str, articles_by_source: dict) -> float:
+    """Calcule le malus de régularité de publication (0 à -10 pts).
+
+    Basé sur l'écart-type des intervalles entre publications sur 30 jours.
+    Ne s'applique qu'aux sources avec ≥ 10 articles dans la fenêtre.
+
+    Args:
+        source           : nom de la source
+        articles_by_source : dict {source → [dates triées]}
+
+    Returns:
+        Malus négatif entre -10 et 0.
+    """
+    dates = articles_by_source.get(source, [])
+    if len(dates) < _REGULARITY_MIN_ARTICLES:
+        return 0.0
+
+    dates_sorted = sorted(dates)
+    intervals = [
+        (dates_sorted[i + 1] - dates_sorted[i]) / 3600.0
+        for i in range(len(dates_sorted) - 1)
+    ]
+    if not intervals:
+        return 0.0
+
+    mean = sum(intervals) / len(intervals)
+    variance = sum((x - mean) ** 2 for x in intervals) / len(intervals)
+    std = variance ** 0.5
+
+    if std < 24:
+        return 0.0
+    if std < 72:
+        return -3.0
+    if std < 120:
+        return -6.0
+    return -10.0
 
 
 def _completeness_score(article: dict) -> float:
@@ -180,15 +294,22 @@ class ScoringEngine:
         article: dict,
         now: Optional[datetime] = None,
         weights: Optional[dict] = None,
+        corpus: Optional[list] = None,
+        articles_by_source: Optional[dict] = None,
     ) -> float:
         """Calcule le score de pertinence d'un article (0–100).
 
-        Intègre un multiplicateur de crédibilité de la source si disponible.
+        Intègre :
+          - Multiplicateur de crédibilité composite (score composite v2)
+          - Bonus de triangulation inter-sources (0–10 pts, si corpus fourni)
+          - Malus de régularité de publication (0 à −10 pts, si articles_by_source fourni)
 
         Args:
-            article : dict article (format interne WUDD.ai)
-            now     : horodatage de référence (default: maintenant UTC)
-            weights : poids optionnels pour chaque composante
+            article            : dict article (format interne WUDD.ai)
+            now                : horodatage de référence (default: maintenant UTC)
+            weights            : poids optionnels pour chaque composante
+            corpus             : liste d'articles pour la triangulation (fenêtre 48h)
+            articles_by_source : dict {source → [timestamps epoch]} pour la régularité
 
         Returns:
             Score flottant entre 0 et 100.
@@ -217,13 +338,38 @@ class ScoringEngine:
             + completeness * w["completeness"]
         )
 
-        # Multiplicateur de crédibilité de la source (optionnel)
+        source = str(article.get("Sources") or article.get("source") or "")
+
+        # Multiplicateur de crédibilité composite (v2)
         if self._credibility is not None:
-            source = article.get("Sources") or article.get("source") or ""
-            multiplier = self._credibility.get_multiplier(str(source))
+            multiplier = self._credibility.get_multiplier(source)
             score *= multiplier
 
+        # Bonus triangulation inter-sources
+        if corpus is not None and self._credibility is not None:
+            score += _triangulation_bonus(article, corpus, self._credibility)
+
+        # Malus régularité de publication
+        if articles_by_source is not None:
+            score += _regularity_malus(source, articles_by_source)
+
         return round(min(100.0, max(0.0, score)), 1)
+
+    def _build_articles_by_source(
+        self, articles: list[dict]
+    ) -> dict:
+        """Construit un index {source → [timestamps epoch]} sur 30 jours."""
+        from datetime import timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        result: dict[str, list] = {}
+        for a in articles:
+            source = str(a.get("Sources") or a.get("source") or "")
+            if not source:
+                continue
+            dt = _parse_date(a.get("Date de publication", ""))
+            if dt and dt >= cutoff:
+                result.setdefault(source, []).append(dt.timestamp())
+        return result
 
     def score_and_sort(
         self,
@@ -234,12 +380,25 @@ class ScoringEngine:
         """Calcule et attache le score à chaque article, les trie par score décroissant.
 
         Le champ `score_pertinence` est ajouté en place dans chaque article.
+        Intègre automatiquement la triangulation et la régularité si le corpus
+        contient suffisamment d'articles (≥ 2).
         Retourne la liste triée (et tronquée si top_n est fourni).
         """
         if now is None:
             now = datetime.now(timezone.utc)
+
+        # Pré-calcul des index pour triangulation et régularité
+        corpus = articles if len(articles) >= 2 else None
+        articles_by_source = (
+            self._build_articles_by_source(articles) if articles else None
+        )
+
         for article in articles:
-            article["score_pertinence"] = self.score_article(article, now)
+            article["score_pertinence"] = self.score_article(
+                article, now,
+                corpus=corpus,
+                articles_by_source=articles_by_source,
+            )
         articles.sort(key=lambda a: a.get("score_pertinence", 0), reverse=True)
         return articles[:top_n] if top_n else articles
 

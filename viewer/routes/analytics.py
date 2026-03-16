@@ -188,7 +188,7 @@ def api_sources_bias():
 
 @analytics_bp.route("/api/sources/credibility")
 def api_sources_credibility():
-    """Score de crédibilité des sources.
+    """Score de crédibilité des sources (v2 — inclut score composite).
 
     Query params :
       source : nom de la source à évaluer (retourne une seule entrée)
@@ -208,19 +208,187 @@ def api_sources_credibility():
         # Toutes les sources de la base
         all_sources = []
         for name, entry in engine._db.items():
+            if name == "_comment":
+                continue
             all_sources.append({
-                "source":     name,
-                "score":      entry.get("score", 50),
-                "biais":      entry.get("biais", "inconnu"),
-                "type":       entry.get("type", "inconnu"),
-                "pays":       entry.get("pays", "inconnu"),
-                "fiabilite":  entry.get("fiabilite", "non évalué"),
-                "multiplier": engine.get_multiplier(name),
+                "source":          name,
+                "score":           entry.get("score", 50),
+                "score_composite": engine.get_composite_score(name),
+                "biais":           entry.get("biais", "inconnu"),
+                "type":            entry.get("type", "inconnu"),
+                "pays":            entry.get("pays", "inconnu"),
+                "fiabilite":       entry.get("fiabilite", "non évalué"),
+                "fact_checking":   entry.get("fact_checking", False),
+                "multiplier":      engine.get_multiplier(name),
+                "enrichi":         "enrich_date" in entry,
+                "domain_age_years": entry.get("domain_age_years"),
+                "transparence":    entry.get("transparence"),
+                "mbfc_rating":     entry.get("mbfc_rating"),
+                "enrich_date":     entry.get("enrich_date"),
             })
-        all_sources.sort(key=lambda x: -x["score"])
+        all_sources.sort(key=lambda x: -x["score_composite"])
         return jsonify({"sources": all_sources, "total": len(all_sources)})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+@analytics_bp.route("/api/sources/reliability")
+def api_sources_reliability():
+    """Rapport complet de fiabilité par source.
+
+    Agrège score composite, triangulation moyenne et régularité depuis
+    les données existantes — aucun appel externe.
+
+    Query params :
+      hours : fenêtre temporelle pour la triangulation (défaut: 48)
+      min_articles : nombre minimal d'articles pour apparaître (défaut: 1)
+    """
+    try:
+        from utils.source_credibility import CredibilityEngine
+        from utils.scoring import _parse_date, _bigrams, _jaccard, _TRIANGULATION_JACCARD_THRESHOLD, _TRIANGULATION_MIN_SOURCE_SCORE
+        from collections import defaultdict
+        import time as _t
+
+        hours = int(request.args.get("hours", 48))
+        min_articles = int(request.args.get("min_articles", 1))
+
+        engine = CredibilityEngine(PROJECT_ROOT)
+
+        # Charger les articles récents
+        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=hours * 2)
+        all_articles = []
+        for data_dir in [PROJECT_ROOT / "data" / "articles",
+                         PROJECT_ROOT / "data" / "articles-from-rss"]:
+            if not data_dir.exists():
+                continue
+            for jf in data_dir.rglob("*.json"):
+                if "cache" in str(jf):
+                    continue
+                try:
+                    arts = json.loads(jf.read_text(encoding="utf-8", errors="replace"))
+                    if isinstance(arts, list):
+                        all_articles.extend(arts)
+                except Exception:
+                    continue
+
+        # Index timestamps par source
+        source_dates: dict[str, list] = defaultdict(list)
+        for a in all_articles:
+            src = str(a.get("Sources") or a.get("source") or "")
+            dt = _parse_date(a.get("Date de publication", ""))
+            if src and dt:
+                source_dates[src].append(dt.timestamp())
+
+        # Triangulation : pour chaque source, ratio d'articles confirmés
+        # (calcul rapide : on compare résumés de sources différentes)
+        source_confirmed: dict[str, int] = defaultdict(int)
+        source_total: dict[str, int] = defaultdict(int)
+        for a in all_articles:
+            src = str(a.get("Sources") or a.get("source") or "")
+            if not src:
+                continue
+            source_total[src] += 1
+            resume_a = a.get("Résumé") or ""
+            if len(resume_a) < 50:
+                continue
+            bg_a = _bigrams(resume_a)
+            for b in all_articles:
+                src_b = str(b.get("Sources") or b.get("source") or "")
+                if src_b == src:
+                    continue
+                if engine.get_composite_score(src_b) < _TRIANGULATION_MIN_SOURCE_SCORE:
+                    continue
+                resume_b = b.get("Résumé") or ""
+                if len(resume_b) < 50:
+                    continue
+                if _jaccard(bg_a, _bigrams(resume_b)) >= _TRIANGULATION_JACCARD_THRESHOLD:
+                    source_confirmed[src] += 1
+                    break  # compter une seule confirmation par article
+
+        # Régularité
+        from utils.scoring import _regularity_malus
+        articles_by_source = {src: dates for src, dates in source_dates.items()}
+
+        # Construire la réponse
+        result = []
+        all_source_names = set(source_total.keys()) | set(engine._db.keys())
+        for src in all_source_names:
+            if src == "_comment":
+                continue
+            count = source_total.get(src, 0)
+            if count < min_articles:
+                continue
+            total = source_total.get(src, 0)
+            confirmed = source_confirmed.get(src, 0)
+            triangulation_pct = round(confirmed / total * 100) if total > 0 else 0
+            regularity_malus = _regularity_malus(src, articles_by_source)
+            meta = engine.get_metadata(src)
+            result.append({
+                "source":           src,
+                "article_count":    count,
+                "score_composite":  meta["score_composite"],
+                "score_statique":   meta["score"],
+                "enrichi":          meta.get("enrichi", False),
+                "domain_age_years": meta.get("domain_age_years"),
+                "transparence":     meta.get("transparence"),
+                "mbfc_rating":      meta.get("mbfc_rating"),
+                "enrich_date":      meta.get("enrich_date"),
+                "multiplier":       engine.get_multiplier(src),
+                "triangulation_pct": triangulation_pct,
+                "regularity_malus": regularity_malus,
+            })
+
+        result.sort(key=lambda x: -x["score_composite"])
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@analytics_bp.route("/api/sources/enrich", methods=["POST"])
+def api_sources_enrich():
+    """Lance l'enrichissement des sources (streaming SSE).
+
+    Body JSON optionnel :
+      force  : bool — ré-enrichir toutes les sources (défaut: false)
+      source : str  — enrichir uniquement cette source
+      delay  : float — pause entre requêtes (défaut: 2.0)
+    """
+    import subprocess
+
+    script = PROJECT_ROOT / "scripts" / "enrich_source_credibility.py"
+    if not script.exists():
+        return jsonify({"error": "Script enrich_source_credibility.py introuvable"}), 404
+
+    data = request.get_json(force=True) or {}
+    cmd = [sys.executable, str(script)]
+    if data.get("force"):
+        cmd.append("--force")
+    if data.get("source"):
+        cmd += ["--source", str(data["source"])]
+    if data.get("delay"):
+        cmd += ["--delay", str(float(data["delay"]))]
+
+    def stream_enrichment():
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=str(PROJECT_ROOT),
+            )
+            for line in proc.stdout:
+                yield f"data: {json.dumps({'line': line.rstrip()})}\n\n"
+            proc.wait()
+            yield f"data: {json.dumps({'done': True, 'returncode': proc.returncode})}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+
+    return Response(
+        stream_with_context(stream_enrichment()),
+        content_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @analytics_bp.route("/api/synthesize-topic")

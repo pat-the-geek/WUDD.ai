@@ -147,7 +147,7 @@ function TaskTable({ title, tasks }) {
 
 const CRON_CATEGORIES = [
   { id: "Surveillance en continu", label: "Surveillance en continu",   desc: "Tâches fréquentes : chaque 5 min, 10 min ou toutes les 2h" },
-  { id: "Enrichissement nocturne", label: "Enrichissement nocturne",   desc: "Pipeline 01h–04h : backup, NER, sentiment, réparation" },
+  { id: "Enrichissement nocturne", label: "Enrichissement nocturne",   desc: "Pipeline 01h–04h30 : backup, NER, images, sentiment, réparation, crédibilité sources" },
   { id: "Rapports & digests",      label: "Rapports & digests",        desc: "Digests quotidiens, briefing hebdomadaire et collecte multi-flux" },
   { id: "Pipeline mensuel",        label: "Pipeline mensuel",          desc: "Radar, Markdown et rapports générés le dernier jour du mois" },
 ]
@@ -1422,6 +1422,196 @@ function QuotaTab() {
 
 // ─── Onglet Variables d'environnement ────────────────────────────────────────
 
+// ─── Onglet Fiabilité des sources ────────────────────────────────────────────
+
+const MBFC_BADGE_SETTINGS = {
+  'VERY HIGH':      'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
+  'HIGH':           'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+  'MOSTLY FACTUAL': 'bg-lime-100 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300',
+  'MIXED':          'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+  'LOW':            'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
+  'VERY LOW':       'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+}
+
+function FiabiliteTab() {
+  const [sources, setSources]     = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [enriching, setEnriching] = useState(false)
+  const [enrichLog, setEnrichLog] = useState([])
+  const [enrichDone, setEnrichDone] = useState(false)
+  const [search, setSearch]       = useState('')
+  const logRef = useRef(null)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    fetch('/api/sources/credibility')
+      .then(r => r.json())
+      .then(d => { setSources(Array.isArray(d.sources) ? d.sources : []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { load() }, [load])
+  useEffect(() => { logRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [enrichLog])
+
+  const startEnrich = () => {
+    setEnriching(true)
+    setEnrichLog([])
+    setEnrichDone(false)
+    fetch('/api/sources/enrich', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      .then(async r => {
+        const reader = r.body.getReader()
+        const decoder = new TextDecoder()
+        let buf = ''
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          const parts = buf.split('\n\n'); buf = parts.pop()
+          for (const part of parts) {
+            const line = part.replace(/^data: /, '').trim()
+            if (!line) continue
+            try {
+              const obj = JSON.parse(line)
+              if (obj.line) setEnrichLog(prev => [...prev, obj.line])
+              if (obj.done) { setEnrichDone(true); load() }
+            } catch {}
+          }
+        }
+        setEnrichDone(true); setEnriching(false); load()
+      })
+      .catch(e => { setEnrichLog(prev => [...prev, `Erreur : ${e.message}`]); setEnriching(false); setEnrichDone(true) })
+  }
+
+  const enrichedCount = sources.filter(s => s.enrichi).length
+  const filtered = sources.filter(s => !search || s.source.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Barre d'actions */}
+      <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 flex items-center gap-3 flex-wrap shrink-0">
+        <div className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
+          <Eye size={14} className="text-blue-500" />
+          <span>{enrichedCount}/{sources.length} sources enrichies v2</span>
+        </div>
+        <input
+          type="text" value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Filtrer…"
+          className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm w-40"
+        />
+        <button
+          onClick={startEnrich}
+          disabled={enriching}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white rounded-lg transition-colors"
+        >
+          <RefreshCw size={12} className={enriching ? 'animate-spin' : ''} />
+          {enriching ? 'Enrichissement…' : 'Actualiser fiabilité'}
+        </button>
+      </div>
+
+      {/* Log d'enrichissement */}
+      {(enriching || enrichDone) && enrichLog.length > 0 && (
+        <div className="mx-5 mt-3 bg-slate-950/80 dark:bg-slate-950 rounded-lg border border-slate-700 overflow-hidden shrink-0">
+          <div className="px-3 py-1.5 border-b border-slate-700 text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <Terminal size={10} />
+            Journal d'enrichissement
+            {enrichDone && <span className="text-green-400 ml-1">✓ Terminé</span>}
+          </div>
+          <div className="p-3 font-mono text-[11px] text-green-300 max-h-32 overflow-auto space-y-0.5">
+            {enrichLog.slice(-20).map((l, i) => <div key={i}>{l}</div>)}
+            <div ref={logRef} />
+          </div>
+        </div>
+      )}
+
+      {/* Notice */}
+      {!loading && enrichedCount === 0 && (
+        <div className="mx-5 mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg text-xs flex items-center gap-2 shrink-0">
+          <AlertTriangle size={12} />
+          Aucune source enrichie. Cliquez sur "Actualiser fiabilité" pour lancer l'enrichissement WHOIS + MBFC + transparence des 40 sources.
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        {loading ? <Spinner /> : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 sticky top-0">
+                <th className="text-left px-5 py-2.5">Source</th>
+                <th className="text-center px-4 py-2.5">Score</th>
+                <th className="text-center px-4 py-2.5">Âge</th>
+                <th className="text-center px-4 py-2.5">Transp.</th>
+                <th className="text-center px-4 py-2.5">MBFC</th>
+                <th className="text-left px-4 py-2.5 hidden md:table-cell">Pays · Type</th>
+                <th className="text-center px-4 py-2.5">Enrichi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((s, i) => (
+                <tr key={i} className="border-b border-slate-100 dark:border-slate-700/40 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                  <td className="px-5 py-3">
+                    <div className="font-medium text-slate-800 dark:text-slate-200 text-sm">{s.source}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{s.biais || '—'} · fact-check : {s.fact_checking ? '✓' : '✗'}</div>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold tabular-nums ${
+                        (s.score_composite ?? s.score) >= 80 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                        : (s.score_composite ?? s.score) >= 60 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                        : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                      }`}>{Math.round(s.score_composite ?? s.score)}</span>
+                      {s.enrichi && s.score !== s.score_composite && (
+                        <span className="text-[9px] text-slate-400">(base: {s.score})</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-center text-xs tabular-nums">
+                    {s.domain_age_years != null ? (
+                      <span className={s.domain_age_years < 2 ? 'text-orange-500 font-medium' : 'text-slate-500 dark:text-slate-400'}>
+                        {s.domain_age_years < 2 && '⚠ '}{s.domain_age_years >= 1 ? `${Math.floor(s.domain_age_years)} ans` : '< 1 an'}
+                      </span>
+                    ) : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {s.transparence != null ? (
+                      <span className="flex justify-center gap-0.5">
+                        {[0,1,2,3].map(j => (
+                          <span key={j} className={`w-2 h-2 rounded-full ${j < s.transparence ? 'bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+                        ))}
+                      </span>
+                    ) : <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {s.mbfc_rating ? (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${MBFC_BADGE_SETTINGS[s.mbfc_rating] || 'bg-slate-100 text-slate-600'}`}>
+                        {s.mbfc_rating}
+                      </span>
+                    ) : <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>}
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">{s.pays || '—'}</div>
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500">{s.type || '—'}</div>
+                  </td>
+                  <td className="px-4 py-3 text-center text-xs">
+                    {s.enrichi ? (
+                      <span className="text-green-500" title={`Enrichi le ${s.enrich_date}`}>✓ {s.enrich_date}</span>
+                    ) : <span className="text-slate-400">En attente</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Pied */}
+      <div className="px-5 py-2 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-400 dark:text-slate-600 shrink-0">
+        Score composite = statique × 0.60 + âge × 0.15 + transparence × 0.10 + MBFC × 0.15 · Enrichissement mensuel automatique (1er du mois, 04h30)
+      </div>
+    </div>
+  )
+}
+
 function EnvTab() {
   const [entries, setEntries]     = useState([])
   const [loading, setLoading]     = useState(true)
@@ -2377,13 +2567,14 @@ function WebSourcesTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'rss',       label: 'RSS',            short: 'RSS',      Icon: Rss       },
-  { id: 'web',       label: 'Web',            short: 'Web',      Icon: Globe     },
-  { id: 'scheduler', label: 'Planification',   short: 'Cron',     Icon: Clock     },
-  { id: 'keywords',  label: 'Mots-clés',       short: 'Mots-cl.', Icon: Tag       },
-  { id: 'flux',      label: 'Flux Reeder',     short: 'Flux',     Icon: Database  },
-  { id: 'quota',     label: 'Quota',           short: 'Quota',    Icon: BarChart2 },
-  { id: 'env',       label: 'Environnement',   short: 'Env',      Icon: Lock      },
+  { id: 'rss',        label: 'RSS',            short: 'RSS',      Icon: Rss       },
+  { id: 'web',        label: 'Web',            short: 'Web',      Icon: Globe     },
+  { id: 'scheduler',  label: 'Planification',  short: 'Cron',     Icon: Clock     },
+  { id: 'keywords',   label: 'Mots-clés',      short: 'Mots-cl.', Icon: Tag       },
+  { id: 'flux',       label: 'Flux Reeder',    short: 'Flux',     Icon: Database  },
+  { id: 'quota',      label: 'Quota',          short: 'Quota',    Icon: BarChart2 },
+  { id: 'fiabilite',  label: 'Fiabilité',      short: 'Fiab.',    Icon: Eye       },
+  { id: 'env',        label: 'Environnement',  short: 'Env',      Icon: Lock      },
 ]
 
 const THEME_OPTIONS_SETTINGS = [
@@ -2555,6 +2746,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
           {activeTab === 'keywords'  && <KeywordsTab />}
           {activeTab === 'flux'      && <FluxTab />}
           {activeTab === 'quota'     && <QuotaTab />}
+          {activeTab === 'fiabilite' && <FiabiliteTab />}
           {activeTab === 'env'       && <EnvTab />}
         </div>
       </div>
