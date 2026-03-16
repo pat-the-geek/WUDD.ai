@@ -627,6 +627,47 @@ def api_chat_stream():
     )
 
 
+@export_bp.route("/api/export/report", methods=["POST"])
+def api_export_report():
+    """Sauvegarde un rapport Markdown sur le filesystem local ou dans le répertoire Obsidian.
+
+    Body JSON :
+      markdown  (str)  — contenu Markdown du rapport
+      filename  (str)  — nom de fichier suggéré (sans extension)
+      target    (str)  — 'local' (rapports/markdown/_WUDD.AI_/) ou 'obsidian' (OBSIDIAN_DIR)
+
+    Retourne : { ok: bool, path: str }
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    markdown = (body.get("markdown") or "").strip()
+    filename = (body.get("filename") or "rapport").strip()
+    target   = (body.get("target") or "local").strip().lower()
+
+    if not markdown:
+        return jsonify({"error": "markdown est requis"}), 400
+
+    # Sanitiser le nom de fichier
+    filename = re.sub(r"[^\w\-]", "_", filename)[:80]
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_name = f"{filename}_{ts}.md"
+
+    if target == "obsidian":
+        obsidian_dir = os.environ.get("OBSIDIAN_DIR", "").strip()
+        if not obsidian_dir:
+            return jsonify({"error": "OBSIDIAN_DIR non configuré dans .env"}), 400
+        save_dir = Path(obsidian_dir)
+    else:
+        save_dir = PROJECT_ROOT / "rapports" / "markdown" / "_WUDD.AI_"
+
+    try:
+        save_dir.mkdir(parents=True, exist_ok=True)
+        out_path = save_dir / safe_name
+        out_path.write_text(markdown, encoding="utf-8")
+        return jsonify({"ok": True, "path": str(out_path)})
+    except OSError as e:
+        return jsonify({"error": f"Erreur écriture : {e}"}), 500
+
+
 @export_bp.route("/api/chat/save", methods=["POST"])
 def api_chat_save():
     """Sauvegarde une conversation ou une réponse IA en Markdown dans rapports/.
