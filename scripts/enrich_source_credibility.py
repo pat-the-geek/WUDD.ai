@@ -7,20 +7,35 @@ signaux automatisés :
   - Transparence éditoriale (scraping HTTP)
   - Rating MBFC          (mediabiasfactcheck.com)
 
-Il est conçu pour fonctionner en deux modes :
-  1. Mode incrémental (défaut) — enrichit uniquement les sources manquantes
-  2. Mode force (--force)     — ré-enrichit toutes les sources
+Il peut également synchroniser automatiquement les nouvelles sources depuis
+les configurations surveillées (OPML, web_sources.json, articles existants)
+avant de lancer l'enrichissement.
+
+Modes de fonctionnement :
+  1. Mode sync + incrémental (recommandé) — ajoute les nouvelles sources puis
+     enrichit celles qui manquent de données v2
+  2. Mode incrémental seul (défaut sans --sync) — enrichit uniquement les
+     sources manquantes dans la base actuelle
+  3. Mode force (--force) — ré-enrichit toutes les sources
+  4. Mode sync seul (--sync --dry-run) — affiche les nouvelles sources sans
+     rien écrire ni appeler d'API externe
 
 Migration initiale :
-  Lors du premier déploiement, lancez avec --force pour enrichir les 40 sources
-  existantes en une seule passe.
+  Lors du premier déploiement, lancez avec --sync --force pour synchroniser
+  les sources et enrichir toutes les entrées en une seule passe.
 
 Usage :
-  # Sources non encore enrichies uniquement
-  python3 scripts/enrich_source_credibility.py
+  # Synchroniser les nouvelles sources puis enrichir les manquantes
+  python3 scripts/enrich_source_credibility.py --sync
 
-  # Toutes les sources (re-calcul complet)
-  python3 scripts/enrich_source_credibility.py --force
+  # Synchronisation seule (pas d'appel HTTP externe)
+  python3 scripts/enrich_source_credibility.py --sync --dry-run
+
+  # Toutes les sources (re-calcul complet) avec synchronisation préalable
+  python3 scripts/enrich_source_credibility.py --sync --force
+
+  # Sources non encore enrichies uniquement (sans synchronisation)
+  python3 scripts/enrich_source_credibility.py
 
   # Une source spécifique
   python3 scripts/enrich_source_credibility.py --source "Le Monde"
@@ -41,12 +56,32 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.logging import default_logger
-from utils.source_enricher import run_enrichment
+from utils.source_enricher import run_enrichment, sync_new_sources
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Enrichit sources_credibility.json avec âge domaine, transparence et MBFC."
+        description=(
+            "Enrichit sources_credibility.json avec âge domaine, transparence et MBFC. "
+            "Avec --sync, synchronise d'abord les nouvelles sources depuis OPML et web_sources.json."
+        )
+    )
+    parser.add_argument(
+        "--sync",
+        action="store_true",
+        help=(
+            "Synchroniser d'abord les nouvelles sources depuis OPML, web_sources.json "
+            "et les articles existants (sans appel API externe)"
+        ),
+    )
+    parser.add_argument(
+        "--sync-only",
+        action="store_true",
+        dest="sync_only",
+        help=(
+            "Synchroniser le registre uniquement, sans lancer l'enrichissement "
+            "WHOIS/transparence/MBFC. Rapide, aucun appel HTTP externe."
+        ),
     )
     parser.add_argument(
         "--force",
@@ -69,7 +104,7 @@ def main():
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Simuler l'enrichissement sans écrire dans sources_credibility.json",
+        help="Simuler sans écrire dans sources_credibility.json",
     )
     args = parser.parse_args()
 
@@ -77,12 +112,44 @@ def main():
     default_logger.info("Enrichissement crédibilité sources — WUDD.ai v2.3")
     if args.dry_run:
         default_logger.info("MODE DRY-RUN — aucune écriture")
+    if args.sync_only:
+        default_logger.info("MODE SYNC-ONLY — registre uniquement, pas d'enrichissement HTTP")
+    if args.sync:
+        default_logger.info("MODE SYNC — synchronisation du registre activée")
     if args.force:
         default_logger.info("MODE FORCE — toutes les sources seront ré-enrichies")
     if args.source:
         default_logger.info(f"Source ciblée : {args.source}")
     default_logger.info("═" * 60)
 
+    # ── Mode sync-only : synchroniser sans enrichir ───────────────────────────
+    if args.sync_only:
+        default_logger.info("─" * 60)
+        default_logger.info("Synchronisation du registre des sources")
+        sync_stats = sync_new_sources(project_root=PROJECT_ROOT, dry_run=args.dry_run)
+        default_logger.info(
+            f"Sync terminée : {sync_stats['added']} ajoutées, "
+            f"{sync_stats['already_known']} déjà connues "
+            f"(registre total : {sync_stats['total_registry']})"
+        )
+        sys.exit(0)
+
+    # ── Étape 1 : synchronisation du registre (optionnelle) ───────────────────
+    if args.sync:
+        default_logger.info("─" * 60)
+        default_logger.info("Étape 1/2 — Synchronisation du registre des sources")
+        sync_stats = sync_new_sources(project_root=PROJECT_ROOT, dry_run=args.dry_run)
+        default_logger.info(
+            f"Sync terminée : {sync_stats['added']} ajoutées, "
+            f"{sync_stats['already_known']} déjà connues "
+            f"(registre total : {sync_stats['total_registry']})"
+        )
+        default_logger.info("─" * 60)
+        default_logger.info("Étape 2/2 — Enrichissement WHOIS / transparence / MBFC")
+    else:
+        default_logger.info("Enrichissement WHOIS / transparence / MBFC")
+
+    # ── Étape 2 : enrichissement des données v2 ───────────────────────────────
     stats = run_enrichment(
         project_root=PROJECT_ROOT,
         force=args.force,
