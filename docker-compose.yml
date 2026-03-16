@@ -19,6 +19,9 @@ services:
       # - /votre/chemin/backup-L1:/backup-L1
       # - /votre/chemin/backup-L2:/backup-L2
       - /Volumes/USB1/WUDD-Backup:/backup
+      # Obsidian — décommentez et adaptez le chemin si OBSIDIAN_DIR est défini dans .env
+      # Exemple : OBSIDIAN_DIR=/obsidian dans .env, puis décommentez la ligne ci-dessous
+      # - /votre/vault-obsidian:/obsidian
     ports:
       - "5050:5050"   # Viewer WUDD.ai → http://localhost:5050
     restart: unless-stopped

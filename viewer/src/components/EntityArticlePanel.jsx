@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm'
 import EntityGraph from './EntityGraph'
 import EntityCalendar from './EntityCalendar'
 import TTSButton from './TTSButton'
+import EntityFullReportDialog from './EntityFullReportDialog'
 
 // ── Composants Markdown ────────────────────────────────────────────────────────
 const MD = {
@@ -415,191 +416,11 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
   }, [])
 
   // ── Exports ────────────────────────────────────────────────────────────────
-  const [reportGenerating, setReportGenerating] = useState(false)
+  const [showReportDialog, setShowReportDialog] = useState(false)
 
-  const handleGenerateReport = async () => {
-    if (reportGenerating) return
-    setReportGenerating(true)
-
-    const today = new Date().toISOString().slice(0, 10)
-    const safe  = current.value.replace(/[^a-zA-Z0-9_\-]/g, '_')
-
-    // 1. Récupérer les nœuds L1 du graphe de co-occurrences
-    let l1Nodes = []
-    try {
-      const gParams = new URLSearchParams({
-        type: current.type, value: current.value, depth: 1, limit: 40, limit_l2: 0,
-      })
-      const gRes = await fetch(`/api/entities/cooccurrences?${gParams}`)
-      const gData = await gRes.json()
-      if (!gData.error && Array.isArray(gData.nodes)) {
-        l1Nodes = gData.nodes.filter(n => n.level === 1).sort((a, b) => b.count - a.count)
-      }
-    } catch (_) {}
-
-    // 2. Helper — consomme un stream SSE et retourne le texte complet (filtre <think>)
-    const fetchSseText = async (url) => {
-      let text = ''
-      let inThink = false
-      const res = await fetch(url)
-      if (!res.ok) throw new Error(`Erreur serveur ${res.status}`)
-      const reader  = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buf = ''
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buf += decoder.decode(value, { stream: true })
-        const lines = buf.split('\n')
-        buf = lines.pop()
-        for (const line of lines) {
-          let raw
-          if (line.startsWith('data: ')) raw = line.slice(6).trim()
-          else if (line.startsWith('{')) raw = line.trim()
-          else continue
-          if (!raw || raw === '[DONE]') continue
-          let chunk
-          try {
-            const parsed = JSON.parse(raw)
-            if (parsed.error) throw new Error(parsed.error)
-            chunk = parsed.choices?.[0]?.delta?.content ?? ''
-          } catch (e) { if (e.message?.startsWith('Erreur')) throw e; continue }
-          if (!chunk) continue
-          let rem = chunk
-          while (rem.length > 0) {
-            if (!inThink) {
-              const s = rem.indexOf('<think>')
-              if (s === -1) { text += rem; break }
-              text += rem.slice(0, s)
-              rem = rem.slice(s + 7)
-              inThink = true
-            } else {
-              const e = rem.indexOf('</think>')
-              if (e === -1) break
-              rem = rem.slice(e + 8)
-              inThink = false
-            }
-          }
-        }
-      }
-      return text
-    }
-
-    // 3. Générer Info si non disponible
-    let currentInfoText = infoText
-    if (!currentInfoText) {
-      try {
-        const p = new URLSearchParams({ type: current.type, value: current.value })
-        currentInfoText = await fetchSseText(`/api/entities/info?${p}`)
-        setInfoText(currentInfoText)
-        setInfoLoading(false)
-        infoStarted.current = true
-      } catch (_) { currentInfoText = '' }
-    }
-
-    // 4. Générer RAG si non disponible
-    let currentRagText = ragText
-    if (!currentRagText) {
-      try {
-        const p = new URLSearchParams({ entity_type: current.type, entity_value: current.value, n: 15 })
-        currentRagText = await fetchSseText(`/api/synthesize-topic?${p}`)
-        setRagText(currentRagText)
-        setRagLoading(false)
-        ragStarted.current = true
-      } catch (_) { currentRagText = '' }
-    }
-
-    // 5. Construire le document Markdown selon le modèle habituel
-    const CARTO_TYPES = new Set(['EVENT', 'GPE', 'LOC', 'NORP', 'ORG', 'PERSON'])
-    let md = ''
-
-    // Frontmatter iA Writer
-    md += `---\n`
-    md += `Auteur: Patrick Ostertag\n`
-    md += `Titre: Rapport — ${current.type} : ${current.value}\n`
-    md += `AuteurAdresse: patrick.ostertag@gmail.com\n`
-    md += `AuteurSite: http://patrickostertag.ch\n`
-    md += `Date: ${today}\n`
-    md += `IAEngine: WUDD.ai\n`
-    md += `---\n\n`
-
-    // Titre
-    md += `# Rapport — ${current.value}\n\n`
-
-    // Encadré de résumé
-    md += `---\n`
-    md += `Synthèse des articles et analyses pour l'entité **${current.value}** (${current.type})`
-    md += ` — ${articles.length} source${articles.length !== 1 ? 's' : ''} — *${today}*`
-    if (l1Nodes.length > 0) {
-      const top5 = l1Nodes.filter(n => CARTO_TYPES.has(n.type)).slice(0, 5).map(n => `${n.value} (${n.type})`).join(', ')
-      md += `. Principales co-occurrences L1 : ${top5}.`
-    }
-    md += `\n---\n\n`
-
-    md += `{{TOC}}\n\n===\n\n`
-
-    // Section 1 : Cartographie des acteurs (graphe L1)
-    const cartoNodes = l1Nodes.filter(n => CARTO_TYPES.has(n.type))
-    if (cartoNodes.length > 0) {
-      md += `## Cartographie des acteurs — Co-occurrences directes (L1)\n\n`
-      const byType = {}
-      for (const n of cartoNodes) {
-        if (!byType[n.type]) byType[n.type] = []
-        byType[n.type].push(n)
-      }
-      for (const type of ['PERSON', 'ORG', 'GPE', 'LOC', 'NORP', 'EVENT'].filter(t => byType[t])) {
-        const line = byType[type].map(n => n.value).join(', ')
-        md += `**${type}** — ${line}\n\n`
-      }
-    }
-
-    // Section 2 : Informations — Synthèse IA
-    if (currentInfoText) {
-      md += `## Informations — Synthèse IA\n\n`
-      md += `${currentInfoText}\n\n`
-    }
-
-    // Section 3 : Analyse comparative RAG
-    if (currentRagText) {
-      md += `## Analyse comparative — Synthèse RAG\n\n`
-      md += `${currentRagText}\n\n`
-    }
-
-    // Section 4 : Articles avec images
-    md += `## Articles — ${articles.length} source${articles.length !== 1 ? 's' : ''}\n\n`
-    for (const art of articles) {
-      const header = [art['Date de publication'], art['Sources']].filter(Boolean).join(' — ')
-      if (header) md += `### ${header}\n\n`
-      if (art['Résumé']) md += `${art['Résumé']}\n\n`
-      const imgs = art['Images'] || []
-      for (const img of imgs.slice(0, 3)) {
-        const imgUrl = img?.URL || img?.url || ''
-        const imgAlt = img?.alt || img?.title || current.value
-        if (imgUrl) md += `![${imgAlt}](${imgUrl})\n*Source : ${art['Sources'] ?? ''}*\n\n`
-      }
-      if (art['URL']) md += `[Lire l'article](${art['URL']})\n\n`
-      md += `---\n\n`
-    }
-
-    // Tableau des références
-    md += `===\n\n`
-    md += `# Tableau des références\n\n`
-    md += `| # | Date | Source | URL |\n|---|---|---|---|\n`
-    articles.forEach((art, i) => {
-      const date   = art['Date de publication'] ?? ''
-      const source = art['Sources'] ?? ''
-      const url    = art['URL'] ?? ''
-      md += `| ${i + 1} | ${date} | ${source} | [↗](${url}) |\n`
-    })
-    md += `\n---\n*Rapport préparé avec [WUDD.ai](https://github.com/pat-the-geek/WUDD.ai) et produit par [iA Writer](https://ia.net/writer) — ${today}*\n`
-
-    // Téléchargement
-    const blob = new Blob([md], { type: 'text/markdown' })
-    const url  = URL.createObjectURL(blob)
-    Object.assign(document.createElement('a'), { href: url, download: `rapport_${current.type}_${safe}_${today}.md` }).click()
-    URL.revokeObjectURL(url)
-
-    setReportGenerating(false)
+  const handleGenerateReport = () => {
+    if (!articles.length) return
+    setShowReportDialog(true)
   }
 
   const handleExportJSON = () => {
@@ -759,15 +580,13 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
             </button>
             <button
               onClick={handleGenerateReport}
-              disabled={loading || articles.length === 0 || reportGenerating}
-              title="Générer un rapport Markdown (articles + graphe L1 + infos + RAG)"
+              disabled={loading || articles.length === 0}
+              title="Générer un rapport Markdown complet (streaming, Mermaid, Export Obsidian)"
               className="inline-flex items-center gap-1 px-3 py-3 md:px-2.5 md:py-1.5 rounded-lg text-xs font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-900/70 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {reportGenerating
-                ? <><Loader2 size={18} className="md:hidden animate-spin" /><Loader2 size={12} className="hidden md:block animate-spin" /></>
-                : <><FileText size={18} className="md:hidden" /><FileText size={12} className="hidden md:block" /></>
-              }
-              <span className="hidden sm:inline">{reportGenerating ? 'Rapport…' : 'Rapport'}</span>
+              <FileText size={18} className="md:hidden" />
+              <FileText size={12} className="hidden md:block" />
+              <span className="hidden sm:inline">Rapport</span>
             </button>
             <button
               onClick={handleExportJSON}
@@ -901,6 +720,16 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
         {/* ── Poignée de redimensionnement (masquée en plein écran et sur mobile) ── */}
         {!isMaximized && !isMobileFullscreen && <ResizeHandle onMouseDown={handleResizeMouseDown} />}
       </div>
+
+      {/* ── Dialogue rapport complet ── */}
+      {showReportDialog && (
+        <EntityFullReportDialog
+          entityType={current.type}
+          entityValue={current.value}
+          articles={articles}
+          onClose={() => setShowReportDialog(false)}
+        />
+      )}
     </>
   )
 }

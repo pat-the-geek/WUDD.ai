@@ -5,6 +5,7 @@ import {
   Maximize2, Minimize2, ExternalLink, Database, Clipboard, BarChart2,
   ToggleLeft, ToggleRight, RotateCcw,
   Sun, Moon, Monitor, Terminal, TrendingUp, Eye, Lock, EyeOff, Pencil,
+  BookOpen,
 } from 'lucide-react'
 
 // ─── Helpers partagés ────────────────────────────────────────────────────────
@@ -1632,6 +1633,11 @@ function EnvTab() {
   const [backupL2, setBackupL2]   = useState('')
   const [backupSaving, setBackupSaving] = useState({ l1: false, l2: false })
 
+  // Répertoire Obsidian
+  const [obsidianDir, setObsidianDir]       = useState('')
+  const [obsidianCheck, setObsidianCheck]   = useState(null) // null | 'checking' | {ok, message}
+  const [obsidianSaving, setObsidianSaving] = useState(false)
+
   const load = useCallback(() => {
     setLoading(true)
     fetch('/api/env')
@@ -1678,13 +1684,15 @@ function EnvTab() {
     setNewKey(''); setNewVal('')
   }
 
-  // Initialise les champs backup depuis les variables .env
+  // Initialise les champs backup + obsidian depuis les variables .env
   useEffect(() => {
     const v = entries.filter(e => e.type === 'var')
-    const l1 = v.find(e => e.key === 'BACKUP_L1')?.value || ''
-    const l2 = v.find(e => e.key === 'BACKUP_L2')?.value || ''
-    if (l1 !== '***') setBackupL1(l1)
-    if (l2 !== '***') setBackupL2(l2)
+    const l1  = v.find(e => e.key === 'BACKUP_L1')?.value || ''
+    const l2  = v.find(e => e.key === 'BACKUP_L2')?.value || ''
+    const obs = v.find(e => e.key === 'OBSIDIAN_DIR')?.value || ''
+    if (l1  !== '***') setBackupL1(l1)
+    if (l2  !== '***') setBackupL2(l2)
+    if (obs !== '***') setObsidianDir(obs)
   }, [entries])
 
   const checkAI = async (provider) => {
@@ -2020,6 +2028,85 @@ function EnvTab() {
             </div>
           )
         })}
+      </div>
+
+      {/* ── Section Obsidian ─────────────────────────────────────────────── */}
+      <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 shrink-0 bg-violet-50/30 dark:bg-violet-900/10">
+        <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
+          <BookOpen size={11} /> Export Obsidian
+        </p>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">
+          Répertoire cible pour l'export des rapports vers Obsidian (<code className="text-xs bg-slate-100 dark:bg-slate-700 px-1 rounded">OBSIDIAN_DIR</code>).
+          En Docker, montez ce chemin comme volume supplémentaire.
+        </p>
+        <div className="mb-1">
+          <label className="text-[11px] text-slate-600 dark:text-slate-400 font-medium block mb-1">
+            Répertoire Obsidian
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={obsidianDir}
+              onChange={e => { setObsidianDir(e.target.value); setObsidianCheck(null) }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  setObsidianSaving(true)
+                  saveVar('OBSIDIAN_DIR', obsidianDir).finally(() => setObsidianSaving(false))
+                }
+              }}
+              placeholder="/chemin/absolu/vers/vault-obsidian"
+              className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-violet-400"
+            />
+            <button
+              onClick={async () => {
+                if (!obsidianDir.trim()) return
+                setObsidianCheck('checking')
+                try {
+                  const r = await fetch('/api/backup/check-dir', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: obsidianDir.trim() }),
+                  })
+                  setObsidianCheck(await r.json())
+                } catch (e) {
+                  setObsidianCheck({ ok: false, message: String(e) })
+                }
+              }}
+              disabled={!obsidianDir.trim() || obsidianCheck === 'checking'}
+              title="Vérifier l'accessibilité du répertoire"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-violet-400 hover:text-violet-600 dark:hover:text-violet-400 disabled:opacity-40 transition-colors"
+            >
+              {obsidianCheck === 'checking'
+                ? <RefreshCw size={11} className="animate-spin" />
+                : <Check size={11} />
+              }
+              Check
+            </button>
+            <button
+              onClick={async () => {
+                if (!obsidianDir.trim()) return
+                setObsidianSaving(true)
+                await saveVar('OBSIDIAN_DIR', obsidianDir)
+                setObsidianSaving(false)
+              }}
+              disabled={!obsidianDir.trim() || obsidianSaving}
+              title="Sauvegarder dans .env"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-40 transition-colors"
+            >
+              {obsidianSaving ? <RefreshCw size={11} className="animate-spin" /> : <Save size={11} />}
+            </button>
+          </div>
+          {obsidianCheck && obsidianCheck !== 'checking' && (
+            <p className={`text-[11px] mt-1 flex items-center gap-1 ${obsidianCheck.ok ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+              {obsidianCheck.ok ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
+              {obsidianCheck.message}
+            </p>
+          )}
+        </div>
+        <p className="text-[10px] text-violet-600 dark:text-violet-400 mt-2 flex items-start gap-1">
+          <BookOpen size={10} className="mt-0.5 shrink-0" />
+          En Docker : ajoutez <code className="bg-violet-100 dark:bg-violet-900/50 px-1 rounded">- /votre/vault:/obsidian</code> dans <code className="bg-violet-100 dark:bg-violet-900/50 px-1 rounded">docker-compose.yml</code>, puis définissez <code className="bg-violet-100 dark:bg-violet-900/50 px-1 rounded">OBSIDIAN_DIR=/obsidian</code>.
+        </p>
       </div>
 
       {/* Footer */}

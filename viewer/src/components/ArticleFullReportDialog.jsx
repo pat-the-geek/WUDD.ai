@@ -13,7 +13,7 @@ import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { createPortal } from 'react-dom'
 import {
   X, Maximize2, Minimize2, Copy, Download, Printer,
-  RefreshCw, FileText, Check, Terminal,
+  RefreshCw, FileText, Check, Terminal, BookOpen, Loader2,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -161,6 +161,7 @@ export default function ArticleFullReportDialog({ article, onClose }) {
   const [isLoading, setIsLoading]       = useState(true)
   const [error, setError]               = useState(null)
   const [copied, setCopied]             = useState(false)
+  const [exportState, setExportState]   = useState({ local: null, obsidian: null })
   // frozenMd : snapshot du markdown au moment où le stream se termine.
   // La FinalReportView est montée avec ce snapshot et ne change plus jamais.
   const [frozenMd,  setFrozenMd]        = useState(null)
@@ -420,6 +421,28 @@ ${contentEl.innerHTML}
     a.click()
   }
 
+  const handleExport = async (target) => {
+    setExportState(prev => ({ ...prev, [target]: 'saving' }))
+    const filename = `rapport_${sources || 'article'}_${date || new Date().toISOString().slice(0, 10)}`
+      .replace(/[/\\: ]/g, '-')
+    try {
+      const r = await fetch('/api/export/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markdown: cleanMd, filename, target }),
+      })
+      const d = await r.json()
+      if (d.ok) {
+        setExportState(prev => ({ ...prev, [target]: { ok: true, path: d.path } }))
+      } else {
+        setExportState(prev => ({ ...prev, [target]: { ok: false, error: d.error } }))
+      }
+    } catch (e) {
+      setExportState(prev => ({ ...prev, [target]: { ok: false, error: String(e) } }))
+    }
+    setTimeout(() => setExportState(prev => ({ ...prev, [target]: null })), 4000)
+  }
+
   // ── Shared button class ───────────────────────────────────────────────────────
   const btnCls = 'p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors'
 
@@ -569,16 +592,60 @@ ${contentEl.innerHTML}
               {[sources, date, sentiment].filter(Boolean).join(' · ')}
             </p>
           </div>
-          <div className="flex items-center gap-0.5 shrink-0">
+          <div className="flex items-center gap-0.5 shrink-0 flex-wrap justify-end">
             {!isLoading && cleanMd && (
-              <button
-                onClick={handleOpenChatbot}
-                className="flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors"
-                title="Ouvrir le Terminal IA avec ce rapport en contexte"
-              >
-                <Terminal size={12} />
-                Terminal IA
-              </button>
+              <>
+                <button
+                  onClick={handleOpenChatbot}
+                  className="flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors"
+                  title="Ouvrir le Terminal IA avec ce rapport en contexte"
+                >
+                  <Terminal size={12} />
+                  Terminal IA
+                </button>
+                {/* Export local */}
+                <div className="relative group mr-0.5">
+                  <button
+                    onClick={() => handleExport('local')}
+                    disabled={exportState.local === 'saving'}
+                    title={exportState.local?.ok ? `Enregistré : ${exportState.local.path}` : exportState.local?.error ? `Erreur : ${exportState.local.error}` : 'Sauvegarder dans rapports/'}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 ${
+                      exportState.local?.ok    ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300' :
+                      exportState.local?.error ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400' :
+                      'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-slate-400'
+                    }`}
+                  >
+                    {exportState.local === 'saving' ? <Loader2 size={12} className="animate-spin" /> : exportState.local?.ok ? <Check size={12} /> : <Download size={12} />}
+                    Export
+                  </button>
+                  {(exportState.local?.ok || exportState.local?.error) && (
+                    <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[10px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
+                      {exportState.local?.ok ? exportState.local.path : exportState.local?.error}
+                    </div>
+                  )}
+                </div>
+                {/* Export Obsidian */}
+                <div className="relative group mr-0.5">
+                  <button
+                    onClick={() => handleExport('obsidian')}
+                    disabled={exportState.obsidian === 'saving'}
+                    title={exportState.obsidian?.ok ? `Enregistré : ${exportState.obsidian.path}` : exportState.obsidian?.error ? `Erreur : ${exportState.obsidian.error}` : 'Exporter vers Obsidian (OBSIDIAN_DIR)'}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 ${
+                      exportState.obsidian?.ok    ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300' :
+                      exportState.obsidian?.error ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400' :
+                      'bg-violet-50 dark:bg-violet-900/30 border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/50'
+                    }`}
+                  >
+                    {exportState.obsidian === 'saving' ? <Loader2 size={12} className="animate-spin" /> : exportState.obsidian?.ok ? <Check size={12} /> : <BookOpen size={12} />}
+                    Export Obsidian
+                  </button>
+                  {(exportState.obsidian?.ok || exportState.obsidian?.error) && (
+                    <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[10px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
+                      {exportState.obsidian?.ok ? exportState.obsidian.path : exportState.obsidian?.error}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
             <button onClick={handleCopy} className={btnCls} title="Copier le Markdown">
               {copied
