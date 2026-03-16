@@ -38,6 +38,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 5. Copie du viewer (backend Flask + frontend React compilé)
 COPY viewer/app.py viewer/app.py
+COPY viewer/helpers.py viewer/helpers.py
+COPY viewer/state.py viewer/state.py
+COPY viewer/routes/ viewer/routes/
 COPY viewer/requirements.txt viewer/requirements.txt
 COPY --from=react-builder /viewer/dist viewer/dist
 
