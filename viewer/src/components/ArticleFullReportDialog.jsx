@@ -153,6 +153,27 @@ const CHIP_STYLE = {
 }
 const FALLBACK_CHIP = 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600'
 
+// ── Frontmatter Obsidian ──────────────────────────────────────────────────────
+function buildObsidianFrontmatter(title, tags) {
+  const date      = new Date().toISOString().slice(0, 10)
+  const dedupTags = [...new Set(
+    tags.filter(t => t && typeof t === 'string' && t.trim().length > 0)
+  )].slice(0, 30)
+  const tagLines  = dedupTags
+    .map(t => `  - "${t.trim().replace(/"/g, "'")}"`)
+    .join('\n')
+  return (
+    `---\n` +
+    `title: "${title.replace(/"/g, "'")}"\n` +
+    `date: ${date}\n` +
+    `version: "1.0"\n` +
+    `tags:\n${tagLines || '  - rapport'}\n` +
+    `type: Rapport\n` +
+    `statut: generated\n` +
+    `---\n\n`
+  )
+}
+
 // ── Composant principal ───────────────────────────────────────────────────────
 
 export default function ArticleFullReportDialog({ article, onClose }) {
@@ -425,11 +446,25 @@ ${contentEl.innerHTML}
     setExportState(prev => ({ ...prev, [target]: 'saving' }))
     const filename = `rapport_${sources || 'article'}_${date || new Date().toISOString().slice(0, 10)}`
       .replace(/[/\\: ]/g, '-')
+
+    // Pour l'export Obsidian : remplacer le frontmatter existant par un frontmatter Obsidian
+    let markdown = cleanMd
+    if (target === 'obsidian') {
+      // Collecter toutes les entités nommées de l'article comme tags
+      const entityTags = Object.values(entities)
+        .flat()
+        .filter(v => v && typeof v === 'string' && v.trim())
+      const tags  = [sources, ...entityTags].filter(Boolean)
+      const front = buildObsidianFrontmatter(titre, tags)
+      // Supprimer le frontmatter existant (bloc --- … ---) s'il est présent
+      markdown = front + cleanMd.replace(/^---[\s\S]*?---\n\n?/, '')
+    }
+
     try {
       const r = await fetch('/api/export/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markdown: cleanMd, filename, target }),
+        body: JSON.stringify({ markdown, filename, target }),
       })
       const d = await r.json()
       if (d.ok) {
