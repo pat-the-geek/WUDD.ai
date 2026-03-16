@@ -1,164 +1,355 @@
 {
   "_comment": "Base de crédibilité des sources — WUDD.ai v2.3. Score 0-100 : fiabilité éditoriale, indépendance, fact-checking. Mise à jour : 2026-03.",
-
   "Reuters": {
-    "score": 97, "biais": "centre", "type": "agence de presse", "pays": "Royaume-Uni",
-    "fiabilite": "très élevée", "fact_checking": true
+    "score": 97,
+    "biais": "centre",
+    "type": "agence de presse",
+    "pays": "Royaume-Uni",
+    "fiabilite": "très élevée",
+    "fact_checking": true
   },
   "AFP": {
-    "score": 96, "biais": "centre", "type": "agence de presse", "pays": "France",
-    "fiabilite": "très élevée", "fact_checking": true
+    "score": 96,
+    "biais": "centre",
+    "type": "agence de presse",
+    "pays": "France",
+    "fiabilite": "très élevée",
+    "fact_checking": true
   },
   "Associated Press": {
-    "score": 96, "biais": "centre", "type": "agence de presse", "pays": "États-Unis",
-    "fiabilite": "très élevée", "fact_checking": true
+    "score": 96,
+    "biais": "centre",
+    "type": "agence de presse",
+    "pays": "États-Unis",
+    "fiabilite": "très élevée",
+    "fact_checking": true
   },
   "Le Monde": {
-    "score": 92, "biais": "centre-gauche", "type": "presse écrite", "pays": "France",
-    "fiabilite": "très élevée", "fact_checking": true
+    "score": 92,
+    "biais": "centre-gauche",
+    "type": "presse écrite",
+    "pays": "France",
+    "fiabilite": "très élevée",
+    "fact_checking": true
   },
   "Le Figaro": {
-    "score": 88, "biais": "centre-droite", "type": "presse écrite", "pays": "France",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 88,
+    "biais": "centre-droite",
+    "type": "presse écrite",
+    "pays": "France",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "Libération": {
-    "score": 84, "biais": "gauche", "type": "presse écrite", "pays": "France",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 84,
+    "biais": "gauche",
+    "type": "presse écrite",
+    "pays": "France",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "L'Obs": {
-    "score": 82, "biais": "gauche", "type": "presse écrite", "pays": "France",
-    "fiabilite": "élevée", "fact_checking": false
+    "score": 82,
+    "biais": "gauche",
+    "type": "presse écrite",
+    "pays": "France",
+    "fiabilite": "élevée",
+    "fact_checking": false
   },
   "Le Point": {
-    "score": 83, "biais": "centre-droite", "type": "presse hebdomadaire", "pays": "France",
-    "fiabilite": "élevée", "fact_checking": false
+    "score": 83,
+    "biais": "centre-droite",
+    "type": "presse hebdomadaire",
+    "pays": "France",
+    "fiabilite": "élevée",
+    "fact_checking": false
   },
   "L'Express": {
-    "score": 82, "biais": "centre", "type": "presse hebdomadaire", "pays": "France",
-    "fiabilite": "élevée", "fact_checking": false
+    "score": 82,
+    "biais": "centre",
+    "type": "presse hebdomadaire",
+    "pays": "France",
+    "fiabilite": "élevée",
+    "fact_checking": false
   },
   "Les Échos": {
-    "score": 90, "biais": "centre-droite", "type": "presse économique", "pays": "France",
-    "fiabilite": "très élevée", "fact_checking": true
+    "score": 90,
+    "biais": "centre-droite",
+    "type": "presse économique",
+    "pays": "France",
+    "fiabilite": "très élevée",
+    "fact_checking": true
   },
   "Le Parisien": {
-    "score": 78, "biais": "centre", "type": "presse régionale", "pays": "France",
-    "fiabilite": "bonne", "fact_checking": false
+    "score": 78,
+    "biais": "centre",
+    "type": "presse régionale",
+    "pays": "France",
+    "fiabilite": "bonne",
+    "fact_checking": false
   },
   "20 Minutes": {
-    "score": 72, "biais": "centre", "type": "presse gratuite", "pays": "France",
-    "fiabilite": "bonne", "fact_checking": false
+    "score": 72,
+    "biais": "centre",
+    "type": "presse gratuite",
+    "pays": "France",
+    "fiabilite": "bonne",
+    "fact_checking": false
   },
   "franceinfo": {
-    "score": 87, "biais": "centre", "type": "média public", "pays": "France",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 87,
+    "biais": "centre",
+    "type": "média public",
+    "pays": "France",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "France 24": {
-    "score": 86, "biais": "centre", "type": "média public", "pays": "France",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 86,
+    "biais": "centre",
+    "type": "média public",
+    "pays": "France",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "RFI": {
-    "score": 85, "biais": "centre", "type": "radio publique", "pays": "France",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 85,
+    "biais": "centre",
+    "type": "radio publique",
+    "pays": "France",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "BFM TV": {
-    "score": 68, "biais": "centre", "type": "chaîne info en continu", "pays": "France",
-    "fiabilite": "moyenne", "fact_checking": false
+    "score": 68,
+    "biais": "centre",
+    "type": "chaîne info en continu",
+    "pays": "France",
+    "fiabilite": "moyenne",
+    "fact_checking": false
   },
   "CNews": {
-    "score": 55, "biais": "droite", "type": "chaîne info en continu", "pays": "France",
-    "fiabilite": "variable", "fact_checking": false
+    "score": 55,
+    "biais": "droite",
+    "type": "chaîne info en continu",
+    "pays": "France",
+    "fiabilite": "variable",
+    "fact_checking": false
   },
   "LCI": {
-    "score": 72, "biais": "centre", "type": "chaîne info en continu", "pays": "France",
-    "fiabilite": "bonne", "fact_checking": false
+    "score": 72,
+    "biais": "centre",
+    "type": "chaîne info en continu",
+    "pays": "France",
+    "fiabilite": "bonne",
+    "fact_checking": false
   },
   "RTL": {
-    "score": 76, "biais": "centre", "type": "radio", "pays": "France",
-    "fiabilite": "bonne", "fact_checking": false
+    "score": 76,
+    "biais": "centre",
+    "type": "radio",
+    "pays": "France",
+    "fiabilite": "bonne",
+    "fact_checking": false
   },
   "Europe 1": {
-    "score": 70, "biais": "centre-droite", "type": "radio", "pays": "France",
-    "fiabilite": "bonne", "fact_checking": false
+    "score": 70,
+    "biais": "centre-droite",
+    "type": "radio",
+    "pays": "France",
+    "fiabilite": "bonne",
+    "fact_checking": false
   },
   "France Inter": {
-    "score": 84, "biais": "centre-gauche", "type": "radio publique", "pays": "France",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 84,
+    "biais": "centre-gauche",
+    "type": "radio publique",
+    "pays": "France",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "Médiapart": {
-    "score": 80, "biais": "gauche", "type": "presse en ligne", "pays": "France",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 80,
+    "biais": "gauche",
+    "type": "presse en ligne",
+    "pays": "France",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "Courrier International": {
-    "score": 85, "biais": "centre", "type": "presse écrite", "pays": "France",
-    "fiabilite": "élevée", "fact_checking": false
+    "score": 85,
+    "biais": "centre",
+    "type": "presse écrite",
+    "pays": "France",
+    "fiabilite": "élevée",
+    "fact_checking": false
   },
   "The Guardian": {
-    "score": 88, "biais": "centre-gauche", "type": "presse écrite", "pays": "Royaume-Uni",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 88,
+    "biais": "centre-gauche",
+    "type": "presse écrite",
+    "pays": "Royaume-Uni",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "BBC": {
-    "score": 90, "biais": "centre", "type": "média public", "pays": "Royaume-Uni",
-    "fiabilite": "très élevée", "fact_checking": true
+    "score": 90,
+    "biais": "centre",
+    "type": "média public",
+    "pays": "Royaume-Uni",
+    "fiabilite": "très élevée",
+    "fact_checking": true
   },
   "Financial Times": {
-    "score": 91, "biais": "centre-droite", "type": "presse économique", "pays": "Royaume-Uni",
-    "fiabilite": "très élevée", "fact_checking": true
+    "score": 91,
+    "biais": "centre-droite",
+    "type": "presse économique",
+    "pays": "Royaume-Uni",
+    "fiabilite": "très élevée",
+    "fact_checking": true
   },
   "The Economist": {
-    "score": 89, "biais": "centre-droite", "type": "presse hebdomadaire", "pays": "Royaume-Uni",
-    "fiabilite": "très élevée", "fact_checking": true
+    "score": 89,
+    "biais": "centre-droite",
+    "type": "presse hebdomadaire",
+    "pays": "Royaume-Uni",
+    "fiabilite": "très élevée",
+    "fact_checking": true
   },
   "Deutsche Welle": {
-    "score": 86, "biais": "centre", "type": "média public", "pays": "Allemagne",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 86,
+    "biais": "centre",
+    "type": "média public",
+    "pays": "Allemagne",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "Der Spiegel": {
-    "score": 85, "biais": "centre-gauche", "type": "presse hebdomadaire", "pays": "Allemagne",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 85,
+    "biais": "centre-gauche",
+    "type": "presse hebdomadaire",
+    "pays": "Allemagne",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "The New York Times": {
-    "score": 89, "biais": "centre-gauche", "type": "presse écrite", "pays": "États-Unis",
-    "fiabilite": "très élevée", "fact_checking": true
+    "score": 89,
+    "biais": "centre-gauche",
+    "type": "presse écrite",
+    "pays": "États-Unis",
+    "fiabilite": "très élevée",
+    "fact_checking": true
   },
   "The Washington Post": {
-    "score": 88, "biais": "centre-gauche", "type": "presse écrite", "pays": "États-Unis",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 88,
+    "biais": "centre-gauche",
+    "type": "presse écrite",
+    "pays": "États-Unis",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "Bloomberg": {
-    "score": 90, "biais": "centre", "type": "presse économique", "pays": "États-Unis",
-    "fiabilite": "très élevée", "fact_checking": true
+    "score": 90,
+    "biais": "centre",
+    "type": "presse économique",
+    "pays": "États-Unis",
+    "fiabilite": "très élevée",
+    "fact_checking": true
   },
   "Al Jazeera": {
-    "score": 74, "biais": "centre", "type": "chaîne info internationale", "pays": "Qatar",
-    "fiabilite": "bonne", "fact_checking": false
+    "score": 74,
+    "biais": "centre",
+    "type": "chaîne info internationale",
+    "pays": "Qatar",
+    "fiabilite": "bonne",
+    "fact_checking": false
   },
   "Le Devoir": {
-    "score": 84, "biais": "centre-gauche", "type": "presse écrite", "pays": "Canada",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 84,
+    "biais": "centre-gauche",
+    "type": "presse écrite",
+    "pays": "Canada",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "RTS": {
-    "score": 85, "biais": "centre", "type": "média public", "pays": "Suisse",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 85,
+    "biais": "centre",
+    "type": "média public",
+    "pays": "Suisse",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "Le Temps": {
-    "score": 87, "biais": "centre", "type": "presse écrite", "pays": "Suisse",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 87,
+    "biais": "centre",
+    "type": "presse écrite",
+    "pays": "Suisse",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "RTBF": {
-    "score": 83, "biais": "centre", "type": "média public", "pays": "Belgique",
-    "fiabilite": "élevée", "fact_checking": true
+    "score": 83,
+    "biais": "centre",
+    "type": "média public",
+    "pays": "Belgique",
+    "fiabilite": "élevée",
+    "fact_checking": true
   },
   "Numerama": {
-    "score": 79, "biais": "centre", "type": "presse numérique", "pays": "France",
-    "fiabilite": "bonne", "fact_checking": false
+    "score": 79,
+    "biais": "centre",
+    "type": "presse numérique",
+    "pays": "France",
+    "fiabilite": "bonne",
+    "fact_checking": false
   },
   "01net": {
-    "score": 75, "biais": "centre", "type": "presse technologique", "pays": "France",
-    "fiabilite": "bonne", "fact_checking": false
+    "score": 75,
+    "biais": "centre",
+    "type": "presse technologique",
+    "pays": "France",
+    "fiabilite": "bonne",
+    "fact_checking": false
   },
   "ZDNet": {
-    "score": 78, "biais": "centre", "type": "presse technologique", "pays": "États-Unis",
-    "fiabilite": "bonne", "fact_checking": false
+    "score": 78,
+    "biais": "centre",
+    "type": "presse technologique",
+    "pays": "États-Unis",
+    "fiabilite": "bonne",
+    "fact_checking": false
+  },
+  "Anthropic Newsroom": {
+    "score": 50,
+    "biais": "inconnu",
+    "type": "inconnu",
+    "pays": "inconnu",
+    "fiabilite": "non évaluée",
+    "fact_checking": false
+  },
+  "Louvre — Vie du musée": {
+    "score": 50,
+    "biais": "inconnu",
+    "type": "inconnu",
+    "pays": "inconnu",
+    "fiabilite": "non évaluée",
+    "fact_checking": false
+  },
+  "MoMA PS1 — Programs": {
+    "score": 50,
+    "biais": "inconnu",
+    "type": "inconnu",
+    "pays": "inconnu",
+    "fiabilite": "non évaluée",
+    "fact_checking": false
+  },
+  "Nature News & Comment": {
+    "score": 50,
+    "biais": "inconnu",
+    "type": "inconnu",
+    "pays": "inconnu",
+    "fiabilite": "non évaluée",
+    "fact_checking": false
   }
 }
