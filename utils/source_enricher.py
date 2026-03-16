@@ -336,6 +336,80 @@ def run_enrichment(
     return stats
 
 
+def sync_new_sources(
+    project_root: Path,
+    dry_run: bool = False,
+) -> dict:
+    """Synchronise sources_credibility.json avec les sources surveillées.
+
+    Collecte toutes les sources actives (OPML + web_sources.json + articles
+    existants) via ``utils.source_registry``, puis ajoute à
+    sources_credibility.json celles qui n'y figurent pas encore avec un score
+    par défaut de 50 (neutre — ni bonus ni malus sur le classement).
+
+    Cette fonction est conçue pour être appelée avant ``run_enrichment()`` :
+    elle ne fait aucune requête HTTP et s'exécute en quelques secondes.
+
+    Args:
+        project_root : racine du projet
+        dry_run      : afficher les nouvelles sources sans écrire
+
+    Returns:
+        {"added": N, "already_known": N, "total_registry": N}
+    """
+    import json as _json
+    from .source_registry import collect_sources
+
+    db_path = project_root / "config" / "sources_credibility.json"
+    if not db_path.exists():
+        default_logger.error(f"sources_credibility.json introuvable : {db_path}")
+        return {"added": 0, "already_known": 0, "total_registry": 0}
+
+    db = _json.loads(db_path.read_text(encoding="utf-8"))
+    registry = collect_sources(project_root)
+
+    stats = {"added": 0, "already_known": 0, "total_registry": len(registry)}
+
+    # Index normalisé des sources déjà présentes (insensible à la casse/accents)
+    known_normalized = {_normalize(k): k for k in db if k != "_comment"}
+
+    for source_name in sorted(registry):
+        if _normalize(source_name) in known_normalized:
+            stats["already_known"] += 1
+            continue
+
+        # Nouvelle source — entrée minimale, score neutre
+        default_entry = {
+            "score": 50,
+            "biais": "inconnu",
+            "type": "inconnu",
+            "pays": "inconnu",
+            "fiabilite": "non évaluée",
+            "fact_checking": False,
+        }
+        default_logger.info(f"  [sync] Nouvelle source : {source_name}")
+        if not dry_run:
+            db[source_name] = default_entry
+        stats["added"] += 1
+
+    if not dry_run and stats["added"] > 0:
+        db_path.write_text(
+            _json.dumps(db, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        default_logger.info(
+            f"[sync] sources_credibility.json : "
+            f"{stats['added']} ajoutées, {stats['already_known']} déjà connues "
+            f"(registre : {stats['total_registry']})"
+        )
+    elif stats["added"] == 0:
+        default_logger.info(
+            f"[sync] Aucune nouvelle source — {stats['already_known']} déjà connues"
+        )
+
+    return stats
+
+
 def _build_domain_hints(project_root: Path) -> dict:
     """Construit un index source normalisée → domaine depuis les articles existants."""
     import json
