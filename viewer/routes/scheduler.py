@@ -130,6 +130,22 @@ def api_scheduler():
             "data_dir": None,
             "log_file": PROJECT_ROOT / "rapports" / "cron_repair.log",
         },
+        {
+            "name": "Réparation enrichissements NER/sentiment en échec",
+            "script": "repair_failed_enrichments.py --type all",
+            "cron": "30 4 * * 0",
+            "category": "Enrichissement nocturne",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_repair_enrichments.log",
+        },
+        {
+            "name": "Crédibilité sources (WHOIS + transparence + MBFC)",
+            "script": "enrich_source_credibility.py",
+            "cron": "30 4 1 * *",
+            "category": "Enrichissement nocturne",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_enrich_credibility.log",
+        },
         # ── Rapports & digests ───────────────────────────────────────────────────
         {
             "name": "Collecte multi-flux",

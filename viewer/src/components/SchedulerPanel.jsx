@@ -1,5 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
-import { X, Clock, Calendar, RefreshCw, CheckCircle2, AlertCircle, HelpCircle } from 'lucide-react'
+import { X, Clock, Calendar, RefreshCw, CheckCircle2, HelpCircle } from 'lucide-react'
+
+const CRON_CATEGORIES = [
+  { id: "Surveillance en continu", label: "Surveillance en continu",   desc: "Tâches fréquentes : chaque 5 min, 10 min ou toutes les 2h" },
+  { id: "Enrichissement nocturne", label: "Enrichissement nocturne",   desc: "Pipeline 01h–04h30 : backup, NER, images, sentiment, réparation, crédibilité sources" },
+  { id: "Rapports & digests",      label: "Rapports & digests",        desc: "Digests quotidiens, briefing hebdomadaire et collecte multi-flux" },
+  { id: "Pipeline mensuel",        label: "Pipeline mensuel",          desc: "Radar, Markdown et rapports générés le dernier jour du mois" },
+]
 
 function formatDateTime(isoStr) {
   if (!isoStr) return null
@@ -71,8 +78,9 @@ export default function SchedulerPanel({ onClose }) {
     .filter(t => t.next_run && new Date(t.next_run) > Date.now())
     .sort((a, b) => new Date(a.next_run) - new Date(b.next_run))[0]
 
-  // Séparer les tâches système des tâches par flux
-  const systemTasks = data?.tasks.filter(t => !t.flux) ?? []
+  const tasksByCategory = Object.fromEntries(
+    CRON_CATEGORIES.map(c => [c.id, data?.tasks.filter(t => !t.flux && t.category === c.id) ?? []])
+  )
   const fluxTasks = data?.tasks.filter(t => t.flux) ?? []
 
   return (
@@ -119,7 +127,7 @@ export default function SchedulerPanel({ onClose }) {
           </div>
         )}
 
-        {/* ── Tableau ── */}
+        {/* ── Tableau par catégories ── */}
         <div className="flex-1 overflow-auto">
           {loading ? (
             <div className="flex items-center justify-center h-40 gap-3 text-slate-500">
@@ -132,11 +140,19 @@ export default function SchedulerPanel({ onClose }) {
             </div>
           ) : (
             <>
-              {/* Tâches système */}
-              <TaskSection title="Tâches système (cron)" tasks={systemTasks} />
-              {/* Tâches par flux */}
+              {CRON_CATEGORIES.map(cat => {
+                const tasks = tasksByCategory[cat.id] ?? []
+                if (!tasks.length) return null
+                return (
+                  <TaskSection key={cat.id} title={cat.label} desc={cat.desc} tasks={tasks} />
+                )
+              })}
               {fluxTasks.length > 0 && (
-                <TaskSection title="Tâches par flux" tasks={fluxTasks} />
+                <TaskSection
+                  title="Tâches par flux"
+                  desc="Collecte IA planifiée par flux JSON source"
+                  tasks={fluxTasks}
+                />
               )}
             </>
           )}
@@ -144,10 +160,15 @@ export default function SchedulerPanel({ onClose }) {
 
         {/* ── Pied ── */}
         {data && (
-          <div className="px-5 py-2 bg-slate-900/50 border-t border-slate-700 text-xs text-slate-600 shrink-0">
-            {data.tasks.length} tâche{data.tasks.length !== 1 ? 's' : ''} planifiée{data.tasks.length !== 1 ? 's' : ''}
-            {' · '}
-            Actualisé à {new Date(data.now).toLocaleTimeString('fr-FR')}
+          <div className="px-5 py-2 bg-slate-900/50 border-t border-slate-700 text-xs text-slate-600 shrink-0 flex items-center gap-2">
+            <span>
+              {data.tasks.length} tâche{data.tasks.length !== 1 ? 's' : ''} planifiée{data.tasks.length !== 1 ? 's' : ''}
+              {' · '}
+              Actualisé à {new Date(data.now).toLocaleTimeString('fr-FR')}
+            </span>
+            <button onClick={load} className="text-slate-600 hover:text-slate-400 transition-colors" title="Actualiser">
+              <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
+            </button>
           </div>
         )}
       </div>
@@ -155,12 +176,14 @@ export default function SchedulerPanel({ onClose }) {
   )
 }
 
-function TaskSection({ title, tasks }) {
+function TaskSection({ title, desc, tasks }) {
   if (!tasks.length) return null
   return (
     <div>
-      <div className="sticky top-0 bg-slate-900 px-5 py-2 border-b border-slate-700 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-        {title}
+      <div className="sticky top-0 bg-slate-900 px-5 py-2 border-b border-slate-700 flex items-baseline gap-3">
+        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{title}</span>
+        {desc && <span className="text-[10px] text-slate-600 normal-case tracking-normal">{desc}</span>}
+        <span className="ml-auto text-[10px] text-slate-600">{tasks.length} tâche{tasks.length !== 1 ? 's' : ''}</span>
       </div>
       <table className="w-full text-sm">
         <thead>

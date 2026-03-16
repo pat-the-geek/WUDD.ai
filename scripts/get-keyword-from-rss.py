@@ -258,7 +258,7 @@ for feed_idx, (feed_url, feed_title) in enumerate(feeds, 1):
                     "URL": link,
                     "Résumé": resume,
                     "Images": images,
-                    "score_source": _credibility.get_score(feed_title),
+                    "score_source": round(_credibility.get_composite_score(feed_title)),
                 }
                 if entities:
                     article["entities"] = entities

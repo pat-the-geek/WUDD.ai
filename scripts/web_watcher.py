@@ -437,7 +437,7 @@ def _process_article(
         "URL": url,
         "Résumé": resume,
         "Images": page["images"],
-        "score_source": _credibility.get_score(title_src),
+        "score_source": round(_credibility.get_composite_score(title_src)),
     }
     if entities:
         article["entities"] = entities
