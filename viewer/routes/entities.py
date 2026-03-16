@@ -316,22 +316,29 @@ def api_entities_articles():
 
     seen_urls: set = set()
     results = []
+    index_found_results = False
 
     try:
         eidx = get_entity_index(PROJECT_ROOT)
         articles_from_idx = eidx.load_articles(entity_type, entity_value)
-        for article in articles_from_idx:
-            url = (article.get("URL") or "").strip()
-            resume_key = article.get("Résumé", "")[:150].strip()
-            if (url and url in seen_urls) or (resume_key and resume_key in seen_urls):
-                continue
-            if url:
-                seen_urls.add(url)
-            if resume_key:
-                seen_urls.add(resume_key)
-            results.append(article)
+        if articles_from_idx:
+            index_found_results = True
+            for article in articles_from_idx:
+                url = (article.get("URL") or "").strip()
+                resume_key = article.get("Résumé", "")[:150].strip()
+                if (url and url in seen_urls) or (resume_key and resume_key in seen_urls):
+                    continue
+                if url:
+                    seen_urls.add(url)
+                if resume_key:
+                    seen_urls.add(resume_key)
+                results.append(article)
     except Exception:
-        # Fallback rglob
+        pass
+
+    if not index_found_results:
+        # Fallback rglob : index indisponible, version incompatible, entité non indexée
+        # (types DATE/MONEY/…), ou index non encore reconstruit après ajout d'articles.
         for data_dir in [PROJECT_ROOT / "data" / "articles", PROJECT_ROOT / "data" / "articles-from-rss"]:
             if not data_dir.exists():
                 continue

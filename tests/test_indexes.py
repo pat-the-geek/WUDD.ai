@@ -263,6 +263,58 @@ class TestEntityIndex:
         idx2 = EntityIndex(tmp_root)
         assert idx2.count_entities() == n1
 
+    def test_migration_v1_vers_v2_automatique(self, tmp_root, sample_articles):
+        """Un index v1 (clés non normalisées) doit être migré automatiquement en v2."""
+        import json as _json
+        from utils.entity_index import EntityIndex, _INDEX_FILENAME
+
+        # Construire un index v1 avec des clés mixtes-casse
+        index_path = tmp_root / "data" / _INDEX_FILENAME
+        v1_data = {
+            "version": 1,
+            "index": {
+                "PERSON:Emmanuel Macron": [{"file": "data/articles.json", "idx": 0, "date": "2026-01-01"}],
+                "PERSON:emmanuel macron": [{"file": "data/articles.json", "idx": 1, "date": "2026-01-02"}],
+                "ORG:OpenAI": [{"file": "data/articles.json", "idx": 0, "date": "2026-01-01"}],
+            },
+        }
+        index_path.write_text(_json.dumps(v1_data), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        # Après chargement, les refs doivent être fusionnées sous la clé normalisée
+        refs = idx.get_refs("PERSON", "Emmanuel Macron")
+        assert len(refs) == 2, f"Attendu 2 refs fusionnées, obtenu {len(refs)}"
+
+        # Le fichier doit avoir été migré vers v2
+        migrated = _json.loads(index_path.read_text(encoding="utf-8"))
+        assert migrated.get("version") == 2
+        assert "caps" in migrated
+
+    def test_migration_v1_fusionne_variantes_casse(self, tmp_root):
+        """Variantes de casse d'une même entité doivent être fusionnées lors de la migration."""
+        import json as _json
+        from utils.entity_index import EntityIndex, _INDEX_FILENAME
+
+        index_path = tmp_root / "data" / _INDEX_FILENAME
+        v1_data = {
+            "version": 1,
+            "index": {
+                "ORG:OpenAI": [{"file": "f.json", "idx": 0, "date": "2026-01-01"}],
+                "ORG:openai": [{"file": "f.json", "idx": 1, "date": "2026-01-02"}],
+                "ORG:OPENAI": [{"file": "f.json", "idx": 2, "date": "2026-01-03"}],
+            },
+        }
+        index_path.write_text(_json.dumps(v1_data), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        refs = idx.get_refs("ORG", "openai")
+        # Toutes les variantes doivent être dédupliquées dans la même clé normalisée
+        assert len(refs) == 3
+
+        # La forme d'affichage canonique doit être "OpenAI" (meilleur cap_score)
+        display = idx.get_display_name("ORG", "openai")
+        assert display == "OpenAI"
+
 
 # ── Tests SynthesisCache ──────────────────────────────────────────────────────
 
