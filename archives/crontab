@@ -1,6 +1,10 @@
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
+# Remise à zéro explicite des quotas chaque jour à 00h01
+# Force reset_day() même si le processus n'a pas appelé _maybe_reset_day à minuit
+1 0 * * * root cd /app && python3 -c "from utils.quota import get_quota_manager; get_quota_manager().reset_day(); print('[quota] Remise à zéro des quotas journaliers OK')" 2>&1 | tee -a /app/rapports/cron_quota_reset.log
+
 # Surveillance round-robin des flux RSS WUDD.opml : 1 flux par exécution, toutes les 5 minutes
 # Maintient 48-heures.json à jour, puis rafraîchit la timeline, l'analyse croisée et les temps de lecture (calculs locaux, < 1 s)
 */5 * * * * root cd /app && { python3 scripts/flux_watcher.py 2>&1 | tee -a /app/rapports/cron_flux_watcher.log; python3 scripts/entity_timeline.py >> /app/rapports/cron_flux_watcher.log 2>&1; python3 scripts/cross_flux_analysis.py >> /app/rapports/cron_flux_watcher.log 2>&1; python3 scripts/enrich_reading_time.py >> /app/rapports/cron_flux_watcher.log 2>&1; }

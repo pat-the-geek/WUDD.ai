@@ -48,15 +48,21 @@ class Cache:
         default_logger.info(f"Cache initialisé dans {self.cache_dir} (TTL: {default_ttl}s)")
     
     def _get_cache_key(self, key: str) -> str:
-        """Génère une clé de cache unique.
-        
+        """Génère une clé de cache unique, isolée par provider IA.
+
+        Inclut AI_PROVIDER dans le hash pour éviter les collisions entre
+        EurIA et Claude (même prompt → réponses différentes selon le modèle).
+
         Args:
             key: Clé originale (URL, prompt, etc.)
-        
+
         Returns:
-            Hash MD5 de la clé
+            Hash MD5 de la clé préfixée du provider
         """
-        return hashlib.md5(key.encode('utf-8')).hexdigest()
+        import os as _os
+        provider = _os.environ.get("AI_PROVIDER", "euria").strip().lower()
+        namespaced = f"{provider}:{key}"
+        return hashlib.md5(namespaced.encode('utf-8')).hexdigest()
     
     def _get_cache_path(self, key: str) -> Path:
         """Retourne le chemin du fichier de cache.

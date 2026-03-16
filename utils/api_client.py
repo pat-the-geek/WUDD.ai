@@ -10,10 +10,107 @@ Fournit :
 import json
 import re
 import time
+import threading
 import requests
 from typing import Optional
 from .logging import default_logger
 from .config import get_config
+
+
+# ── Circuit Breaker ───────────────────────────────────────────────────────────
+
+class CircuitBreaker:
+    """Circuit breaker thread-safe pour les appels API externes.
+
+    États :
+      CLOSED    — appels autorisés (fonctionnement normal)
+      OPEN      — appels bloqués pendant la fenêtre de grâce (grace_seconds)
+      HALF-OPEN — un appel de sonde autorisé pour tester le rétablissement
+
+    Transitions :
+      CLOSED  → OPEN       : après N échecs consécutifs
+      OPEN    → HALF-OPEN  : après grace_seconds secondes
+      HALF-OPEN → CLOSED   : succès de la sonde
+      HALF-OPEN → OPEN     : échec de la sonde (réinitialise le timer)
+    """
+
+    _STATE_CLOSED    = "CLOSED"
+    _STATE_OPEN      = "OPEN"
+    _STATE_HALF_OPEN = "HALF-OPEN"
+
+    def __init__(
+        self,
+        name: str = "api",
+        failure_threshold: int = 5,
+        grace_seconds: float = 300.0,
+    ) -> None:
+        self.name = name
+        self.failure_threshold = failure_threshold
+        self.grace_seconds = grace_seconds
+        self._lock = threading.Lock()
+        self._state = self._STATE_CLOSED
+        self._failure_count = 0
+        self._opened_at: float = 0.0
+
+    @property
+    def state(self) -> str:
+        return self._state
+
+    def _transition(self, new_state: str) -> None:
+        if new_state != self._state:
+            default_logger.info(
+                f"[CircuitBreaker:{self.name}] {self._state} → {new_state}"
+            )
+            self._state = new_state
+
+    def allow_request(self) -> bool:
+        """Retourne True si l'appel est autorisé selon l'état du circuit."""
+        with self._lock:
+            if self._state == self._STATE_CLOSED:
+                return True
+            if self._state == self._STATE_OPEN:
+                elapsed = time.monotonic() - self._opened_at
+                if elapsed >= self.grace_seconds:
+                    self._transition(self._STATE_HALF_OPEN)
+                    return True  # Laisse passer la sonde
+                return False
+            # HALF-OPEN : un seul appel de sonde autorisé
+            return True
+
+    def record_success(self) -> None:
+        """À appeler après un appel réussi."""
+        with self._lock:
+            if self._state == self._STATE_HALF_OPEN:
+                self._transition(self._STATE_CLOSED)
+                default_logger.info(
+                    f"[CircuitBreaker:{self.name}] Rétablissement confirmé — circuit fermé."
+                )
+            self._failure_count = 0
+
+    def record_failure(self) -> None:
+        """À appeler après un échec d'appel."""
+        with self._lock:
+            self._failure_count += 1
+            if self._state == self._STATE_HALF_OPEN:
+                # La sonde a échoué — rouvrir
+                self._opened_at = time.monotonic()
+                self._transition(self._STATE_OPEN)
+                default_logger.warning(
+                    f"[CircuitBreaker:{self.name}] Sonde échouée — circuit rouvert "
+                    f"pour {self.grace_seconds:.0f}s."
+                )
+            elif self._failure_count >= self.failure_threshold:
+                self._opened_at = time.monotonic()
+                self._transition(self._STATE_OPEN)
+                default_logger.warning(
+                    f"[CircuitBreaker:{self.name}] {self._failure_count} échecs consécutifs "
+                    f"— circuit ouvert pour {self.grace_seconds:.0f}s."
+                )
+
+
+# Instances partagées par client (une par fournisseur)
+_euria_breaker  = CircuitBreaker(name="EurIA",  failure_threshold=5, grace_seconds=300)
+_claude_breaker = CircuitBreaker(name="Claude", failure_threshold=5, grace_seconds=300)
 
 # ── Extraction d'entités nommées (NER) ───────────────────────────────────────
 
@@ -251,14 +348,20 @@ class EurIAClient:
             data["max_tokens"] = max_tokens
         
         last_error = None
-        
+
+        if not _euria_breaker.allow_request():
+            raise RuntimeError(
+                f"[EurIA] Circuit OPEN — appels bloqués pendant la fenêtre de grâce "
+                f"({_euria_breaker.grace_seconds:.0f}s). Dernière erreur : {_euria_breaker.name}"
+            )
+
         for attempt in range(max_attempts):
             try:
                 default_logger.info(
                     f"Envoi de prompt à l'API (tentative {attempt + 1}/{max_attempts}, "
                     f"timeout={timeout}s)"
                 )
-                
+
                 response = requests.post(
                     self.url,
                     json=data,
@@ -267,62 +370,67 @@ class EurIAClient:
                 )
                 response.raise_for_status()
                 json_data = response.json()
-                
+
                 # Valider la structure de la réponse
                 if 'choices' not in json_data or len(json_data['choices']) == 0:
                     raise ValueError("Réponse API invalide : champ 'choices' manquant ou vide")
-                
+
                 content = json_data['choices'][0]['message']['content']
-                
+
                 if not content:
                     raise ValueError("Réponse API vide")
-                
+
                 default_logger.info(f"Réponse reçue de l'API: {len(content)} caractères")
+                _euria_breaker.record_success()
                 return content.strip()
-            
+
             except requests.exceptions.Timeout as e:
                 last_error = f"Timeout après {timeout}s"
                 default_logger.warning(
                     f"Timeout lors de la tentative {attempt + 1}/{max_attempts}"
                 )
-                
+                _euria_breaker.record_failure()
+
             except requests.exceptions.HTTPError as e:
                 status_code = e.response.status_code if e.response is not None else 'inconnu'
                 last_error = f"Erreur HTTP {status_code}"
                 default_logger.error(
                     f"Erreur HTTP {status_code} lors de la tentative {attempt + 1}/{max_attempts}"
                 )
-                
+
                 # Ne pas retry pour certains codes d'erreur
                 if status_code in [400, 401, 403, 404]:
                     default_logger.error("Erreur non récupérable, arrêt des tentatives")
                     break
-                
+                _euria_breaker.record_failure()
+
             except requests.exceptions.ConnectionError as e:
                 last_error = "Erreur de connexion"
                 default_logger.error(
                     f"Erreur de connexion lors de la tentative {attempt + 1}/{max_attempts}: {e}"
                 )
-                
+                _euria_breaker.record_failure()
+
             except (ValueError, KeyError, TypeError) as e:
                 last_error = f"Erreur de format de réponse: {e}"
                 default_logger.error(
                     f"Erreur de parsing de la réponse lors de la tentative "
                     f"{attempt + 1}/{max_attempts}: {e}"
                 )
-            
+
             except Exception as e:
                 last_error = f"Erreur inattendue: {type(e).__name__}: {e}"
                 default_logger.error(
                     f"Erreur inattendue lors de la tentative {attempt + 1}/{max_attempts}: {e}"
                 )
-            
+                _euria_breaker.record_failure()
+
             # Backoff exponentiel avant la prochaine tentative
             if attempt < max_attempts - 1:
                 wait_time = backoff_factor ** attempt
                 default_logger.info(f"Attente de {wait_time:.1f}s avant nouvelle tentative...")
                 time.sleep(wait_time)
-        
+
         # Toutes les tentatives ont échoué
         error_message = (
             f"Échec après {max_attempts} tentatives. "
@@ -570,6 +678,12 @@ class ClaudeClient:
         }
         last_error = None
 
+        if not _claude_breaker.allow_request():
+            raise RuntimeError(
+                f"[Claude] Circuit OPEN — appels bloqués pendant la fenêtre de grâce "
+                f"({_claude_breaker.grace_seconds:.0f}s)."
+            )
+
         # Activer le beta extended output si max_tokens > 8192
         headers = dict(self.headers)
         if max_tokens > 8192:
@@ -595,11 +709,13 @@ class ClaudeClient:
                     raise ValueError("Texte Claude vide")
 
                 default_logger.info(f"[Claude] Réponse reçue : {len(content)} caractères")
+                _claude_breaker.record_success()
                 return content.strip()
 
             except requests.exceptions.Timeout:
                 last_error = f"Timeout après {timeout}s"
                 default_logger.warning(f"[Claude] Timeout tentative {attempt + 1}/{max_attempts}")
+                _claude_breaker.record_failure()
 
             except requests.exceptions.HTTPError as e:
                 status_code = e.response.status_code if e.response is not None else "inconnu"
@@ -607,10 +723,12 @@ class ClaudeClient:
                 default_logger.error(f"[Claude] Erreur HTTP {status_code}")
                 if status_code in [400, 401, 403]:
                     break
+                _claude_breaker.record_failure()
 
             except requests.exceptions.ConnectionError as e:
                 last_error = "Erreur de connexion"
                 default_logger.error(f"[Claude] Erreur de connexion : {e}")
+                _claude_breaker.record_failure()
 
             except (ValueError, KeyError, TypeError) as e:
                 last_error = f"Erreur de format de réponse: {e}"
@@ -619,6 +737,7 @@ class ClaudeClient:
             except Exception as e:
                 last_error = f"Erreur inattendue: {type(e).__name__}: {e}"
                 default_logger.error(f"[Claude] Erreur inattendue : {e}")
+                _claude_breaker.record_failure()
 
             if attempt < max_attempts - 1:
                 wait_time = backoff_factor ** attempt
@@ -671,6 +790,13 @@ class ClaudeClient:
         headers["anthropic-beta"] = "prompt-caching-2024-07-31"
 
         last_error = None
+
+        if not _claude_breaker.allow_request():
+            raise RuntimeError(
+                f"[Claude] Circuit OPEN — appels bloqués pendant la fenêtre de grâce "
+                f"({_claude_breaker.grace_seconds:.0f}s)."
+            )
+
         for attempt in range(max_attempts):
             try:
                 default_logger.info(
@@ -686,25 +812,30 @@ class ClaudeClient:
                 if not content:
                     raise ValueError("Texte Claude vide")
                 default_logger.info(f"[Claude] Réponse reçue : {len(content)} caractères")
+                _claude_breaker.record_success()
                 return content.strip()
             except requests.exceptions.Timeout:
                 last_error = f"Timeout après {timeout}s"
                 default_logger.warning(f"[Claude] Timeout tentative {attempt + 1}/{max_attempts}")
+                _claude_breaker.record_failure()
             except requests.exceptions.HTTPError as e:
                 status_code = e.response.status_code if e.response is not None else "inconnu"
                 last_error = f"Erreur HTTP {status_code}"
                 default_logger.error(f"[Claude] Erreur HTTP {status_code}")
                 if status_code in [400, 401, 403]:
                     break
+                _claude_breaker.record_failure()
             except requests.exceptions.ConnectionError as e:
                 last_error = "Erreur de connexion"
                 default_logger.error(f"[Claude] Erreur de connexion : {e}")
+                _claude_breaker.record_failure()
             except (ValueError, KeyError, TypeError) as e:
                 last_error = f"Erreur de format : {e}"
                 default_logger.error(f"[Claude] Erreur parsing : {e}")
             except Exception as e:
                 last_error = f"Erreur inattendue: {type(e).__name__}: {e}"
                 default_logger.error(f"[Claude] Erreur inattendue : {e}")
+                _claude_breaker.record_failure()
             if attempt < max_attempts - 1:
                 wait_time = 2.0 ** attempt
                 default_logger.info(f"[Claude] Attente {wait_time:.1f}s…")

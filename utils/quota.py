@@ -49,6 +49,10 @@ class QuotaManager:
         self._config: dict = {}
         self._state: dict = {}
         self._reload()
+        # Reset au démarrage si la date de l'état ne correspond pas à aujourd'hui
+        # (évite de conserver des compteurs d'un jour précédent si le process
+        #  a tourné sans interruption à minuit sans que _maybe_reset_day soit appelé)
+        self._startup_reset_if_stale()
 
     # ─── Chargement ──────────────────────────────────────────────────────────
 
@@ -275,6 +279,26 @@ class QuotaManager:
             self._config = config
 
     # ─── Interne ─────────────────────────────────────────────────────────────
+
+    def _startup_reset_if_stale(self) -> None:
+        """Force un reset au démarrage si la date stockée ≠ aujourd'hui.
+
+        Garantit que même si le process Flask/cron redémarre après minuit sans
+        avoir déclenché _maybe_reset_day (ex: redémarrage Docker en journée),
+        les compteurs du jour précédent ne sont pas réutilisés.
+        """
+        today = str(date.today())
+        if self._state.get("date") != today:
+            import sys as _sys
+            print(
+                f"[QuotaManager] Démarrage : date stockée ({self._state.get('date', '?')}) "
+                f"≠ aujourd'hui ({today}) — reset des quotas.",
+                file=_sys.stderr,
+                flush=True,
+            )
+            with self._lock:
+                self._state = {"date": today, "global_count": 0, "keywords": {}, "entities": {}}
+                self._persist()
 
     def _maybe_reset_day(self) -> None:
         """Réinitialise l'état si on est passé à un nouveau jour."""
