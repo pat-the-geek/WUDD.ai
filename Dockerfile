@@ -27,8 +27,8 @@ COPY utils/ utils/
 COPY config/ config/
 COPY tests/ tests/
 
-# Copie depuis archives/
-COPY archives/requirements.txt ./requirements.txt
+# Dépendances Python (fichier versionné à la racine)
+COPY requirements.txt ./requirements.txt
 COPY archives/crontab archives/crontab
 COPY .env.example .env.example
 COPY README.md ./README.md
