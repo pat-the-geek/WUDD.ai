@@ -164,17 +164,17 @@ function buildMindmapMd(entityValue, l1Nodes) {
     if (!CARTO_TYPES.includes(n.type)) continue
     if (!byType[n.type]) byType[n.type] = []
     // Limiter à 6 entités par type pour garder le diagramme lisible
-    if (byType[n.type].length < 6) byType[n.type].push(n.value)
+    if (byType[n.type].length < 6) byType[n.type].push(String(n.value ?? ''))
   }
   const types = CARTO_TYPES.filter(t => byType[t]?.length > 0)
   if (types.length === 0) return ''
 
   // Nettoyer les valeurs pour Mermaid (éviter les guillemets/parenthèses problématiques)
-  const esc = v => v.replace(/[()[\]"']/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)
+  const esc = v => String(v ?? '').replace(/[()[\]"']/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)
 
   let diagram = `mindmap\n  root(${esc(entityValue)})\n`
   for (const type of types) {
-    diagram += `    **${type}**\n`
+    diagram += `    ${type}\n`
     for (const val of byType[type]) {
       diagram += `      ${esc(val)}\n`
     }
@@ -187,12 +187,12 @@ function buildPieMd(articles) {
   if (!articles || articles.length === 0) return ''
   const counts = {}
   for (const art of articles) {
-    const src = art['Sources'] || 'Inconnu'
+    const src = String(art['Sources'] || 'Inconnu')
     counts[src] = (counts[src] || 0) + 1
   }
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10)
   if (entries.length < 2) return ''
-  const esc = v => v.replace(/"/g, "'").slice(0, 35)
+  const esc = v => String(v ?? '').replace(/"/g, "'").slice(0, 35)
   let diagram = `pie title Distribution des sources (${articles.length} articles)\n`
   for (const [src, count] of entries) {
     diagram += `    "${esc(src)}" : ${count}\n`
@@ -332,7 +332,7 @@ export default function EntityFullReportDialog({
         const header = [art['Date de publication'], art['Sources']].filter(Boolean).join(' — ')
         if (header) append(`### ${header}\n\n`)
         if (art['Résumé']) append(`${art['Résumé']}\n\n`)
-        const imgs = art['Images'] || []
+        const imgs = Array.isArray(art['Images']) ? art['Images'] : []
         for (const img of imgs.slice(0, 2)) {
           const imgUrl = img?.URL || img?.url || ''
           const imgAlt = img?.alt || img?.title || entityValue
@@ -345,7 +345,7 @@ export default function EntityFullReportDialog({
       append(`===\n\n# Tableau des références\n\n| # | Date | Source | URL |\n|---|---|---|---|\n`)
       articles.forEach((art, i) => {
         const date   = art['Date de publication'] ?? ''
-        const source = (art['Sources'] ?? '').replace(/\|/g, '\\|')
+        const source = String(art['Sources'] ?? '').replace(/\|/g, '\\|')
         const url    = art['URL'] ?? ''
         append(`| ${i + 1} | ${date} | ${source} | [↗](${url}) |\n`)
       })
