@@ -22,6 +22,8 @@
 13. [Synthèse comparative RAG multi-sources](#13-synthèse-comparative-rag-multi-sources)
 14. [Export et diffusion des résultats](#14-export-et-diffusion-des-résultats)
 15. [Interrogation par terminal IA (local AI agent)](#15-interrogation-par-terminal-ia-local-ai-agent)
+16. [Export vers Obsidian](#16-export-vers-obsidian)
+17. [Vérification de la fiabilité des sources](#17-vérification-de-la-fiabilité-des-sources)
 
 ---
 
@@ -743,6 +745,158 @@ sequenceDiagram
 
 ---
 
+## 16. Export vers Obsidian
+
+**Contexte :** L'utilisateur souhaite conserver dans son vault Obsidian les articles et rapports d'entités qu'il juge importants, enrichis de leur frontmatter YAML complet (entités, sentiment, géolocalisation, score de source), pour les annoter, les croiser avec d'autres notes et les interroger via Dataview ou Map View — sans copier-coller manuel.
+
+**Acteurs :** Utilisateur · Viewer · Flask (`/api/export/obsidian`) · Vault Obsidian (dossier `OBSIDIAN_DIR`)
+
+**Prérequis :** `OBSIDIAN_DIR` défini dans `.env` ; le répertoire doit être accessible en écriture depuis le serveur (ou le conteneur Docker).
+
+```mermaid
+sequenceDiagram
+    actor U as Utilisateur
+    participant V as Viewer (ArticleListViewer / EntityArticlePanel)
+    participant F as Flask /api/export/obsidian
+    participant D as Déduplication MD5
+    participant FS as Vault Obsidian (OBSIDIAN_DIR)
+
+    U->>V: Ouvre un article ou un rapport d'entité
+    U->>V: Clique "Export Obsidian" (icône livre violet)
+    V->>F: POST /api/export/obsidian { article | entity_report, target }
+
+    F->>F: Génère le frontmatter YAML\ntitle · date · source · url · location\nsentiment · score_source · tags\npersonnes · organisations · lieux
+
+    F->>D: Calcule MD5 du résumé
+    D-->>F: hash
+
+    alt Note déjà exportée (même MD5)
+        F-->>V: { ok: true, deduplicated: true }
+        V-->>U: Tooltip "Déjà dans le vault"
+    else Nouvelle note
+        F->>FS: Écrit YYYY-MM-DD_source_slug-titre.md\ndans articles/ ou rapports/
+        FS-->>F: Fichier créé
+        F-->>V: { ok: true, path: "..." }
+        V-->>U: Notification "Exporté vers Obsidian"
+    end
+
+    Note over FS,U: Obsidian détecte le nouveau fichier en temps réel
+    U->>FS: Ouvre la note dans Obsidian
+    U->>FS: Interroge via Dataview (ex. articles positifs score ≥ 70)
+    U->>FS: Visualise les GPE sur la carte Map View
+```
+
+**Exemple de note exportée (frontmatter) :**
+```yaml
+---
+title: "OpenAI annonce GPT-5"
+date: 2026-03-16
+source: "Le Monde"
+url: "https://www.lemonde.fr/..."
+location: [48.8566, 2.3522]
+sentiment: "positif"
+score_sentiment: 4
+ton_editorial: "factuel"
+score_source: 92
+temps_lecture: "3 min 10 s"
+tags: ["Le-Monde", "OpenAI", "Sam-Altman", "France"]
+organisations: ["OpenAI", "Microsoft"]
+personnes: ["Sam Altman"]
+lieux: ["France", "Paris"]
+type: Rapport-WUDD-ai
+statut: generated
+---
+```
+
+**Requêtes Dataview typiques après export :**
+```sql
+-- Articles positifs à haute crédibilité
+TABLE date, source, sentiment, score_source FROM "WUDD-ai"
+WHERE sentiment = "positif" AND score_source >= 70
+SORT score_source DESC
+
+-- Toutes les mentions d'OpenAI
+TABLE date, source FROM "WUDD-ai"
+WHERE contains(organisations, "OpenAI") SORT date DESC
+```
+
+**Valeur produite :** Les articles et synthèses de veille deviennent des notes Obsidian structurées, interrogeables via Dataview, cartographiables via Map View, et connectables au reste des notes personnelles de l'utilisateur — sans aucune friction de copier-coller.
+
+---
+
+## 17. Vérification de la fiabilité des sources
+
+**Contexte :** L'utilisateur veut savoir dans quelle mesure les sources qui alimentent sa veille sont fiables, transparentes et factuelles — avant d'accorder du crédit à un article ou de le partager. WUDD.ai calcule un **score composite de crédibilité** (0–100) pour chaque source, combinant une évaluation manuelle experte, l'âge du domaine (WHOIS), la transparence éditoriale du site, et le niveau factuel MBFC. Ce score influence directement le classement des articles dans les tops et les synthèses.
+
+**Acteurs :** Utilisateur · Viewer (`SourceBiasPanel`) · Flask (`/api/sources/bias`) · `scripts/enrich_source_credibility.py` · WHOIS · HTTP direct · MBFC (scraping)
+
+**Prérequis :** Articles enrichis avec `score_source` (ajouté automatiquement lors de la collecte). L'enrichissement composite est déclenché via `enrich_source_credibility.py`.
+
+```mermaid
+flowchart TD
+    CRON([Cron planifié\nenrich_source_credibility.py]) --> READ[Lit sources_credibility.json\nliste des sources connues]
+    READ --> LOOP{Pour chaque source\nnon enrichie ou obsolète}
+
+    LOOP --> WHOIS[WHOIS python-whois\ndate de création du domaine]
+    LOOP --> HTTP[HTTP HEAD/GET\ncheck mentions légales\nà propos · CGU · contact]
+    LOOP --> MBFC[Scraping MBFC\nrating factuel]
+
+    WHOIS --> AGE[score_age_domaine\n0–100]
+    HTTP --> TRANSP[score_transparence\n0–100]
+    MBFC --> MBFC_S[score_mbfc\n0–100]
+
+    AGE & TRANSP & MBFC_S --> COMPOSITE["score_composite\n= statique×0.60\n+ âge×0.15\n+ transparence×0.10\n+ mbfc×0.15"]
+    COMPOSITE --> SAVE[Mise à jour sources_credibility.json\nenrich_date · domain_age_years\ntransparence · mbfc_rating]
+
+    SAVE --> SCORING[utils/scoring.py\nmultiplicateur 0.60–1.20\nappliqué à score_pertinence]
+    SCORING --> TOP[Top articles et synthèses\nfavorisent les sources fiables]
+
+    subgraph UI["Utilisateur — SourceBiasPanel"]
+        B1[Ouvre Biais éditoriaux\nvia sidebar]
+        B2[Tableau par source :\nscore · âge · transparence · MBFC\nsentiment · ton dominant]
+        B3[Tri : fiabilité ↓\nou ton le + biaisé]
+        B4[Identifie sources douteuses\nou ton alarmiste systématique]
+        B1 --> B2 --> B3 --> B4
+    end
+
+    SAVE --> B1
+
+    classDef auto fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef ext fill:#fff3e0,stroke:#f57c00,stroke-width:1px
+    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    class CRON,READ,LOOP,COMPOSITE,SCORING,TOP auto
+    class WHOIS,HTTP,MBFC ext
+    class AGE,TRANSP,MBFC_S,SAVE storage
+    class UI,B1,B2,B3,B4 ui
+```
+
+**Score composite — exemples :**
+
+| Source | Score statique | Âge domaine | Transparence | MBFC | **Score composite** | Multiplicateur |
+|--------|---------------|-------------|--------------|------|---------------------|----------------|
+| Reuters | 97 | 100 (28 ans) | 100 | 100 (VERY HIGH) | **98** | ×1.19 |
+| Le Monde | 92 | 100 (30 ans) | 100 | 85 (HIGH) | **94** | ×1.16 |
+| BFM TV | 68 | 85 (15 ans) | 75 | 65 (MOSTLY FACTUAL) | **73** | ×1.04 |
+| Source inconnue | 50 | — | — | — | **50** | ×0.90 |
+| Site < 1 an | 40 | 0 | 25 | null (50) | **35** | ×0.81 |
+
+**Interprétation combinée (biais + ton) :**
+- Source avec `score_ton` moyen < 2.5 et taux négatif > 60 % → profil **alarmiste systématique**
+- Source avec `score_ton` > 4 et sentiment majoritairement neutre → profil **agence de presse**
+- Écart entre `biais` déclaré et ton mesuré → mérite une investigation manuelle
+
+**Lancer l'enrichissement composite :**
+```bash
+python3 scripts/enrich_source_credibility.py          # enrichit les sources non à jour
+python3 scripts/enrich_source_credibility.py --all    # force toutes les sources
+python3 scripts/enrich_source_credibility.py --status # état du cycle
+```
+
+**Valeur produite :** L'utilisateur dispose d'une vue objective et multi-critères de la fiabilité de chaque source — pas seulement un score manuel, mais des signaux vérifiables (ancienneté du domaine, transparence du site, référencement MBFC). Les articles issus de sources peu fiables sont automatiquement pénalisés dans les classements, sans aucune intervention manuelle.
+
+---
+
 ```mermaid
 quadrantChart
     title Use cases - Frequence vs Profondeur d analyse
@@ -767,6 +921,8 @@ quadrantChart
     UC13 Synthese RAG: [0.22, 0.93]
     UC14 Export diffusion: [0.50, 0.86]
     UC15 Terminal IA agent: [0.30, 0.35]
+    UC16 Export Obsidian: [0.20, 0.72]
+    UC17 Fiabilite sources: [0.15, 0.60]
 ```
 
 | # | Use Case | Déclencheur | Durée typique | Sortie |
@@ -786,8 +942,10 @@ quadrantChart
 | 13 | Synthèse RAG multi-sources | Ad hoc (viewer) | 30–60s (streaming) | Analyse comparative Markdown |
 | 14 | Export & diffusion | Ad hoc (viewer / cron) | < 1 min | Atom XML · Newsletter HTML · Webhook |
 | 15 | Terminal IA (local AI agent) | Ad hoc (éditeur / outil IA) | Immédiat | Réponse en langage naturel · lecture / écriture fichiers |
+| 16 | Export vers Obsidian | Ad hoc (viewer) | < 5 s / article | Note Markdown Obsidian avec frontmatter YAML complet |
+| 17 | Vérification fiabilité des sources | Cron planifié / manuel | ~1 min (script) | Score composite · tableau comparatif sources · multiplicateur scoring |
 
 ---
 
 **Maintenu par** : Patrick Ostertag · patrick.ostertag@gmail.com
-**Créé le** : 2 mars 2026 · **Mis à jour le** : 10 mars 2026 (UC15 — terminal IA / local AI agent)
+**Créé le** : 2 mars 2026 · **Mis à jour le** : 17 mars 2026 (UC16 — export Obsidian · UC17 — fiabilité des sources)
