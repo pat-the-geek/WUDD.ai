@@ -228,6 +228,14 @@ cp .env.example .env
 
 Le fichier `.env` n'est jamais commité (`.gitignore`). Référez-vous à `.env.example` pour la liste complète des variables requises.
 
+| Variable clé | Description |
+|---|---|
+| `URL` | Endpoint API EurIA |
+| `bearer` | Token Bearer EurIA |
+| `REEDER_JSON_URL` | URL du flux JSON source |
+| `OBSIDIAN_DIR` | Chemin absolu vers le vault Obsidian (export de notes, optionnel) |
+| `BACKUP_L1` / `BACKUP_L2` | Chemins de sauvegarde incrémentale de `data/` |
+
 #### 2. Fichier de flux `config/flux_json_sources.json`
 
 > **⚠️ Ce fichier n'est pas dans le dépôt git** (il contient vos URLs de flux JSON).
@@ -370,6 +378,37 @@ python3 scripts/repair_failed_enrichments.py --dry-run
 ```
 
 Le script détecte les articles dont le champ `enrichissement_statut` contient `echec_api` ou `echec_parse`, relance l'enrichissement via l'API IA configurée (EurIA ou Claude), et met à jour l'`entity_index` pour les réparations NER réussies.
+
+### Contrôle de fiabilité des sources
+
+Le script `enrich_source_credibility.py` enrichit automatiquement `config/sources_credibility.json` avec trois signaux :
+
+- **Âge du domaine** (WHOIS)
+- **Transparence éditoriale** (scraping HTTP)
+- **Rating MBFC** (mediabiasfactcheck.com)
+
+```bash
+# Synchroniser les nouvelles sources puis enrichir les manquantes
+python3 scripts/enrich_source_credibility.py --sync
+
+# Synchronisation seule (sans appel HTTP externe — rapide)
+python3 scripts/enrich_source_credibility.py --sync-only
+
+# Enrichir toutes les sources (re-calcul complet)
+python3 scripts/enrich_source_credibility.py --sync --force
+
+# Une source spécifique
+python3 scripts/enrich_source_credibility.py --source "Le Monde"
+
+# Simulation sans écriture
+python3 scripts/enrich_source_credibility.py --dry-run
+```
+
+Le score de crédibilité (0–100) est stocké dans `config/sources_credibility.json` et reporté dans le champ `score_source` de chaque article lors de l'enrichissement. Il est utilisé comme multiplicateur dans `utils/scoring.py` pour pondérer le classement des articles.
+
+**Exécution automatique (cron Docker) :**
+- Synchronisation du registre : chaque dimanche à 3h30 (`--sync-only`)
+- Enrichissement mensuel : 1er du mois à 4h30 (`--sync`, sources manquantes uniquement)
 
 ### Réparer les résumés en erreur
 
@@ -539,6 +578,8 @@ bash start-viewer.sh stop      # arrêter le conteneur Docker
 | Timeline des entités | Sparklines SVG d'évolution temporelle des entités nommées dans le Dashboard |
 | Temps de lecture | Badge ⧗ estimé sur chaque article (basé sur `enrich_reading_time.py`, 230 mots/min) |
 | Interface mobile | Toolbars transparentes fixées en bas (`backdrop-blur`, safe-area iPhone), boutons fermer à droite, bottom sheet pour panneau RSS |
+| Export Obsidian | Bouton dans chaque fiche article et rapport d'entité — génère une note Markdown avec frontmatter YAML et `[[wikilinks]]` pour les entités, sauvegarde dans `OBSIDIAN_DIR` avec déduplication MD5 |
+| Fiabilité des sources | Score de crédibilité 0–100 affiché sur chaque article (`score_source`), pondère le classement dans Top Articles et rapports d'entités |
 
 ### Captures d'écran
 

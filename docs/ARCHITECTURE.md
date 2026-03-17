@@ -433,6 +433,26 @@ Analyse temporelle des thèmes dans les articles, avec comparaison entre deux p�
 - Alerte email si inactivité ou motif d'erreur (`Traceback`, `Error`, `Exception`)
 - Configuration SMTP exclusivement via variables d'environnement
 
+#### `enrich_source_credibility.py` — Fiabilité des sources
+
+Enrichit `config/sources_credibility.json` avec trois signaux automatisés :
+
+- **Âge du domaine** via WHOIS
+- **Transparence éditoriale** via scraping HTTP
+- **Rating MBFC** (mediabiasfactcheck.com)
+
+Modes d'exécution :
+
+- `--sync` : synchronise d'abord les nouvelles sources (OPML, `web_sources.json`, articles existants) puis enrichit
+- `--sync-only` : synchronisation seule, sans appel HTTP externe (rapide, utilisé en cron hebdomadaire)
+- `--force` : ré-enrichit toutes les sources
+- `--source <nom>` : enrichit une source spécifique
+- `--dry-run` : simulation sans écriture
+
+Le score (0–100) est stocké dans `config/sources_credibility.json` et reporté dans le champ `score_source` de chaque article. Il est utilisé par `utils/source_credibility.py` comme multiplicateur dans `utils/scoring.py`.
+
+**Cron Docker :** synchronisation hebdomadaire (dimanche 3h30) + enrichissement mensuel (1er du mois 4h30).
+
 ---
 
 ## 5. Modèle de données
@@ -707,6 +727,7 @@ L'interface est entièrement adaptée aux appareils mobiles et tablettes :
 | `/api/export/atom` | GET | Génère un flux Atom XML (param `flux`, `keyword`, `max_entries`) | — |
 | `/api/export/newsletter` | GET/POST | Génère newsletter HTML ; POST `{send:true}` → envoi SMTP | — |
 | `/api/export/webhook-test` | POST | Teste l'envoi vers Discord / Slack / Ntfy | Variables `.env` requises |
+| `/api/export/report` | POST | Sauvegarde un rapport Markdown en local (`rapports/markdown/_WUDD.AI_/`) ou dans le vault **Obsidian** (`OBSIDIAN_DIR`) ; déduplication MD5 du résumé pour Obsidian | `OBSIDIAN_DIR` requis pour target `obsidian` |
 
 ### Composants React — détail
 
@@ -726,6 +747,8 @@ L'interface est entièrement adaptée aux appareils mobiles et tablettes :
 | `EntityWorldMap.jsx` | Carte Leaflet pour entités GPE/LOC (géocodage Wikipedia, redimensionnement dynamique) |
 | `EntityGallery.jsx` | Galerie d'images pour PERSON/ORG/PRODUCT (Wikidata + Wikipedia) |
 | `ArticleListViewer.jsx` | Vues grille et timeline ; composant `SentimentBadge` affichant `sentiment`, `score_sentiment`, `ton_editorial`, `score_ton` sur les articles enrichis |
+| `ArticleFullReportDialog.jsx` | Dialog plein écran de rapport article — génère un rapport Markdown structuré (résumé, entités, images) avec frontmatter iA Writer ou **frontmatter Obsidian** (YAML + `[[wikilinks]]`) ; boutons Export local et Export Obsidian (déduplication MD5, feedback visuel) |
+| `EntityFullReportDialog.jsx` | Dialog plein écran de rapport entité — synthèse IA streaming, co-occurrences L1, frontmatter Obsidian avec tags nettoyés ; Export local et **Export Obsidian** |
 | `AlertsPanel.jsx` | Alertes de tendances depuis `data/alertes.json` ; badge de comptage, menu déroulant Tendances |
 | `TopArticlesPanel.jsx` | Top N articles classés par `ScoringEngine` (pertinence + récence) |
 | `SourceBiasPanel.jsx` | Analyse des biais éditoriaux par source : répartition positif/neutre/négatif + breakdown ton éditorial |
