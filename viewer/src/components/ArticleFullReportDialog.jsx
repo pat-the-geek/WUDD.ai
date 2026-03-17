@@ -157,6 +157,16 @@ const FALLBACK_CHIP = 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-s
 const removeAccents = s =>
   String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
+// ── Nettoyage d'un tag pour Obsidian ─────────────────────────────────────────
+// Obsidian n'accepte que lettres, chiffres, tirets, underscores et slashes.
+// Tout autre caractère (espaces, ":", ".", ",", "?", etc.) → tiret.
+const slugTag = s => removeAccents(String(s ?? ''))
+  .replace(/\s+/g, '-')                   // espaces → tirets
+  .replace(/[^a-zA-Z0-9\-_\/]/g, '-')    // caractères spéciaux → tirets
+  .replace(/-{2,}/g, '-')                 // tirets consécutifs → un seul
+  .replace(/^-+|-+$/g, '')               // tirets en début/fin → supprimés
+  .slice(0, 50)                           // longueur maximale
+
 // ── Frontmatter Obsidian complet depuis le JSON article ──────────────────────
 function buildArticleObsidianFrontmatter(article) {
   const today = new Date().toISOString().slice(0, 10)
@@ -168,8 +178,7 @@ function buildArticleObsidianFrontmatter(article) {
     .filter(v => v && typeof v === 'string' && v.trim())
   const sources   = String(article['Sources'] ?? '')
   const allTags   = [...new Set([sources, ...entityTags].filter(Boolean))].slice(0, 30)
-  // Obsidian n'accepte pas les espaces dans les tags → remplacement par des tirets
-  const tagLines  = allTags.map(t => `  - "${t.trim().replace(/\s+/g, '-').replace(/"/g, "'")}"`).join('\n')
+  const tagLines  = allTags.map(t => `  - "${slugTag(t)}"`).join('\n')
 
   // Entités par type (listes YAML pour les propriétés Obsidian)
   const typeMap   = { PERSON: 'personnes', ORG: 'organisations', GPE: 'lieux',
@@ -201,7 +210,7 @@ function buildArticleObsidianFrontmatter(article) {
     (article['temps_lecture_label'] ? `temps_lecture: ${q(article['temps_lecture_label'])}\n` : '') +
     `tags:\n${tagLines || '  - rapport'}\n` +
     (entLines ? entLines + '\n' : '') +
-    `type: Rapport\n` +
+    `type: Rapport-WUDD-ai\n` +
     `statut: generated\n` +
     `---\n\n`
   )
