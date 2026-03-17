@@ -543,7 +543,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
             )}
             {resume && <TTSButton text={resume} size={14} />}
             {url && (
-              <button onClick={() => setShowContradiction(true)}
+              <button onClick={e => { e.stopPropagation(); setShowContradiction(true) }}
                 title="Vérifier les contradictions entre sources"
                 className="p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-violet-500 dark:hover:text-violet-400 hover:bg-violet-50/50 dark:hover:bg-violet-900/20">
                 <Scale size={14} />

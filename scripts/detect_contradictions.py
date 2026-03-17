@@ -159,18 +159,31 @@ def _common_entities(art_a: dict, art_b: dict) -> int:
     return len(ent_a & ent_b)
 
 
+def _has_entities(article: dict) -> bool:
+    """Retourne True si l'article a au moins une entité NER enrichie."""
+    ents = article.get("entities", {})
+    if not ents:
+        return False
+    return any(len(v) > 0 for v in ents.values() if isinstance(v, list))
+
+
 def build_cluster(reference: dict, candidates: list[dict]) -> list[dict]:
     """Retourne les articles candidats formant un cluster avec l'article de référence.
 
     Filtres :
       1. Fenêtre temporelle ±DATE_WINDOW_DAYS
       2. Sources différentes
-      3. ≥ MIN_COMMON_ENTITIES entités communes
+      3a. Si NER disponible : ≥ MIN_COMMON_ENTITIES entités communes
+      3b. Si NER absent (articles non encore enrichis) : Jaccard seul avec seuil relevé
       4. Jaccard ≥ JACCARD_CLUSTER_THRESHOLD
+
+    Note : les articles sont fréquemment sans NER en journée (enrich_entities tourne à 02:00).
+    Dans ce cas, on se rabat sur la similarité textuelle seule.
     """
-    ref_date = _parse_date(reference.get("Date de publication", ""))
+    ref_date   = _parse_date(reference.get("Date de publication", ""))
     ref_resume = reference.get("Résumé", "")
     ref_source = reference.get("Sources", "")
+    ref_has_ner = _has_entities(reference)
     cluster = []
 
     for art in candidates:
@@ -185,16 +198,23 @@ def build_cluster(reference: dict, candidates: list[dict]) -> list[dict]:
             if abs((ref_date - art_date).days) > DATE_WINDOW_DAYS:
                 continue
 
-        # Filtre entités
-        if _common_entities(reference, art) < MIN_COMMON_ENTITIES:
-            continue
+        # Filtre entités — uniquement si les deux articles sont enrichis
+        art_has_ner = _has_entities(art)
+        if ref_has_ner and art_has_ner:
+            if _common_entities(reference, art) < MIN_COMMON_ENTITIES:
+                continue
+            threshold = JACCARD_CLUSTER_THRESHOLD
+        else:
+            # NER absent : Jaccard seul avec seuil légèrement relevé
+            threshold = 0.40
 
         # Filtre Jaccard
         score = jaccard(ref_resume, art.get("Résumé", ""))
-        if score < JACCARD_CLUSTER_THRESHOLD:
+        if score < threshold:
             continue
 
         art["_jaccard_score"] = round(score, 2)
+        art["_ner_used"] = ref_has_ner and art_has_ner
         cluster.append(art)
 
     return cluster
@@ -223,15 +243,22 @@ def detect_for_article(reference: dict, all_articles: list[dict], dry_run: bool 
 
     cluster = build_cluster(reference, all_articles)
 
+    ref_has_ner = _has_entities(reference)
+    if not ref_has_ner:
+        log(f"[00:02] ℹ️  NER absent sur cet article (enrichissement nocturne à 02:00)")
+        log(f"[00:02]     Mode dégradé : clustering par similarité textuelle seule (seuil 0.40)")
+
     if not cluster:
         log(f"[00:02] ℹ️  Aucun article du même cluster trouvé")
-        log(f"[00:02]     (entités NER insuffisantes ou similarité < {JACCARD_CLUSTER_THRESHOLD})")
+        log(f"[00:02]     (similarité textuelle < seuil requis)")
         log(f"[00:02] ✅ Analyse terminée — aucune contradiction à signaler")
         return []
 
-    log(f"[00:02] 🔗 {len(cluster)} article(s) dans le cluster événementiel :")
+    ner_note = "" if ref_has_ner else " — sans NER"
+    log(f"[00:02] 🔗 {len(cluster)} article(s) dans le cluster événementiel{ner_note} :")
     for a in cluster:
-        log(f"[00:02]       · {a.get('Sources', '—')} (Jaccard {a['_jaccard_score']})")
+        ner_flag = "✓NER" if a.get("_ner_used") else "~txt"
+        log(f"[00:02]       · {a.get('Sources', '—')} (Jaccard {a['_jaccard_score']} {ner_flag})")
 
     # ── Étape 2 : extraction claims ──────────────────────────────────────────
     log(f"[00:03] ────────────────────────────────────────")
