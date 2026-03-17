@@ -366,6 +366,9 @@ def detect_for_article(reference: dict, all_articles: list[dict], dry_run: bool 
         log("")
         log("")
         log("")
+        log("")
+        log("")
+        log("")
         return []
 
     ner_note = "" if ref_has_ner else " — mode similarité"
@@ -440,6 +443,9 @@ def detect_for_article(reference: dict, all_articles: list[dict], dry_run: bool 
     else:
         log(f"{ts()}   ✓  Aucune contradiction détectée entre les sources")
 
+    log("")
+    log("")
+    log("")
     log("")
     log("")
     log("")
