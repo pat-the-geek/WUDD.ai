@@ -182,13 +182,29 @@ Ce critère favorise mécaniquement les événements couverts par de nombreux m�
 
 Les sites de désinformation, fermes à clics et médias opportunistes sont le plus souvent créés récemment. Les recherches de NewsGuard et du Stanford Internet Observatory montrent qu'une écrasante majorité des sites diffusant de la mésinformation ont moins de 3 ans d'existence au moment de leur activité maximale.
 
+### Source externe utilisée
+
+**WHOIS** — protocole internet standard qui interroge les registres de noms de domaine (IANA, ICANN, registrars nationaux comme AFNIC pour `.fr`, Nominet pour `.co.uk`, etc.). La requête est effectuée via la bibliothèque Python **`python-whois`** (`pip install python-whois`). WHOIS est public, gratuit, sans clé API, mais soumis à des limites de débit selon les registrars.
+
+**Domaine testé :** extrait automatiquement depuis le champ `url` de l'article (ex : `https://www.lemonde.fr/article/…` → `lemonde.fr`).
+
+**User-Agent :** `Mozilla/5.0 (compatible; WUDD.ai/2.3; +https://github.com/wudd-ai)`
+
 ### Calcul
 
-```
-domain_age_years = (date_aujourd'hui − date_création_domaine) / 365.25
+```python
+import whois
+from datetime import datetime, timezone
+
+w = whois.whois(domain)          # requête WHOIS via python-whois
+creation = w.creation_date       # date de création du domaine
+if isinstance(creation, list):
+    creation = creation[0]       # certains registrars retournent une liste
+
+age_years = (datetime.now(timezone.utc) - creation).days / 365.25
 ```
 
-La date de création est obtenue par requête WHOIS sur le domaine extrait du champ `URL` des articles via la bibliothèque `python-whois`.
+Si WHOIS échoue (registrar muet, délai dépassé, domaine privé), le critère est ignoré sans pénalité : la formule de score composite s'adapte automatiquement aux champs disponibles (voir §3).
 
 ### Conversion en score (0–100)
 
@@ -214,16 +230,22 @@ Ce critère est calculé une fois par source lors de son premier ajout, puis rec
 
 Une source fiable identifie qui la publie, comment la contacter, et selon quelles règles éditoriales. L'absence de mentions légales ou de page "À propos" est un signal d'alerte reconnu par l'IFCN (*International Fact-Checking Network*) dans ses critères de certification des fact-checkeurs.
 
+### Source externe utilisée
+
+**HTTP direct** — le système effectue des requêtes HTTP sur le site lui-même, sans intermédiaire. Il utilise la bibliothèque Python **`requests`** avec un User-Agent identifié (`WUDD.ai/2.3`). Aucune clé API ni service tiers requis.
+
+**Méthode :** `HEAD` en première intention (plus rapide, ne télécharge pas le corps), puis fallback `GET` si le serveur répond `405 Method Not Allowed`. Timeout : **8 secondes** par requête. Une réponse HTTP `200 OK` sur l'URL finale (après redirections) valide la présence de la page.
+
 ### Méthode de vérification
 
-Le système effectue une requête HTTP GET sur la racine du domaine, puis tente d'accéder à une liste de chemins canoniques. Chaque chemin trouvé (réponse HTTP 200) ajoute 1 point.
+Le système teste plusieurs chemins canoniques par catégorie (une seule réponse 200 suffit pour valider la catégorie) :
 
-| Chemin testé | Points | Justification |
-|---|---|---|
-| `/mentions-legales` ou `/legal` | 1 | Obligations légales françaises (LCEN) |
-| `/about` ou `/qui-sommes-nous` | 1 | Identité du média |
-| `/cgu` ou `/conditions` | 1 | Cadre contractuel clair |
-| `/contact` ou `/redaction` | 1 | Joignabilité de la rédaction |
+| Catégorie | Chemins testés | Points | Justification |
+|---|---|---|---|
+| Mentions légales | `/mentions-legales`, `/mentions_legales`, `/legal`, `/mentions-légales` | 1 | Obligations légales françaises (LCEN) |
+| À propos | `/about`, `/qui-sommes-nous`, `/a-propos`, `/apropos`, `/about-us` | 1 | Identité du média |
+| CGU | `/cgu`, `/conditions`, `/conditions-generales`, `/terms` | 1 | Cadre contractuel clair |
+| Contact | `/contact`, `/redaction`, `/nous-contacter`, `/contactez-nous` | 1 | Joignabilité de la rédaction |
 
 ### Conversion en score (0–100)
 
@@ -283,9 +305,39 @@ Ce critère mesure la régularité de la **collecte** dans WUDD.ai, pas nécessa
 
 ### Présentation de MBFC
 
-**Media Bias / Fact Check** (mediabiasfactcheck.com) est la base de données publique de référence pour l'évaluation des médias. Elle classe chaque source selon deux axes : le biais politique et le niveau factuel.
+**Media Bias / Fact Check** ([mediabiasfactcheck.com](https://mediabiasfactcheck.com)) est la base de données publique de référence pour l'évaluation des médias, créée en 2015 par Dave Van Zandt. Elle classe chaque source selon deux axes : le biais politique et le niveau factuel. Plus de 5 000 sources mondiales y sont référencées.
 
-Pour WUDD.ai, seul le **niveau factuel** est utilisé dans le score composite.
+Pour WUDD.ai, seul le **niveau factuel** (« Factual Reporting ») est utilisé dans le score composite.
+
+### Source externe utilisée
+
+**Scraping HTTP de mediabiasfactcheck.com** — MBFC ne propose pas d'API publique. Le système interroge directement le moteur de recherche interne du site :
+
+```
+GET https://mediabiasfactcheck.com/?s={nom_source_encodé}
+```
+
+Exemple : pour « Le Monde » → `https://mediabiasfactcheck.com/?s=Le+Monde`
+
+Le HTML de la page de résultats est ensuite analysé par expression régulière pour extraire le rating factuel dans le bloc de texte entourant la première occurrence du nom de la source.
+
+**Pattern de détection (par ordre de priorité) :**
+
+| Pattern regex | Rating retenu |
+|---|---|
+| `VERY\s+HIGH` | `"VERY HIGH"` |
+| `HIGH\s+FACTUAL` | `"HIGH"` |
+| `\bHIGH\b` | `"HIGH"` |
+| `MOSTLY\s+FACTUAL` | `"MOSTLY FACTUAL"` |
+| `\bMIXED\b` | `"MIXED"` |
+| `VERY\s+LOW` | `"VERY LOW"` |
+| `\bLOW\b` | `"LOW"` |
+
+Si le nom de la source n'apparaît pas dans les résultats, ou si aucun pattern ne correspond dans les 200 caractères avant / 500 après la première occurrence, `mbfc_rating` est mis à `null`.
+
+**User-Agent :** `Mozilla/5.0 (compatible; WUDD.ai/2.3; +https://github.com/wudd-ai)` — Timeout : 8 secondes.
+
+> **Note :** Le scraping de MBFC est réalisé de façon respectueuse (1 requête par source, délai de 2 secondes entre requêtes, uniquement lors des enrichissements planifiés). WUDD.ai n'archive pas le contenu de MBFC et ne l'utilise que pour un seul champ (`mbfc_rating`).
 
 ### Niveaux factuels MBFC et conversion
 
