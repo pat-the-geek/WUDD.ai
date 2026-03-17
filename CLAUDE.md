@@ -47,7 +47,7 @@ WUDD.ai/
 | Testing | `pytest`, `pytest-cov` |
 | Containerization | Docker + Docker Compose |
 | Scheduling | `cron` inside Docker container |
-| Data storage | File-based JSON (no database) |
+| Data storage | File-based JSON (source de vérité) + **DuckDB** ≥ 0.10.0 (couche analytique en mémoire — requêtes SQL sur JSON natifs via `read_json_auto()`, optionnel) |
 
 ---
 
