@@ -307,12 +307,14 @@ function ContradictionDialog({ article, onClose }) {
   }, [url])
 
   useEffect(() => {
-    if (logsContainerRef.current) {
+    const el = logsContainerRef.current
+    if (!el) return
+    // Double rAF : attend 2 cycles de rendu pour que scrollHeight soit à jour
+    requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (logsContainerRef.current)
-          logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+        el.scrollTop = el.scrollHeight + 9999
       })
-    }
+    })
   }, [logs])
 
   const ICON_TYPE = {
