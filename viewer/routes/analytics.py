@@ -123,6 +123,34 @@ def api_sources_bias():
     if _bias_cache["data"] is not None and (now_ts - _bias_cache["ts"]) < _BIAS_CACHE_TTL:
         return jsonify(_bias_cache["data"])
 
+    # ── Chemin rapide DuckDB ──────────────────────────────────────────────────
+    try:
+        from utils.db import get_db
+        db = get_db(PROJECT_ROOT)
+        if db.available:
+            rows = db.source_bias_stats()
+            if rows:
+                result = [
+                    {
+                        "source": r["source"],
+                        "article_count": r["article_count"],
+                        "sentiment_counts": {
+                            "positif": r.get("positif") or 0,
+                            "neutre":  r.get("neutre")  or 0,
+                            "négatif": r.get("negatif") or 0,
+                        },
+                        "avg_score_sentiment": r.get("avg_score_sentiment"),
+                        "avg_score_ton":       r.get("avg_score_ton"),
+                        "ton_distribution":    {},  # non calculé par DuckDB
+                    }
+                    for r in rows
+                ]
+                _bias_cache["data"] = result
+                _bias_cache["ts"] = now_ts
+                return jsonify(result)
+    except Exception:
+        pass  # bascule sur rglob si DuckDB indisponible
+
     data_dirs = [
         PROJECT_ROOT / "data" / "articles",
         PROJECT_ROOT / "data" / "articles-from-rss",

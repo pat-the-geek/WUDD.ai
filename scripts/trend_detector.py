@@ -194,6 +194,54 @@ def collect_entity_mentions(
     except Exception as _e:
         default_logger.warning(f"collect_entity_mentions: index indisponible ({_e}), fallback rglob")
 
+    # ── Fallback DuckDB (IO parallèle, plus rapide que rglob) ────────────────
+    try:
+        from utils.db import get_db
+        db = get_db(project_root)
+        if db.available:
+            rows = db.articles_with_entities_in_window(window_days)
+            if rows:
+                counts: dict[str, int] = defaultdict(int)
+                for row in rows:
+                    # Re-filtrer par date côté Python (DuckDB filtre best-effort)
+                    dt = _parse_date(row.get("date", ""))
+                    if dt is not None and dt < cutoff:
+                        continue
+                    entities_json = row.get("entities_json")
+                    if not entities_json:
+                        continue
+                    try:
+                        import json as _json
+                        ents = _json.loads(entities_json)
+                    except (ValueError, TypeError):
+                        continue
+                    if not isinstance(ents, dict):
+                        continue
+                    for etype, values in ents.items():
+                        if etype not in monitored_types:
+                            continue
+                        if not isinstance(values, list):
+                            continue
+                        for v in values:
+                            if not isinstance(v, str):
+                                continue
+                            v = v.strip()
+                            if not v or len(v) < len_min or len(v) > len_max:
+                                continue
+                            if v.lower() in exclude_entities:
+                                continue
+                            counts[f"{etype}:{v}"] += 1
+                if counts:
+                    default_logger.debug(
+                        f"collect_entity_mentions: {len(counts)} entités via DuckDB"
+                        f" (window={window_days}j)"
+                    )
+                    return dict(counts)
+    except Exception as _e:
+        default_logger.debug(
+            f"collect_entity_mentions: DuckDB indisponible ({_e}), fallback rglob"
+        )
+
     # ── Fallback rglob ────────────────────────────────────────────────────────
     counts = defaultdict(int)
     scan_dirs = [
