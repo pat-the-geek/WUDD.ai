@@ -153,25 +153,111 @@ const CHIP_STYLE = {
 }
 const FALLBACK_CHIP = 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600'
 
-// ── Frontmatter Obsidian ──────────────────────────────────────────────────────
-function buildObsidianFrontmatter(title, tags) {
-  const date      = new Date().toISOString().slice(0, 10)
-  const dedupTags = [...new Set(
-    tags.filter(t => t && typeof t === 'string' && t.trim().length > 0)
-  )].slice(0, 30)
-  const tagLines  = dedupTags
-    .map(t => `  - "${t.trim().replace(/"/g, "'")}"`)
+// ── Suppression des accents (réutilisée pour les slugs Obsidian) ─────────────
+const removeAccents = s =>
+  String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+// ── Frontmatter Obsidian complet depuis le JSON article ──────────────────────
+function buildArticleObsidianFrontmatter(article) {
+  const today = new Date().toISOString().slice(0, 10)
+
+  // Collecter toutes les entités nommées pour les tags
+  const entities  = article.entities ?? {}
+  const entityTags = Object.values(entities)
+    .flat()
+    .filter(v => v && typeof v === 'string' && v.trim())
+  const sources   = String(article['Sources'] ?? '')
+  const allTags   = [...new Set([sources, ...entityTags].filter(Boolean))].slice(0, 30)
+  // Obsidian n'accepte pas les espaces dans les tags → remplacement par des tirets
+  const tagLines  = allTags.map(t => `  - "${t.trim().replace(/\s+/g, '-').replace(/"/g, "'")}"`).join('\n')
+
+  // Entités par type (listes YAML pour les propriétés Obsidian)
+  const typeMap   = { PERSON: 'personnes', ORG: 'organisations', GPE: 'lieux',
+                      LOC: 'lieux_geographiques', PRODUCT: 'produits', EVENT: 'evenements' }
+  const entLines  = Object.entries(typeMap)
+    .map(([type, key]) => {
+      const vals = Array.isArray(entities[type]) ? entities[type] : []
+      if (!vals.length) return null
+      return `${key}:\n` + vals.map(v => `  - "${String(v).replace(/"/g, "'")}"`).join('\n')
+    })
+    .filter(Boolean)
     .join('\n')
+
+  const q = v => `"${String(v ?? '').replace(/"/g, "'")}"`
+
   return (
     `---\n` +
-    `title: "${title.replace(/"/g, "'")}"\n` +
-    `date: ${date}\n` +
+    `title: ${q(article['Titre'] || article['Sources'] || 'Rapport')}\n` +
+    `date: ${today}\n` +
+    `date_publication: ${q(article['Date de publication'] ?? '')}\n` +
+    `source: ${q(sources)}\n` +
+    `url: ${q(article['URL'] ?? '')}\n` +
     `version: "1.0"\n` +
+    (article['sentiment']       ? `sentiment: ${q(article['sentiment'])}\n`              : '') +
+    (article['score_sentiment'] != null ? `score_sentiment: ${article['score_sentiment']}\n` : '') +
+    (article['ton_editorial']   ? `ton_editorial: ${q(article['ton_editorial'])}\n`      : '') +
+    (article['score_ton']       != null ? `score_ton: ${article['score_ton']}\n`         : '') +
+    (article['score_source']    != null ? `score_source: ${article['score_source']}\n`   : '') +
+    (article['temps_lecture_label'] ? `temps_lecture: ${q(article['temps_lecture_label'])}\n` : '') +
     `tags:\n${tagLines || '  - rapport'}\n` +
+    (entLines ? entLines + '\n' : '') +
     `type: Rapport\n` +
     `statut: generated\n` +
     `---\n\n`
   )
+}
+
+// ── Corps de note Obsidian structuré ─────────────────────────────────────────
+function buildObsidianNoteBody(article) {
+  const entities = article.entities ?? {}
+  const sources  = String(article['Sources'] ?? '')
+  const url      = article['URL'] ?? ''
+  const score    = article['score_source'] != null ? ` — Crédibilité : **${article['score_source']}/100**` : ''
+  const lecture  = article['temps_lecture_label'] ? ` — ${article['temps_lecture_label']}` : ''
+  const sentiment = [article['sentiment'], article['ton_editorial']].filter(Boolean).join(' / ')
+
+  let body = ''
+
+  // Images
+  const imgs = Array.isArray(article['Images']) ? article['Images'] : []
+  for (const img of imgs.slice(0, 2)) {
+    const imgUrl = img?.URL || img?.url || ''
+    if (imgUrl) body += `![](${imgUrl})\n\n`
+  }
+
+  // Résumé
+  if (article['Résumé']) {
+    body += `## Résumé\n\n${article['Résumé']}\n\n`
+  }
+
+  // Entités avec liens [[wikilinks]] Obsidian
+  const TYPE_LABELS = {
+    PERSON: 'Personnes', ORG: 'Organisations', GPE: 'Lieux',
+    LOC: 'Lieux géographiques', PRODUCT: 'Produits', EVENT: 'Événements',
+    NORP: 'Groupes / nationalités',
+  }
+  const entSections = Object.entries(TYPE_LABELS)
+    .map(([type, label]) => {
+      const vals = Array.isArray(entities[type]) ? entities[type] : []
+      if (!vals.length) return null
+      return `### ${label}\n\n` + vals.map(v => `- [[${v}]]`).join('\n')
+    })
+    .filter(Boolean)
+  if (entSections.length) {
+    body += `## Entités\n\n` + entSections.join('\n\n') + '\n\n'
+  }
+
+  // Section source
+  body += `## Source\n\n`
+  body += `| Champ | Valeur |\n|---|---|\n`
+  body += `| Source | **${sources}**${score} |\n`
+  if (article['Date de publication']) body += `| Date | ${article['Date de publication']} |\n`
+  if (url) body += `| URL | [↗ Lire l'article](${url}) |\n`
+  if (lecture) body += `| Temps de lecture | ${lecture.replace(' — ', '')} |\n`
+  if (sentiment) body += `| Ton / Sentiment | ${sentiment} |\n`
+  body += `\n---\n\n`
+
+  return body
 }
 
 // ── Composant principal ───────────────────────────────────────────────────────
@@ -444,31 +530,43 @@ ${contentEl.innerHTML}
 
   const handleExport = async (target) => {
     setExportState(prev => ({ ...prev, [target]: 'saving' }))
-    const filename = `rapport_${sources || 'article'}_${date || new Date().toISOString().slice(0, 10)}`
-      .replace(/[/\\: ]/g, '-')
 
-    // Pour l'export Obsidian : remplacer le frontmatter existant par un frontmatter Obsidian
     let markdown = cleanMd
+    let filename
+    let resumeForDedup = ''
+
     if (target === 'obsidian') {
-      // Collecter toutes les entités nommées de l'article comme tags
-      const entityTags = Object.values(entities)
-        .flat()
-        .filter(v => v && typeof v === 'string' && v.trim())
-      const tags  = [sources, ...entityTags].filter(Boolean)
-      const front = buildObsidianFrontmatter(titre, tags)
-      // Supprimer le frontmatter existant (bloc --- … ---) s'il est présent
-      markdown = front + cleanMd.replace(/^---[\s\S]*?---\n\n?/, '')
+      // ── Nom de fichier Obsidian : YYYY-MM-DD_source_slug-titre.md ───────────
+      const today      = new Date().toISOString().slice(0, 10)
+      const srcSlug    = removeAccents(sources || 'article')
+        .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 15)
+      const titreSlug  = removeAccents(titre || '')
+        .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
+      filename = `${today}_${srcSlug}_${titreSlug}`
+
+      // ── Contenu de la note Obsidian ──────────────────────────────────────────
+      const front    = buildArticleObsidianFrontmatter(article)
+      const noteBody = buildObsidianNoteBody(article)
+      // Corps IA : supprimer le frontmatter existant du rapport AI
+      const aiReport = cleanMd.replace(/^---[\s\S]*?---\n\n?/, '')
+      markdown = front + noteBody + `## Rapport IA\n\n` + aiReport
+
+      // MD5 du résumé pour la déduplication côté serveur
+      resumeForDedup = article['Résumé'] ?? ''
+    } else {
+      filename = `rapport_${sources || 'article'}_${date || new Date().toISOString().slice(0, 10)}`
+        .replace(/[/\\: ]/g, '-')
     }
 
     try {
       const r = await fetch('/api/export/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markdown, filename, target }),
+        body: JSON.stringify({ markdown, filename, target, resume: resumeForDedup }),
       })
       const d = await r.json()
       if (d.ok) {
-        setExportState(prev => ({ ...prev, [target]: { ok: true, path: d.path } }))
+        setExportState(prev => ({ ...prev, [target]: { ok: true, path: d.path, deduplicated: d.deduplicated } }))
       } else {
         setExportState(prev => ({ ...prev, [target]: { ok: false, error: d.error } }))
       }
@@ -638,20 +736,19 @@ ${contentEl.innerHTML}
                   <Terminal size={12} />
                   Terminal IA
                 </button>
-                {/* Export local */}
-                <div className="relative group mr-0.5">
+                {/* Export local — icône seule */}
+                <div className="relative group">
                   <button
                     onClick={() => handleExport('local')}
                     disabled={exportState.local === 'saving'}
                     title={exportState.local?.ok ? `Enregistré : ${exportState.local.path}` : exportState.local?.error ? `Erreur : ${exportState.local.error}` : 'Sauvegarder dans rapports/'}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 ${
+                    className={`p-1.5 rounded-lg border transition-colors disabled:opacity-40 ${
                       exportState.local?.ok    ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300' :
                       exportState.local?.error ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400' :
-                      'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-slate-400'
+                      'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-400 hover:text-slate-700'
                     }`}
                   >
-                    {exportState.local === 'saving' ? <Loader2 size={12} className="animate-spin" /> : exportState.local?.ok ? <Check size={12} /> : <Download size={12} />}
-                    Export
+                    {exportState.local === 'saving' ? <Loader2 size={14} className="animate-spin" /> : exportState.local?.ok ? <Check size={14} /> : <Download size={14} />}
                   </button>
                   {(exportState.local?.ok || exportState.local?.error) && (
                     <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[10px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
@@ -659,24 +756,25 @@ ${contentEl.innerHTML}
                     </div>
                   )}
                 </div>
-                {/* Export Obsidian */}
-                <div className="relative group mr-0.5">
+                {/* Export Obsidian — icône seule */}
+                <div className="relative group">
                   <button
                     onClick={() => handleExport('obsidian')}
                     disabled={exportState.obsidian === 'saving'}
-                    title={exportState.obsidian?.ok ? `Enregistré : ${exportState.obsidian.path}` : exportState.obsidian?.error ? `Erreur : ${exportState.obsidian.error}` : 'Exporter vers Obsidian (OBSIDIAN_DIR)'}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 ${
+                    title={exportState.obsidian?.ok ? `Enregistré${exportState.obsidian.deduplicated ? ' (déjà existant)' : ''} : ${exportState.obsidian.path}` : exportState.obsidian?.error ? `Erreur : ${exportState.obsidian.error}` : 'Exporter vers Obsidian'}
+                    className={`p-1.5 rounded-lg border transition-colors disabled:opacity-40 ${
                       exportState.obsidian?.ok    ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300' :
                       exportState.obsidian?.error ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400' :
-                      'bg-violet-50 dark:bg-violet-900/30 border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/50'
+                      'bg-violet-50 dark:bg-violet-900/30 border-violet-200 dark:border-violet-700 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50'
                     }`}
                   >
-                    {exportState.obsidian === 'saving' ? <Loader2 size={12} className="animate-spin" /> : exportState.obsidian?.ok ? <Check size={12} /> : <BookOpen size={12} />}
-                    Export Obsidian
+                    {exportState.obsidian === 'saving' ? <Loader2 size={14} className="animate-spin" /> : exportState.obsidian?.ok ? <Check size={14} /> : <BookOpen size={14} />}
                   </button>
                   {(exportState.obsidian?.ok || exportState.obsidian?.error) && (
                     <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[10px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
-                      {exportState.obsidian?.ok ? exportState.obsidian.path : exportState.obsidian?.error}
+                      {exportState.obsidian?.ok
+                        ? (exportState.obsidian.deduplicated ? '✓ Déjà exporté — ' : '') + exportState.obsidian.path
+                        : exportState.obsidian?.error}
                     </div>
                   )}
                 </div>

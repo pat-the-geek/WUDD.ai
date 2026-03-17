@@ -155,6 +155,10 @@ async function consumeSse(url, onChunk, signal) {
   }
 }
 
+// ── Suppression des accents (Mermaid ne gère pas bien les caractères accentués) ─
+const removeAccents = s =>
+  String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
 // ── Générateur Mermaid mindmap pour co-occurrences ─────────────────────────────
 function buildMindmapMd(entityValue, l1Nodes) {
   if (!l1Nodes || l1Nodes.length === 0) return ''
@@ -163,14 +167,18 @@ function buildMindmapMd(entityValue, l1Nodes) {
   for (const n of l1Nodes) {
     if (!CARTO_TYPES.includes(n.type)) continue
     if (!byType[n.type]) byType[n.type] = []
-    // Limiter à 6 entités par type pour garder le diagramme lisible
-    if (byType[n.type].length < 6) byType[n.type].push(String(n.value ?? ''))
+    // Limiter à 4 entités par type — au-delà le rendu se superpose
+    if (byType[n.type].length < 4) byType[n.type].push(String(n.value ?? ''))
   }
   const types = CARTO_TYPES.filter(t => byType[t]?.length > 0)
   if (types.length === 0) return ''
 
-  // Nettoyer les valeurs pour Mermaid (éviter les guillemets/parenthèses problématiques)
-  const esc = v => String(v ?? '').replace(/[()[\]"']/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)
+  // Nettoyer les valeurs pour Mermaid : sans accents, sans guillemets/parenthèses
+  const esc = v => removeAccents(v)
+    .replace(/[()[\]"']/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 30)   // 30 chars max pour éviter les chevauchements
 
   let diagram = `mindmap\n  root(${esc(entityValue)})\n`
   for (const type of types) {
@@ -190,10 +198,11 @@ function buildPieMd(articles) {
     const src = String(art['Sources'] || 'Inconnu')
     counts[src] = (counts[src] || 0) + 1
   }
-  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10)
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8)
   if (entries.length < 2) return ''
-  const esc = v => String(v ?? '').replace(/"/g, "'").slice(0, 35)
-  let diagram = `pie title Distribution des sources (${articles.length} articles)\n`
+  // Sans accents, sans guillemets doubles — labels courts pour éviter la superposition
+  const esc = v => removeAccents(v).replace(/"/g, "'").replace(/\s+/g, ' ').trim().slice(0, 28)
+  let diagram = `pie title Distribution sources (${articles.length} articles)\n`
   for (const [src, count] of entries) {
     diagram += `    "${esc(src)}" : ${count}\n`
   }
@@ -206,8 +215,9 @@ function buildObsidianFrontmatter(title, tags) {
   const dedupTags = [...new Set(
     tags.filter(t => t && typeof t === 'string' && t.trim().length > 0)
   )].slice(0, 30)
+  // Obsidian n'accepte pas les espaces dans les tags → remplacement par des tirets
   const tagLines = dedupTags
-    .map(t => `  - "${t.trim().replace(/"/g, "'")}"`)
+    .map(t => `  - "${t.trim().replace(/\s+/g, '-').replace(/"/g, "'")}"`)
     .join('\n')
   return (
     `---\n` +
@@ -531,7 +541,7 @@ export default function EntityFullReportDialog({
     em: ({ children }) => <em className="text-slate-700 dark:text-slate-300 italic">{children}</em>,
   }
 
-  // ── Export button helper ───────────────────────────────────────────────────
+  // ── Export button helper (icône seule — économise l'espace en mobile) ────────
   const ExportBtn = ({ target, label, icon: Icon, colors }) => {
     const st = exportState[target]
     const isSaving = st === 'saving'
@@ -543,14 +553,13 @@ export default function EntityFullReportDialog({
           onClick={() => handleExport(target)}
           disabled={isLoading || !cleanMd || isSaving}
           title={isDone ? `Enregistré : ${st.path}` : isFail ? `Erreur : ${st.error}` : label}
-          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 ${
+          className={`p-1.5 rounded-lg border transition-colors disabled:opacity-40 ${
             isDone  ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300' :
             isFail  ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300' :
             colors
           }`}
         >
-          {isSaving ? <Loader2 size={12} className="animate-spin" /> : isDone ? <Check size={12} /> : <Icon size={12} />}
-          {label}
+          {isSaving ? <Loader2 size={14} className="animate-spin" /> : isDone ? <Check size={14} /> : <Icon size={14} />}
         </button>
         {(isDone || isFail) && (
           <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[10px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
