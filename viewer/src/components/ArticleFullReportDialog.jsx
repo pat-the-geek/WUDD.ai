@@ -210,7 +210,7 @@ function buildArticleObsidianFrontmatter(article) {
     (article['temps_lecture_label'] ? `temps_lecture: ${q(article['temps_lecture_label'])}\n` : '') +
     `tags:\n${tagLines || '  - rapport'}\n` +
     (entLines ? entLines + '\n' : '') +
-    `type: Rapport\n` +
+    `type: Rapport-WUDD-ai\n` +
     `statut: generated\n` +
     `---\n\n`
   )

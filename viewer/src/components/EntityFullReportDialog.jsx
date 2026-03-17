@@ -234,7 +234,7 @@ function buildObsidianFrontmatter(title, tags) {
     `date: ${date}\n` +
     `version: "1.0"\n` +
     `tags:\n${tagLines || '  - rapport'}\n` +
-    `type: Rapport\n` +
+    `type: Rapport-WUDD-ai\n` +
     `statut: generated\n` +
     `---\n\n`
   )
