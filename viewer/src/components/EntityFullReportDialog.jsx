@@ -155,9 +155,19 @@ async function consumeSse(url, onChunk, signal) {
   }
 }
 
-// ── Suppression des accents (Mermaid ne gère pas bien les caractères accentués) ─
+// ── Suppression des accents ────────────────────────────────────────────────────
 const removeAccents = s =>
   String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+// ── Nettoyage d'un tag pour Obsidian ─────────────────────────────────────────
+// Obsidian n'accepte que lettres, chiffres, tirets, underscores et slashes.
+// Tout autre caractère (espaces, ":", ".", ",", "?", etc.) → tiret.
+const slugTag = s => removeAccents(String(s ?? ''))
+  .replace(/\s+/g, '-')                   // espaces → tirets
+  .replace(/[^a-zA-Z0-9\-_\/]/g, '-')    // caractères spéciaux → tirets
+  .replace(/-{2,}/g, '-')                 // tirets consécutifs → un seul
+  .replace(/^-+|-+$/g, '')               // tirets en début/fin → supprimés
+  .slice(0, 50)                           // longueur maximale
 
 // ── Générateur Mermaid mindmap pour co-occurrences ─────────────────────────────
 function buildMindmapMd(entityValue, l1Nodes) {
@@ -215,9 +225,8 @@ function buildObsidianFrontmatter(title, tags) {
   const dedupTags = [...new Set(
     tags.filter(t => t && typeof t === 'string' && t.trim().length > 0)
   )].slice(0, 30)
-  // Obsidian n'accepte pas les espaces dans les tags → remplacement par des tirets
   const tagLines = dedupTags
-    .map(t => `  - "${t.trim().replace(/\s+/g, '-').replace(/"/g, "'")}"`)
+    .map(t => `  - "${slugTag(t)}"`)
     .join('\n')
   return (
     `---\n` +
