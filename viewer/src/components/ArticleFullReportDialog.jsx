@@ -168,7 +168,8 @@ function buildArticleObsidianFrontmatter(article) {
     .filter(v => v && typeof v === 'string' && v.trim())
   const sources   = String(article['Sources'] ?? '')
   const allTags   = [...new Set([sources, ...entityTags].filter(Boolean))].slice(0, 30)
-  const tagLines  = allTags.map(t => `  - "${t.trim().replace(/"/g, "'")}"`).join('\n')
+  // Obsidian n'accepte pas les espaces dans les tags → remplacement par des tirets
+  const tagLines  = allTags.map(t => `  - "${t.trim().replace(/\s+/g, '-').replace(/"/g, "'")}"`).join('\n')
 
   // Entités par type (listes YAML pour les propriétés Obsidian)
   const typeMap   = { PERSON: 'personnes', ORG: 'organisations', GPE: 'lieux',

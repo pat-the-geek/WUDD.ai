@@ -215,8 +215,9 @@ function buildObsidianFrontmatter(title, tags) {
   const dedupTags = [...new Set(
     tags.filter(t => t && typeof t === 'string' && t.trim().length > 0)
   )].slice(0, 30)
+  // Obsidian n'accepte pas les espaces dans les tags → remplacement par des tirets
   const tagLines = dedupTags
-    .map(t => `  - "${t.trim().replace(/"/g, "'")}"`)
+    .map(t => `  - "${t.trim().replace(/\s+/g, '-').replace(/"/g, "'")}"`)
     .join('\n')
   return (
     `---\n` +
