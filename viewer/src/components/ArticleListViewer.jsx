@@ -288,7 +288,7 @@ function ContradictionDialog({ article, onClose }) {
   const [logs, setLogs]       = useState([])
   const [done, setDone]       = useState(false)
   const [error, setError]     = useState(null)
-  const logsEndRef            = useRef(null)
+  const logsContainerRef      = useRef(null)
   const url                   = article['URL'] ?? ''
 
   useEffect(() => {
@@ -307,7 +307,9 @@ function ContradictionDialog({ article, onClose }) {
   }, [url])
 
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (logsContainerRef.current) {
+      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+    }
   }, [logs])
 
   const ICON_TYPE = {
@@ -337,7 +339,7 @@ function ContradictionDialog({ article, onClose }) {
         </div>
 
         {/* Log stream */}
-        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs bg-slate-950 text-slate-200">
+        <div ref={logsContainerRef} className="flex-1 overflow-y-auto p-4 font-mono text-xs bg-slate-950 text-slate-200">
           {logs.map((line, i) => {
             const isContradiction = line.includes('CONTRADICTION') || line.includes('⚠️') || line.includes('🚨')
             const isOk  = line.includes('✅') || line.includes('✓')
@@ -365,7 +367,6 @@ function ContradictionDialog({ article, onClose }) {
           {error && (
             <div className="mt-1 text-rose-400">✗ {error}</div>
           )}
-          <div ref={logsEndRef} />
         </div>
 
         {/* Footer */}
