@@ -66,6 +66,15 @@ def _bigrams(text: str) -> frozenset:
     return frozenset(zip(tokens[:-1], tokens[1:]))
 
 
+def _content_words(text: str) -> set:
+    """Mots de contenu significatifs (>4 chars, hors stopwords).
+    Résistant au bilinguisme FR/EN : même sujet = mots propres communs.
+    Ex: "villeneuve", "chalamet", "trailer", "partie" → même article Dune 3.
+    """
+    return {w for w in _normalize(text).split()
+            if len(w) > 4 and w not in _STOPWORDS}
+
+
 def jaccard(text_a: str, text_b: str) -> float:
     bg_a = _bigrams(text_a)
     bg_b = _bigrams(text_b)
@@ -167,57 +176,131 @@ def _has_entities(article: dict) -> bool:
     return any(len(v) > 0 for v in ents.values() if isinstance(v, list))
 
 
-def build_cluster(reference: dict, candidates: list[dict]) -> list[dict]:
+MIN_CONTENT_WORDS = 4   # mots de contenu communs suffisants pour cluster sans NER
+
+
+def build_cluster(reference: dict, candidates: list[dict]) -> tuple[list[dict], dict]:
     """Retourne les articles candidats formant un cluster avec l'article de référence.
 
-    Filtres :
+    Filtres (appliqués en séquence) :
       1. Fenêtre temporelle ±DATE_WINDOW_DAYS
       2. Sources différentes
-      3a. Si NER disponible : ≥ MIN_COMMON_ENTITIES entités communes
-      3b. Si NER absent (articles non encore enrichis) : Jaccard seul avec seuil relevé
-      4. Jaccard ≥ JACCARD_CLUSTER_THRESHOLD
+      3a. Si NER disponible sur les deux articles : ≥ MIN_COMMON_ENTITIES entités communes
+      3b. Si NER absent : clustering par similarité uniquement
+      4. Jaccard ≥ seuil   OU   mots de contenu communs ≥ MIN_CONTENT_WORDS
+         Le 2e critère est résistant au bilinguisme FR/EN (noms propres, termes techniques).
 
-    Note : les articles sont fréquemment sans NER en journée (enrich_entities tourne à 02:00).
-    Dans ce cas, on se rabat sur la similarité textuelle seule.
+    Retourne : (cluster, stats) où stats contient les compteurs de rejet pour diagnostic.
     """
-    ref_date   = _parse_date(reference.get("Date de publication", ""))
-    ref_resume = reference.get("Résumé", "")
-    ref_source = reference.get("Sources", "")
+    ref_date    = _parse_date(reference.get("Date de publication", ""))
+    ref_resume  = reference.get("Résumé", "")
+    ref_source  = reference.get("Sources", "")
     ref_has_ner = _has_entities(reference)
+    ref_cw      = _content_words(ref_resume)
+
     cluster = []
+    stats = {
+        "total": 0, "meme_source": 0, "hors_fenetre": 0,
+        "entites_insuffisantes": 0, "similarite_trop_faible": 0,
+        "retenus": 0, "top_scores": [],
+    }
 
     for art in candidates:
         if art.get("URL") == reference.get("URL"):
             continue
+        stats["total"] += 1
+
+        # Filtre : même source
         if art.get("Sources") == ref_source:
+            stats["meme_source"] += 1
             continue
 
         # Filtre temporel
         art_date = _parse_date(art.get("Date de publication", ""))
         if ref_date and art_date:
             if abs((ref_date - art_date).days) > DATE_WINDOW_DAYS:
+                stats["hors_fenetre"] += 1
                 continue
 
-        # Filtre entités — uniquement si les deux articles sont enrichis
+        art_resume  = art.get("Résumé", "")
         art_has_ner = _has_entities(art)
+
+        # Filtre entités — uniquement si les deux articles sont enrichis NER
+        ner_ok = False
         if ref_has_ner and art_has_ner:
             if _common_entities(reference, art) < MIN_COMMON_ENTITIES:
+                stats["entites_insuffisantes"] += 1
                 continue
-            threshold = JACCARD_CLUSTER_THRESHOLD
-        else:
-            # NER absent : Jaccard seul avec seuil légèrement relevé
-            threshold = 0.40
+            ner_ok = True
 
-        # Filtre Jaccard
-        score = jaccard(ref_resume, art.get("Résumé", ""))
-        if score < threshold:
+        # Critère 1 : Jaccard sur bigrammes
+        jac = jaccard(ref_resume, art_resume)
+
+        # Critère 2 : mots de contenu communs (résistant au bilinguisme FR/EN)
+        art_cw = _content_words(art_resume)
+        common_cw = ref_cw & art_cw
+
+        threshold = JACCARD_CLUSTER_THRESHOLD if ner_ok else 0.35
+        passes_jaccard = jac >= threshold
+        passes_keywords = len(common_cw) >= MIN_CONTENT_WORDS
+
+        # Conserver les meilleurs scores pour le log de diagnostic
+        if jac > 0.10 or len(common_cw) >= 2:
+            stats["top_scores"].append({
+                "source": art.get("Sources", "—"),
+                "jaccard": round(jac, 2),
+                "mots_communs": len(common_cw),
+                "exemples_mots": sorted(common_cw)[:4],
+            })
+
+        if not passes_jaccard and not passes_keywords:
+            stats["similarite_trop_faible"] += 1
             continue
 
-        art["_jaccard_score"] = round(score, 2)
-        art["_ner_used"] = ref_has_ner and art_has_ner
+        match_type = "NER+Jaccard" if ner_ok else ("Jaccard" if passes_jaccard else "keywords")
+        art["_jaccard_score"] = round(jac, 2)
+        art["_common_words"]  = len(common_cw)
+        art["_match_type"]    = match_type
+        stats["retenus"] += 1
         cluster.append(art)
 
-    return cluster
+    # Trier les top_scores pour le diagnostic
+    stats["top_scores"] = sorted(
+        stats["top_scores"], key=lambda x: (x["jaccard"], x["mots_communs"]), reverse=True
+    )[:5]
+
+    return cluster, stats
+
+
+# ── NER à la volée ────────────────────────────────────────────────────────────
+
+def _enrich_ner_on_demand(article: dict) -> dict:
+    """Calcule les entités NER d'un article via l'API IA sans sauvegarder.
+    Utilisé quand l'enrichissement nocturne n'a pas encore tourné.
+    """
+    try:
+        client = get_ai_client()
+        resume = article.get("Résumé", "")
+        if not resume:
+            return article
+        entities = client.generate_entities(resume)
+        if entities and isinstance(entities, dict):
+            article = dict(article)   # copie — ne pas modifier l'original en mémoire
+            article["entities"] = entities
+    except Exception:
+        pass
+    return article
+
+
+def _format_entities(article: dict) -> str:
+    """Résumé lisible des entités NER pour le log."""
+    ents = article.get("entities", {})
+    parts = []
+    for etype in ("PERSON", "ORG", "GPE"):
+        vals = ents.get(etype, [])
+        if vals:
+            parts.append(f"{etype}: {', '.join(vals[:3])}")
+    return " · ".join(parts) if parts else "aucune entité détectée"
 
 
 # ── Pipeline principal ────────────────────────────────────────────────────────
@@ -241,24 +324,37 @@ def detect_for_article(reference: dict, all_articles: list[dict], dry_run: bool 
     log(f"[00:01] ────────────────────────────────────────")
     log(f"[00:01] 🗂️  {len(all_articles)} articles dans la fenêtre")
 
-    cluster = build_cluster(reference, all_articles)
+    cluster, stats = build_cluster(reference, all_articles)
 
     ref_has_ner = _has_entities(reference)
     if not ref_has_ner:
-        log(f"[00:02] ℹ️  NER absent sur cet article (enrichissement nocturne à 02:00)")
-        log(f"[00:02]     Mode dégradé : clustering par similarité textuelle seule (seuil 0.40)")
+        log(f"[00:02] ℹ️  NER absent sur cet article — calcul à la volée…")
+        reference = _enrich_ner_on_demand(reference)
+        ref_has_ner = _has_entities(reference)
+        if ref_has_ner:
+            log(f"[00:04] ✓  NER calculé : {_format_entities(reference)}")
+            # Recalculer le cluster avec NER maintenant disponible
+            cluster, stats = build_cluster(reference, all_articles)
+        else:
+            log(f"[00:04] ℹ️  NER indisponible — mode similarité textuelle seule")
 
     if not cluster:
         log(f"[00:02] ℹ️  Aucun article du même cluster trouvé")
-        log(f"[00:02]     (similarité textuelle < seuil requis)")
+        log(f"[00:02]     Diagnostic : {stats['total']} candidats analysés")
+        log(f"[00:02]       · {stats['hors_fenetre']} hors fenêtre temporelle")
+        log(f"[00:02]       · {stats['entites_insuffisantes']} entités insuffisantes")
+        log(f"[00:02]       · {stats['similarite_trop_faible']} similarité trop faible")
+        if stats["top_scores"]:
+            log(f"[00:02]     Scores les plus proches :")
+            for s in stats["top_scores"][:3]:
+                log(f"[00:02]       · {s['source']} — Jaccard {s['jaccard']} · {s['mots_communs']} mots communs {s['exemples_mots']}")
         log(f"[00:02] ✅ Analyse terminée — aucune contradiction à signaler")
         return []
 
-    ner_note = "" if ref_has_ner else " — sans NER"
+    ner_note = "" if ref_has_ner else " — mode similarité"
     log(f"[00:02] 🔗 {len(cluster)} article(s) dans le cluster événementiel{ner_note} :")
     for a in cluster:
-        ner_flag = "✓NER" if a.get("_ner_used") else "~txt"
-        log(f"[00:02]       · {a.get('Sources', '—')} (Jaccard {a['_jaccard_score']} {ner_flag})")
+        log(f"[00:02]       · {a.get('Sources', '—')} (Jaccard {a['_jaccard_score']} · {a['_common_words']} mots · {a['_match_type']})")
 
     # ── Étape 2 : extraction claims ──────────────────────────────────────────
     log(f"[00:03] ────────────────────────────────────────")
@@ -436,7 +532,7 @@ def main() -> None:
         provider_label = "EurIA (Qwen3)"
 
     log(f"[00:00]     Fournisseur IA : {provider_label}")
-    log(f"[00:00]     Durée estimée  : 35–55 secondes")
+    log(f"[00:00]     Durée estimée  : 40–70 secondes (NER à la volée si absent)")
 
     all_articles = load_articles(days=args.days + DATE_WINDOW_DAYS, flux=args.flux)
 
@@ -459,7 +555,7 @@ def main() -> None:
         all_results = []
         seen_pairs: set[str] = set()
         for ref in recent:
-            cluster = build_cluster(ref, all_articles)
+            cluster, _ = build_cluster(ref, all_articles)
             if not cluster:
                 continue
             results = detect_for_article(ref, cluster, dry_run=args.dry_run)
