@@ -309,8 +309,8 @@ function ContradictionDialog({ article, onClose }) {
 
   useEffect(() => {
     if (!logs.length) return
-    // scrollIntoView block:'nearest' ne scrolle que le conteneur le plus proche
-    logsEndRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+    const el = logsContainerRef.current
+    if (el) el.scrollTop = el.scrollHeight
   }, [logs])
 
   const ICON_TYPE = {
@@ -340,7 +340,7 @@ function ContradictionDialog({ article, onClose }) {
         </div>
 
         {/* Log stream */}
-        <div ref={logsContainerRef} className="flex-1 max-h-[55vh] overflow-y-auto px-4 pt-4 pb-8 font-mono text-xs bg-slate-950 text-slate-200">
+        <div ref={logsContainerRef} className="flex-1 max-h-[55vh] overflow-y-auto px-4 pt-4 font-mono text-xs bg-slate-950 text-slate-200">
           {logs.map((line, i) => {
             const isContradiction = line.includes('CONTRADICTION') || line.includes('⚠️') || line.includes('🚨')
             const isOk  = line.includes('✅') || line.includes('✓')
@@ -368,7 +368,7 @@ function ContradictionDialog({ article, onClose }) {
           {error && (
             <div className="mt-1 text-rose-400">✗ {error}</div>
           )}
-          <div ref={logsEndRef} />
+          <div className="h-8 shrink-0" />
         </div>
 
         {/* Footer */}
