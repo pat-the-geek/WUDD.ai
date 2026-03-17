@@ -307,6 +307,7 @@ function ContradictionDialog({ article, onClose }) {
   }, [url])
 
   useEffect(() => {
+    if (!logs.length) return   // ne pas scroller avant la première ligne
     const el = logsContainerRef.current
     if (!el) return
     // Double rAF : attend 2 cycles de rendu pour que scrollHeight soit à jour
@@ -344,7 +345,7 @@ function ContradictionDialog({ article, onClose }) {
         </div>
 
         {/* Log stream */}
-        <div ref={logsContainerRef} className="flex-1 overflow-y-auto p-4 pb-6 font-mono text-xs bg-slate-950 text-slate-200">
+        <div ref={logsContainerRef} className="flex-1 overflow-y-auto px-4 pt-4 pb-8 font-mono text-xs bg-slate-950 text-slate-200">
           {logs.map((line, i) => {
             const isContradiction = line.includes('CONTRADICTION') || line.includes('⚠️') || line.includes('🚨')
             const isOk  = line.includes('✅') || line.includes('✓')
