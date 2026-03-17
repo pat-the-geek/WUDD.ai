@@ -1,3 +1,49 @@
+# 17/03/2026 — Couche analytique DuckDB + script d'import d'articles
+
+## `utils/db.py` — Nouvelle couche analytique DuckDB (Optimisation 2.1)
+
+Lecture SQL directe des fichiers JSON sans migration de données (`read_json_auto()`).
+DuckDB est une dépendance optionnelle — si indisponible, le code bascule sur Python classique.
+
+Méthodes disponibles via `get_db()` (singleton thread-safe) :
+
+| Méthode | Description |
+|---|---|
+| `query_articles_by_entity(entity, days)` | Articles mentionnant une entité (18 types NER) |
+| `article_stats_by_source(days)` | Statistiques par source : volume, sentiment moyen |
+| `article_stats_by_day(days)` | Volume quotidien |
+| `sentiment_distribution(days)` | Distribution positif/neutre/négatif avec % |
+| `source_bias_stats()` | Agrège sentiment + ton éditorial par source |
+| `top_sources_by_credibility()` | Sources triées par `score_source` moyen |
+| `reading_time_stats(days)` | Moyenne et médiane du temps de lecture |
+| `entity_json_from_file(path)` | Lecture directe d'un fichier pour `generate_48h_report.py` |
+
+## `scripts/import_articles.py` — Nouveau script d'import
+
+Injecte des articles depuis un fichier JSON externe dans la structure WUDD.ai.
+
+Fonctionnalités :
+- Validation des champs obligatoires (`Date de publication`, `Sources`, `URL`, `Résumé`)
+- Déduplication contre les articles existants du flux cible (via `Deduplicator`)
+- Destinations : `data/articles/<flux>/` ou `data/articles-from-rss/<keyword>.json`
+- Mise à jour automatique de `article_index` et `entity_index` après import
+- Sauvegarde atomique (`.tmp` → rename)
+
+Options CLI : `--file`, `--flux`, `--keyword`, `--rss`, `--dry-run`, `--force`, `--validate-only`
+
+## Accélération DuckDB dans les scripts existants
+
+- **`scripts/generate_48h_report.py`** : `compute_top_entities()` utilise DuckDB pour lire le fichier 48h directement si disponible (évite `json.load` Python sur les grands fichiers)
+- **`viewer/routes/analytics.py`** : endpoint `/api/sources/bias` utilise `db.source_bias_stats()` comme chemin rapide (bascule rglob si indisponible)
+- **`scripts/trend_detector.py`** : mise à jour des seuils et règles d'alertes
+
+## Mise à jour documentation
+
+- `docs/ARCHITECTURE.md` v4.3 : ajout `utils/db.py` dans le diagramme utils, section dédiée `import_articles.py` + `utils/db.py`
+- `README.md` : arborescence + section utilisation `import_articles.py`
+
+---
+
 # 07/03/2026 — Quota par entité nommée (`per_entity_daily_limit`)
 
 ## Nouveau plafond : entités nommées (`utils/quota.py`)

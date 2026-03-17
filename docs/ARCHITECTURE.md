@@ -1,6 +1,6 @@
 # Architecture — AnalyseActualités
 
-> Document de référence technique · Version 4.2 · 6 mars 2026
+> Document de référence technique · Version 4.3 · 17 mars 2026
 
 ---
 
@@ -311,6 +311,7 @@ flowchart LR
         HTTP["http_utils.py\nSession HTTP + extraction"]
         PAR["parallel.py\nThreadPoolExecutor"]
         LOG["logging.py\nLogging centralisé"]
+        DB["db.py\nCouche analytique DuckDB"]
     end
 
     SCHED --> MAIN
@@ -335,7 +336,7 @@ flowchart LR
     class SCHED,MAIN,KW,HEALTH auto
     class ENRICH,REPAIR enrich
     class TH,RADAR,KW_REPORT,MD analysis
-    class API,CACHE_M,CFG,DATE,HTTP,PAR,LOG lib
+    class API,CACHE_M,CFG,DATE,HTTP,PAR,LOG,DB lib
 ```
 
 ### Détail des scripts
@@ -433,6 +434,46 @@ Analyse temporelle des thèmes dans les articles, avec comparaison entre deux p�
 - Alerte email si inactivité ou motif d'erreur (`Traceback`, `Error`, `Exception`)
 - Configuration SMTP exclusivement via variables d'environnement
 
+#### `import_articles.py` — Import d'articles externes
+
+Permet d'injecter des articles depuis une autre instance WUDD.ai, un backup ou une source tiers.
+
+- **Validation** : vérifie les champs obligatoires (`Date de publication`, `Sources`, `URL`, `Résumé`), URLs, longueur du résumé
+- **Déduplication** : utilise `Deduplicator` pour ignorer les doublons existants (ou `--force` pour outrepasser)
+- **Destinations** : `data/articles/<flux>/articles_imported_<date>.json` ou `data/articles-from-rss/<keyword>.json`
+- **Mise à jour des index** : `article_index` et `entity_index` après chaque import
+- **Sécurité** : sauvegarde atomique (`.tmp` → rename), jamais de modification in-place
+
+```bash
+python3 scripts/import_articles.py --file export.json --flux Intelligence-artificielle
+python3 scripts/import_articles.py --file export.json --keyword ia --rss
+python3 scripts/import_articles.py --file export.json --validate-only
+```
+
+#### `utils/db.py` — Couche analytique DuckDB
+
+Fournit des requêtes analytiques rapides sur le corpus JSON via DuckDB, **sans migrer les données** : DuckDB lit les fichiers `.json` natifs via `read_json_auto()`. Les fichiers JSON restent la source de vérité. Dépendance optionnelle (`duckdb>=0.10.0`).
+
+| Méthode | Description |
+|---|---|
+| `query_articles_by_entity(entity, days)` | Articles mentionnant une entité dans une fenêtre temporelle |
+| `article_stats_by_source(days)` | Statistiques par source (volume, sentiment moyen) |
+| `article_stats_by_day(days)` | Volume quotidien d'articles |
+| `sentiment_distribution(days)` | Distribution positif/neutre/négatif avec pourcentages |
+| `source_bias_stats()` | Agrège sentiment + ton éditorial par source (pour `/api/sources/bias`) |
+| `top_sources_by_credibility()` | Sources triées par `score_source` moyen |
+| `reading_time_stats(days)` | Moyenne et médiane du temps de lecture |
+| `entity_json_from_file(path)` | Lecture directe DuckDB d'un fichier (pour `generate_48h_report.py`) |
+
+Le chemin rapide DuckDB est activé automatiquement dans `analytics.py` (endpoint `/api/sources/bias`) et dans `generate_48h_report.py`. Si DuckDB est indisponible, le code bascule sans interruption sur la lecture Python classique.
+
+```python
+from utils.db import get_db
+db = get_db()  # singleton thread-safe
+if db.available:
+    rows = db.article_stats_by_source(days=30)
+```
+
 #### `enrich_source_credibility.py` — Fiabilité des sources
 
 Enrichit `config/sources_credibility.json` avec trois signaux automatisés :
@@ -452,6 +493,46 @@ Modes d'exécution :
 Le score (0–100) est stocké dans `config/sources_credibility.json` et reporté dans le champ `score_source` de chaque article. Il est utilisé par `utils/source_credibility.py` comme multiplicateur dans `utils/scoring.py`.
 
 **Cron Docker :** synchronisation hebdomadaire (dimanche 3h30) + enrichissement mensuel (1er du mois 4h30).
+
+#### `import_articles.py` — Import d'articles externes
+
+Permet d'injecter des articles depuis une autre instance WUDD.ai, un backup ou une source tiers.
+
+- **Validation** : vérifie les champs obligatoires (`Date de publication`, `Sources`, `URL`, `Résumé`), URLs, longueur du résumé
+- **Déduplication** : utilise `Deduplicator` pour ignorer les doublons existants (ou `--force` pour outrepasser)
+- **Destinations** : `data/articles/<flux>/articles_imported_<date>.json` ou `data/articles-from-rss/<keyword>.json`
+- **Mise à jour des index** : `article_index` et `entity_index` après chaque import
+- **Sécurité** : sauvegarde atomique (`.tmp` → rename), jamais de modification in-place
+
+```bash
+python3 scripts/import_articles.py --file export.json --flux Intelligence-artificielle
+python3 scripts/import_articles.py --file export.json --keyword ia --rss
+python3 scripts/import_articles.py --file export.json --validate-only
+```
+
+#### `utils/db.py` — Couche analytique DuckDB
+
+Fournit des requêtes analytiques rapides sur le corpus JSON via DuckDB, **sans migrer les données** : DuckDB lit les fichiers `.json` natifs via `read_json_auto()`. Les fichiers JSON restent la source de vérité. Dépendance optionnelle (`duckdb>=0.10.0`).
+
+| Méthode | Description |
+|---|---|
+| `query_articles_by_entity(entity, days)` | Articles mentionnant une entité dans une fenêtre temporelle |
+| `article_stats_by_source(days)` | Statistiques par source (volume, sentiment moyen) |
+| `article_stats_by_day(days)` | Volume quotidien d'articles |
+| `sentiment_distribution(days)` | Distribution positif/neutre/négatif avec pourcentages |
+| `source_bias_stats()` | Agrège sentiment + ton éditorial par source (pour `/api/sources/bias`) |
+| `top_sources_by_credibility()` | Sources triées par `score_source` moyen |
+| `reading_time_stats(days)` | Moyenne et médiane du temps de lecture |
+| `entity_json_from_file(path)` | Lecture directe DuckDB d'un fichier (pour `generate_48h_report.py`) |
+
+Le chemin rapide DuckDB est activé automatiquement dans `analytics.py` (endpoint `/api/sources/bias`) et dans `generate_48h_report.py`. Si DuckDB est indisponible, le code bascule sans interruption sur la lecture Python classique.
+
+```python
+from utils.db import get_db
+db = get_db()  # singleton thread-safe
+if db.available:
+    rows = db.article_stats_by_source(days=30)
+```
 
 ---
 

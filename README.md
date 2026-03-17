@@ -168,6 +168,7 @@ WUDD.ai/
 │   ├── scheduler_articles.py                     # Scheduler multi-flux
 │   ├── get-keyword-from-rss.py                   # Extraction par mot-clé
 │   ├── enrich_entities.py                        # Enrichissement NER (entités nommées)
+│   ├── import_articles.py                        # Import d'articles depuis un fichier JSON externe
 │   └── check_cron_health.py                      # Monitoring cron
 ├── config/            # Sources, catégories, prompts, thématiques
 ├── data/              # Articles JSON générés (par flux)
@@ -358,6 +359,24 @@ Ajoute un champ `entities` à chaque article possédant un champ `Résumé`, en 
 ```
 
 Les articles déjà enrichis sont ignorés (sauf avec `--force`). La sauvegarde est atomique : écriture dans un `.tmp` puis remplacement. Voir [scripts/USAGE.md](scripts/USAGE.md) pour la liste complète des arguments.
+
+### Importer des articles depuis un fichier externe
+
+```bash
+# Importer dans un flux nommé
+python3 scripts/import_articles.py --file export.json --flux Intelligence-artificielle
+
+# Importer dans articles-from-rss sous un mot-clé
+python3 scripts/import_articles.py --file export.json --keyword ia --rss
+
+# Valider sans importer
+python3 scripts/import_articles.py --file export.json --validate-only
+
+# Simulation (aucune écriture)
+python3 scripts/import_articles.py --file export.json --flux IA --dry-run
+```
+
+Le script valide les champs obligatoires (`Date de publication`, `Sources`, `URL`, `Résumé`), déduplique contre les articles existants du flux cible, normalise les données, puis met à jour les index (`article_index`, `entity_index`).
 
 ### Réparer les enrichissements NER/sentiment en erreur
 
