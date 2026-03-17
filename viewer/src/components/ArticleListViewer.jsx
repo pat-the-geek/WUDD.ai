@@ -3,7 +3,7 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
   Download, LayoutGrid, AlignLeft, LayoutList, Maximize2, Clock,
-  Star, Eye, Pencil, Check, RefreshCw, FileText,
+  Star, Eye, Pencil, Check, RefreshCw, FileText, Scale,
 } from 'lucide-react'
 import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
@@ -283,6 +283,106 @@ function useAutoRead(articleUrl, isRead, onAnnotate) {
   return ref
 }
 
+/** Dialog popup de détection de contradictions — logs SSE en temps réel. */
+function ContradictionDialog({ article, onClose }) {
+  const [logs, setLogs]       = useState([])
+  const [done, setDone]       = useState(false)
+  const [error, setError]     = useState(null)
+  const logsEndRef            = useRef(null)
+  const url                   = article['URL'] ?? ''
+
+  useEffect(() => {
+    if (!url) return
+    const es = new EventSource(`/api/contradictions/stream?url=${encodeURIComponent(url)}`)
+    es.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data)
+        if (d.log)   setLogs(prev => [...prev, d.log])
+        if (d.error) setError(d.error)
+        if (d.done)  { setDone(true); es.close() }
+      } catch { /* ignore */ }
+    }
+    es.onerror = () => { setError('Connexion interrompue'); es.close() }
+    return () => es.close()
+  }, [url])
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [logs])
+
+  const ICON_TYPE = {
+    QUANTITATIVE:     '⚠️',
+    FACTUELLE_BINAIRE:'🚨',
+    TEMPORELLE:       '⚠️',
+    ATTRIBUTION:      '⚠️',
+    NUANCE:           'ℹ️',
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-white/50 dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
+          <div className="flex items-center gap-2">
+            <Scale size={16} className="text-slate-600 dark:text-slate-400" />
+            <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+              Vérification des sources
+            </span>
+          </div>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Log stream */}
+        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs bg-slate-950 text-slate-200">
+          {logs.map((line, i) => {
+            const isContradiction = line.includes('CONTRADICTION') || line.includes('⚠️') || line.includes('🚨')
+            const isOk  = line.includes('✅') || line.includes('✓')
+            const isSep = line.startsWith('[') && line.includes('────')
+            return (
+              <div key={i} className={`leading-5 whitespace-pre-wrap ${
+                isContradiction ? 'text-amber-300 font-semibold' :
+                isOk            ? 'text-emerald-400' :
+                isSep           ? 'text-slate-600' :
+                                  'text-slate-300'
+              }`}>
+                {line}
+              </div>
+            )
+          })}
+          {!done && !error && logs.length === 0 && (
+            <div className="text-slate-500 animate-pulse">Connexion en cours…</div>
+          )}
+          {!done && !error && logs.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-1 text-slate-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              En cours…
+            </div>
+          )}
+          {error && (
+            <div className="mt-1 text-rose-400">✗ {error}</div>
+          )}
+          <div ref={logsEndRef} />
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 shrink-0 flex items-center justify-between">
+          <span className="text-[11px] text-slate-400">
+            {done ? 'Analyse terminée' : error ? 'Erreur' : 'Analyse en cours…'}
+          </span>
+          <button onClick={onClose}
+            className="text-xs px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors">
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** Modal de choix du fournisseur IA pour rafraîchir un résumé. */
 function IAPickerModal({ providers, onPick, onClose }) {
   const LABELS = { euria: 'EurIA — Infomaniak', claude: 'Claude — Anthropic' }
@@ -310,12 +410,13 @@ function IAPickerModal({ providers, onPick, onClose }) {
 
 /** Carte article complète (vue grille / large) — style Liquid Glass. */
 function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge }) {
-  const [expanded, setExpanded]           = useState(index < 3)
-  const [lightbox, setLightbox]           = useState(false)
-  const [noteOpen, setNoteOpen]           = useState(false)
-  const [refreshing, setRefreshing]       = useState(false)
-  const [refreshResume, setRefreshResume] = useState(null) // résumé mis à jour localement
-  const [showIAPicker, setShowIAPicker]   = useState(false)
+  const [expanded, setExpanded]                   = useState(index < 3)
+  const [lightbox, setLightbox]                   = useState(false)
+  const [noteOpen, setNoteOpen]                   = useState(false)
+  const [refreshing, setRefreshing]               = useState(false)
+  const [refreshResume, setRefreshResume]         = useState(null) // résumé mis à jour localement
+  const [showIAPicker, setShowIAPicker]           = useState(false)
+  const [showContradiction, setShowContradiction] = useState(false)
 
   const titre    = article['Titre']?.trim() || ''
   const resume   = refreshResume ?? article['Résumé'] ?? ''
@@ -369,6 +470,9 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
     <article ref={cardRef} {...(isFirstUnread ? { 'data-first-unread': '' } : {})} className="bg-white/60 dark:bg-slate-800/50 backdrop-blur-2xl border border-white/70 dark:border-white/10 rounded-3xl overflow-hidden shadow-xl shadow-black/8 dark:shadow-black/30 hover:shadow-2xl hover:shadow-black/12 dark:hover:shadow-black/40 transition-all duration-300">
       {showIAPicker && (
         <IAPickerModal providers={availableProviders} onPick={handleRefreshResume} onClose={() => setShowIAPicker(false)} />
+      )}
+      {showContradiction && (
+        <ContradictionDialog article={article} onClose={() => setShowContradiction(false)} />
       )}
       {imgUrl && (
         <button
@@ -438,6 +542,13 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
               </button>
             )}
             {resume && <TTSButton text={resume} size={14} />}
+            {url && (
+              <button onClick={() => setShowContradiction(true)}
+                title="Vérifier les contradictions entre sources"
+                className="p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-violet-500 dark:hover:text-violet-400 hover:bg-violet-50/50 dark:hover:bg-violet-900/20">
+                <Scale size={14} />
+              </button>
+            )}
             {article['URL'] && (
               <a href={article['URL']} target="_blank" rel="noopener noreferrer"
                 className="p-1.5 rounded-xl min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors" title="Ouvrir l'article">

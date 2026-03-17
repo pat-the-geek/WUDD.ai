@@ -33,13 +33,14 @@ from utils.entity_index import get_entity_index
 app = Flask(__name__)
 
 # ── Enregistrement des blueprints ─────────────────────────────────────────────
-from viewer.routes.files     import files_bp
-from viewer.routes.entities  import entities_bp
-from viewer.routes.analytics import analytics_bp
-from viewer.routes.export    import export_bp
-from viewer.routes.quota     import quota_bp
-from viewer.routes.settings  import settings_bp
-from viewer.routes.scheduler import scheduler_bp
+from viewer.routes.files           import files_bp
+from viewer.routes.entities        import entities_bp
+from viewer.routes.analytics       import analytics_bp
+from viewer.routes.export          import export_bp
+from viewer.routes.quota           import quota_bp
+from viewer.routes.settings        import settings_bp
+from viewer.routes.scheduler       import scheduler_bp
+from viewer.routes.contradictions  import contradictions_bp
 
 app.register_blueprint(files_bp)
 app.register_blueprint(entities_bp)
@@ -48,6 +49,7 @@ app.register_blueprint(export_bp)
 app.register_blueprint(quota_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(scheduler_bp)
+app.register_blueprint(contradictions_bp)
 
 
 # ── Rebuild des indexes au démarrage ─────────────────────────────────────────
