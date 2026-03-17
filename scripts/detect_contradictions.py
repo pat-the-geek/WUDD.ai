@@ -363,6 +363,9 @@ def detect_for_article(reference: dict, all_articles: list[dict], dry_run: bool 
         elapsed = int(time.time() - _start)
         log(f"{ts()} ────────────────────────────────────────")
         log(f"{ts()} ✅ Analyse terminée en {elapsed}s — aucune contradiction à signaler")
+        log("")
+        log("")
+        log("")
         return []
 
     ner_note = "" if ref_has_ner else " — mode similarité"
@@ -436,6 +439,10 @@ def detect_for_article(reference: dict, all_articles: list[dict], dry_run: bool 
             log(f"{ts()}   {emoji} {c['type_contradiction']} · confiance {c['score_confiance']:.0%}")
     else:
         log(f"{ts()}   ✓  Aucune contradiction détectée entre les sources")
+
+    log("")
+    log("")
+    log("")
 
     return contradictions
 
