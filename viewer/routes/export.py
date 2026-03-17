@@ -11,6 +11,7 @@ Routes :
   POST       /api/chat/save
 """
 import datetime
+import hashlib
 import json
 import os
 import re
@@ -635,34 +636,66 @@ def api_export_report():
       markdown  (str)  — contenu Markdown du rapport
       filename  (str)  — nom de fichier suggéré (sans extension)
       target    (str)  — 'local' (rapports/markdown/_WUDD.AI_/) ou 'obsidian' (OBSIDIAN_DIR)
+      resume    (str)  — résumé de l'article (utilisé pour la déduplication MD5, optionnel)
 
-    Retourne : { ok: bool, path: str }
+    Retourne : { ok: bool, path: str, deduplicated?: bool }
     """
-    body = request.get_json(force=True, silent=True) or {}
+    body     = request.get_json(force=True, silent=True) or {}
     markdown = (body.get("markdown") or "").strip()
     filename = (body.get("filename") or "rapport").strip()
     target   = (body.get("target") or "local").strip().lower()
+    resume   = (body.get("resume") or "").strip()   # pour déduplication
 
     if not markdown:
         return jsonify({"error": "markdown est requis"}), 400
-
-    # Sanitiser le nom de fichier
-    filename = re.sub(r"[^\w\-]", "_", filename)[:80]
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe_name = f"{filename}_{ts}.md"
 
     if target == "obsidian":
         obsidian_dir = os.environ.get("OBSIDIAN_DIR", "").strip()
         if not obsidian_dir:
             return jsonify({"error": "OBSIDIAN_DIR non configuré dans .env"}), 400
-        save_dir = Path(obsidian_dir)
+        save_dir  = Path(obsidian_dir)
+        # Obsidian : le frontend formate déjà le nom (YYYY-MM-DD_source_slug.md)
+        safe_name = re.sub(r"[^\w\-]", "_", filename)[:120] + ".md"
     else:
         save_dir = PROJECT_ROOT / "rapports" / "markdown" / "_WUDD.AI_"
+        # Export local : ajouter un timestamp pour éviter les collisions
+        fname_clean = re.sub(r"[^\w\-]", "_", filename)[:80]
+        ts          = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_name   = f"{fname_clean}_{ts}.md"
 
     try:
         save_dir.mkdir(parents=True, exist_ok=True)
+
+        # ── Déduplication par MD5 du résumé (Obsidian uniquement) ─────────────
+        if target == "obsidian" and resume:
+            resume_md5 = hashlib.md5(resume.encode("utf-8")).hexdigest()
+            index_path = save_dir / ".wudd_export_index.json"
+            index: dict = {}
+            if index_path.exists():
+                try:
+                    index = json.loads(index_path.read_text(encoding="utf-8"))
+                except Exception:
+                    index = {}
+            if resume_md5 in index:
+                existing = Path(index[resume_md5])
+                if existing.exists():
+                    return jsonify({"ok": True, "path": str(existing), "deduplicated": True})
+        else:
+            resume_md5 = None
+            index_path = None
+            index      = {}
+
         out_path = save_dir / safe_name
         out_path.write_text(markdown, encoding="utf-8")
+
+        # Mettre à jour l'index de déduplication
+        if target == "obsidian" and resume_md5 and index_path is not None:
+            index[resume_md5] = str(out_path)
+            try:
+                index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+            except OSError:
+                pass  # l'index est optionnel, ne pas bloquer l'export
+
         return jsonify({"ok": True, "path": str(out_path)})
     except OSError as e:
         return jsonify({"error": f"Erreur écriture : {e}"}), 500
