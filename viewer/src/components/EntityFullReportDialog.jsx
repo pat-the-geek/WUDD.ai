@@ -220,19 +220,23 @@ function buildPieMd(articles) {
 }
 
 // ── Frontmatter Obsidian ───────────────────────────────────────────────────────
-function buildObsidianFrontmatter(title, tags) {
-  const date     = new Date().toISOString().slice(0, 10)
+// coords : { lat, lon } | null  — coordonnées GPS de l'entité (GPE/LOC uniquement)
+function buildObsidianFrontmatter(title, tags, { entityType = '', coords = null } = {}) {
+  const date      = new Date().toISOString().slice(0, 10)
   const dedupTags = [...new Set(
     tags.filter(t => t && typeof t === 'string' && t.trim().length > 0)
   )].slice(0, 30)
-  const tagLines = dedupTags
+  const tagLines  = dedupTags
     .map(t => `  - "${slugTag(t)}"`)
     .join('\n')
+  const geoTypes  = new Set(['GPE', 'LOC'])
   return (
     `---\n` +
     `title: "${title.replace(/"/g, "'")}"\n` +
     `date: ${date}\n` +
     `version: "1.0"\n` +
+    (entityType ? `entity_type: "${entityType}"\n` : '') +
+    (coords ? `location: [${coords.lat}, ${coords.lon}]\n` : '') +
     `tags:\n${tagLines || '  - rapport'}\n` +
     `type: Rapport-WUDD-ai\n` +
     `statut: generated\n` +
@@ -434,10 +438,27 @@ export default function EntityFullReportDialog({
     // Pour l'export Obsidian : remplacer le frontmatter iA Writer par un frontmatter Obsidian
     let markdown = cleanMd
     if (target === 'obsidian') {
-      const title   = `Rapport — ${entityType} : ${entityValue}`
-      const l1Tags  = l1NodesRef.current.map(n => String(n.value ?? '')).filter(Boolean)
-      const tags    = [entityValue, ...l1Tags]
-      const front   = buildObsidianFrontmatter(title, tags)
+      const title  = `Rapport — ${entityType} : ${entityValue}`
+      const l1Tags = l1NodesRef.current.map(n => String(n.value ?? '')).filter(Boolean)
+      const tags   = [entityValue, ...l1Tags]
+
+      // Géocodage si l'entité est de type géographique (GPE ou LOC)
+      let coords = null
+      if (entityType === 'GPE' || entityType === 'LOC') {
+        try {
+          const geoRes = await fetch('/api/entities/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify([entityValue]),
+          })
+          if (geoRes.ok) {
+            const geoData = await geoRes.json()
+            if (geoData[entityValue]?.lat != null) coords = geoData[entityValue]
+          }
+        } catch (_) { /* optionnel */ }
+      }
+
+      const front = buildObsidianFrontmatter(title, tags, { entityType, coords })
       // Supprimer le frontmatter iA Writer existant (bloc --- … ---)
       markdown = front + cleanMd.replace(/^---[\s\S]*?---\n\n?/, '')
     }

@@ -168,7 +168,8 @@ const slugTag = s => removeAccents(String(s ?? ''))
   .slice(0, 50)                           // longueur maximale
 
 // ── Frontmatter Obsidian complet depuis le JSON article ──────────────────────
-function buildArticleObsidianFrontmatter(article) {
+// geoData : { "Paris": { lat: 48.85, lon: 2.35 }, "France": { lat: 46.2, lon: 2.2 }, ... }
+function buildArticleObsidianFrontmatter(article, geoData = {}) {
   const today = new Date().toISOString().slice(0, 10)
 
   // Collecter toutes les entités nommées pour les tags
@@ -192,6 +193,22 @@ function buildArticleObsidianFrontmatter(article) {
     .filter(Boolean)
     .join('\n')
 
+  // ── Géolocalisation ───────────────────────────────────────────────────────
+  // GPE principale : première GPE ayant des coordonnées résolues
+  const gpeList = Array.isArray(entities['GPE']) ? entities['GPE'] : []
+  const locList = Array.isArray(entities['LOC']) ? entities['LOC'] : []
+  const allGeoNames = [...gpeList, ...locList]
+  const mainGeoName = allGeoNames.find(n => geoData[n]?.lat != null)
+  const mainCoords  = mainGeoName ? geoData[mainGeoName] : null
+
+  // entites_geo : liste des GPE/LOC avec coordonnées
+  const geoEntries = allGeoNames
+    .filter(n => geoData[n]?.lat != null)
+    .map(n => {
+      const c = geoData[n]
+      return `  - name: "${String(n).replace(/"/g, "'")}"\n    location: [${c.lat}, ${c.lon}]`
+    })
+
   const q = v => `"${String(v ?? '').replace(/"/g, "'")}"`
 
   return (
@@ -202,6 +219,7 @@ function buildArticleObsidianFrontmatter(article) {
     `source: ${q(sources)}\n` +
     `url: ${q(article['URL'] ?? '')}\n` +
     `version: "1.0"\n` +
+    (mainCoords ? `location: [${mainCoords.lat}, ${mainCoords.lon}]\n` : '') +
     (article['sentiment']       ? `sentiment: ${q(article['sentiment'])}\n`              : '') +
     (article['score_sentiment'] != null ? `score_sentiment: ${article['score_sentiment']}\n` : '') +
     (article['ton_editorial']   ? `ton_editorial: ${q(article['ton_editorial'])}\n`      : '') +
@@ -210,6 +228,7 @@ function buildArticleObsidianFrontmatter(article) {
     (article['temps_lecture_label'] ? `temps_lecture: ${q(article['temps_lecture_label'])}\n` : '') +
     `tags:\n${tagLines || '  - rapport'}\n` +
     (entLines ? entLines + '\n' : '') +
+    (geoEntries.length ? `entites_geo:\n${geoEntries.join('\n')}\n` : '') +
     `type: Rapport-WUDD-ai\n` +
     `statut: generated\n` +
     `---\n\n`
@@ -217,7 +236,8 @@ function buildArticleObsidianFrontmatter(article) {
 }
 
 // ── Corps de note Obsidian structuré ─────────────────────────────────────────
-function buildObsidianNoteBody(article) {
+// geoData : { "Paris": { lat, lon }, ... } — optionnel
+function buildObsidianNoteBody(article, geoData = {}) {
   const entities = article.entities ?? {}
   const sources  = String(article['Sources'] ?? '')
   const url      = article['URL'] ?? ''
@@ -254,6 +274,20 @@ function buildObsidianNoteBody(article) {
     .filter(Boolean)
   if (entSections.length) {
     body += `## Entités\n\n` + entSections.join('\n\n') + '\n\n'
+  }
+
+  // Géolocalisation (si coordonnées disponibles)
+  const gpeList = Array.isArray(entities['GPE']) ? entities['GPE'] : []
+  const locList = Array.isArray(entities['LOC']) ? entities['LOC'] : []
+  const resolvedGeo = [...gpeList, ...locList].filter(n => geoData[n]?.lat != null)
+  if (resolvedGeo.length > 0) {
+    body += `## Géographie\n\n`
+    body += `| Lieu | Latitude | Longitude |\n|---|---|---|\n`
+    for (const name of resolvedGeo) {
+      const c = geoData[name]
+      body += `| [[${name}]] | ${c.lat} | ${c.lon} |\n`
+    }
+    body += '\n'
   }
 
   // Section source
@@ -553,9 +587,25 @@ ${contentEl.innerHTML}
         .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
       filename = `${today}_${srcSlug}_${titreSlug}`
 
+      // ── Géocodage des entités GPE/LOC ────────────────────────────────────────
+      let geoData = {}
+      const gpeList  = Array.isArray(entities['GPE']) ? entities['GPE'] : []
+      const locList  = Array.isArray(entities['LOC']) ? entities['LOC'] : []
+      const geoNames = [...new Set([...gpeList, ...locList])].filter(Boolean)
+      if (geoNames.length > 0) {
+        try {
+          const geoRes = await fetch('/api/entities/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(geoNames),
+          })
+          if (geoRes.ok) geoData = await geoRes.json()
+        } catch (_) { /* geocodage optionnel — on continue sans */ }
+      }
+
       // ── Contenu de la note Obsidian ──────────────────────────────────────────
-      const front    = buildArticleObsidianFrontmatter(article)
-      const noteBody = buildObsidianNoteBody(article)
+      const front    = buildArticleObsidianFrontmatter(article, geoData)
+      const noteBody = buildObsidianNoteBody(article, geoData)
       // Corps IA : supprimer le frontmatter existant du rapport AI
       const aiReport = cleanMd.replace(/^---[\s\S]*?---\n\n?/, '')
       markdown = front + noteBody + `## Rapport IA\n\n` + aiReport
