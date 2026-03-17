@@ -75,7 +75,7 @@ def stream_contradiction_analysis():
             proc = subprocess.Popen(
                 ["python3", str(script), "--article", article_url],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.DEVNULL,
                 text=True,
                 bufsize=1,
                 cwd=str(PROJECT_ROOT),
