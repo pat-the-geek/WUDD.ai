@@ -24,6 +24,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# Rediriger les logs Python (INFO/DEBUG) vers stderr
+# → seul stdout (notre log()) est capturé par le SSE du viewer
+import logging
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+
 from utils.config import get_config
 from utils.api_client import get_ai_client
 from utils.claim_extractor import extract_claims
