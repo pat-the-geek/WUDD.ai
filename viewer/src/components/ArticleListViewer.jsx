@@ -289,6 +289,7 @@ function ContradictionDialog({ article, onClose }) {
   const [done, setDone]       = useState(false)
   const [error, setError]     = useState(null)
   const logsContainerRef      = useRef(null)
+  const logsEndRef            = useRef(null)
   const url                   = article['URL'] ?? ''
 
   useEffect(() => {
@@ -307,15 +308,9 @@ function ContradictionDialog({ article, onClose }) {
   }, [url])
 
   useEffect(() => {
-    if (!logs.length) return   // ne pas scroller avant la première ligne
-    const el = logsContainerRef.current
-    if (!el) return
-    // Double rAF : attend 2 cycles de rendu pour que scrollHeight soit à jour
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight + 9999
-      })
-    })
+    if (!logs.length) return
+    // scrollIntoView block:'nearest' ne scrolle que le conteneur le plus proche
+    logsEndRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' })
   }, [logs])
 
   const ICON_TYPE = {
@@ -373,6 +368,7 @@ function ContradictionDialog({ article, onClose }) {
           {error && (
             <div className="mt-1 text-rose-400">✗ {error}</div>
           )}
+          <div ref={logsEndRef} />
         </div>
 
         {/* Footer */}
