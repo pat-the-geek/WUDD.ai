@@ -340,7 +340,7 @@ function ContradictionDialog({ article, onClose }) {
         </div>
 
         {/* Log stream */}
-        <div ref={logsContainerRef} className="flex-1 overflow-y-auto px-4 pt-4 pb-8 font-mono text-xs bg-slate-950 text-slate-200">
+        <div ref={logsContainerRef} className="flex-1 max-h-[55vh] overflow-y-auto px-4 pt-4 pb-8 font-mono text-xs bg-slate-950 text-slate-200">
           {logs.map((line, i) => {
             const isContradiction = line.includes('CONTRADICTION') || line.includes('⚠️') || line.includes('🚨')
             const isOk  = line.includes('✅') || line.includes('✓')
