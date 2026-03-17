@@ -409,3 +409,58 @@ def stream_keyword_rss():
         content_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@scheduler_bp.route("/api/health/cron")
+def cron_health():
+    """Retourne l'état de santé des jobs cron depuis data/cron_health.json.
+
+    Optimisation 2.6 : endpoint dédié pour le monitoring du pipeline cron.
+    Le fichier est écrit par check_cron_health.py toutes les 10 minutes.
+
+    Returns:
+        JSON avec :
+          - status      : "ok" | "degraded" | "critical"
+          - generated_at: horodatage ISO de la dernière vérification
+          - jobs        : dict {job_name: {label, status, last_run, age_minutes, ...}}
+          - alerts      : liste de messages d'alerte
+          - file_age_minutes : âge du fichier cron_health.json en minutes
+    """
+    health_file = PROJECT_ROOT / "data" / "cron_health.json"
+
+    if not health_file.exists():
+        return jsonify({
+            "status": "unknown",
+            "message": "cron_health.json introuvable — check_cron_health.py n'a pas encore tourné.",
+            "generated_at": None,
+            "jobs": {},
+            "alerts": [],
+            "file_age_minutes": None,
+        }), 200
+
+    try:
+        health = json.loads(health_file.read_text(encoding="utf-8"))
+        # Ajouter l'âge du fichier pour détecter si check_cron_health.py est lui-même en panne
+        file_mtime = health_file.stat().st_mtime
+        file_age_minutes = round((datetime.datetime.now().timestamp() - file_mtime) / 60, 1)
+        health["file_age_minutes"] = file_age_minutes
+
+        # Alerte si le fichier lui-même est vieux (check_cron_health.py silencieusement tombé)
+        if file_age_minutes > 15:
+            health.setdefault("alerts", []).append(
+                f"⚠ cron_health.json non mis à jour depuis {file_age_minutes:.0f} min "
+                f"(check_cron_health.py inactif ?)"
+            )
+            if health.get("status") == "ok":
+                health["status"] = "degraded"
+
+        return jsonify(health)
+    except (json.JSONDecodeError, OSError) as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Erreur lecture cron_health.json : {e}",
+            "generated_at": None,
+            "jobs": {},
+            "alerts": [],
+            "file_age_minutes": None,
+        }), 500

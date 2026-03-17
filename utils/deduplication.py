@@ -31,6 +31,14 @@ from .logging import default_logger
 # Seuil par défaut de similarité Jaccard entre titres (0–1)
 DEFAULT_TITLE_THRESHOLD: float = 0.80
 
+# Seuils adaptatifs selon la longueur du texte (optimisation 2.5)
+# Les textes courts (brèves) tolèrent un seuil plus bas car leurs bigrammes
+# sont peu nombreux et le moindre mot commun gonfle le score.
+# Les textes longs exigent plus de similarité pour éviter les faux positifs.
+_ADAPTIVE_THRESHOLD_SHORT: float = 0.70   # résumés < 80 mots
+_ADAPTIVE_THRESHOLD_MEDIUM: float = 0.80  # résumés 80–200 mots (= valeur historique)
+_ADAPTIVE_THRESHOLD_LONG: float = 0.85    # résumés > 200 mots
+
 # Longueur du préfixe de résumé utilisé pour l'empreinte MD5
 _RESUME_FINGERPRINT_LEN: int = 200
 
@@ -115,6 +123,27 @@ def compute_resume_fingerprint(resume: str) -> str:
     return hashlib.md5(prefix.encode("utf-8")).hexdigest()
 
 
+def _adaptive_jaccard_threshold(text: str) -> float:
+    """Retourne le seuil Jaccard adaptatif selon la longueur du texte.
+
+    Optimisation 2.5 : un seuil unique de 0.80 génère des faux positifs sur
+    les brèves courtes et des faux négatifs sur les textes longs reformulés.
+
+    Args:
+        text : Texte de référence (titre ou résumé)
+
+    Returns:
+        Seuil Jaccard flottant entre 0.70 et 0.85.
+    """
+    word_count = len(text.split())
+    if word_count < 80:
+        return _ADAPTIVE_THRESHOLD_SHORT
+    elif word_count <= 200:
+        return _ADAPTIVE_THRESHOLD_MEDIUM
+    else:
+        return _ADAPTIVE_THRESHOLD_LONG
+
+
 def compute_url_fingerprint(url: str) -> str:
     """Retourne l'empreinte MD5 de l'URL normalisée (sans fragment ni trailing slash)."""
     url_clean = url.strip().rstrip("/").lower().split("#")[0]
@@ -177,11 +206,13 @@ class Deduplicator:
             if res_fp in self._seen_resume_fps:
                 return True
 
-        # Signal 3 : similarité de titre
+        # Signal 3 : similarité de titre (seuil adaptatif selon longueur — optimisation 2.5)
         title = (article.get("Titre") or article.get("titre") or "").strip()
         if title:
+            threshold = _adaptive_jaccard_threshold(title) if self.title_threshold == DEFAULT_TITLE_THRESHOLD \
+                else self.title_threshold  # respecter le seuil explicite si non-défaut
             for seen_title in self._seen_titles:
-                if compute_title_similarity(title, seen_title) >= self.title_threshold:
+                if compute_title_similarity(title, seen_title) >= threshold:
                     return True
 
         return False

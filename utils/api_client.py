@@ -23,20 +23,32 @@ class CircuitBreaker:
     """Circuit breaker thread-safe pour les appels API externes.
 
     États :
-      CLOSED    — appels autorisés (fonctionnement normal)
-      OPEN      — appels bloqués pendant la fenêtre de grâce (grace_seconds)
-      HALF-OPEN — un appel de sonde autorisé pour tester le rétablissement
+      CLOSED     — appels autorisés (fonctionnement normal)
+      OPEN       — appels bloqués pendant la fenêtre de grâce (grace_seconds)
+      HALF-OPEN  — un appel de sonde autorisé pour tester le rétablissement
+      OPEN_QUOTA — quota API dépassé (HTTP 429) ; grâce jusqu'à minuit UTC
+      OPEN_AUTH  — authentification invalide (HTTP 401/403) ; blocage permanent
+                   jusqu'à appel explicite de reset()
+
+    Optimisation 2.3 : les erreurs sont différenciées par catégorie afin
+    d'appliquer une grâce adaptée (timeout ≠ quota ≠ auth).
 
     Transitions :
-      CLOSED  → OPEN       : après N échecs consécutifs
-      OPEN    → HALF-OPEN  : après grace_seconds secondes
-      HALF-OPEN → CLOSED   : succès de la sonde
-      HALF-OPEN → OPEN     : échec de la sonde (réinitialise le timer)
+      CLOSED      → OPEN       : après N échecs transients consécutifs
+      CLOSED      → OPEN_QUOTA : sur erreur 429 (quota dépassé)
+      CLOSED      → OPEN_AUTH  : sur erreur 401/403 (authentification invalide)
+      OPEN        → HALF-OPEN  : après grace_seconds secondes
+      OPEN_QUOTA  → CLOSED     : automatiquement à minuit UTC (lazy reset)
+      OPEN_AUTH   → CLOSED     : uniquement via reset() explicite
+      HALF-OPEN   → CLOSED     : succès de la sonde
+      HALF-OPEN   → OPEN       : échec de la sonde
     """
 
-    _STATE_CLOSED    = "CLOSED"
-    _STATE_OPEN      = "OPEN"
-    _STATE_HALF_OPEN = "HALF-OPEN"
+    _STATE_CLOSED     = "CLOSED"
+    _STATE_OPEN       = "OPEN"
+    _STATE_HALF_OPEN  = "HALF-OPEN"
+    _STATE_OPEN_QUOTA = "OPEN_QUOTA"
+    _STATE_OPEN_AUTH  = "OPEN_AUTH"
 
     def __init__(
         self,
@@ -51,6 +63,7 @@ class CircuitBreaker:
         self._state = self._STATE_CLOSED
         self._failure_count = 0
         self._opened_at: float = 0.0
+        self._quota_reset_date: Optional[str] = None  # date ISO "YYYY-MM-DD"
 
     @property
     def state(self) -> str:
@@ -68,12 +81,30 @@ class CircuitBreaker:
         with self._lock:
             if self._state == self._STATE_CLOSED:
                 return True
+
             if self._state == self._STATE_OPEN:
                 elapsed = time.monotonic() - self._opened_at
                 if elapsed >= self.grace_seconds:
                     self._transition(self._STATE_HALF_OPEN)
                     return True  # Laisse passer la sonde
                 return False
+
+            if self._state == self._STATE_OPEN_QUOTA:
+                # Reset automatique à minuit UTC (lazy)
+                today = time.strftime("%Y-%m-%d", time.gmtime())
+                if self._quota_reset_date and today > self._quota_reset_date:
+                    default_logger.info(
+                        f"[CircuitBreaker:{self.name}] Nouveau jour — reset quota automatique."
+                    )
+                    self._failure_count = 0
+                    self._transition(self._STATE_CLOSED)
+                    return True
+                return False
+
+            if self._state == self._STATE_OPEN_AUTH:
+                # Blocage permanent — nécessite reset() explicite
+                return False
+
             # HALF-OPEN : un seul appel de sonde autorisé
             return True
 
@@ -87,12 +118,36 @@ class CircuitBreaker:
                 )
             self._failure_count = 0
 
-    def record_failure(self) -> None:
-        """À appeler après un échec d'appel."""
+    def record_failure(self, error_category: str = "transient") -> None:
+        """À appeler après un échec d'appel.
+
+        Args:
+            error_category : catégorie d'erreur pour adapter la grâce :
+                - "transient" (défaut) : timeout, connexion — comportement standard
+                - "quota"              : HTTP 429 — blocage jusqu'à minuit UTC
+                - "auth"               : HTTP 401/403 — blocage permanent jusqu'à reset()
+        """
         with self._lock:
+            if error_category == "quota":
+                self._quota_reset_date = time.strftime("%Y-%m-%d", time.gmtime())
+                self._transition(self._STATE_OPEN_QUOTA)
+                default_logger.warning(
+                    f"[CircuitBreaker:{self.name}] Quota API dépassé (429) — "
+                    f"circuit OPEN_QUOTA jusqu'à minuit UTC ({self._quota_reset_date})."
+                )
+                return
+
+            if error_category == "auth":
+                self._transition(self._STATE_OPEN_AUTH)
+                default_logger.error(
+                    f"[CircuitBreaker:{self.name}] Authentification invalide (401/403) — "
+                    f"circuit OPEN_AUTH. Vérifiez vos credentials et appelez reset()."
+                )
+                return
+
+            # Comportement standard (transient)
             self._failure_count += 1
             if self._state == self._STATE_HALF_OPEN:
-                # La sonde a échoué — rouvrir
                 self._opened_at = time.monotonic()
                 self._transition(self._STATE_OPEN)
                 default_logger.warning(
@@ -106,6 +161,18 @@ class CircuitBreaker:
                     f"[CircuitBreaker:{self.name}] {self._failure_count} échecs consécutifs "
                     f"— circuit ouvert pour {self.grace_seconds:.0f}s."
                 )
+
+    def reset(self) -> None:
+        """Réinitialise le circuit breaker vers l'état CLOSED.
+
+        À utiliser après correction d'une erreur d'authentification (OPEN_AUTH)
+        ou manuellement pour forcer la réouverture.
+        """
+        with self._lock:
+            self._failure_count = 0
+            self._quota_reset_date = None
+            self._transition(self._STATE_CLOSED)
+            default_logger.info(f"[CircuitBreaker:{self.name}] Reset manuel — circuit fermé.")
 
 
 # Instances partagées par client (une par fournisseur)
@@ -398,11 +465,17 @@ class EurIAClient:
                     f"Erreur HTTP {status_code} lors de la tentative {attempt + 1}/{max_attempts}"
                 )
 
-                # Ne pas retry pour certains codes d'erreur
-                if status_code in [400, 401, 403, 404]:
-                    default_logger.error("Erreur non récupérable, arrêt des tentatives")
+                # Catégoriser l'erreur pour le circuit breaker (optimisation 2.3)
+                if status_code == 429:
+                    _euria_breaker.record_failure(error_category="quota")
                     break
-                _euria_breaker.record_failure()
+                elif status_code in [401, 403]:
+                    _euria_breaker.record_failure(error_category="auth")
+                    break
+                elif status_code in [400, 404]:
+                    break  # Erreur client non récupérable — pas de circuit breaker
+                else:
+                    _euria_breaker.record_failure()
 
             except requests.exceptions.ConnectionError as e:
                 last_error = "Erreur de connexion"
@@ -721,9 +794,17 @@ class ClaudeClient:
                 status_code = e.response.status_code if e.response is not None else "inconnu"
                 last_error = f"Erreur HTTP {status_code}"
                 default_logger.error(f"[Claude] Erreur HTTP {status_code}")
-                if status_code in [400, 401, 403]:
+                # Catégoriser l'erreur pour le circuit breaker (optimisation 2.3)
+                if status_code == 429:
+                    _claude_breaker.record_failure(error_category="quota")
                     break
-                _claude_breaker.record_failure()
+                elif status_code in [401, 403]:
+                    _claude_breaker.record_failure(error_category="auth")
+                    break
+                elif status_code == 400:
+                    break  # Erreur client — pas de circuit breaker
+                else:
+                    _claude_breaker.record_failure()
 
             except requests.exceptions.ConnectionError as e:
                 last_error = "Erreur de connexion"
@@ -822,9 +903,16 @@ class ClaudeClient:
                 status_code = e.response.status_code if e.response is not None else "inconnu"
                 last_error = f"Erreur HTTP {status_code}"
                 default_logger.error(f"[Claude] Erreur HTTP {status_code}")
-                if status_code in [400, 401, 403]:
+                if status_code == 429:
+                    _claude_breaker.record_failure(error_category="quota")
                     break
-                _claude_breaker.record_failure()
+                elif status_code in [401, 403]:
+                    _claude_breaker.record_failure(error_category="auth")
+                    break
+                elif status_code == 400:
+                    break
+                else:
+                    _claude_breaker.record_failure()
             except requests.exceptions.ConnectionError as e:
                 last_error = "Erreur de connexion"
                 default_logger.error(f"[Claude] Erreur de connexion : {e}")
@@ -933,6 +1021,210 @@ class ClaudeClient:
             f"Articles :\n{sources_block}"
         )
         return self.ask(prompt, model=self.model_synthesis, max_attempts=2, timeout=timeout, max_tokens=2048)
+
+    # ── Batch API (optimisation 2.8) ─────────────────────────────────────────
+
+    def generate_entities_batch(
+        self,
+        resumes: list[str],
+        poll_interval: int = 15,
+        max_polls: int = 120,
+    ) -> list[Optional[dict]]:
+        """Extraction NER en batch via l'API Anthropic Message Batches.
+
+        Envoie jusqu'à 10 000 résumés en une seule requête batch.
+        Retourne les résultats dans le même ordre que l'entrée.
+        Économies : ~50% sur le coût par token (prix batch Anthropic).
+
+        Nécessite le package `anthropic` : pip install anthropic>=0.40.0
+
+        Args:
+            resumes       : Liste de résumés à analyser
+            poll_interval : Secondes entre chaque sondage du statut (défaut: 15)
+            max_polls     : Nombre maximal de sondages avant abandon (défaut: 120 = 30 min)
+
+        Returns:
+            Liste de dicts d'entités dans le même ordre que `resumes`.
+            None pour les entrées ayant échoué.
+        """
+        try:
+            import anthropic as _anthropic
+        except ImportError:
+            default_logger.error(
+                "[Claude Batch] Package 'anthropic' non installé. "
+                "Installez avec : pip install anthropic>=0.40.0"
+            )
+            return [None] * len(resumes)
+
+        if not resumes:
+            return []
+
+        client = _anthropic.Anthropic(api_key=self.api_key)
+
+        # Construire les requêtes batch
+        requests_list = []
+        for i, resume in enumerate(resumes):
+            if not resume or not isinstance(resume, str) or not resume.strip():
+                requests_list.append(None)
+                continue
+            requests_list.append({
+                "custom_id": str(i),
+                "params": {
+                    "model": self.model_batch,
+                    "max_tokens": 800,
+                    "system": _NER_SYSTEM_INSTRUCTIONS,
+                    "messages": [
+                        {"role": "user", "content": f"Texte à analyser :\n{resume.strip()}"}
+                    ],
+                },
+            })
+
+        valid_requests = [r for r in requests_list if r is not None]
+        if not valid_requests:
+            return [None] * len(resumes)
+
+        default_logger.info(f"[Claude Batch NER] Envoi de {len(valid_requests)} requêtes batch…")
+
+        try:
+            batch = client.messages.batches.create(requests=valid_requests)
+            batch_id = batch.id
+            default_logger.info(f"[Claude Batch NER] Batch créé : {batch_id}")
+        except Exception as e:
+            default_logger.error(f"[Claude Batch NER] Création batch échouée : {e}")
+            return [None] * len(resumes)
+
+        # Polling jusqu'à completion
+        for poll in range(max_polls):
+            time.sleep(poll_interval)
+            try:
+                batch_status = client.messages.batches.retrieve(batch_id)
+            except Exception as e:
+                default_logger.warning(f"[Claude Batch NER] Sondage #{poll + 1} échoué : {e}")
+                continue
+
+            processing_status = getattr(batch_status, "processing_status", None)
+            default_logger.debug(f"[Claude Batch NER] Sondage #{poll + 1} — statut : {processing_status}")
+
+            if processing_status == "ended":
+                break
+        else:
+            default_logger.error(f"[Claude Batch NER] Timeout après {max_polls} sondages.")
+            return [None] * len(resumes)
+
+        # Récupérer les résultats
+        results: dict[int, Optional[dict]] = {}
+        try:
+            for result in client.messages.batches.results(batch_id):
+                idx = int(result.custom_id)
+                if result.result.type == "succeeded":
+                    raw = result.result.message.content[0].text if result.result.message.content else ""
+                    results[idx] = _parse_entities_response(raw)
+                else:
+                    results[idx] = None
+        except Exception as e:
+            default_logger.error(f"[Claude Batch NER] Récupération résultats échouée : {e}")
+
+        default_logger.info(
+            f"[Claude Batch NER] Terminé — {len(results)}/{len(valid_requests)} résultats récupérés."
+        )
+
+        # Remettre dans l'ordre original (les entrées None restent None)
+        return [results.get(i) for i in range(len(resumes))]
+
+    def generate_sentiment_batch(
+        self,
+        resumes: list[str],
+        poll_interval: int = 15,
+        max_polls: int = 120,
+    ) -> list[Optional[dict]]:
+        """Analyse sentiment & ton éditorial en batch via l'API Anthropic Message Batches.
+
+        Args:
+            resumes       : Liste de résumés à analyser
+            poll_interval : Secondes entre chaque sondage (défaut: 15)
+            max_polls     : Nombre maximal de sondages (défaut: 120 = 30 min)
+
+        Returns:
+            Liste de dicts {sentiment, score_sentiment, ton_editorial, score_ton}
+            dans le même ordre que `resumes`. None pour les échecs.
+        """
+        try:
+            import anthropic as _anthropic
+        except ImportError:
+            default_logger.error(
+                "[Claude Batch] Package 'anthropic' non installé. "
+                "Installez avec : pip install anthropic>=0.40.0"
+            )
+            return [None] * len(resumes)
+
+        if not resumes:
+            return []
+
+        client = _anthropic.Anthropic(api_key=self.api_key)
+
+        requests_list = []
+        for i, resume in enumerate(resumes):
+            if not resume or not isinstance(resume, str) or not resume.strip():
+                requests_list.append(None)
+                continue
+            requests_list.append({
+                "custom_id": str(i),
+                "params": {
+                    "model": self.model_batch,
+                    "max_tokens": 150,
+                    "system": _SENTIMENT_SYSTEM_INSTRUCTIONS,
+                    "messages": [
+                        {"role": "user", "content": f"Texte :\n{resume.strip()[:3000]}"}
+                    ],
+                },
+            })
+
+        valid_requests = [r for r in requests_list if r is not None]
+        if not valid_requests:
+            return [None] * len(resumes)
+
+        default_logger.info(f"[Claude Batch Sentiment] Envoi de {len(valid_requests)} requêtes batch…")
+
+        try:
+            batch = client.messages.batches.create(requests=valid_requests)
+            batch_id = batch.id
+            default_logger.info(f"[Claude Batch Sentiment] Batch créé : {batch_id}")
+        except Exception as e:
+            default_logger.error(f"[Claude Batch Sentiment] Création batch échouée : {e}")
+            return [None] * len(resumes)
+
+        for poll in range(max_polls):
+            time.sleep(poll_interval)
+            try:
+                batch_status = client.messages.batches.retrieve(batch_id)
+            except Exception as e:
+                default_logger.warning(f"[Claude Batch Sentiment] Sondage #{poll + 1} échoué : {e}")
+                continue
+
+            processing_status = getattr(batch_status, "processing_status", None)
+            if processing_status == "ended":
+                break
+        else:
+            default_logger.error(f"[Claude Batch Sentiment] Timeout après {max_polls} sondages.")
+            return [None] * len(resumes)
+
+        results: dict[int, Optional[dict]] = {}
+        try:
+            for result in client.messages.batches.results(batch_id):
+                idx = int(result.custom_id)
+                if result.result.type == "succeeded":
+                    raw = result.result.message.content[0].text if result.result.message.content else ""
+                    results[idx] = _parse_sentiment_response(raw)
+                else:
+                    results[idx] = None
+        except Exception as e:
+            default_logger.error(f"[Claude Batch Sentiment] Récupération résultats échouée : {e}")
+
+        default_logger.info(
+            f"[Claude Batch Sentiment] Terminé — {len(results)}/{len(valid_requests)} résultats."
+        )
+
+        return [results.get(i) for i in range(len(resumes))]
 
     def generate_report(self, json_content: str, filename: str, timeout: int = 300) -> str:
         """Rapport synthétique Markdown — utilise Sonnet (user-facing)."""

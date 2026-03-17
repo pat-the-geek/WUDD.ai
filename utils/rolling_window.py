@@ -12,6 +12,9 @@ Usage :
 
     # Mode reconstruction : reconstruire depuis tous les JSON d'un répertoire
     update_rolling_window([], output_path, hours=48, source_dir=OUTPUT_DIR)
+
+    # Avec mise à jour immédiate de l'index entités (optimisation 2.2)
+    update_rolling_window(new_articles, output_path, update_entity_index=True)
 """
 
 import json
@@ -31,6 +34,7 @@ def update_rolling_window(
     output_path: Path,
     hours: int = 48,
     source_dir: Optional[Path] = None,
+    update_entity_index: bool = False,
 ) -> int:
     """Met à jour la fenêtre glissante d'articles et écrit le résultat de façon atomique.
 
@@ -46,10 +50,13 @@ def update_rolling_window(
       Idéal pour get-keyword-from-rss.py qui traite de nombreux fichiers.
 
     Args:
-        new_articles : nouveaux articles à intégrer (vide si mode reconstruction)
-        output_path  : chemin du fichier de sortie (ex. 48-heures.json)
-        hours        : fenêtre temporelle en heures (défaut : 48)
-        source_dir   : répertoire source pour le mode reconstruction
+        new_articles        : nouveaux articles à intégrer (vide si mode reconstruction)
+        output_path         : chemin du fichier de sortie (ex. 48-heures.json)
+        hours               : fenêtre temporelle en heures (défaut : 48)
+        source_dir          : répertoire source pour le mode reconstruction
+        update_entity_index : si True, met à jour entity_index.json immédiatement
+                              après l'écriture (optimisation 2.2 — index événementiel).
+                              Défaut : False pour compatibilité ascendante.
 
     Returns:
         Nombre d'articles dans la fenêtre après mise à jour.
@@ -130,5 +137,18 @@ def update_rolling_window(
                 tmp.unlink()
             except OSError:
                 pass
+
+        # ── Mise à jour immédiate de l'index entités (optimisation 2.2) ──────
+        if update_entity_index and collected:
+            try:
+                from .entity_index import get_entity_index
+                eidx = get_entity_index(output_path.parent.parent.parent)  # project_root
+                added = eidx.update(collected, str(output_path))
+                default_logger.debug(
+                    f"rolling_window : index entités mis à jour (+{added} refs) pour {output_path.name}"
+                )
+            except Exception as e:
+                # Non bloquant : l'index sera reconstruit à la prochaine passe quotidienne
+                default_logger.warning(f"rolling_window : mise à jour entity_index échouée — {e}")
 
         return len(collected)

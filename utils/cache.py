@@ -2,6 +2,21 @@
 
 Implémente un système de cache simple basé sur fichiers JSON pour stocker
 les résultats d'extraction de texte et de résumés, réduisant les appels API.
+
+Optimisation 2.7 — TTL différenciés par type de contenu :
+    Les TTL varient selon la stabilité du contenu mis en cache.
+    Utiliser ``get_ttl(content_type)`` pour obtenir le TTL approprié,
+    ou passer directement ttl=CACHE_TTL["entities"] à cache.get().
+
+    Types disponibles :
+      - "summary"    : 86400s  (24h)   — résumés d'articles, stables
+      - "entities"   : 604800s (7j)    — entités NER, très stables
+      - "sentiment"  : 604800s (7j)    — sentiment/ton, très stables
+      - "synthesis"  : 3600s   (1h)    — synthèses IA, évoluent avec de nouveaux articles
+      - "geocode"    : 2592000s (30j)  — coordonnées géographiques, quasi-permanentes
+      - "images"     : 604800s (7j)    — images Wikidata/Wikipedia, stables
+      - "html"       : 43200s  (12h)   — contenu HTML de page, peut changer
+      - "report"     : 86400s  (24h)   — rapports générés, stables à court terme
 """
 
 import json
@@ -10,6 +25,36 @@ from pathlib import Path
 from typing import Optional, Any
 from datetime import datetime, timedelta
 from .logging import default_logger
+
+
+# ── TTL différenciés par type de contenu (optimisation 2.7) ──────────────────
+
+CACHE_TTL: dict[str, int] = {
+    "summary":   86400,    # 24h   — résumés d'articles
+    "entities":  604800,   # 7j    — entités NER (très stables)
+    "sentiment": 604800,   # 7j    — sentiment/ton éditorial (très stables)
+    "synthesis": 3600,     # 1h    — synthèses IA (évolue avec nouveaux articles)
+    "geocode":   2592000,  # 30j   — coordonnées géographiques
+    "images":    604800,   # 7j    — images Wikidata/Wikipedia
+    "html":      43200,    # 12h   — contenu HTML de page web
+    "report":    86400,    # 24h   — rapports générés
+}
+
+
+def get_ttl(content_type: str) -> int:
+    """Retourne le TTL en secondes pour un type de contenu.
+
+    Args:
+        content_type : Type de contenu ("summary", "entities", "sentiment", etc.)
+                       Voir CACHE_TTL pour la liste complète.
+
+    Returns:
+        TTL en secondes. Retourne 86400 (24h) si le type est inconnu.
+
+    Example:
+        cache.get(key, ttl=get_ttl("entities"))  # TTL 7j pour NER
+    """
+    return CACHE_TTL.get(content_type, 86400)
 
 
 class Cache:
