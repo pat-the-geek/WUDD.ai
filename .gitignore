@@ -5,7 +5,10 @@ config/flux_json_sources.json
 .claude/
 !config/flux_json_sources.example.json
 !config/alert_rules.json
-!config/sources_credibility.json
+
+# Fichiers auto-générés ou locaux
+config/sources_credibility.json
+docker-compose.yml
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
