@@ -310,7 +310,8 @@ function ContradictionDialog({ article, onClose }) {
   useEffect(() => {
     if (!logs.length) return
     const el = logsContainerRef.current
-    if (el) el.scrollTop = el.scrollHeight
+    if (!el) return
+    requestAnimationFrame(() => { el.scrollTop = el.scrollHeight })
   }, [logs])
 
   const ICON_TYPE = {
@@ -368,7 +369,7 @@ function ContradictionDialog({ article, onClose }) {
           {error && (
             <div className="mt-1 text-rose-400">✗ {error}</div>
           )}
-          <div className="h-8 shrink-0" />
+          <div className="h-16" />
         </div>
 
         {/* Footer */}
