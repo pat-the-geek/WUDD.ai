@@ -298,11 +298,28 @@ def api_entities_dashboard():
         })
     result_types.sort(key=lambda x: x["mention_count"], reverse=True)
 
+    # ── Enrichissement DuckDB (stats articles temps-réel) ─────────────────────
+    duckdb_stats = {}
+    try:
+        from utils.db import get_db
+        db = get_db(PROJECT_ROOT)
+        if db.available:
+            rt = db.reading_time_stats(days=7)
+            sd = db.sentiment_distribution(days=7)
+            duckdb_stats = {
+                "reading_time_7j":  rt,
+                "sentiment_7j":     sd,
+                "source_count_30j": len(db.article_stats_by_source(days=30)),
+            }
+    except Exception:
+        pass
+
     return jsonify({
         "total_files": total_files,
         "total_articles": total_articles,
         "total_with_entities": total_with_entities,
         "by_type": result_types,
+        "duckdb_stats": duckdb_stats,
     })
 
 

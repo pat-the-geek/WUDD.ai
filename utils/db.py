@@ -243,6 +243,102 @@ class ArticleDB:
         rows = self._exec(sql)
         return rows[0] if rows else {"avg_minutes": None, "median_minutes": None, "total_articles": 0}
 
+    def source_bias_stats(self) -> list[dict]:
+        """Agrège les statistiques de biais éditorial par source (pour /api/sources/bias).
+
+        Scanne les deux répertoires d'articles (articles/ et articles-from-rss/)
+        en une seule requête SQL, sans charger les fichiers en mémoire Python.
+
+        Returns:
+            Liste de {source, article_count, positif, neutre, negatif,
+                      avg_score_sentiment, avg_score_ton}
+            triée par volume décroissant.
+        """
+        # articles/*/*.json = 2 niveaux (exclut articles/*/cache/*.json qui est 3 niveaux)
+        glob_art = str(self.project_root / "data" / "articles" / "*" / "*.json")
+        glob_rss = str(self.project_root / "data" / "articles-from-rss" / "**" / "*.json")
+        sql = f"""
+            SELECT
+                "Sources"                                                          AS source,
+                COUNT(*)                                                           AS article_count,
+                SUM(CASE WHEN sentiment = 'positif'  THEN 1 ELSE 0 END)           AS positif,
+                SUM(CASE WHEN sentiment = 'neutre'   THEN 1 ELSE 0 END)           AS neutre,
+                SUM(CASE WHEN sentiment = 'négatif'  THEN 1 ELSE 0 END)           AS negatif,
+                ROUND(AVG(TRY_CAST(score_sentiment AS DOUBLE)), 2)                 AS avg_score_sentiment,
+                ROUND(AVG(TRY_CAST(score_ton       AS DOUBLE)), 2)                 AS avg_score_ton
+            FROM (
+                SELECT "Sources", sentiment, score_sentiment, score_ton
+                FROM read_json_auto('{glob_art}', ignore_errors=true)
+                WHERE "Sources" IS NOT NULL AND "Sources" != ''
+                UNION ALL
+                SELECT "Sources", sentiment, score_sentiment, score_ton
+                FROM read_json_auto('{glob_rss}', ignore_errors=true)
+                WHERE "Sources" IS NOT NULL AND "Sources" != ''
+            )
+            GROUP BY "Sources"
+            ORDER BY article_count DESC
+            LIMIT 200
+        """
+        return self._exec(sql)
+
+    def articles_with_entities_in_window(self, window_days: int) -> list[dict]:
+        """Retourne les articles avec leur JSON d'entités pour une fenêtre temporelle.
+
+        Scanne tous les fichiers articles via DuckDB (IO parallèle) et retourne
+        les champs nécessaires pour l'extraction d'entités côté Python. Utilisé
+        comme chemin rapide de remplacement du rglob dans trend_detector.py.
+
+        Args:
+            window_days : Fenêtre en jours (filtre best-effort sur date ISO/RSS)
+
+        Returns:
+            Liste de {entities_json, date} — entities_json est une chaîne JSON
+            à désérialiser par l'appelant.
+        """
+        cutoff = (datetime.utcnow() - timedelta(days=window_days)).strftime("%Y-%m-%d")
+        glob_art = str(self.project_root / "data" / "articles" / "*" / "*.json")
+        glob_rss = str(self.project_root / "data" / "articles-from-rss" / "**" / "*.json")
+        # Filtre best-effort sur la date (fonctionne pour formats ISO YYYY-MM-DD
+        # et partiellement pour RSS "Wed, 04 Mar 2026 …" grâce à la comparaison
+        # lexicographique — l'appelant doit re-filtrer avec parse_article_date())
+        sql = f"""
+            SELECT
+                "Date de publication"  AS date,
+                entities::VARCHAR      AS entities_json
+            FROM (
+                SELECT "Date de publication", entities
+                FROM read_json_auto('{glob_art}', ignore_errors=true)
+                WHERE entities IS NOT NULL
+                  AND "Date de publication" IS NOT NULL
+                UNION ALL
+                SELECT "Date de publication", entities
+                FROM read_json_auto('{glob_rss}', ignore_errors=true)
+                WHERE entities IS NOT NULL
+                  AND "Date de publication" IS NOT NULL
+            )
+        """
+        return self._exec(sql)
+
+    def entity_json_from_file(self, file_path: Path) -> list[dict]:
+        """Retourne les entités JSON de chaque article d'un fichier spécifique.
+
+        Utilisé par generate_48h_report pour lire 48-heures.json via DuckDB
+        (IO direct, pas de json.load Python pour les grands fichiers).
+
+        Args:
+            file_path : Chemin absolu vers le fichier JSON
+
+        Returns:
+            Liste de {entities_json} — une entrée par article avec entities.
+        """
+        safe_path = str(file_path).replace("'", "''")
+        sql = f"""
+            SELECT entities::VARCHAR AS entities_json
+            FROM read_json_auto('{safe_path}', ignore_errors=true)
+            WHERE entities IS NOT NULL
+        """
+        return self._exec(sql)
+
     def full_text_search(self, query: str, days: int = 7, limit: int = 20) -> list[dict]:
         """Recherche plein texte dans les résumés via LIKE (insensible à la casse).
 

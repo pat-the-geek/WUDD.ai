@@ -32,13 +32,62 @@ ENTITY_TYPES_PERTINENTS = {"PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "
 DATE_FORMAT_RSS = "%a, %d %b %Y %H:%M:%S"
 
 
-def compute_top_entities(articles: list, top_n: int = 10) -> list:
+def compute_top_entities(
+    articles: list,
+    top_n: int = 10,
+    input_file: "Path | None" = None,
+) -> list:
     """
     Compte les entités nommées dans les articles et retourne les top N.
+
+    Si `input_file` est fourni et que DuckDB est disponible, lit le fichier
+    directement via DuckDB (IO plus rapide pour les grands fichiers, sans
+    charger tout le JSON en mémoire Python).
 
     Returns:
         Liste de tuples (nom_original, type_entité, nb_occurrences)
     """
+    # ── Chemin DuckDB (lecture directe du fichier, évite json.load Python) ───
+    if input_file is not None:
+        try:
+            from utils.db import get_db
+            db = get_db()
+            if db.available:
+                rows = db.entity_json_from_file(input_file)
+                if rows:
+                    counter: Counter = Counter()
+                    type_map: dict = {}
+                    for row in rows:
+                        ents_json = row.get("entities_json")
+                        if not ents_json:
+                            continue
+                        try:
+                            ents = json.loads(ents_json)
+                        except (ValueError, TypeError):
+                            continue
+                        if not isinstance(ents, dict):
+                            continue
+                        for entity_type, names in ents.items():
+                            if entity_type not in ENTITY_TYPES_PERTINENTS:
+                                continue
+                            if not isinstance(names, list):
+                                continue
+                            for name in names:
+                                name_clean = str(name).strip()
+                                if len(name_clean) < 3:
+                                    continue
+                                key = name_clean.lower()
+                                counter[key] += 1
+                                if key not in type_map:
+                                    type_map[key] = (name_clean, entity_type)
+                    top = []
+                    for key, count in counter.most_common(top_n):
+                        name_original, entity_type = type_map[key]
+                        top.append((name_original, entity_type, count))
+                    return top
+        except Exception:
+            pass  # bascule sur la méthode Python classique
+
     counter: Counter = Counter()
     # key = nom normalisé → (nom original, type)
     type_map: dict = {}
@@ -264,8 +313,8 @@ def generate_48h_report(dry_run: bool = False) -> None:
 
     print_console(f"{len(articles)} articles chargés")
 
-    # Calcul des top 10 entités
-    top_entities = compute_top_entities(articles, top_n=10)
+    # Calcul des top 10 entités (DuckDB si disponible, sinon Python in-memory)
+    top_entities = compute_top_entities(articles, top_n=10, input_file=input_file)
     if top_entities:
         print_console("Top 10 entités :")
         for i, (name, etype, count) in enumerate(top_entities, 1):
