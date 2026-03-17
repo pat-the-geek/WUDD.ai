@@ -64,8 +64,81 @@ Elle collecte des articles depuis des flux JSON et RSS, les enrichit via une API
 
 ## Stack technique
 
-Python 3.10+ · Flask · React 18 + Vite + Tailwind · Docker · EurIA (Qwen3) · Claude API  
-Stockage fichier JSON — aucune base de données requise.
+### Langage & Runtime
+
+| Technologie | Version | Description |
+|---|---|---|
+| Python | 3.10+ | Langage principal — scripts, utils, backend Flask |
+
+### IA & API externes
+
+| Technologie | Description |
+|---|---|
+| EurIA / Qwen3 (Infomaniak) | Provider IA par défaut — résumés, NER, sentiments, rapports via API REST |
+| Claude (Anthropic) | Provider IA alternatif — sélectionnable via `AI_PROVIDER=claude` dans `.env` |
+
+### HTTP & Parsing web
+
+| Technologie | Description |
+|---|---|
+| `requests` | Bibliothèque HTTP principale — appels API et récupération de flux |
+| `urllib3` | Couche basse HTTP — retry adapter avec backoff exponentiel (2.0×) |
+| `beautifulsoup4` | Parsing HTML — extraction `og:image`, `twitter:image`, texte brut |
+
+### Configuration & Secrets
+
+| Technologie | Description |
+|---|---|
+| `python-dotenv` | Chargement des variables d'environnement depuis `.env` |
+| JSON (`config/`) | Fichiers de configuration : flux, quotas, sources, alertes, crédibilité |
+
+### Stockage des données
+
+| Technologie | Description |
+|---|---|
+| Fichiers JSON | Source de vérité — articles, quotas, alertes, timelines (aucune base de données) |
+| DuckDB ≥ 0.10.0 | Couche analytique en mémoire — requêtes SQL sur JSON natifs via `read_json_auto()`. Optionnel (`utils/db.py`) |
+| Cache fichier MD5/TTL | Cache API 24h basé sur hachage MD5 des clés (`utils/cache.py`) |
+| Fichiers Markdown / PDF | Format de sortie des rapports et notes de lecture |
+
+### Tests & Qualité
+
+| Technologie | Description |
+|---|---|
+| `pytest` | Framework de tests — 50+ tests unitaires et d'intégration |
+| `pytest-cov` | Mesure de couverture de code (cible ≥ 80% sur `utils/`) |
+
+### Conteneurisation & Orchestration
+
+| Technologie | Description |
+|---|---|
+| Docker | Image de conteneur — environnement reproductible pour la production |
+| Docker Compose | Orchestration multi-service (app + cron) |
+| `cron` | Planificateur de tâches inside Docker — pipeline nocturne et watcheurs continus |
+
+### Backend Web (Viewer)
+
+| Technologie | Description |
+|---|---|
+| Flask | Serveur backend Python — API REST (lecture/écriture fichiers, exécution scripts, streaming SSE) |
+| SSE (Server-Sent Events) | Streaming temps réel des logs de scripts vers le frontend |
+
+### Frontend Web (Viewer)
+
+| Technologie | Description |
+|---|---|
+| React 18 | Framework UI — composants dynamiques pour le viewer local |
+| Vite | Bundler/dev server — compilation vers `viewer/dist/` pour la production |
+| Tailwind CSS | Framework CSS utilitaire — responsive design mobile/tablet/desktop |
+| Leaflet | Cartographie interactive — visualisation des entités géographiques (GPE/LOC) |
+
+### Formats d'export
+
+| Technologie | Description |
+|---|---|
+| Atom XML | Flux de syndication (`utils/exporters/atom_feed.py`) |
+| HTML + SMTP | Newsletters générées et envoyées par email (`utils/exporters/newsletter.py`) |
+| Webhook | Notifications Discord, Slack, Ntfy (`utils/exporters/webhook.py`) |
 
 ## Cas d'usage
 
