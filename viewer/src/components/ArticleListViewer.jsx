@@ -308,7 +308,10 @@ function ContradictionDialog({ article, onClose }) {
 
   useEffect(() => {
     if (logsContainerRef.current) {
-      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+      requestAnimationFrame(() => {
+        if (logsContainerRef.current)
+          logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+      })
     }
   }, [logs])
 
@@ -339,7 +342,7 @@ function ContradictionDialog({ article, onClose }) {
         </div>
 
         {/* Log stream */}
-        <div ref={logsContainerRef} className="flex-1 overflow-y-auto p-4 font-mono text-xs bg-slate-950 text-slate-200">
+        <div ref={logsContainerRef} className="flex-1 overflow-y-auto p-4 pb-6 font-mono text-xs bg-slate-950 text-slate-200">
           {logs.map((line, i) => {
             const isContradiction = line.includes('CONTRADICTION') || line.includes('⚠️') || line.includes('🚨')
             const isOk  = line.includes('✅') || line.includes('✓')

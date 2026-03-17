@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 import sys
+import time
 import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -312,76 +313,79 @@ def _contradiction_id(url_a: str, url_b: str, ctype: str) -> str:
 
 def detect_for_article(reference: dict, all_articles: list[dict], dry_run: bool = False) -> list[dict]:
     """Détecte les contradictions entre un article de référence et son cluster."""
-    ref_url = reference.get("URL", "")
+    _start = time.time()
+
+    def ts() -> str:
+        """Timestamp MM:SS réel depuis le début de l'analyse."""
+        s = int(time.time() - _start)
+        return f"[{s // 60:02d}:{s % 60:02d}]"
+
+    ref_url    = reference.get("URL", "")
     ref_source = reference.get("Sources", "—")
     ref_resume = reference.get("Résumé", "")
 
-    log(f"[00:00] ⚖️  Analyse de contradictions")
-    log(f"[00:00]     Source  : {ref_source}")
-    log(f"[00:00]     URL     : {ref_url[:80]}{'…' if len(ref_url) > 80 else ''}")
+    log(f"{ts()} ⚖️  Analyse de contradictions")
+    log(f"{ts()}     Source  : {ref_source}")
+    log(f"{ts()}     URL     : {ref_url[:80]}{'…' if len(ref_url) > 80 else ''}")
 
     # ── Étape 1 : cluster ────────────────────────────────────────────────────
-    log(f"[00:01] ────────────────────────────────────────")
-    log(f"[00:01] 🗂️  {len(all_articles)} articles dans la fenêtre")
+    log(f"{ts()} ────────────────────────────────────────")
+    log(f"{ts()} 🗂️  {len(all_articles)} articles dans la fenêtre")
 
     cluster, stats = build_cluster(reference, all_articles)
 
     ref_has_ner = _has_entities(reference)
     if not ref_has_ner:
-        log(f"[00:02] ℹ️  NER absent sur cet article — calcul à la volée…")
+        log(f"{ts()} ℹ️  NER absent sur cet article — calcul à la volée…")
         reference = _enrich_ner_on_demand(reference)
         ref_has_ner = _has_entities(reference)
         if ref_has_ner:
-            log(f"[00:04] ✓  NER calculé : {_format_entities(reference)}")
-            # Recalculer le cluster avec NER maintenant disponible
+            log(f"{ts()} ✓  NER calculé : {_format_entities(reference)}")
             cluster, stats = build_cluster(reference, all_articles)
         else:
-            log(f"[00:04] ℹ️  NER indisponible — mode similarité textuelle seule")
+            log(f"{ts()} ℹ️  NER indisponible — mode similarité textuelle seule")
 
     if not cluster:
-        log(f"[00:02] ℹ️  Aucun article du même cluster trouvé")
-        log(f"[00:02]     Diagnostic : {stats['total']} candidats analysés")
-        log(f"[00:02]       · {stats['hors_fenetre']} hors fenêtre temporelle")
-        log(f"[00:02]       · {stats['entites_insuffisantes']} entités insuffisantes")
-        log(f"[00:02]       · {stats['similarite_trop_faible']} similarité trop faible")
+        log(f"{ts()} ℹ️  Aucun article du même cluster trouvé")
+        log(f"{ts()}     Diagnostic : {stats['total']} candidats analysés")
+        log(f"{ts()}       · {stats['hors_fenetre']} hors fenêtre temporelle")
+        log(f"{ts()}       · {stats['entites_insuffisantes']} entités insuffisantes")
+        log(f"{ts()}       · {stats['similarite_trop_faible']} similarité trop faible")
         if stats["top_scores"]:
-            log(f"[00:02]     Scores les plus proches :")
+            log(f"{ts()}     Scores les plus proches :")
             for s in stats["top_scores"][:3]:
-                log(f"[00:02]       · {s['source']} — Jaccard {s['jaccard']} · {s['mots_communs']} mots communs {s['exemples_mots']}")
-        log(f"[00:02] ✅ Analyse terminée — aucune contradiction à signaler")
+                log(f"{ts()}       · {s['source']} — Jaccard {s['jaccard']} · {s['mots_communs']} mots {s['exemples_mots']}")
+        elapsed = int(time.time() - _start)
+        log(f"{ts()} ────────────────────────────────────────")
+        log(f"{ts()} ✅ Analyse terminée en {elapsed}s — aucune contradiction à signaler")
         return []
 
     ner_note = "" if ref_has_ner else " — mode similarité"
-    log(f"[00:02] 🔗 {len(cluster)} article(s) dans le cluster événementiel{ner_note} :")
+    log(f"{ts()} 🔗 {len(cluster)} article(s) dans le cluster événementiel{ner_note} :")
     for a in cluster:
-        log(f"[00:02]       · {a.get('Sources', '—')} (Jaccard {a['_jaccard_score']} · {a['_common_words']} mots · {a['_match_type']})")
+        log(f"{ts()}       · {a.get('Sources', '—')} (Jaccard {a['_jaccard_score']} · {a['_common_words']} mots · {a['_match_type']})")
 
     # ── Étape 2 : extraction claims ──────────────────────────────────────────
-    log(f"[00:03] ────────────────────────────────────────")
-    log(f"[00:03] 📝 Extraction des claims factuels via l'API IA…")
+    log(f"{ts()} ────────────────────────────────────────")
+    log(f"{ts()} 📝 Extraction des claims factuels via l'API IA…")
 
-    # Claims de l'article de référence
-    log(f"[00:03]    Référence — {ref_source}…")
+    log(f"{ts()}    Référence — {ref_source}…")
     ref_claims = extract_claims(ref_resume, ref_source)
     types_ref = [c["type"] for c in ref_claims]
-    log(f"[00:08] ✓  {len(ref_claims)} claim(s) : {', '.join(set(types_ref)) or 'aucun'}")
+    log(f"{ts()} ✓  {len(ref_claims)} claim(s) : {', '.join(set(types_ref)) or 'aucun'}")
 
     cluster_claims: list[tuple[dict, list[dict]]] = []
-    t = 8
     for i, art in enumerate(cluster, 1):
         src = art.get("Sources", "—")
-        log(f"[00:{t:02d}]    [{i}/{len(cluster)}] {src}…")
+        log(f"{ts()}    [{i}/{len(cluster)}] {src}…")
         claims = extract_claims(art.get("Résumé", ""), src)
-        t += 5
         types = [c["type"] for c in claims]
-        log(f"[00:{t:02d}] ✓  {len(claims)} claim(s) : {', '.join(set(types)) or 'aucun'}")
+        log(f"{ts()} ✓  {len(claims)} claim(s) : {', '.join(set(types)) or 'aucun'}")
         cluster_claims.append((art, claims))
 
     # ── Étape 3 : comparaison ────────────────────────────────────────────────
-    t += 1
-    total_pairs = len(cluster)
-    log(f"[00:{t:02d}] ────────────────────────────────────────")
-    log(f"[00:{t:02d}] ⚖️  Comparaison des claims ({total_pairs} paire(s))…")
+    log(f"{ts()} ────────────────────────────────────────")
+    log(f"{ts()} ⚖️  Comparaison des claims ({len(cluster)} paire(s))…")
 
     contradictions = []
     llm_needed = []
@@ -391,13 +395,11 @@ def detect_for_article(reference: dict, all_articles: list[dict], dry_run: bool 
             for cb in claims_b:
                 result = compare_claims_deterministic(ca, cb)
                 if result:
-                    t += 1
-                    log(f"[00:{t:02d}] ⚠️  {result['type']} : {result['description']}")
+                    log(f"{ts()} ⚠️  {result['type']} : {result['description']}")
                     contradictions.append(_build_contradiction(
                         reference, art_b, ca, cb, result
                     ))
                 else:
-                    # Candidat pour arbitrage LLM si sujets proches
                     if ca.get("sujet") and cb.get("sujet"):
                         s_a = ca["sujet"].lower()
                         s_b = cb["sujet"].lower()
@@ -406,32 +408,29 @@ def detect_for_article(reference: dict, all_articles: list[dict], dry_run: bool 
 
     # Passe LLM sur les cas ambigus
     if llm_needed:
-        t += 1
-        log(f"[00:{t:02d}]    Passe 2 — arbitrage LLM ({len(llm_needed)} cas ambigu(s))…")
-        for art_b, ca, cb in llm_needed[:5]:  # max 5 appels LLM par analyse
-            t += 10
-            log(f"[00:{t:02d}]    ⏳ Arbitrage {reference.get('Sources','A')} ↔ {art_b.get('Sources','B')}…")
+        log(f"{ts()}    Passe 2 — arbitrage LLM ({len(llm_needed)} cas ambigu(s))…")
+        for art_b, ca, cb in llm_needed[:5]:
+            log(f"{ts()}    ⏳ Arbitrage {reference.get('Sources','A')} ↔ {art_b.get('Sources','B')}…")
             result = arbitrate_with_llm(reference, art_b, ca, cb)
             if result and result.get("score_confiance", 0) >= MIN_SCORE_CONFIANCE:
-                t += 1
-                log(f"[00:{t:02d}] ✓  Contradiction confirmée (confiance {result['score_confiance']:.0%})")
+                log(f"{ts()} ✓  Contradiction confirmée (confiance {result['score_confiance']:.0%})")
                 contradictions.append(_build_contradiction(
                     reference, art_b, ca, cb, result
                 ))
 
     # ── Résumé final ─────────────────────────────────────────────────────────
-    t += 1
-    log(f"[00:{t:02d}] ────────────────────────────────────────")
-    log(f"[00:{t:02d}] ✅ Analyse terminée en ~{t} secondes")
-    log(f"[00:{t:02d}]")
-    log(f"[00:{t:02d}] RÉSULTAT")
+    elapsed = int(time.time() - _start)
+    log(f"{ts()} ────────────────────────────────────────")
+    log(f"{ts()} ✅ Analyse terminée en {elapsed}s")
+    log(f"{ts()}")
+    log(f"{ts()} RÉSULTAT")
 
     if contradictions:
         for c in contradictions:
             emoji = "🚨" if c["score_confiance"] >= 0.80 else "⚠️"
-            log(f"[00:{t:02d}]   {emoji} {c['type_contradiction']} · confiance {c['score_confiance']:.0%}")
+            log(f"{ts()}   {emoji} {c['type_contradiction']} · confiance {c['score_confiance']:.0%}")
     else:
-        log(f"[00:{t:02d}]   ✓  Aucune contradiction détectée entre les sources")
+        log(f"{ts()}   ✓  Aucune contradiction détectée entre les sources")
 
     return contradictions
 
