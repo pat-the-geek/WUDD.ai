@@ -92,23 +92,20 @@ export function EntityHighlighterSegments({ text, entities, onEntityClick }) {
               type="button"
               title={`${seg.type} — cliquer pour voir l'identité`}
               onClick={() => onEntityClick(seg.type, seg.text)}
-              className={`rounded px-0.5 mx-px ring-1 ring-inset font-medium cursor-pointer
-                hover:ring-2 hover:brightness-95 transition-all
-                ${style.bg} ${style.text} ${style.ring}`}
+              className={`rounded px-0.5 mx-px ring-1 ring-inset font-medium cursor-pointer hover:ring-2 hover:brightness-95 transition-all ${style.bg} ${style.text} ${style.ring}`}
             >
               {seg.text}
             </button>
           )
         }
         return (
-          <mark
+          <span
             key={i}
             title={seg.type}
-            className={`rounded px-0.5 mx-px ring-1 ring-inset font-medium
-              ${style.bg} ${style.text} ${style.ring}`}
+            className={`rounded px-0.5 mx-px ring-1 ring-inset font-medium ${style.bg} ${style.text} ${style.ring}`}
           >
             {seg.text}
-          </mark>
+          </span>
         )
       })}
     </>
