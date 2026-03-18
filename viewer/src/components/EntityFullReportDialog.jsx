@@ -672,7 +672,7 @@ export default function EntityFullReportDialog({
                   colors="bg-violet-50 dark:bg-violet-900/30 border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/50"
                 />
                 {/* Ouvrir dans Obsidian — affiché après un export Obsidian réussi */}
-                {exportState.obsidian?.ok && obsidianVault && exportState.obsidian.filename && (
+                {exportState.obsidian?.ok && exportState.obsidian.filename && (
                   <button
                     onClick={() => {
                       window.open(obsidianUri(exportState.obsidian.filename, obsidianVault), '_blank')

@@ -519,7 +519,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                   {entityRapports.length} rapport{entityRapports.length > 1 ? 's' : ''}
                 </span>
                 {/* Lien Obsidian pour le rapport le plus récent */}
-                {obsidianVaultName && entityRapports[entityRapports.length - 1]?.fichier && (
+                {entityRapports[entityRapports.length - 1]?.fichier && (
                   <button
                     onClick={() => {
                       const rap = entityRapports[entityRapports.length - 1]
@@ -769,7 +769,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                             {' '}{rap.date_creation.slice(0, 10)}
                           </span>
                         )}
-                        {rap.cible === 'obsidian' && obsidianVaultName && rap.fichier && (
+                        {rap.cible === 'obsidian' && rap.fichier && (
                           <button
                             onClick={e => {
                               e.stopPropagation()
