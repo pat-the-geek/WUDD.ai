@@ -679,7 +679,7 @@ def api_export_report():
             if resume_md5 in index:
                 existing = Path(index[resume_md5])
                 if existing.exists():
-                    return jsonify({"ok": True, "path": str(existing), "deduplicated": True})
+                    return jsonify({"ok": True, "path": str(existing), "filename": existing.name, "deduplicated": True})
         else:
             resume_md5 = None
             index_path = None

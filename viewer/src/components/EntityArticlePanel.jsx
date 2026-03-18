@@ -419,6 +419,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
   // ── Rapports précédents de l'entité ────────────────────────────────────────
   const [entityRapports, setEntityRapports]   = useState([])
   const [obsidianVaultName, setObsidianVaultName] = useState(null)
+  const [rapportsFetchKey, setRapportsFetchKey] = useState(0)
 
   useEffect(() => {
     const params = new URLSearchParams({ entity_type: current.type, entity_value: current.value })
@@ -426,7 +427,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
       .then(r => r.ok ? r.json() : { rapports: [] })
       .then(d => setEntityRapports(Array.isArray(d.rapports) ? d.rapports : []))
       .catch(() => setEntityRapports([]))
-  }, [current.type, current.value])
+  }, [current.type, current.value, rapportsFetchKey])
 
   useEffect(() => {
     fetch('/api/config/obsidian')
@@ -534,6 +535,28 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
               </span>
             )}
           </div>
+
+          {/* Badge rapports générés — mobile uniquement */}
+          {entityRapports.length > 0 && (
+            <span className="flex md:hidden items-center gap-1.5 w-full pointer-events-auto">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700">
+                <BookOpen size={9} />
+                {entityRapports.length} rapport{entityRapports.length > 1 ? 's' : ''}
+              </span>
+              {entityRapports[entityRapports.length - 1]?.fichier && (
+                <button
+                  onClick={() => {
+                    const rap = entityRapports[entityRapports.length - 1]
+                    openInObsidian(rap.fichier, obsidianVaultName)
+                  }}
+                  title={`Ouvrir dans Obsidian : ${entityRapports[entityRapports.length - 1].fichier}`}
+                  className="inline-flex items-center gap-0.5 text-[10px] text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 underline underline-offset-2 transition-colors"
+                >
+                  Ouvrir
+                </button>
+              )}
+            </span>
+          )}
 
           {/* Actions */}
           <div className="flex items-center gap-1.5 sm:gap-1.5 w-full md:w-auto shrink-0 flex-wrap cursor-default">
@@ -801,7 +824,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
           entityType={current.type}
           entityValue={current.value}
           articles={articles}
-          onClose={() => setShowReportDialog(false)}
+          onClose={() => { setShowReportDialog(false); setRapportsFetchKey(k => k + 1) }}
         />
       )}
     </>

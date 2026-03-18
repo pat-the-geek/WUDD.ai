@@ -696,19 +696,6 @@ export default function EntityFullReportDialog({
                   icon={BookOpen}
                   colors="bg-violet-50 dark:bg-violet-900/30 border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/50"
                 />
-                {/* Ouvrir dans Obsidian — affiché après un export Obsidian réussi */}
-                {exportState.obsidian?.ok && exportState.obsidian.filename && (
-                  <button
-                    onClick={() => {
-                      openInObsidian(exportState.obsidian.filename, obsidianVault)
-                    }}
-                    title="Ouvrir dans Obsidian"
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-600 text-violet-800 dark:text-violet-200 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors"
-                  >
-                    <BookOpen size={12} />
-                    Ouvrir
-                  </button>
-                )}
               </>
             )}
             <button onClick={handleCopy} className={btnCls} title="Copier le Markdown">
@@ -730,6 +717,24 @@ export default function EntityFullReportDialog({
             </button>
           </div>
         </div>
+
+        {/* ── Bannière "Ouvrir dans Obsidian" après export réussi ──────────── */}
+        {exportState.obsidian?.ok && (exportState.obsidian.filename || exportState.obsidian.path) && (
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-violet-50 dark:bg-violet-900/25 border-b border-violet-200 dark:border-violet-800/50 shrink-0">
+            <BookOpen size={13} className="text-violet-500 shrink-0" />
+            <span className="text-[11px] text-violet-700 dark:text-violet-300 truncate flex-1 min-w-0">
+              {exportState.obsidian.deduplicated ? '✓ Déjà exporté — ' : '✓ Exporté — '}
+              <span className="opacity-70">{exportState.obsidian.filename ?? exportState.obsidian.path?.split('/').at(-1)}</span>
+            </span>
+            <button
+              onClick={() => openInObsidian(exportState.obsidian.filename ?? exportState.obsidian.path?.split('/').at(-1) ?? '', obsidianVault)}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 dark:bg-violet-500 text-white hover:bg-violet-700 dark:hover:bg-violet-600 transition-colors"
+            >
+              <BookOpen size={12} />
+              Ouvrir dans Obsidian
+            </button>
+          </div>
+        )}
 
         {/* ── Indicateur de phase (pendant la génération) ────────────────── */}
         {isLoading && (

@@ -830,7 +830,7 @@ ${contentEl.innerHTML}
                   title="Ouvrir le Terminal IA avec ce rapport en contexte"
                 >
                   <Terminal size={12} />
-                  Terminal IA
+                  <span className="hidden sm:inline">Terminal IA</span>
                 </button>
                 {/* Export local — icône seule */}
                 <div className="relative group">
@@ -874,20 +874,7 @@ ${contentEl.innerHTML}
                     </div>
                   )}
                 </div>
-                {/* Ouvrir dans Obsidian — affiché après un export Obsidian réussi */}
-                {exportState.obsidian?.ok && exportState.obsidian.filename && (
-                  <button
-                    onClick={() => {
-                      const fname = exportState.obsidian.filename.replace(/\.md$/i, '')
-                      openInObsidian(fname, obsidianVault)
-                    }}
-                    title="Ouvrir dans Obsidian"
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-600 text-violet-800 dark:text-violet-200 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors"
-                  >
-                    <BookOpen size={12} />
-                    Ouvrir
-                  </button>
-                )}
+
               </>
             )}
             <button onClick={handleCopy} className={btnCls} title="Copier le Markdown">
@@ -926,6 +913,27 @@ ${contentEl.innerHTML}
             </button>
           </div>
         </div>
+
+        {/* ── Bannière "Ouvrir dans Obsidian" après export réussi ──────────── */}
+        {exportState.obsidian?.ok && (exportState.obsidian.filename || exportState.obsidian.path) && (
+          <div className="no-print flex items-center gap-2 px-4 py-2.5 bg-violet-50 dark:bg-violet-900/25 border-b border-violet-200 dark:border-violet-800/50 shrink-0">
+            <BookOpen size={13} className="text-violet-500 shrink-0" />
+            <span className="text-[11px] text-violet-700 dark:text-violet-300 truncate flex-1 min-w-0">
+              {exportState.obsidian.deduplicated ? '✓ Déjà exporté — ' : '✓ Exporté — '}
+              <span className="opacity-70">{exportState.obsidian.filename ?? exportState.obsidian.path?.split('/').at(-1)}</span>
+            </span>
+            <button
+              onClick={() => {
+                const fname = (exportState.obsidian.filename ?? exportState.obsidian.path?.split('/').at(-1) ?? '').replace(/\.md$/i, '')
+                openInObsidian(fname, obsidianVault)
+              }}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 dark:bg-violet-500 text-white hover:bg-violet-700 dark:hover:bg-violet-600 transition-colors"
+            >
+              <BookOpen size={12} />
+              Ouvrir dans Obsidian
+            </button>
+          </div>
+        )}
 
         {/* ── Entity chip band ─────────────────────────────────────────────── */}
         {chipList.length > 0 && (
