@@ -688,15 +688,19 @@ ${contentEl.innerHTML}
       <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-1">{children}</h4>
     ),
     // Entity highlighting for plain-text paragraphs
+    // react-markdown v9+ peut passer children comme tableau de strings même pour du texte pur
     p: ({ children }) => {
-      if (typeof children === 'string' && hasEntities) {
-        return (
-          <EntityHighlighter
-            text={children}
-            entities={entities}
-            className="mb-4 text-base"
-          />
-        )
+      if (hasEntities) {
+        if (typeof children === 'string') {
+          return (
+            <EntityHighlighter text={children} entities={entities} className="mb-4 text-base" />
+          )
+        }
+        if (Array.isArray(children) && children.every(c => typeof c === 'string')) {
+          return (
+            <EntityHighlighter text={children.join('')} entities={entities} className="mb-4 text-base" />
+          )
+        }
       }
       return (
         <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">{children}</p>

@@ -7,8 +7,9 @@
  * - Actions : copier, Export local, Export Obsidian, régénérer, plein écran, fermer
  */
 
-import { useState, useEffect, useRef, useCallback, memo } from 'react'
+import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { openInObsidian } from '../utils/obsidian'
+import EntityHighlighter from './EntityHighlighter'
 import { createPortal } from 'react-dom'
 import {
   X, Maximize2, Minimize2, Copy, Download, RefreshCw,
@@ -265,6 +266,19 @@ export default function EntityFullReportDialog({
   const frozenComponentsRef             = useRef(null)
   const abortRef    = useRef(null)
   const l1NodesRef  = useRef([])   // co-occurrences L1, conservées pour l'export Obsidian
+
+  // ── Entités agrégées de tous les articles (pour le surlignage NER) ─────────
+  const allEntities = useMemo(() => {
+    const combined = {}
+    for (const art of articles) {
+      for (const [type, values] of Object.entries(art.entities ?? {})) {
+        if (!combined[type]) combined[type] = new Set()
+        for (const v of (Array.isArray(values) ? values : [])) combined[type].add(v)
+      }
+    }
+    return Object.fromEntries(Object.entries(combined).map(([k, v]) => [k, [...v]]))
+  }, [articles])
+  const hasEntities = Object.keys(allEntities).length > 0
 
   // ── Dérivé : markdown nettoyé ──────────────────────────────────────────────
   const cleanMd = reportMd
@@ -532,9 +546,17 @@ export default function EntityFullReportDialog({
     h3: ({ children }) => (
       <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200 mt-5 mb-2">{children}</h3>
     ),
-    p: ({ children }) => (
-      <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">{children}</p>
-    ),
+    p: ({ children }) => {
+      if (hasEntities) {
+        if (typeof children === 'string') {
+          return <EntityHighlighter text={children} entities={allEntities} className="mb-4 text-base" />
+        }
+        if (Array.isArray(children) && children.every(c => typeof c === 'string')) {
+          return <EntityHighlighter text={children.join('')} entities={allEntities} className="mb-4 text-base" />
+        }
+      }
+      return <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">{children}</p>
+    },
     pre: ({ children }) => {
       const child = Array.isArray(children) ? children[0] : children
       if (child?.props?.className === 'language-mermaid') return <>{children}</>
