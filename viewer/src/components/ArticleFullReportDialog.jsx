@@ -20,7 +20,7 @@ import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import mermaid from 'mermaid'
 import EntityHighlighter from './EntityHighlighter'
-import { obsidianUri } from '../utils/obsidian'
+import { obsidianUri, openInObsidian } from '../utils/obsidian'
 
 mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' })
 
@@ -873,7 +873,7 @@ ${contentEl.innerHTML}
                   <button
                     onClick={() => {
                       const fname = exportState.obsidian.filename.replace(/\.md$/i, '')
-                      window.open(obsidianUri(fname, obsidianVault), '_blank')
+                      openInObsidian(fname, obsidianVault)
                     }}
                     title="Ouvrir dans Obsidian"
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-600 text-violet-800 dark:text-violet-200 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors"
@@ -953,7 +953,7 @@ ${contentEl.innerHTML}
                 <span className="opacity-50 max-w-[120px] truncate">{rap.fichier}</span>
                 {rap.cible === 'obsidian' && rap.fichier && (
                   <button
-                    onClick={() => window.open(obsidianUri(rap.fichier, obsidianVault), '_blank')}
+                    onClick={() => openInObsidian(rap.fichier, obsidianVault)}
                     className="ml-0.5 underline underline-offset-1 text-violet-600 dark:text-violet-400 hover:text-violet-900 dark:hover:text-violet-100"
                     title="Ouvrir dans Obsidian"
                   >↗</button>
