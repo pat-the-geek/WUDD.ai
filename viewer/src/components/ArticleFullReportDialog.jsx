@@ -869,7 +869,7 @@ ${contentEl.innerHTML}
                   )}
                 </div>
                 {/* Ouvrir dans Obsidian — affiché après un export Obsidian réussi */}
-                {exportState.obsidian?.ok && obsidianVault && exportState.obsidian.filename && (
+                {exportState.obsidian?.ok && exportState.obsidian.filename && (
                   <button
                     onClick={() => {
                       const fname = exportState.obsidian.filename.replace(/\.md$/i, '')
@@ -951,7 +951,7 @@ ${contentEl.innerHTML}
                 {rap.cible === 'obsidian' ? 'Obsidian' : 'Local'}
                 {rap.date_creation && <span className="opacity-60">{' '}{rap.date_creation.slice(0, 16).replace('T', ' ')}</span>}
                 <span className="opacity-50 max-w-[120px] truncate">{rap.fichier}</span>
-                {rap.cible === 'obsidian' && obsidianVault && rap.fichier && (
+                {rap.cible === 'obsidian' && rap.fichier && (
                   <button
                     onClick={() => window.open(obsidianUri(rap.fichier, obsidianVault), '_blank')}
                     className="ml-0.5 underline underline-offset-1 text-violet-600 dark:text-violet-400 hover:text-violet-900 dark:hover:text-violet-100"

@@ -633,7 +633,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
                 {rap.date_creation && (
                   <span className="opacity-60">{rap.date_creation.slice(0, 10)}</span>
                 )}
-                {rap.cible === 'obsidian' && obsidianVault && rap.fichier && (
+                {rap.cible === 'obsidian' && rap.fichier && (
                   <button
                     onClick={e => {
                       e.stopPropagation()
