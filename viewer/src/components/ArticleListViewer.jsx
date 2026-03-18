@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
-import { obsidianUri } from '../utils/obsidian'
+import { openInObsidian } from '../utils/obsidian'
 import ArticleFullReportDialog from './ArticleFullReportDialog'
 import TTSButton from './TTSButton'
 
@@ -637,7 +637,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
                   <button
                     onClick={e => {
                       e.stopPropagation()
-                      window.open(obsidianUri(rap.fichier, obsidianVault), '_blank')
+                      openInObsidian(rap.fichier, obsidianVault)
                     }}
                     className="ml-0.5 underline underline-offset-1 hover:text-violet-900 dark:hover:text-violet-100 transition-colors"
                     title="Ouvrir dans Obsidian"

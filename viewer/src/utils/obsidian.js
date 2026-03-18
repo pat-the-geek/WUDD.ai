@@ -16,3 +16,19 @@ export function obsidianUri(filename, vaultName) {
   if (vaultName) params.set('vault', vaultName)
   return `obsidian://open?${params.toString()}`
 }
+
+/**
+ * Ouvre un fichier dans Obsidian sans laisser d'onglet vide.
+ *
+ * window.open() avec un URI custom crée systématiquement un onglet blanc.
+ * Un <a> cliqué programmatiquement transmet l'URI au système sans ouvrir
+ * de nouvelle fenêtre.
+ *
+ * @param {string} filename  - Nom du fichier (avec ou sans .md)
+ * @param {string|null} vaultName - Nom exact du vault Obsidian (optionnel)
+ */
+export function openInObsidian(filename, vaultName) {
+  const a = document.createElement('a')
+  a.href = obsidianUri(filename, vaultName)
+  a.click()
+}

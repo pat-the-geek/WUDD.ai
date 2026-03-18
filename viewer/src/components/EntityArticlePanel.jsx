@@ -6,7 +6,7 @@ import EntityGraph from './EntityGraph'
 import EntityCalendar from './EntityCalendar'
 import TTSButton from './TTSButton'
 import EntityFullReportDialog from './EntityFullReportDialog'
-import { obsidianUri } from '../utils/obsidian'
+import { openInObsidian } from '../utils/obsidian'
 
 // ── Composants Markdown ────────────────────────────────────────────────────────
 const MD = {
@@ -523,7 +523,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                   <button
                     onClick={() => {
                       const rap = entityRapports[entityRapports.length - 1]
-                      window.open(obsidianUri(rap.fichier, obsidianVaultName), '_blank')
+                      openInObsidian(rap.fichier, obsidianVaultName)
                     }}
                     title={`Ouvrir dans Obsidian : ${entityRapports[entityRapports.length - 1].fichier}`}
                     className="inline-flex items-center gap-0.5 text-[10px] text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 underline underline-offset-2 transition-colors"
@@ -773,7 +773,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                           <button
                             onClick={e => {
                               e.stopPropagation()
-                              window.open(obsidianUri(rap.fichier, obsidianVaultName), '_blank')
+                              openInObsidian(rap.fichier, obsidianVaultName)
                             }}
                             className="ml-0.5 underline underline-offset-1 hover:text-violet-900 dark:hover:text-violet-100 transition-colors"
                             title="Ouvrir dans Obsidian"
