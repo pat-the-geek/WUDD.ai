@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
+import { obsidianUri } from '../utils/obsidian'
 import { createPortal } from 'react-dom'
 import {
   X, Maximize2, Minimize2, Copy, Download, RefreshCw,
@@ -674,8 +675,7 @@ export default function EntityFullReportDialog({
                 {exportState.obsidian?.ok && obsidianVault && exportState.obsidian.filename && (
                   <button
                     onClick={() => {
-                      const fname = exportState.obsidian.filename.replace(/\.md$/i, '')
-                      window.open(`obsidian://open?vault=${encodeURIComponent(obsidianVault)}&file=${encodeURIComponent(fname)}`, '_blank')
+                      window.open(obsidianUri(exportState.obsidian.filename, obsidianVault), '_blank')
                     }}
                     title="Ouvrir dans Obsidian"
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-600 text-violet-800 dark:text-violet-200 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors"
