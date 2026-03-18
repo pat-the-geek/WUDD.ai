@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { openInObsidian } from '../utils/obsidian'
-import EntityHighlighter from './EntityHighlighter'
+import EntityHighlighter, { EntityHighlighterSegments } from './EntityHighlighter'
 import { createPortal } from 'react-dom'
 import {
   X, Maximize2, Minimize2, Copy, Download, RefreshCw,
@@ -546,16 +546,22 @@ export default function EntityFullReportDialog({
     h3: ({ children }) => (
       <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200 mt-5 mb-2">{children}</h3>
     ),
+    // Entity highlighting — fonctionne pour les paragraphes purs ET mixtes (bold, liens…)
     p: ({ children }) => {
-      if (hasEntities) {
-        if (typeof children === 'string') {
-          return <EntityHighlighter text={children} entities={allEntities} className="mb-4 text-base" />
-        }
-        if (Array.isArray(children) && children.every(c => typeof c === 'string')) {
-          return <EntityHighlighter text={children.join('')} entities={allEntities} className="mb-4 text-base" />
-        }
+      if (!hasEntities) {
+        return <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">{children}</p>
       }
-      return <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">{children}</p>
+      const highlightNode = (node, key) => {
+        if (typeof node === 'string') {
+          return <EntityHighlighterSegments key={key} text={node} entities={allEntities} />
+        }
+        return node
+      }
+      return (
+        <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">
+          {Array.isArray(children) ? children.map((c, i) => highlightNode(c, i)) : highlightNode(children, 0)}
+        </p>
+      )
     },
     pre: ({ children }) => {
       const child = Array.isArray(children) ? children[0] : children

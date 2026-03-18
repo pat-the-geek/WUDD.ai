@@ -19,7 +19,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import mermaid from 'mermaid'
-import EntityHighlighter from './EntityHighlighter'
+import EntityHighlighter, { EntityHighlighterSegments } from './EntityHighlighter'
 import { obsidianUri, openInObsidian } from '../utils/obsidian'
 
 mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' })
@@ -687,23 +687,22 @@ ${contentEl.innerHTML}
     h4: ({ children }) => (
       <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-1">{children}</h4>
     ),
-    // Entity highlighting for plain-text paragraphs
-    // react-markdown v9+ peut passer children comme tableau de strings même pour du texte pur
+    // Entity highlighting — fonctionne pour les paragraphes purs ET mixtes (bold, liens…)
+    // Pour le contenu mixte, on surligne uniquement les nœuds texte inline.
     p: ({ children }) => {
-      if (hasEntities) {
-        if (typeof children === 'string') {
-          return (
-            <EntityHighlighter text={children} entities={entities} className="mb-4 text-base" />
-          )
+      if (!hasEntities) {
+        return <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">{children}</p>
+      }
+      const highlightNode = (node, key) => {
+        if (typeof node === 'string') {
+          return <EntityHighlighterSegments key={key} text={node} entities={entities} />
         }
-        if (Array.isArray(children) && children.every(c => typeof c === 'string')) {
-          return (
-            <EntityHighlighter text={children.join('')} entities={entities} className="mb-4 text-base" />
-          )
-        }
+        return node
       }
       return (
-        <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">{children}</p>
+        <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">
+          {Array.isArray(children) ? children.map((c, i) => highlightNode(c, i)) : highlightNode(children, 0)}
+        </p>
       )
     },
     pre: ({ children }) => {

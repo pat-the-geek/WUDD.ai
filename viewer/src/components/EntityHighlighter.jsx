@@ -75,18 +75,13 @@ function segmentText(text, entities) {
 }
 
 /**
- * Composant principal.
- *
- * @param {string}   text           - Texte brut à annoter (ex: article.Résumé)
- * @param {object}   entities       - Dict { TYPE: [valeur, …] }
- * @param {string}   className      - Classes supplémentaires sur le <p> conteneur
- * @param {function} onEntityClick  - Callback(type, value) appelé au clic sur une entité
+ * Segments surlignés (fragment React) — utilisé en mode inline dans des <p> mixtes.
+ * Pas de balise conteneur : à wrapper par l'appelant.
  */
-export default function EntityHighlighter({ text, entities, className = '', onEntityClick }) {
+export function EntityHighlighterSegments({ text, entities, onEntityClick }) {
   const segments = segmentText(text, entities)
-
   return (
-    <p className={`leading-7 text-slate-700 dark:text-slate-300 ${className}`}>
+    <>
       {segments.map((seg, i) => {
         if (!seg.type) return <span key={i}>{seg.text}</span>
         const style = CHIP_STYLE[seg.type] ?? FALLBACK_STYLE
@@ -116,6 +111,22 @@ export default function EntityHighlighter({ text, entities, className = '', onEn
           </mark>
         )
       })}
+    </>
+  )
+}
+
+/**
+ * Composant principal.
+ *
+ * @param {string}   text           - Texte brut à annoter (ex: article.Résumé)
+ * @param {object}   entities       - Dict { TYPE: [valeur, …] }
+ * @param {string}   className      - Classes supplémentaires sur le <p> conteneur
+ * @param {function} onEntityClick  - Callback(type, value) appelé au clic sur une entité
+ */
+export default function EntityHighlighter({ text, entities, className = '', onEntityClick }) {
+  return (
+    <p className={`leading-7 text-slate-700 dark:text-slate-300 ${className}`}>
+      <EntityHighlighterSegments text={text} entities={entities} onEntityClick={onEntityClick} />
     </p>
   )
 }
