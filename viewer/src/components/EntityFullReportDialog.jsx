@@ -534,7 +534,15 @@ export default function EntityFullReportDialog({
 
   // ── Styles boutons ─────────────────────────────────────────────────────────
   const btnCls = 'p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors'
-
+  // ── Helper : surligne les nœuds texte inline (string → EntityHighlighterSegments) ─
+  const hilite = (node, key) => {
+    if (hasEntities && typeof node === 'string') {
+      return <EntityHighlighterSegments key={key} text={node} entities={allEntities} />
+    }
+    return node
+  }
+  const hiliteChildren = (children) =>
+    Array.isArray(children) ? children.map((c, i) => hilite(c, i)) : hilite(children, 0)
   // ── ReactMarkdown component overrides ─────────────────────────────────────
   const mdComponents = {
     h1: ({ children }) => (
@@ -547,22 +555,11 @@ export default function EntityFullReportDialog({
       <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200 mt-5 mb-2">{children}</h3>
     ),
     // Entity highlighting — fonctionne pour les paragraphes purs ET mixtes (bold, liens…)
-    p: ({ children }) => {
-      if (!hasEntities) {
-        return <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">{children}</p>
-      }
-      const highlightNode = (node, key) => {
-        if (typeof node === 'string') {
-          return <EntityHighlighterSegments key={key} text={node} entities={allEntities} />
-        }
-        return node
-      }
-      return (
-        <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">
-          {Array.isArray(children) ? children.map((c, i) => highlightNode(c, i)) : highlightNode(children, 0)}
-        </p>
-      )
-    },
+    p: ({ children }) => (
+      <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">
+        {hiliteChildren(children)}
+      </p>
+    ),
     pre: ({ children }) => {
       const child = Array.isArray(children) ? children[0] : children
       if (child?.props?.className === 'language-mermaid') return <>{children}</>
@@ -598,7 +595,7 @@ export default function EntityFullReportDialog({
     ),
     ul: ({ children }) => <ul className="list-disc text-slate-700 dark:text-slate-300 mb-4 space-y-1 ml-5">{children}</ul>,
     ol: ({ children }) => <ol className="list-decimal text-slate-700 dark:text-slate-300 mb-4 space-y-1 ml-5">{children}</ol>,
-    li: ({ children }) => <li className="text-base text-slate-700 dark:text-slate-300 leading-relaxed">{children}</li>,
+    li: ({ children }) => <li className="text-base text-slate-700 dark:text-slate-300 leading-relaxed">{hiliteChildren(children)}</li>,
     blockquote: ({ children }) => (
       <blockquote className="border-l-4 border-violet-500/60 pl-4 italic text-slate-500 dark:text-slate-400 my-4">{children}</blockquote>
     ),
@@ -623,8 +620,8 @@ export default function EntityFullReportDialog({
       </figure>
     ),
     hr: () => <hr className="border-slate-200 dark:border-slate-700 my-8" />,
-    strong: ({ children }) => <strong className="text-slate-900 dark:text-slate-100 font-semibold">{children}</strong>,
-    em: ({ children }) => <em className="text-slate-700 dark:text-slate-300 italic">{children}</em>,
+    strong: ({ children }) => <strong className="text-slate-900 dark:text-slate-100 font-semibold">{hiliteChildren(children)}</strong>,
+    em: ({ children }) => <em className="text-slate-700 dark:text-slate-300 italic">{hiliteChildren(children)}</em>,
   }
 
   // ── Export button helper (icône seule — économise l'espace en mobile) ────────

@@ -669,9 +669,19 @@ ${contentEl.innerHTML}
   // ── Shared button class ───────────────────────────────────────────────────────
   const btnCls = 'p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors'
 
-  // ── ReactMarkdown component overrides ─────────────────────────────────────────
+  // ── Helper : surligne les nœuds texte inline (string → EntityHighlighterSegments) ─
+  // Fonctionne pour les enfants de <p>, <strong>, <em>, <li>…
   const hasEntities = Object.keys(entities).length > 0
+  const hilite = (node, key) => {
+    if (hasEntities && typeof node === 'string') {
+      return <EntityHighlighterSegments key={key} text={node} entities={entities} />
+    }
+    return node
+  }
+  const hiliteChildren = (children) =>
+    Array.isArray(children) ? children.map((c, i) => hilite(c, i)) : hilite(children, 0)
 
+  // ── ReactMarkdown component overrides ─────────────────────────────────────────
   const mdComponents = {
     h1: ({ children }) => (
       <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-8 mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 first:mt-0">
@@ -688,23 +698,12 @@ ${contentEl.innerHTML}
       <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-1">{children}</h4>
     ),
     // Entity highlighting — fonctionne pour les paragraphes purs ET mixtes (bold, liens…)
-    // Pour le contenu mixte, on surligne uniquement les nœuds texte inline.
-    p: ({ children }) => {
-      if (!hasEntities) {
-        return <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">{children}</p>
-      }
-      const highlightNode = (node, key) => {
-        if (typeof node === 'string') {
-          return <EntityHighlighterSegments key={key} text={node} entities={entities} />
-        }
-        return node
-      }
-      return (
-        <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">
-          {Array.isArray(children) ? children.map((c, i) => highlightNode(c, i)) : highlightNode(children, 0)}
-        </p>
-      )
-    },
+    // On surligne chaque nœud texte inline individuellement
+    p: ({ children }) => (
+      <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">
+        {hiliteChildren(children)}
+      </p>
+    ),
     pre: ({ children }) => {
       const child = Array.isArray(children) ? children[0] : children
       if (child?.props?.className === 'language-mermaid') return <>{children}</>
@@ -749,7 +748,7 @@ ${contentEl.innerHTML}
       <ol className="list-decimal text-slate-700 dark:text-slate-300 mb-4 space-y-1 ml-5">{children}</ol>
     ),
     li: ({ children }) => (
-      <li className="text-base text-slate-700 dark:text-slate-300 leading-relaxed">{children}</li>
+      <li className="text-base text-slate-700 dark:text-slate-300 leading-relaxed">{hiliteChildren(children)}</li>
     ),
     blockquote: ({ children }) => (
       <blockquote className="border-l-4 border-blue-500/60 pl-4 italic text-slate-500 dark:text-slate-400 my-4">
@@ -787,10 +786,14 @@ ${contentEl.innerHTML}
     ),
     hr: () => <hr className="border-slate-200 dark:border-slate-700 my-8" />,
     strong: ({ children }) => (
-      <strong className="text-slate-900 dark:text-slate-100 font-semibold">{children}</strong>
+      <strong className="text-slate-900 dark:text-slate-100 font-semibold">
+        {hiliteChildren(children)}
+      </strong>
     ),
     em: ({ children }) => (
-      <em className="text-slate-700 dark:text-slate-300 italic">{children}</em>
+      <em className="text-slate-700 dark:text-slate-300 italic">
+        {hiliteChildren(children)}
+      </em>
     ),
   }
 
