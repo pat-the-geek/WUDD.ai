@@ -8,6 +8,7 @@ config/flux_json_sources.json
 
 # Fichiers auto-générés ou locaux
 config/sources_credibility.json
+config/quota.json
 docker-compose.yml
 # Byte-compiled / optimized / DLL files
 __pycache__/
