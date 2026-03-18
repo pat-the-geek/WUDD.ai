@@ -3,9 +3,10 @@
  * Style : cartes article identiques à la vue JSON, grille 2 colonnes, modal large.
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, Eye, Pencil, Check } from 'lucide-react'
+import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, Eye, Pencil, Check, FileText } from 'lucide-react'
 import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
+import ArticleFullReportDialog from './ArticleFullReportDialog'
 import TTSButton, { stopAll } from './TTSButton'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -287,7 +288,7 @@ function IAPickerModal({ providers, onPick, onClose }) {
 
 // ── Carte article ─────────────────────────────────────────────────────────────
 
-function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotation, onAnnotate, filePath, availableProviders }) {
+function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotation, onAnnotate, filePath, availableProviders, onReport }) {
   const [expanded, setExpanded]           = useState(rank <= 3)
   const [lightbox, setLightbox]           = useState(false)
   const [noteOpen, setNoteOpen]           = useState(false)
@@ -462,11 +463,23 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
             : <p className="text-slate-700 dark:text-slate-300">{resume}</p>
           }
         </div>
-        {resume.length > 280 && (
-          <button onClick={() => setExpanded(v => !v)}
-            className="mt-1.5 flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors justify-end w-full">
-            {expanded ? <><ChevronUp size={12} /> Réduire</> : <><ChevronDown size={12} /> Lire la suite</>}
-          </button>
+        {(url !== '#' || resume.length > 280) && (
+          <div className="mt-1.5 flex items-center justify-end gap-3">
+            {url && url !== '#' && (
+              <button
+                onClick={() => onReport?.(article)}
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                title="Générer un rapport complet">
+                <FileText size={12} /> Rapport
+              </button>
+            )}
+            {resume.length > 280 && (
+              <button onClick={() => setExpanded(v => !v)}
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                {expanded ? <><ChevronUp size={12} /> Réduire</> : <><ChevronDown size={12} /> Lire la suite</>}
+              </button>
+            )}
+          </div>
         )}
 
         {/* Panneau notes */}
@@ -512,6 +525,7 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
   const [topN, setTopN]         = useState(10)
   const [isMaximized, setIsMaximized] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState(null)
+  const [reportArticle, setReportArticle] = useState(null)
 
   const { playing, currentIdx, start: podcastStart, stop: podcastStop } = usePodcast(articles)
 
@@ -634,6 +648,7 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
                     annotation={artUrl ? annotations[artUrl] : undefined}
                     onAnnotate={onAnnotate}
                     availableProviders={availableProviders}
+                    onReport={a => setReportArticle(a)}
                   />
                 )
               })}
@@ -648,6 +663,14 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
         entityType={selectedEntity.type}
         entityValue={selectedEntity.value}
         onClose={() => setSelectedEntity(null)}
+      />
+    )}
+
+    {reportArticle && (
+      <ArticleFullReportDialog
+        article={reportArticle}
+        filePath={reportArticle._source_file ?? null}
+        onClose={() => setReportArticle(null)}
       />
     )}
 
