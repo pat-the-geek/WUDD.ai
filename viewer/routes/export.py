@@ -846,14 +846,14 @@ def api_entity_get_report_meta():
 def api_config_obsidian():
     """Retourne la configuration Obsidian pour construire les liens obsidian://.
 
+    vault_name est retourné uniquement si OBSIDIAN_VAULT_NAME est explicitement
+    défini dans .env. Ne pas le dériver automatiquement depuis le chemin :
+    le nom Obsidian peut différer du nom de répertoire (accents, espaces, etc.)
+
     Retourne : { vault_name: str | null, obsidian_dir: str | null }
     """
     obsidian_dir = os.environ.get("OBSIDIAN_DIR", "").strip() or None
     vault_name   = os.environ.get("OBSIDIAN_VAULT_NAME", "").strip() or None
-
-    # Dériver le nom du vault depuis le chemin si non défini explicitement
-    if not vault_name and obsidian_dir:
-        vault_name = Path(obsidian_dir).name or None
 
     return jsonify({"vault_name": vault_name, "obsidian_dir": obsidian_dir})
 
