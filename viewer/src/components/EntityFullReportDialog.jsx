@@ -259,6 +259,7 @@ export default function EntityFullReportDialog({
   const [error, setError]               = useState(null)
   const [copied, setCopied]             = useState(false)
   const [exportState, setExportState]   = useState({ local: null, obsidian: null })
+  const [obsidianVault, setObsidianVault] = useState(null)
   const [frozenMd, setFrozenMd]         = useState(null)
   const frozenComponentsRef             = useRef(null)
   const abortRef    = useRef(null)
@@ -277,6 +278,14 @@ export default function EntityFullReportDialog({
       setFrozenMd(cleanMd)
     }
   }, [isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Récupération du nom du vault Obsidian ─────────────────────────────────
+  useEffect(() => {
+    fetch('/api/config/obsidian')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.vault_name) setObsidianVault(d.vault_name) })
+      .catch(() => {})
+  }, [])
 
   // ── Escape key ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -471,14 +480,32 @@ export default function EntityFullReportDialog({
       })
       const d = await r.json()
       if (d.ok) {
-        setExportState(prev => ({ ...prev, [target]: { ok: true, path: d.path } }))
+        const exportResult = {
+          ok: true,
+          path: d.path,
+          filename: d.filename,
+          saved_at: d.saved_at,
+        }
+        setExportState(prev => ({ ...prev, [target]: exportResult }))
+
+        // ── Enregistrer les métadonnées du rapport d'entité dans l'index ────
+        const rapport = {
+          fichier: d.filename,
+          chemin:  d.path,
+          cible:   target,
+          date_creation: d.saved_at,
+        }
+        fetch('/api/entity/set-report-meta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity_type: entityType, entity_value: entityValue, rapport }),
+        }).catch(() => {})
       } else {
         setExportState(prev => ({ ...prev, [target]: { ok: false, error: d.error } }))
       }
     } catch (e) {
       setExportState(prev => ({ ...prev, [target]: { ok: false, error: String(e) } }))
     }
-    setTimeout(() => setExportState(prev => ({ ...prev, [target]: null })), 4000)
   }
 
   // ── Phase label ────────────────────────────────────────────────────────────
@@ -643,6 +670,20 @@ export default function EntityFullReportDialog({
                   icon={BookOpen}
                   colors="bg-violet-50 dark:bg-violet-900/30 border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/50"
                 />
+                {/* Ouvrir dans Obsidian — affiché après un export Obsidian réussi */}
+                {exportState.obsidian?.ok && obsidianVault && exportState.obsidian.filename && (
+                  <button
+                    onClick={() => {
+                      const fname = exportState.obsidian.filename.replace(/\.md$/i, '')
+                      window.open(`obsidian://open?vault=${encodeURIComponent(obsidianVault)}&file=${encodeURIComponent(fname)}`, '_blank')
+                    }}
+                    title="Ouvrir dans Obsidian"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-600 text-violet-800 dark:text-violet-200 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors"
+                  >
+                    <BookOpen size={12} />
+                    Ouvrir
+                  </button>
+                )}
               </>
             )}
             <button onClick={handleCopy} className={btnCls} title="Copier le Markdown">

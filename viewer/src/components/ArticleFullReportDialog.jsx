@@ -305,13 +305,14 @@ function buildObsidianNoteBody(article, geoData = {}) {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-export default function ArticleFullReportDialog({ article, onClose }) {
+export default function ArticleFullReportDialog({ article, filePath, onClose }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [reportMd, setReportMd]         = useState('')
   const [isLoading, setIsLoading]       = useState(true)
   const [error, setError]               = useState(null)
   const [copied, setCopied]             = useState(false)
   const [exportState, setExportState]   = useState({ local: null, obsidian: null })
+  const [obsidianVault, setObsidianVault] = useState(null)
   // frozenMd : snapshot du markdown au moment où le stream se termine.
   // La FinalReportView est montée avec ce snapshot et ne change plus jamais.
   const [frozenMd,  setFrozenMd]        = useState(null)
@@ -449,6 +450,14 @@ export default function ArticleFullReportDialog({ article, onClose }) {
     startStream()
     return () => abortRef.current?.abort()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Récupération du nom du vault Obsidian ─────────────────────────────────────
+  useEffect(() => {
+    fetch('/api/config/obsidian')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.vault_name) setObsidianVault(d.vault_name) })
+      .catch(() => {})
+  }, [])
 
   // ── Gel du markdown à la fin du stream ────────────────────────────────────────
   // On capture cleanMd au moment précis où isLoading passe à false.
@@ -625,14 +634,35 @@ ${contentEl.innerHTML}
       })
       const d = await r.json()
       if (d.ok) {
-        setExportState(prev => ({ ...prev, [target]: { ok: true, path: d.path, deduplicated: d.deduplicated } }))
+        const exportResult = {
+          ok: true,
+          path: d.path,
+          filename: d.filename,
+          saved_at: d.saved_at,
+          deduplicated: d.deduplicated,
+        }
+        setExportState(prev => ({ ...prev, [target]: exportResult }))
+
+        // ── Enregistrer les métadonnées du rapport dans l'article JSON ──────
+        if (filePath && article['URL'] && !d.deduplicated) {
+          const rapport = {
+            fichier: d.filename,
+            chemin:  d.path,
+            cible:   target,
+            date_creation: d.saved_at,
+          }
+          fetch('/api/article/set-report-meta', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_path: filePath, article_url: article['URL'], rapport }),
+          }).catch(() => {})
+        }
       } else {
         setExportState(prev => ({ ...prev, [target]: { ok: false, error: d.error } }))
       }
     } catch (e) {
       setExportState(prev => ({ ...prev, [target]: { ok: false, error: String(e) } }))
     }
-    setTimeout(() => setExportState(prev => ({ ...prev, [target]: null })), 4000)
   }
 
   // ── Shared button class ───────────────────────────────────────────────────────
@@ -837,6 +867,20 @@ ${contentEl.innerHTML}
                     </div>
                   )}
                 </div>
+                {/* Ouvrir dans Obsidian — affiché après un export Obsidian réussi */}
+                {exportState.obsidian?.ok && obsidianVault && exportState.obsidian.filename && (
+                  <button
+                    onClick={() => {
+                      const fname = exportState.obsidian.filename.replace(/\.md$/i, '')
+                      window.open(`obsidian://open?vault=${encodeURIComponent(obsidianVault)}&file=${encodeURIComponent(fname)}`, '_blank')
+                    }}
+                    title="Ouvrir dans Obsidian"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-600 text-violet-800 dark:text-violet-200 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors"
+                  >
+                    <BookOpen size={12} />
+                    Ouvrir
+                  </button>
+                )}
               </>
             )}
             <button onClick={handleCopy} className={btnCls} title="Copier le Markdown">

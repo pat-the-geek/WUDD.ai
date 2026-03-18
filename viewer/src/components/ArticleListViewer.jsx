@@ -1174,6 +1174,7 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
       {reportArticle && (
         <ArticleFullReportDialog
           article={reportArticle}
+          filePath={filePath}
           onClose={() => setReportArticle(null)}
         />
       )}

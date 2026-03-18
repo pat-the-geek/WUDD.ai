@@ -696,9 +696,161 @@ def api_export_report():
             except OSError:
                 pass  # l'index est optionnel, ne pas bloquer l'export
 
-        return jsonify({"ok": True, "path": str(out_path)})
+        saved_at = datetime.datetime.now().isoformat(timespec="seconds")
+        return jsonify({
+            "ok": True,
+            "path": str(out_path),
+            "filename": safe_name,
+            "saved_at": saved_at,
+        })
     except OSError as e:
         return jsonify({"error": f"Erreur écriture : {e}"}), 500
+
+
+@export_bp.route("/api/article/set-report-meta", methods=["POST"])
+def api_article_set_report_meta():
+    """Enregistre les métadonnées d'un rapport exporté directement dans l'article JSON.
+
+    Body JSON :
+      file_path    (str)  — chemin absolu du fichier JSON d'articles
+      article_url  (str)  — URL de l'article à mettre à jour
+      rapport      (obj)  — { fichier, chemin, cible, date_creation }
+
+    Retourne : { ok: bool }
+    """
+    body        = request.get_json(force=True, silent=True) or {}
+    file_path   = (body.get("file_path") or "").strip()
+    article_url = (body.get("article_url") or "").strip()
+    rapport     = body.get("rapport") or {}
+
+    if not file_path or not article_url or not rapport:
+        return jsonify({"error": "file_path, article_url et rapport sont requis"}), 400
+
+    fp = Path(file_path)
+    if not fp.exists() or not fp.is_file():
+        return jsonify({"error": "Fichier introuvable"}), 404
+
+    # Sécurité : le fichier doit être sous PROJECT_ROOT
+    try:
+        fp.resolve().relative_to(PROJECT_ROOT.resolve())
+    except ValueError:
+        return jsonify({"error": "Accès refusé"}), 403
+
+    try:
+        articles = json.loads(fp.read_text(encoding="utf-8"))
+    except Exception as e:
+        return jsonify({"error": f"Lecture impossible : {e}"}), 500
+
+    if not isinstance(articles, list):
+        return jsonify({"error": "Format JSON invalide (liste attendue)"}), 400
+
+    updated = False
+    for art in articles:
+        if art.get("URL") == article_url:
+            rapports = art.get("rapports") or []
+            # Éviter les doublons : même fichier
+            if not any(r.get("fichier") == rapport.get("fichier") for r in rapports):
+                rapports.append(rapport)
+            art["rapports"] = rapports
+            updated = True
+            break
+
+    if not updated:
+        return jsonify({"error": "Article introuvable dans le fichier"}), 404
+
+    try:
+        fp.write_text(json.dumps(articles, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as e:
+        return jsonify({"error": f"Écriture impossible : {e}"}), 500
+
+    return jsonify({"ok": True})
+
+
+@export_bp.route("/api/entity/set-report-meta", methods=["POST"])
+def api_entity_set_report_meta():
+    """Enregistre les métadonnées d'un rapport d'entité dans l'index partagé.
+
+    Body JSON :
+      entity_type  (str)  — type NER (ORG, PERSON, GPE, …)
+      entity_value (str)  — valeur de l'entité
+      rapport      (obj)  — { fichier, chemin, cible, date_creation }
+
+    Retourne : { ok: bool }
+    """
+    body         = request.get_json(force=True, silent=True) or {}
+    entity_type  = (body.get("entity_type") or "").strip()
+    entity_value = (body.get("entity_value") or "").strip()
+    rapport      = body.get("rapport") or {}
+
+    if not entity_type or not entity_value or not rapport:
+        return jsonify({"error": "entity_type, entity_value et rapport sont requis"}), 400
+
+    index_path = PROJECT_ROOT / "data" / "entity_reports_index.json"
+    index: dict = {}
+    if index_path.exists():
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except Exception:
+            index = {}
+
+    key = f"{entity_type}:{entity_value}"
+    rapports = index.get(key) or []
+    if not any(r.get("fichier") == rapport.get("fichier") for r in rapports):
+        rapports.append(rapport)
+    index[key] = rapports
+
+    try:
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as e:
+        return jsonify({"error": f"Écriture impossible : {e}"}), 500
+
+    return jsonify({"ok": True})
+
+
+@export_bp.route("/api/entity/get-report-meta", methods=["GET"])
+def api_entity_get_report_meta():
+    """Retourne les métadonnées de rapports pour une entité.
+
+    Query params :
+      entity_type  (str)
+      entity_value (str)
+
+    Retourne : { rapports: [...] }
+    """
+    entity_type  = request.args.get("entity_type", "").strip()
+    entity_value = request.args.get("entity_value", "").strip()
+
+    if not entity_type or not entity_value:
+        return jsonify({"rapports": []})
+
+    index_path = PROJECT_ROOT / "data" / "entity_reports_index.json"
+    if not index_path.exists():
+        return jsonify({"rapports": []})
+
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+    except Exception:
+        return jsonify({"rapports": []})
+
+    key = f"{entity_type}:{entity_value}"
+    return jsonify({"rapports": index.get(key, [])})
+
+
+@export_bp.route("/api/config/obsidian", methods=["GET"])
+def api_config_obsidian():
+    """Retourne la configuration Obsidian pour construire les liens obsidian://.
+
+    Retourne : { vault_name: str | null, obsidian_dir: str | null }
+    """
+    obsidian_dir = os.environ.get("OBSIDIAN_DIR", "").strip() or None
+    vault_name   = os.environ.get("OBSIDIAN_VAULT_NAME", "").strip() or None
+
+    # Dériver le nom du vault depuis le chemin si non défini explicitement
+    if not vault_name and obsidian_dir:
+        vault_name = Path(obsidian_dir).name or None
+
+    return jsonify({"vault_name": vault_name, "obsidian_dir": obsidian_dir})
 
 
 @export_bp.route("/api/chat/save", methods=["POST"])
