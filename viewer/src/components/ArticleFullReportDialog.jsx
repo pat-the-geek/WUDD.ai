@@ -305,14 +305,14 @@ function buildObsidianNoteBody(article, geoData = {}) {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-export default function ArticleFullReportDialog({ article, filePath, onClose }) {
+export default function ArticleFullReportDialog({ article, filePath, obsidianVaultProp, onClose }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [reportMd, setReportMd]         = useState('')
   const [isLoading, setIsLoading]       = useState(true)
   const [error, setError]               = useState(null)
   const [copied, setCopied]             = useState(false)
   const [exportState, setExportState]   = useState({ local: null, obsidian: null })
-  const [obsidianVault, setObsidianVault] = useState(null)
+  const [obsidianVault, setObsidianVault] = useState(obsidianVaultProp ?? null)
   // frozenMd : snapshot du markdown au moment où le stream se termine.
   // La FinalReportView est montée avec ce snapshot et ne change plus jamais.
   const [frozenMd,  setFrozenMd]        = useState(null)
@@ -935,6 +935,32 @@ ${contentEl.innerHTML}
           </div>
         )}
 
+
+        {/* ── Rapports précédemment générés ─────────────────────────────────── */}
+        {Array.isArray(article['rapports']) && article['rapports'].length > 0 && (
+          <div className="no-print flex items-center gap-2 px-5 py-2 bg-violet-50/60 dark:bg-violet-900/20 border-b border-violet-100 dark:border-violet-800/40 overflow-x-auto shrink-0 flex-wrap">
+            <BookOpen size={11} className="text-violet-500 shrink-0" />
+            <span className="text-[10px] font-medium text-violet-600 dark:text-violet-400 shrink-0">Rapports générés :</span>
+            {article['rapports'].map((rap, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-white dark:bg-slate-800 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 shrink-0"
+                title={`${rap.chemin ?? ''}`}
+              >
+                {rap.cible === 'obsidian' ? 'Obsidian' : 'Local'}
+                {rap.date_creation && <span className="opacity-60">{' '}{rap.date_creation.slice(0, 16).replace('T', ' ')}</span>}
+                <span className="opacity-50 max-w-[120px] truncate">{rap.fichier}</span>
+                {rap.cible === 'obsidian' && obsidianVault && rap.fichier && (
+                  <button
+                    onClick={() => window.open(`obsidian://open?vault=${encodeURIComponent(obsidianVault)}&file=${encodeURIComponent(rap.fichier.replace(/\.md$/i, ''))}`, '_blank')}
+                    className="ml-0.5 underline underline-offset-1 text-violet-600 dark:text-violet-400 hover:text-violet-900 dark:hover:text-violet-100"
+                    title="Ouvrir dans Obsidian"
+                  >↗</button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* ── Report content ────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-10 py-6 bg-white dark:bg-slate-900">

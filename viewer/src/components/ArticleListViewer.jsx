@@ -3,7 +3,7 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
   Download, LayoutGrid, AlignLeft, LayoutList, Maximize2, Clock,
-  Star, Eye, Pencil, Check, RefreshCw, FileText, Scale,
+  Star, Eye, Pencil, Check, RefreshCw, FileText, Scale, BookOpen,
 } from 'lucide-react'
 import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
@@ -413,7 +413,7 @@ function IAPickerModal({ providers, onPick, onClose }) {
 }
 
 /** Carte article complète (vue grille / large) — style Liquid Glass. */
-function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge }) {
+function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault }) {
   const [expanded, setExpanded]                   = useState(index < 3)
   const [lightbox, setLightbox]                   = useState(false)
   const [noteOpen, setNoteOpen]                   = useState(false)
@@ -617,6 +617,35 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
             </p>
           </div>
         )}
+
+        {/* Badges rapports exportés */}
+        {Array.isArray(article['rapports']) && article['rapports'].length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {article['rapports'].map((rap, idx) => (
+              <span
+                key={idx}
+                title={`${rap.cible === 'obsidian' ? 'Obsidian' : 'Local'} · ${rap.date_creation ?? ''}\n${rap.chemin ?? ''}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
+              >
+                <BookOpen size={9} />
+                Rapport {rap.cible === 'obsidian' ? 'Obsidian' : 'local'}
+                {rap.date_creation && (
+                  <span className="opacity-60">{rap.date_creation.slice(0, 10)}</span>
+                )}
+                {rap.cible === 'obsidian' && obsidianVault && rap.fichier && (
+                  <button
+                    onClick={e => {
+                      e.stopPropagation()
+                      window.open(`obsidian://open?vault=${encodeURIComponent(obsidianVault)}&file=${encodeURIComponent(rap.fichier.replace(/\.md$/i, ''))}`, '_blank')
+                    }}
+                    className="ml-0.5 underline underline-offset-1 hover:text-violet-900 dark:hover:text-violet-100 transition-colors"
+                    title="Ouvrir dans Obsidian"
+                  >↗</button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </article>
   )
@@ -691,8 +720,17 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
   const [typesOpen, setTypesOpen]             = useState(false)
   const [sourcesOpen, setSourcesOpen]         = useState(false)
   const [annotFilter, setAnnotFilter]         = useState('tous') // 'tous' | 'importants' | 'non-lus'
+  const [obsidianVault, setObsidianVault]     = useState(null)
   const searchRef = useRef(null)
   const mobileSearchRef = useRef(null)
+
+  // Nom du vault Obsidian — chargé une seule fois pour tous les ArticleCard
+  useEffect(() => {
+    fetch('/api/config/obsidian')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.vault_name) setObsidianVault(d.vault_name) })
+      .catch(() => {})
+  }, [])
 
   // ── Injection de la query externe (depuis SearchOverlay) ─────────────────
   useEffect(() => {
@@ -1141,6 +1179,7 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
                 filePath={filePath}
                 availableProviders={availableProviders}
                 isFirstUnread={!hasScrolledRef.current && article['URL'] === firstUnreadUrl}
+                obsidianVault={obsidianVault}
                 isLarge
               />
             </div>
@@ -1158,6 +1197,7 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
               filePath={filePath}
               availableProviders={availableProviders}
               isFirstUnread={!hasScrolledRef.current && article['URL'] === firstUnreadUrl}
+              obsidianVault={obsidianVault}
             />
           ))}
         </div>
@@ -1175,6 +1215,7 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
         <ArticleFullReportDialog
           article={reportArticle}
           filePath={filePath}
+          obsidianVaultProp={obsidianVault}
           onClose={() => setReportArticle(null)}
         />
       )}

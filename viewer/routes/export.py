@@ -726,7 +726,12 @@ def api_article_set_report_meta():
     if not file_path or not article_url or not rapport:
         return jsonify({"error": "file_path, article_url et rapport sont requis"}), 400
 
+    # Résolution : chemin relatif à PROJECT_ROOT ou chemin absolu
     fp = Path(file_path)
+    if not fp.is_absolute():
+        fp = PROJECT_ROOT / fp
+    fp = fp.resolve()
+
     if not fp.exists() or not fp.is_file():
         return jsonify({"error": "Fichier introuvable"}), 404
 
