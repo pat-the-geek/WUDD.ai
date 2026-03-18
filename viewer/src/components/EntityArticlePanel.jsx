@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { X, FileText, Download, Loader2, ExternalLink, ChevronLeft, Network, GripHorizontal, Maximize2, Minimize2, Info, Calendar, Layers, Terminal } from 'lucide-react'
+import { X, FileText, Download, Loader2, ExternalLink, ChevronLeft, Network, GripHorizontal, Maximize2, Minimize2, Info, Calendar, Layers, Terminal, BookOpen } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import EntityGraph from './EntityGraph'
@@ -415,6 +415,25 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
     setHistory(prev => prev.length > 1 ? prev.slice(0, -1) : prev)
   }, [])
 
+  // ── Rapports précédents de l'entité ────────────────────────────────────────
+  const [entityRapports, setEntityRapports]   = useState([])
+  const [obsidianVaultName, setObsidianVaultName] = useState(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams({ entity_type: current.type, entity_value: current.value })
+    fetch(`/api/entity/get-report-meta?${params}`)
+      .then(r => r.ok ? r.json() : { rapports: [] })
+      .then(d => setEntityRapports(Array.isArray(d.rapports) ? d.rapports : []))
+      .catch(() => setEntityRapports([]))
+  }, [current.type, current.value])
+
+  useEffect(() => {
+    fetch('/api/config/obsidian')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.vault_name) setObsidianVaultName(d.vault_name) })
+      .catch(() => {})
+  }, [])
+
   // ── Exports ────────────────────────────────────────────────────────────────
   const [showReportDialog, setShowReportDialog] = useState(false)
 
@@ -489,6 +508,29 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
             {!loading && (
               <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
                 — {articles.length} article{articles.length !== 1 ? 's' : ''}
+              </span>
+            )}
+            {/* Badge rapports générés */}
+            {entityRapports.length > 0 && (
+              <span className="pointer-events-auto flex items-center gap-1 shrink-0">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700">
+                  <BookOpen size={9} />
+                  {entityRapports.length} rapport{entityRapports.length > 1 ? 's' : ''}
+                </span>
+                {/* Lien Obsidian pour le rapport le plus récent */}
+                {obsidianVaultName && entityRapports[entityRapports.length - 1]?.fichier && (
+                  <button
+                    onClick={() => {
+                      const rap = entityRapports[entityRapports.length - 1]
+                      const fname = rap.fichier.replace(/\.md$/i, '')
+                      window.open(`obsidian://open?vault=${encodeURIComponent(obsidianVaultName)}&file=${encodeURIComponent(fname)}`, '_blank')
+                    }}
+                    title={`Ouvrir dans Obsidian : ${entityRapports[entityRapports.length - 1].fichier}`}
+                    className="inline-flex items-center gap-0.5 text-[10px] text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 underline underline-offset-2 transition-colors"
+                  >
+                    Ouvrir
+                  </button>
+                )}
               </span>
             )}
           </div>
@@ -710,6 +752,39 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                   <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed line-clamp-4">
                     {art['Résumé']}
                   </p>
+                )}
+                {/* Badge rapport exporté pour cet article */}
+                {Array.isArray(art['rapports']) && art['rapports'].length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {art['rapports'].map((rap, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
+                        title={`Rapport ${rap.cible === 'obsidian' ? 'Obsidian' : 'local'} — ${rap.date_creation ?? ''}\n${rap.chemin ?? ''}`}
+                      >
+                        <BookOpen size={9} />
+                        {rap.cible === 'obsidian' ? 'Obsidian' : 'Local'}
+                        {rap.date_creation && (
+                          <span className="opacity-70">
+                            {' '}{rap.date_creation.slice(0, 10)}
+                          </span>
+                        )}
+                        {rap.cible === 'obsidian' && obsidianVaultName && rap.fichier && (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation()
+                              const fname = rap.fichier.replace(/\.md$/i, '')
+                              window.open(`obsidian://open?vault=${encodeURIComponent(obsidianVaultName)}&file=${encodeURIComponent(fname)}`, '_blank')
+                            }}
+                            className="ml-0.5 underline underline-offset-1 hover:text-violet-900 dark:hover:text-violet-100 transition-colors"
+                            title="Ouvrir dans Obsidian"
+                          >
+                            ↗
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </article>
             ))
