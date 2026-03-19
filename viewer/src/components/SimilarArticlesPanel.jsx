@@ -173,7 +173,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
         </div>
 
         {/* ── Corps scrollable ───────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
 
           {/* Chargement */}
           {loading && (
