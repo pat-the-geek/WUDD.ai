@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   X, GitMerge, Loader2, ExternalLink,
-  AlertTriangle, ChevronDown, ChevronUp, Check, Square,
+  AlertTriangle, ChevronDown, ChevronUp, Check, Square, Sparkles,
 } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -33,10 +33,12 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
   const [candidates, setCandidates] = useState([])
   const [selected, setSelected]     = useState({})   // url → candidate
   const [expandedUrl, setExpandedUrl] = useState(null)
-  const [synthesis, setSynthesis]   = useState('')
-  const [error, setError]           = useState(null)
-  const [merging, setMerging]       = useState(false)
-  const [mergeResult, setMergeResult] = useState(null)
+  const [synthesis, setSynthesis]         = useState(null)  // null = pas encore générée
+  const [synthesizing, setSynthesizing]   = useState(false)
+  const [synthMode, setSynthMode]         = useState(null)   // 'ia' | 'structure'
+  const [error, setError]                 = useState(null)
+  const [merging, setMerging]             = useState(false)
+  const [mergeResult, setMergeResult]     = useState(null)
 
   const articleUrl = article['URL'] ?? ''
   const articleTitle = article['Titre'] || article['Sources'] || articleUrl
@@ -66,7 +68,35 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
   }, [])
 
   const selectedList = Object.values(selected)
-  const canMerge = selectedList.length > 0 && !merging
+  const hasSynthesis = synthesis !== null && synthesis.trim().length > 0
+  const canMerge     = selectedList.length > 0 && hasSynthesis && !merging
+
+  // ── Génération de la synthèse IA ─────────────────────────────────────────
+  const generateSynthesis = useCallback(async () => {
+    setSynthesizing(true)
+    setError(null)
+    try {
+      const r = await fetch('/api/articles/merge/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_article: article,
+          candidates: selectedList.map(c => ({
+            Sources:              c.source,
+            'Date de publication': c.date,
+            Résumé:               c.resume_extrait,  // extrait 300 car. — suffisant pour le prompt
+          })),
+        }),
+      })
+      const d = await r.json()
+      setSynthesis(d.synthesis ?? '')
+      setSynthMode(d.mode ?? null)
+    } catch (e) {
+      setError(`Erreur génération synthèse : ${e.message}`)
+    } finally {
+      setSynthesizing(false)
+    }
+  }, [article, selectedList])
 
   // ── Exécution de la fusion ────────────────────────────────────────────────
   const handleMerge = useCallback(async () => {
@@ -85,7 +115,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
             file_path: c.file_path,
             score:     c.score,
           })),
-          synthesis: synthesis.trim() || undefined,
+          synthesis: synthesis?.trim() || undefined,
         }),
       })
       const d = await r.json()
@@ -303,26 +333,59 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
 
         {/* ── Pied de page ───────────────────────────────────────────────── */}
         {!mergeResult ? (
-          <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 shrink-0">
-            {/* Zone résumé synthétisé (visible uniquement si sélection) */}
-            {selectedList.length > 0 && (
-              <div className="mb-3">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 block">
-                  Résumé synthétisé{' '}
-                  <span className="normal-case font-normal">
-                    (optionnel — laisser vide pour conserver le résumé de la source principale)
-                  </span>
-                </label>
+          <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 shrink-0 space-y-3">
+
+            {/* Étape 1 : sélection en cours — bouton "Générer la synthèse" */}
+            {selectedList.length > 0 && synthesis === null && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                  {selectedList.length} article{selectedList.length > 1 ? 's' : ''} sélectionné{selectedList.length > 1 ? 's' : ''}
+                  {' '}— générez la synthèse avant de fusionner
+                </span>
+                <button
+                  onClick={generateSynthesis}
+                  disabled={synthesizing}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-violet-600 hover:bg-violet-500 disabled:bg-violet-300 dark:disabled:bg-violet-800 text-white transition-colors shrink-0"
+                >
+                  {synthesizing
+                    ? <><Loader2 size={12} className="animate-spin" /> Génération…</>
+                    : <><Sparkles size={12} /> Générer la synthèse</>
+                  }
+                </button>
+              </div>
+            )}
+
+            {/* Étape 2 : synthèse générée — éditable + bouton Fusionner */}
+            {synthesis !== null && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Synthèse{' '}
+                    {synthMode === 'ia'
+                      ? <span className="normal-case font-normal text-violet-500 dark:text-violet-400">générée par l'IA</span>
+                      : <span className="normal-case font-normal text-slate-400">structurée (IA indisponible)</span>
+                    }
+                  </label>
+                  <button
+                    onClick={generateSynthesis}
+                    disabled={synthesizing}
+                    title="Regénérer"
+                    className="text-[10px] text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 flex items-center gap-0.5 transition-colors"
+                  >
+                    {synthesizing ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                    {synthesizing ? 'Génération…' : 'Regénérer'}
+                  </button>
+                </div>
                 <textarea
                   value={synthesis}
                   onChange={e => setSynthesis(e.target.value)}
-                  placeholder="Coller ici la synthèse générée par l'IA, ou laisser vide…"
-                  rows={3}
-                  className="w-full text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-violet-400 resize-none"
+                  rows={5}
+                  className="w-full text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-400 resize-none"
                 />
               </div>
             )}
 
+            {/* Barre d'actions basse */}
             <div className="flex items-center justify-between gap-3">
               <button
                 onClick={onClose}
@@ -330,12 +393,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
               >
                 Annuler
               </button>
-              <div className="flex items-center gap-2">
-                {selectedList.length > 0 && (
-                  <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                    {selectedList.length} sélectionné{selectedList.length > 1 ? 's' : ''}
-                  </span>
-                )}
+              {synthesis !== null && (
                 <button
                   onClick={handleMerge}
                   disabled={!canMerge}
@@ -343,10 +401,10 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
                 >
                   {merging
                     ? <><Loader2 size={12} className="animate-spin" /> Fusion en cours…</>
-                    : <><GitMerge size={12} /> Fusionner{selectedList.length > 0 ? ` (${selectedList.length})` : ''}</>
+                    : <><GitMerge size={12} /> Fusionner ({selectedList.length})</>
                   }
                 </button>
-              </div>
+              )}
             </div>
           </div>
         ) : (

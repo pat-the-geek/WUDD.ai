@@ -2,8 +2,9 @@
 viewer/routes/merge.py — Blueprint Flask pour la fusion d'articles similaires.
 
 Routes :
-  POST /api/articles/merge/search   — recherche les articles similaires à un article donné
-  POST /api/articles/merge/execute  — exécute la fusion des articles sélectionnés
+  POST /api/articles/merge/search      — recherche les articles similaires à un article donné
+  POST /api/articles/merge/synthesize  — génère une synthèse IA des résumés à fusionner
+  POST /api/articles/merge/execute     — exécute la fusion des articles sélectionnés
 """
 import json
 
@@ -81,6 +82,70 @@ def api_merge_search():
         for c in candidates
     ]
     return jsonify({"candidates": results, "source_url": article_url})
+
+
+@merge_bp.route("/api/articles/merge/synthesize", methods=["POST"])
+def api_merge_synthesize():
+    """Génère une synthèse IA des résumés des articles à fusionner.
+
+    Body JSON :
+        source_article (dict) article source complet
+        candidates     (list) [{source, date, resume}] — articles à fusionner
+
+    Returns :
+        { synthesis: str }  — texte généré par l'IA, ou fallback structuré si IA indisponible
+    """
+    data           = request.get_json(force=True, silent=True) or {}
+    source_article = data.get("source_article") or {}
+    candidates     = data.get("candidates") or []
+
+    if not source_article or not candidates:
+        abort(400, "source_article et candidates sont requis")
+
+    # Construire la liste de tous les résumés avec leur source
+    all_articles = [source_article] + candidates
+
+    # Tenter une synthèse IA
+    try:
+        from viewer.helpers import _call_ai_blocking
+
+        # Construire le prompt de synthèse
+        blocs = []
+        for a in all_articles:
+            resume = (a.get("Résumé") or "").strip()
+            if not resume:
+                continue
+            source = a.get("Sources") or a.get("source") or "Source inconnue"
+            date   = a.get("Date de publication") or a.get("date") or ""
+            blocs.append(f"**{source}{' — ' + date if date else ''}**\n{resume}")
+
+        if not blocs:
+            abort(400, "Aucun résumé disponible dans les articles fournis")
+
+        prompt = (
+            "Tu es un assistant de veille d'actualité francophone. "
+            "Les textes suivants sont des résumés d'articles traitant du même sujet, "
+            "publiés par différentes sources.\n\n"
+            + "\n\n---\n\n".join(blocs)
+            + "\n\n---\n\n"
+            "Rédige une synthèse de 10 à 15 lignes qui :\n"
+            "- Présente les faits principaux communs à plusieurs sources\n"
+            "- Signale les nuances ou compléments propres à certaines sources\n"
+            "- Est rédigée en français, sans répétition entre les sources\n"
+            "- Ne cite pas les noms des journaux dans le corps du texte\n"
+            "Réponds uniquement avec le texte de la synthèse, sans titre ni introduction."
+        )
+
+        synthesis = _call_ai_blocking(prompt, timeout=90)
+        if synthesis:
+            return jsonify({"synthesis": synthesis, "mode": "ia"})
+    except Exception:
+        pass  # Fallback vers synthèse structurée
+
+    # Fallback : résumé multi-sources structuré (sans IA)
+    from utils.article_merger import _build_combined_resume
+    fallback = _build_combined_resume(all_articles)
+    return jsonify({"synthesis": fallback, "mode": "structure"})
 
 
 @merge_bp.route("/api/articles/merge/execute", methods=["POST"])

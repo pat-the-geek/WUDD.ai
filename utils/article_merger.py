@@ -292,7 +292,23 @@ def _select_primary(articles: list[dict]) -> dict:
     return max(articles, key=_rank)
 
 
-def _get_obsidian_note_name(article: dict) -> str:
+def _build_combined_resume(articles: list[dict]) -> str:
+    """Construit un résumé multi-sources structuré à partir des résumés individuels.
+
+    Chaque résumé est précédé d'un en-tête [Source — date] pour identifier
+    clairement la provenance.  Utilisé comme fallback quand aucune synthèse IA
+    n'est fournie.
+    """
+    parts = []
+    for a in articles:
+        resume = (a.get("Résumé") or "").strip()
+        if not resume:
+            continue
+        source = a.get("Sources") or "Source inconnue"
+        date   = a.get("Date de publication") or ""
+        header = f"[{source}{' — ' + date if date else ''}]"
+        parts.append(f"{header}\n{resume}")
+    return "\n\n".join(parts)
     """Extrait le nom (sans extension) de la note Obsidian de l'article."""
     for rapport in (article.get("rapports") or []):
         if rapport.get("cible") == "obsidian":
@@ -548,9 +564,9 @@ def execute_merge(
     merged_article: dict = {
         **primary,  # hérite de tous les champs de la source principale
         "entities": _merge_entities(all_articles),
+        # Le résumé est toujours une synthèse multi-sources, jamais celui d'un seul article
+        "Résumé": synthesis if synthesis else _build_combined_resume(all_articles),
     }
-    if synthesis:
-        merged_article["Résumé"] = synthesis
 
     merged_article["_fusion"] = {
         "est_article_fusionné": True,
