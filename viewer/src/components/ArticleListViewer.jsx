@@ -3,13 +3,14 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
   Download, LayoutGrid, AlignLeft, LayoutList, Maximize2, Clock,
-  Star, Eye, Pencil, Check, RefreshCw, FileText, Scale, BookOpen,
+  Star, Eye, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge,
 } from 'lucide-react'
 import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
 import { openInObsidian } from '../utils/obsidian'
 import ArticleFullReportDialog from './ArticleFullReportDialog'
 import TTSButton from './TTSButton'
+import SimilarArticlesPanel from './SimilarArticlesPanel'
 
 // ── Badge sentiment ───────────────────────────────────────────────────────────
 const SENTIMENT_CFG = {
@@ -422,6 +423,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
   const [refreshResume, setRefreshResume]         = useState(null) // résumé mis à jour localement
   const [showIAPicker, setShowIAPicker]           = useState(false)
   const [showContradiction, setShowContradiction] = useState(false)
+  const [showSimilar, setShowSimilar]             = useState(false)
 
   const titre    = article['Titre']?.trim() || ''
   const resume   = refreshResume ?? article['Résumé'] ?? ''
@@ -478,6 +480,14 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
       )}
       {showContradiction && (
         <ContradictionDialog article={article} onClose={() => setShowContradiction(false)} />
+      )}
+      {showSimilar && (
+        <SimilarArticlesPanel
+          article={article}
+          filePath={filePath}
+          onClose={() => setShowSimilar(false)}
+          onMerged={() => window.location.reload()}
+        />
       )}
       {imgUrl && (
         <button
@@ -552,6 +562,13 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
                 title="Vérifier les contradictions entre sources"
                 className="p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-violet-500 dark:hover:text-violet-400 hover:bg-violet-50/50 dark:hover:bg-violet-900/20">
                 <Scale size={14} />
+              </button>
+            )}
+            {url && filePath && (
+              <button onClick={e => { e.stopPropagation(); setShowSimilar(true) }}
+                title="Rechercher des articles similaires à fusionner"
+                className="p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50/50 dark:hover:bg-violet-900/20">
+                <GitMerge size={14} />
               </button>
             )}
             {article['URL'] && (
