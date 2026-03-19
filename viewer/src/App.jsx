@@ -447,6 +447,32 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handler)
   }, [outilsOpen])
 
+  const reloadFileContent = useCallback(() => {
+    if (!selectedFile) return
+    setFileContent(null)
+    setContentLoading(true)
+    setLoadingProgress(0)
+    fetch(`/api/stream-content?path=${encodeURIComponent(selectedFile.path)}`)
+      .then(async (response) => {
+        const fileSize = parseInt(response.headers.get('X-File-Size') || '0', 10)
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        const chunks = []
+        let loaded = 0
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          chunks.push(decoder.decode(value, { stream: true }))
+          loaded += value.length
+          if (fileSize > 0) setLoadingProgress(Math.min(99, Math.round((loaded / fileSize) * 100)))
+        }
+        chunks.push(decoder.decode())
+        return chunks.join('')
+      })
+      .then(text => { setFileContent(text); setContentLoading(false); setLoadingProgress(0) })
+      .catch(() => { setContentLoading(false); setLoadingProgress(0) })
+  }, [selectedFile])
+
   const selectFile = useCallback((file) => {
     setSelectedFile(file)
     setFileContent(null)
@@ -761,6 +787,7 @@ export default function App() {
           onMobileSearchClose={() => setArticleFocusSignal(0)}
           mobileFilterSignal={mobileFilterSignal}
           onMobileFilterClose={() => { setMobileFiltersActive(false) }}
+          onMerged={reloadFileContent}
         />
       </div>
 
