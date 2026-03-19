@@ -415,7 +415,7 @@ function IAPickerModal({ providers, onPick, onClose }) {
 }
 
 /** Carte article complète (vue grille / large) — style Liquid Glass. */
-function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault }) {
+function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged }) {
   const [expanded, setExpanded]                   = useState(index < 3)
   const [lightbox, setLightbox]                   = useState(false)
   const [noteOpen, setNoteOpen]                   = useState(false)
@@ -474,7 +474,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
   }, [availableProviders, handleRefreshResume])
 
   return (
-    <article ref={cardRef} {...(isFirstUnread ? { 'data-first-unread': '' } : {})} className="bg-white/60 dark:bg-slate-800/50 backdrop-blur-2xl border border-white/70 dark:border-white/10 rounded-3xl overflow-hidden shadow-xl shadow-black/8 dark:shadow-black/30 hover:shadow-2xl hover:shadow-black/12 dark:hover:shadow-black/40 transition-all duration-300">
+    <article ref={cardRef} data-article-url={url} {...(isFirstUnread ? { 'data-first-unread': '' } : {})} className="bg-white/60 dark:bg-slate-800/50 backdrop-blur-2xl border border-white/70 dark:border-white/10 rounded-3xl overflow-hidden shadow-xl shadow-black/8 dark:shadow-black/30 hover:shadow-2xl hover:shadow-black/12 dark:hover:shadow-black/40 transition-all duration-300">
       {showIAPicker && (
         <IAPickerModal providers={availableProviders} onPick={handleRefreshResume} onClose={() => setShowIAPicker(false)} />
       )}
@@ -486,7 +486,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
           article={article}
           filePath={filePath}
           onClose={() => setShowSimilar(false)}
-          onMerged={() => window.location.reload()}
+          onMerged={() => { setShowSimilar(false); onMerged?.(url) }}
         />
       )}
       {imgUrl && (
@@ -726,7 +726,7 @@ function TimelineItem({ article }) {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-export default function ArticleListViewer({ content, annotations, onAnnotate, filePath, availableProviders, searchInjection = null, focusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose }) {
+export default function ArticleListViewer({ content, annotations, onAnnotate, filePath, availableProviders, searchInjection = null, focusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged }) {
   const [searchQuery, setSearchQuery]         = useState(searchInjection?.query || '')
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [mobileFilterMode, setMobileFilterMode] = useState(null) // null | 'star' | 'source' | 'entity'
@@ -793,8 +793,9 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
   }, [mobileFilterSignal?.version])
 
   // ── Défilement vers le premier article non lu ─────────────────────────────
-  const gridRef        = useRef(null)
-  const hasScrolledRef = useRef(false)  // a-t-on déjà défilé pour ce fichier ?
+  const gridRef             = useRef(null)
+  const hasScrolledRef      = useRef(false)  // a-t-on déjà défilé pour ce fichier ?
+  const pendingScrollUrlRef = useRef(null)   // URL source d'une fusion — scroll après rechargement
   // Capture le snapshot des annotations au moment du chargement du fichier
   const annotationsRef = useRef(annotations)
   useEffect(() => { annotationsRef.current = annotations })
@@ -905,6 +906,17 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
   // Réinitialise le flag de scroll chaque fois qu'un nouveau fichier est ouvert
   useEffect(() => {
     hasScrolledRef.current = false
+  }, [articles])
+
+  // Après une fusion : scroll vers l'article source dès que le contenu est rechargé
+  useEffect(() => {
+    const url = pendingScrollUrlRef.current
+    if (!url || !articles) return
+    pendingScrollUrlRef.current = null
+    requestAnimationFrame(() => {
+      const el = gridRef.current?.querySelector(`[data-article-url="${CSS.escape(url)}"]`)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
   }, [articles])
 
   // Défile vers le premier article non lu après le rendu de la liste
@@ -1300,6 +1312,7 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
                 isFirstUnread={!hasScrolledRef.current && article['URL'] === firstUnreadUrl}
                 obsidianVault={obsidianVault}
                 isLarge
+                onMerged={url => { pendingScrollUrlRef.current = url; onMerged?.() }}
               />
             </div>
           ))}
@@ -1317,6 +1330,7 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
               availableProviders={availableProviders}
               isFirstUnread={!hasScrolledRef.current && article['URL'] === firstUnreadUrl}
               obsidianVault={obsidianVault}
+              onMerged={url => { pendingScrollUrlRef.current = url; onMerged?.() }}
             />
           ))}
         </div>
