@@ -135,10 +135,14 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
   // ── Rendu ─────────────────────────────────────────────────────────────────
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center pt-2 px-4 pb-[5vh]"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center overflow-y-auto p-4"
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-white/50 dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div
+        className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-white/50 dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col my-2"
+        style={{ height: 'calc(100dvh - 2rem)', maxHeight: '860px' }}
+        onClick={e => e.stopPropagation()}
+      >
 
         {/* ── En-tête ────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
