@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Tag, Loader2, BarChart2, FileText, Newspaper, List, Map, Images, Maximize2, Minimize2, TrendingUp } from 'lucide-react'
+import { X, Tag, Loader2, BarChart2, FileText, Newspaper, List, Map, Images, Maximize2, Minimize2, TrendingUp, Search } from 'lucide-react'
 import EntityArticlePanel from './EntityArticlePanel'
 import EntityWorldMap from './EntityWorldMap'
 import EntityGallery from './EntityGallery'
@@ -112,6 +112,7 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [viewMode, setViewMode] = useState('list') // 'list' | 'map'
   const [isMaximized, setIsMaximized] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     fetch('/api/entities/dashboard')
@@ -283,16 +284,52 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
                   <EntityTimeline onEntitySearch={(value, type) => setSelectedEntity({ type, value })} />
                 ) : (
                   /* ── Vue Liste ── */
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {data.by_type.map(section => (
-                      <TypeSection
-                        key={section.type}
-                        section={section}
-                        maxMentions={maxMentions}
-                        onEntitySearch={(value, type) => setSelectedEntity({ type, value })}
+                  <>
+                    {/* Barre de recherche */}
+                    <div className="mb-4 relative">
+                      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Rechercher une entité…"
+                        className="w-full pl-9 pr-8 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-400/60 dark:focus:ring-violet-500/50"
                       />
-                    ))}
-                  </div>
+                      {searchQuery && (
+                        <button
+                          onClick={() => setSearchQuery('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Grille des types */}
+                    {(() => {
+                      const filtered = searchQuery
+                        ? data.by_type
+                            .map(s => ({ ...s, top: s.top.filter(({ value }) => value.toLowerCase().startsWith(searchQuery.toLowerCase())) }))
+                            .filter(s => s.top.length > 0)
+                        : data.by_type
+                      return filtered.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {filtered.map(section => (
+                            <TypeSection
+                              key={section.type}
+                              section={section}
+                              maxMentions={maxMentions}
+                              onEntitySearch={(value, type) => setSelectedEntity({ type, value })}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-12 text-slate-400 dark:text-slate-500 text-sm">
+                          Aucune entité ne commence par « {searchQuery} »
+                        </div>
+                      )
+                    })()}
+                  </>
                 )}
               </>
             )}
