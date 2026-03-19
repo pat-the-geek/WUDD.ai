@@ -309,6 +309,9 @@ def _build_combined_resume(articles: list[dict]) -> str:
         header = f"[{source}{' — ' + date if date else ''}]"
         parts.append(f"{header}\n{resume}")
     return "\n\n".join(parts)
+
+
+def _get_obsidian_note_name(article: dict) -> str:
     """Extrait le nom (sans extension) de la note Obsidian de l'article."""
     for rapport in (article.get("rapports") or []):
         if rapport.get("cible") == "obsidian":
