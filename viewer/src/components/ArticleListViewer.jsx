@@ -709,9 +709,10 @@ function TimelineItem({ article }) {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-export default function ArticleListViewer({ content, annotations, onAnnotate, filePath, availableProviders, searchInjection = null, focusSignal = 0, onMobileSearchClose }) {
+export default function ArticleListViewer({ content, annotations, onAnnotate, filePath, availableProviders, searchInjection = null, focusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose }) {
   const [searchQuery, setSearchQuery]         = useState(searchInjection?.query || '')
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  const [mobileFilterMode, setMobileFilterMode] = useState(null) // null | 'star' | 'source' | 'entity'
   const [sortBy, setSortBy]                   = useState('date-desc')
   const [viewStyle, setViewStyle]             = useState('grid') // 'grid' | 'large' | 'timeline'
   const [selectedTypes, setSelectedTypes]     = useState(new Set())
@@ -746,10 +747,33 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
   useEffect(() => {
     if (focusSignal > 0) {
       setMobileSearchOpen(true)
+      setMobileFilterMode(null)
       setTimeout(() => mobileSearchRef.current?.focus(), 100)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSignal])
+
+
+  // ── Signal d’activation d’un filtre mobile ────────────────────────────────────────
+  useEffect(() => {
+    if (!mobileFilterSignal?.mode) return
+    const mode = mobileFilterSignal.mode
+    setMobileFilterMode(mode)
+    setMobileSearchOpen(false)
+    // Exclusivité des filtres : réinitialise les catégories non actives
+    if (mode === 'star') {
+      setAnnotFilter('importants')
+      setSelectedTypes(new Set())
+      setSelectedSources(new Set())
+    } else if (mode === 'source') {
+      setAnnotFilter('tous')
+      setSelectedTypes(new Set())
+    } else if (mode === 'entity') {
+      setAnnotFilter('tous')
+      setSelectedSources(new Set())
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobileFilterSignal?.version])
 
   // ── Défilement vers le premier article non lu ─────────────────────────────
   const gridRef        = useRef(null)
@@ -938,32 +962,109 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
         )}
       </div>
 
-      {/* ── Barre de recherche mobile : fixed dans le viewport ── */}
-      {(mobileSearchOpen || searchQuery) && (
-        <div className="md:hidden fixed left-0 right-0 z-[60] flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 border-b-2 border-blue-500 shadow-lg"
+      {/* ── Barres mobiles : recherche + filtres — fixed dans le viewport ── */}
+      {(mobileSearchOpen || searchQuery || mobileFilterMode) && (
+        <div className="md:hidden fixed left-0 right-0 z-[60] flex flex-col"
           style={{ top: 'env(safe-area-inset-top, 0px)' }}
         >
-          <Search size={15} className="text-blue-500 shrink-0" />
-          <input
-            ref={mobileSearchRef}
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Rechercher dans les résumés…"
-            className="flex-1 bg-transparent text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none"
-            autoFocus
-          />
-          {searchQuery && (
-            <span className="text-xs font-medium text-slate-400 shrink-0">
-              {displayedArticles.length} / {articles?.length ?? 0}
-            </span>
+          {/* Barre de recherche texte */}
+          {(mobileSearchOpen || searchQuery) && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 border-b-2 border-blue-500 shadow-lg">
+              <Search size={15} className="text-blue-500 shrink-0" />
+              <input
+                ref={mobileSearchRef}
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Rechercher dans les résumés…"
+                className="flex-1 bg-transparent text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none"
+                autoFocus
+              />
+              {searchQuery && (
+                <span className="text-xs font-medium text-slate-400 shrink-0">
+                  {displayedArticles.length} / {articles?.length ?? 0}
+                </span>
+              )}
+              <button
+                onClick={() => { setSearchQuery(''); setMobileSearchOpen(false); onMobileSearchClose?.() }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 shrink-0 p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
           )}
-          <button
-            onClick={() => { setSearchQuery(''); setMobileSearchOpen(false); onMobileSearchClose?.() }}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 shrink-0 p-1"
-          >
-            <X size={18} />
-          </button>
+
+          {/* Barre filtre : favoris ── */}
+          {mobileFilterMode === 'star' && (
+            <div className="flex items-center gap-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 border-b-2 border-amber-400 shadow-md">
+              <Star size={15} className="text-amber-500 shrink-0" />
+              <span className="flex-1 text-sm font-medium text-amber-700 dark:text-amber-300">
+                Favoris uniquement
+                {importantCount > 0 && <span className="ml-2 text-xs font-normal text-amber-500 dark:text-amber-400">({importantCount} article{importantCount > 1 ? 's' : ''})</span>}
+              </span>
+              <button
+                onClick={() => { setAnnotFilter('tous'); setSelectedTypes(new Set()); setSelectedSources(new Set()); setMobileFilterMode(null); onMobileFilterClose?.() }}
+                className="text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 shrink-0 p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
+          {/* Barre filtre : sources ── */}
+          {mobileFilterMode === 'source' && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-900 border-b-2 border-slate-400 dark:border-slate-500 shadow-md">
+              <Newspaper size={14} className="text-slate-400 shrink-0" />
+              <div className="flex-1 flex items-center gap-1.5 overflow-x-auto py-0.5" style={{ scrollbarWidth: 'none' }}>
+                {availableSources.map(([src, count]) => {
+                  const active = selectedSources.has(src)
+                  return (
+                    <button key={src} onClick={() => toggleSource(src)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border shrink-0 transition-all active:scale-95 ${
+                        active
+                          ? 'bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-800 border-slate-700 dark:border-slate-200'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600'
+                      }`}>
+                      {src}
+                      <span className={`tabular-nums text-[10px] ${active ? 'opacity-75' : 'opacity-55'}`}>{count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                onClick={() => { setSelectedSources(new Set()); setSelectedTypes(new Set()); setAnnotFilter('tous'); setMobileFilterMode(null); onMobileFilterClose?.() }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 shrink-0 p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
+          {/* Barre filtre : types d’entités ── */}
+          {mobileFilterMode === 'entity' && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-900 border-b-2 border-violet-400 dark:border-violet-500 shadow-md">
+              <Filter size={14} className="text-violet-400 shrink-0" />
+              <div className="flex-1 flex items-center gap-1.5 overflow-x-auto py-0.5" style={{ scrollbarWidth: 'none' }}>
+                {availableTypes.map(([type, count]) => {
+                  const colors = CHIP_COLORS[type] ?? FALLBACK_CHIP
+                  const active = selectedTypes.has(type)
+                  return (
+                    <button key={type} onClick={() => toggleType(type)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border shrink-0 transition-all active:scale-95 ${active ? colors.on : colors.idle}`}>
+                      {type}
+                      <span className={`tabular-nums text-[10px] ${active ? 'opacity-80' : 'opacity-55'}`}>{count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                onClick={() => { setSelectedTypes(new Set()); setSelectedSources(new Set()); setAnnotFilter('tous'); setMobileFilterMode(null); onMobileFilterClose?.() }}
+                className="text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 shrink-0 p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

@@ -6,7 +6,7 @@ import SettingsPanel from './components/SettingsPanel'
 import EntitySearchModal from './components/EntitySearchModal'
 import EntityDashboard from './components/EntityDashboard'
 import ScriptConsolePanel from './components/ScriptConsolePanel'
-import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, MoreHorizontal, MessageSquare, Newspaper } from 'lucide-react'
+import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, MoreHorizontal, MessageSquare, Newspaper, Filter, Tag } from 'lucide-react'
 import AlertsPanel from './components/AlertsPanel'
 import ExportPanel from './components/ExportPanel'
 import TopArticlesPanel from './components/TopArticlesPanel'
@@ -223,6 +223,9 @@ export default function App() {
   const articleSearchVersionRef = useRef(0)
   const [articleFocusSignal, setArticleFocusSignal] = useState(0)
   const articleFocusSignalRef = useRef(0)
+  const [mobileFilterSignal, setMobileFilterSignal] = useState({ mode: null, version: 0 })
+  const mobileFilterSignalRef = useRef({ mode: null, version: 0 })
+  const [mobileFiltersActive, setMobileFiltersActive] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [typeFilter, setTypeFilter] = useState('all')
   const [nameSearch, setNameSearch] = useState('')
@@ -756,6 +759,8 @@ export default function App() {
           articleSearchQuery={articleSearchQuery}
           articleFocusSignal={articleFocusSignal}
           onMobileSearchClose={() => setArticleFocusSignal(0)}
+          mobileFilterSignal={mobileFilterSignal}
+          onMobileFilterClose={() => { setMobileFiltersActive(false) }}
         />
       </div>
 
@@ -804,7 +809,12 @@ export default function App() {
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
-            <Search size={24} strokeWidth={searchOpen || searchTypeMenuOpen ? 2.2 : 1.8} />
+            <span className="relative">
+              <Search size={24} strokeWidth={searchOpen || searchTypeMenuOpen ? 2.2 : 1.8} />
+              {mobileFiltersActive && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-violet-500" />
+              )}
+            </span>
             <span className="text-[10px] font-medium leading-none">Recherche</span>
           </button>
 
@@ -872,7 +882,7 @@ export default function App() {
               <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
             </div>
             <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 px-4 pt-2 pb-3 text-center">
-              Que souhaitez-vous rechercher ?
+              Que souhaitez-vous ?
             </p>
             <div className="flex flex-col gap-2 px-4 pb-5">
               <button
@@ -909,6 +919,80 @@ export default function App() {
                       ? `Dans : ${selectedFile.name}`
                       : "Ouvrez d'abord un fichier JSON"}
                   </div>
+                </div>
+              </button>
+
+              {/* Séparateur */}
+              <div className="border-t border-slate-200 dark:border-slate-600 my-1" />
+
+              {/* Filtres articles — disponibles si un fichier JSON est ouvert */}
+              <button
+                onClick={() => {
+                  if (selectedFile && selectedFile.type === 'json') {
+                    mobileFilterSignalRef.current = { mode: 'star', version: (mobileFilterSignalRef.current.version ?? 0) + 1 }
+                    setMobileFilterSignal({ ...mobileFilterSignalRef.current })
+                    setMobileFiltersActive(true)
+                    setSearchTypeMenuOpen(false)
+                    if (window.innerWidth < 768) setSidebarOpen(false)
+                  }
+                }}
+                disabled={!selectedFile || selectedFile?.type !== 'json'}
+                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-opacity ${
+                  selectedFile && selectedFile.type === 'json'
+                    ? 'bg-slate-100 dark:bg-slate-700 active:opacity-70'
+                    : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'
+                }`}
+              >
+                <Star size={20} className="text-amber-400 shrink-0" />
+                <div>
+                  <div className="text-sm font-medium text-slate-800 dark:text-slate-100">Articles favoris</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">Afficher uniquement les articles marqués d’une étoile</div>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedFile && selectedFile.type === 'json') {
+                    mobileFilterSignalRef.current = { mode: 'source', version: (mobileFilterSignalRef.current.version ?? 0) + 1 }
+                    setMobileFilterSignal({ ...mobileFilterSignalRef.current })
+                    setMobileFiltersActive(true)
+                    setSearchTypeMenuOpen(false)
+                    if (window.innerWidth < 768) setSidebarOpen(false)
+                  }
+                }}
+                disabled={!selectedFile || selectedFile?.type !== 'json'}
+                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-opacity ${
+                  selectedFile && selectedFile.type === 'json'
+                    ? 'bg-slate-100 dark:bg-slate-700 active:opacity-70'
+                    : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'
+                }`}
+              >
+                <Filter size={20} className="text-slate-500 shrink-0" />
+                <div>
+                  <div className="text-sm font-medium text-slate-800 dark:text-slate-100">Filtrer par source</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">Sélectionner une ou plusieurs sources d’articles</div>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedFile && selectedFile.type === 'json') {
+                    mobileFilterSignalRef.current = { mode: 'entity', version: (mobileFilterSignalRef.current.version ?? 0) + 1 }
+                    setMobileFilterSignal({ ...mobileFilterSignalRef.current })
+                    setMobileFiltersActive(true)
+                    setSearchTypeMenuOpen(false)
+                    if (window.innerWidth < 768) setSidebarOpen(false)
+                  }
+                }}
+                disabled={!selectedFile || selectedFile?.type !== 'json'}
+                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-opacity ${
+                  selectedFile && selectedFile.type === 'json'
+                    ? 'bg-slate-100 dark:bg-slate-700 active:opacity-70'
+                    : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'
+                }`}
+              >
+                <Tag size={20} className="text-violet-500 shrink-0" />
+                <div>
+                  <div className="text-sm font-medium text-slate-800 dark:text-slate-100">Filtrer par entité</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">Filtrer par type d’entité nommée (personnes, organisations…)</div>
                 </div>
               </button>
             </div>
