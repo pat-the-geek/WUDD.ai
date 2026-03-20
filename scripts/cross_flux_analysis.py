@@ -17,7 +17,9 @@ Usage :
 
 import argparse
 import json
+import re
 import sys
+import unicodedata
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -126,6 +128,70 @@ def _collect_entities_from_index(
                 flux_entities[flux_name][entity_key] += 1
 
     return {flux: dict(counts) for flux, counts in flux_entities.items()}
+
+
+# ── Comptage des articles par flux ──────────────────────────────────────────
+
+def _sanitize_for_mermaid(name: str) -> str:
+    """Supprime accents et caractères spéciaux pour les labels Mermaid."""
+    nfkd = unicodedata.normalize('NFKD', name)
+    ascii_str = nfkd.encode('ascii', 'ignore').decode('ascii')
+    clean = re.sub(r'[^a-zA-Z0-9 \-_]', '-', ascii_str)
+    clean = re.sub(r'-{2,}', '-', clean).strip('-')
+    return clean[:28]
+
+
+def _count_articles_in_file(json_file: Path, cutoff: datetime | None) -> int:
+    """Compte les articles valides dans une fenêtre temporelle."""
+    try:
+        data = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
+        if not isinstance(data, list):
+            return 0
+    except (json.JSONDecodeError, OSError):
+        return 0
+    if cutoff is None:
+        return len(data)
+    count = 0
+    for article in data:
+        dt = _parse_date(article.get("Date de publication", ""))
+        if dt is not None and dt >= cutoff:
+            count += 1
+    return count
+
+
+def collect_article_counts_by_flux(
+    project_root: Path,
+    days: int = 30,
+) -> dict[str, int]:
+    """Compte le nombre d'articles par flux dans la fenêtre temporelle."""
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=days) if days > 0 else None
+    counts: dict[str, int] = defaultdict(int)
+
+    articles_dir = project_root / "data" / "articles"
+    if articles_dir.exists():
+        for flux_dir in articles_dir.iterdir():
+            if not flux_dir.is_dir():
+                continue
+            flux_name = flux_dir.name
+            for json_file in flux_dir.rglob("*.json"):
+                if "cache" in json_file.relative_to(articles_dir).parts:
+                    continue
+                counts[flux_name] += _count_articles_in_file(json_file, cutoff)
+
+    rss_dir = project_root / "data" / "articles-from-rss"
+    if rss_dir.exists():
+        for json_file in rss_dir.rglob("*.json"):
+            if "cache" in json_file.relative_to(rss_dir).parts:
+                continue
+            flux_name = (
+                f"rss:{json_file.parent.name}/{json_file.stem}"
+                if json_file.parent != rss_dir
+                else f"rss:{json_file.stem}"
+            )
+            counts[flux_name] += _count_articles_in_file(json_file, cutoff)
+
+    return dict(counts)
 
 
 def collect_entities_by_flux(
@@ -257,14 +323,38 @@ def compute_cross_flux(
 
 # ── Génération du rapport Markdown ───────────────────────────────────────────
 
+def _build_mermaid_top_flux(flux_article_counts: dict[str, int], top_n: int = 10) -> str:
+    """Génère un diagramme Mermaid xychart-beta (barres) pour les top_n flux."""
+    if not flux_article_counts:
+        return ""
+    sorted_flux = sorted(flux_article_counts.items(), key=lambda x: -x[1])[:top_n]
+    labels = [f'"{_sanitize_for_mermaid(name)}"' for name, _ in sorted_flux]
+    values = [str(count) for _, count in sorted_flux]
+    max_val = max(c for _, c in sorted_flux)
+    # Arrondir le max à la dizaine supérieure
+    y_max = ((max_val // 10) + 1) * 10
+    lines = [
+        "```mermaid",
+        "xychart-beta",
+        '    title "Top flux - nombre articles"',
+        f"    x-axis [{', '.join(labels)}]",
+        f"    y-axis "+ '"Articles" ' + f"0 --> {y_max}",
+        f"    bar [{', '.join(values)}]",
+        "```",
+    ]
+    return "\n".join(lines)
+
+
 def build_cross_flux_markdown(
     date_str: str,
     days: int,
     flux_names: list[str],
     cross_entities: list[dict],
+    flux_article_counts: dict[str, int] | None = None,
 ) -> str:
     """Génère le rapport Markdown de l'analyse croisée."""
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    counts = flux_article_counts or {}
 
     lines = [
         "---",
@@ -282,8 +372,20 @@ def build_cross_flux_markdown(
         "## Flux inclus dans l'analyse",
         "",
     ]
+
+    # Graphique Mermaid top 10 flux
+    if counts:
+        mermaid_chart = _build_mermaid_top_flux(counts, top_n=10)
+        if mermaid_chart:
+            lines.append(mermaid_chart)
+            lines.append("")
+
+    # Liste compacte : flux séparés par des virgules avec nombre d'articles
+    flux_items = []
     for f in sorted(flux_names):
-        lines.append(f"- `{f}`")
+        nb = counts.get(f, 0)
+        flux_items.append(f"`{f}` ({nb} article(s))")
+    lines.append(", ".join(flux_items))
     lines.append("")
 
     if not cross_entities:
@@ -391,11 +493,15 @@ def main():
         "cross_entities": cross_entities,
     }
 
+    flux_article_counts = collect_article_counts_by_flux(project_root, days=args.days)
+    print_console(f"  → {sum(flux_article_counts.values())} article(s) comptabilisé(s) au total")
+
     report_md = build_cross_flux_markdown(
         date_str=date_str,
         days=args.days,
         flux_names=flux_names,
         cross_entities=cross_entities,
+        flux_article_counts=flux_article_counts,
     )
 
     if args.dry_run:
