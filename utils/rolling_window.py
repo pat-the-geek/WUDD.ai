@@ -66,6 +66,27 @@ def update_rolling_window(
     with _lock:
         # ── Mode reconstruction depuis source_dir ─────────────────────────
         if source_dir is not None and source_dir.exists():
+            # Charger les champs utilisateur (rapports, etc.) depuis le fichier
+            # de sortie existant afin de les préserver lors de la reconstruction.
+            # Les fichiers sources (mots-clés) ne contiennent pas ces métadonnées
+            # lorsqu'elles ont été saisies directement dans la vue agrégée.
+            _preserved_fields: dict[str, dict] = {}
+            if output_path.exists():
+                try:
+                    _existing_out = json.loads(output_path.read_text(encoding="utf-8"))
+                    if isinstance(_existing_out, list):
+                        for _art in _existing_out:
+                            _url = _art.get("URL", "")
+                            if not _url:
+                                continue
+                            _fields: dict = {}
+                            if isinstance(_art.get("rapports"), list) and _art["rapports"]:
+                                _fields["rapports"] = _art["rapports"]
+                            if _fields:
+                                _preserved_fields[_url] = _fields
+                except Exception:
+                    pass
+
             seen_urls: set[str] = set()
             collected: list[dict] = []
             for json_file in sorted(source_dir.glob("*.json")):
@@ -87,6 +108,14 @@ def update_rolling_window(
                     if dt is None or dt < cutoff:
                         continue
                     seen_urls.add(url)
+                    # Réinjecter les champs utilisateur préservés (ex. rapports)
+                    # si le fichier source ne les contient pas encore.
+                    preserved = _preserved_fields.get(url)
+                    if preserved:
+                        extra = {field: value for field, value in preserved.items()
+                                 if field not in article}
+                        if extra:
+                            article = {**article, **extra}
                     collected.append(article)
 
         # ── Mode incrémental ───────────────────────────────────────────────
