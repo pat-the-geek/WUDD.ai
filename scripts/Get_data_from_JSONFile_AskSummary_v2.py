@@ -282,22 +282,33 @@ def main():
             logger.warning(f"Article inaccessible ignoré : {url} — {text[:70]}")
             continue
 
-        # Vérifier le cache pour le résumé
-        resume_cache_key = f"resume:{url}:{date_published}"
-        resume = cache.get(resume_cache_key, ttl=604800)  # 7 jours
-        
-        if not resume:
-            # Générer le résumé via l'API
-            try:
-                resume = api_client.generate_summary(
-                    text,
-                    max_lines=20,
-                    timeout=config.timeout_resume
-                )
-                cache.set(resume_cache_key, resume)
-            except RuntimeError as e:
-                logger.warning(f"Résumé impossible pour '{url}' : {e}")
-                resume = ""
+        # Cache résumé + sentiment combinés (TTL 7 jours)
+        resume_sent_cache_key = f"resume_sentiment:{url}:{date_published}"
+        cached_combined = cache.get(resume_sent_cache_key, ttl=604800)
+
+        if cached_combined and isinstance(cached_combined, dict):
+            # Résultat combiné en cache : résumé + sentiment déjà disponibles
+            resume = cached_combined.get("resume", "")
+            _sentiment_data = cached_combined
+        else:
+            # Compatibilité avec l'ancien cache résumé seul (clé "resume:")
+            old_cache_key = f"resume:{url}:{date_published}"
+            old_resume = cache.get(old_cache_key, ttl=604800)
+            if old_resume and isinstance(old_resume, str):
+                resume = old_resume
+                _sentiment_data = {}  # sera enrichi par le cron enrich_sentiment
+            else:
+                try:
+                    cached_combined = api_client.generate_summary_with_sentiment(
+                        text, max_lines=20, timeout=config.timeout_resume
+                    )
+                    resume = cached_combined.get("resume", "")
+                    _sentiment_data = cached_combined
+                    cache.set(resume_sent_cache_key, cached_combined)
+                except RuntimeError as e:
+                    logger.warning(f"Résumé impossible pour '{url}' : {e}")
+                    resume = ""
+                    _sentiment_data = {}
 
         # Extraire les entités nommées (avec cache)
         entities_cache_key = f"entities:{url}:{date_published}"
@@ -329,6 +340,10 @@ def main():
         }
         if entities:
             article["entities"] = entities
+        # Sentiment + ton éditorial depuis l'appel combiné (sans coût supplémentaire)
+        for _field in ("sentiment", "score_sentiment", "ton_editorial", "score_ton"):
+            if _field in _sentiment_data:
+                article[_field] = _sentiment_data[_field]
         articles_data.append(article)
     
     # Sauvegarde des résultats dans un fichier JSON (dans le sous-répertoire du flux)

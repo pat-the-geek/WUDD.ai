@@ -241,9 +241,13 @@ for feed_idx, (feed_url, feed_title) in enumerate(feeds, 1):
                 if text.startswith("Erreur"):
                     print_console(f"      Article inaccessible ignoré ('{text[:70]}').", level="warning")
                     continue
-                print_console(f"      Génération du résumé IA...")
+                print_console(f"      Génération du résumé + analyse sentiment IA...")
+                combined = {}
                 try:
-                    resume = api_client.generate_summary(text, max_lines=20)
+                    combined = api_client.generate_summary_with_sentiment(text, max_lines=20)
+                    resume = combined.get("resume", "")
+                    if not resume:
+                        raise RuntimeError("Résumé vide dans la réponse combinée")
                 except RuntimeError as e:
                     print_console(f"      Résumé impossible pour '{link}', article ignoré : {e}", level="warning")
                     continue
@@ -268,6 +272,10 @@ for feed_idx, (feed_url, feed_title) in enumerate(feeds, 1):
                 }
                 if entities:
                     article["entities"] = entities
+                # Sentiment + ton éditorial depuis l'appel combiné (sans coût supplémentaire)
+                for _field in ("sentiment", "score_sentiment", "ton_editorial", "score_ton"):
+                    if _field in combined:
+                        article[_field] = combined[_field]
                 results[kw][link] = article
                 quota.record_article(kw, feed_title, entities if entities else None)
                 _progress["articles_added"] += 1

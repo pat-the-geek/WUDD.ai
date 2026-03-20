@@ -330,6 +330,69 @@ def _parse_sentiment_response(raw: str) -> Optional[dict]:
     return result
 
 
+# ── Prompt combiné résumé + sentiment (1 seul appel IA) ──────────────────────
+
+# Partie statique (cacheable pour Claude) — sans max_lines ni texte variable
+_COMBINED_SYSTEM_INSTRUCTIONS = (
+    "Tu es un analyseur de contenu journalistique. "
+    "Retourne UNIQUEMENT un objet JSON valide — aucun texte avant ou après le JSON.\n\n"
+    "Champs attendus :\n"
+    '- "resume" : résumé du texte (nombre de lignes indiqué dans le message utilisateur), '
+    'sans commentaire ni remarque\n'
+    '- "sentiment" : une des valeurs exactes : "positif", "neutre", "négatif"\n'
+    '- "score_sentiment" : entier entre 1 (très négatif) et 5 (très positif), 3=neutre\n'
+    '- "ton_editorial" : une des valeurs exactes : "factuel", "alarmiste", "promotionnel", '
+    '"critique", "analytique"\n'
+    '- "score_ton" : entier entre 1 (très biaisé/sensationnaliste) et 5 (très factuel/neutre)'
+)
+
+
+def _parse_summary_sentiment_response(raw: str) -> Optional[dict]:
+    """Extrait {resume, sentiment, score_sentiment, ton_editorial, score_ton} depuis la réponse IA.
+
+    Retourne :
+      - dict avec au moins "resume" si le parsing réussit
+      - None si aucun JSON valide trouvé
+    """
+    text = re.sub(r"<think>[\s\S]*?</think>", "", raw, flags=re.IGNORECASE).strip()
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if fence:
+        text = fence.group(1).strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        obj = re.search(r"\{[\s\S]*\}", text)
+        if not obj:
+            default_logger.warning("Impossible d'extraire du JSON depuis la réponse résumé+sentiment")
+            return None
+        try:
+            data = json.loads(obj.group(0))
+        except json.JSONDecodeError:
+            default_logger.warning("JSON résumé+sentiment invalide après extraction")
+            return None
+    if not isinstance(data, dict):
+        return None
+    result: dict = {}
+    # Résumé
+    resume = data.get("resume", "")
+    if isinstance(resume, str) and resume.strip():
+        result["resume"] = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', resume).strip()
+    # Sentiment (optionnel — on ne rejette pas si absent)
+    sentiment = str(data.get("sentiment", "")).strip().lower()
+    if sentiment in _SENTIMENT_VALUES:
+        result["sentiment"] = sentiment
+    score_s = data.get("score_sentiment")
+    if isinstance(score_s, (int, float)) and 1 <= score_s <= 5:
+        result["score_sentiment"] = int(score_s)
+    ton = str(data.get("ton_editorial", "")).strip().lower()
+    if ton in _TON_VALUES:
+        result["ton_editorial"] = ton
+    score_t = data.get("score_ton")
+    if isinstance(score_t, (int, float)) and 1 <= score_t <= 5:
+        result["score_ton"] = int(score_t)
+    return result
+
+
 class EurIAClient:
     """Client pour l'API EurIA (Qwen3) d'Infomaniak.
     
@@ -598,6 +661,53 @@ class EurIAClient:
         except Exception as e:
             default_logger.warning(f"Analyse sentiment échouée : {e}")
             return {}  # echec_api : l'appel réseau a échoué
+
+    def generate_summary_with_sentiment(
+        self,
+        text: str,
+        max_lines: Optional[int] = None,
+        language: str = "français",
+        timeout: int = 75,
+    ) -> dict:
+        """Génère résumé + sentiment + ton éditorial en un seul appel API EurIA.
+
+        Économise 1 appel IA par article par rapport à generate_summary()
+        + generate_sentiment() distincts. Utilisé à l'ingestion de nouveaux articles.
+
+        Args:
+            text      : Texte brut de l'article (tronqué à 15 000 chars)
+            max_lines : Nombre max de lignes du résumé (défaut: config.summary_max_lines)
+            language  : Langue du résumé (défaut: français)
+            timeout   : Timeout en secondes (défaut: 75)
+
+        Returns:
+            Dict avec les champs : resume, et optionnellement sentiment, score_sentiment,
+            ton_editorial, score_ton.
+            En cas d'échec du parsing JSON, retourne {"resume": <texte brut>} (fallback sûr).
+
+        Raises:
+            RuntimeError: Si l'appel API échoue complètement après retentatives.
+        """
+        if max_lines is None:
+            max_lines = get_config().summary_max_lines
+        text_truncated = text[:15000]
+        prompt = (
+            f"{_COMBINED_SYSTEM_INSTRUCTIONS}\n\n"
+            f"Résumé en maximum {max_lines} lignes en {language}.\n\n"
+            f"Texte à analyser :\n{text_truncated}"
+        )
+        raw = self.ask(prompt, timeout=timeout, max_tokens=600)
+        result = _parse_summary_sentiment_response(raw)
+        if not result or "resume" not in result:
+            # Fallback : réponse brute comme résumé (comportement sûr)
+            default_logger.warning(
+                "Parsing JSON combiné échoué — usage de la réponse brute comme résumé"
+            )
+            raw_clean = re.sub(
+                r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', raw
+            ).strip()
+            return {"resume": raw_clean}
+        return result
 
     def synthesize_topic(
         self,
@@ -997,6 +1107,54 @@ class ClaudeClient:
         except Exception as e:
             default_logger.warning(f"[Claude] Analyse sentiment échouée : {e}")
             return {}  # echec_api : l'appel réseau a échoué
+
+    def generate_summary_with_sentiment(
+        self,
+        text: str,
+        max_lines: Optional[int] = None,
+        language: str = "français",
+        timeout: int = 75,
+    ) -> dict:
+        """Génère résumé + sentiment + ton éditorial en un seul appel Claude (Haiku + cache système).
+
+        Économise 1 appel IA par article. Les instructions statiques sont mises en cache
+        côté Anthropic (prompt caching), réduisant également le coût token.
+
+        Returns:
+            Dict avec les champs : resume, et optionnellement sentiment, score_sentiment,
+            ton_editorial, score_ton.
+            En cas d'échec du parsing JSON, retourne {"resume": <texte brut>} (fallback sûr).
+
+        Raises:
+            RuntimeError: Si l'appel API échoue complètement après retentatives.
+        """
+        if max_lines is None:
+            max_lines = get_config().summary_max_lines
+        text_truncated = text[:15000]
+        try:
+            raw = self.ask_with_cached_system(
+                system_text=_COMBINED_SYSTEM_INSTRUCTIONS,
+                user_text=(
+                    f"Résumé en maximum {max_lines} lignes en {language}.\n\n"
+                    f"Texte à analyser :\n{text_truncated}"
+                ),
+                max_attempts=2,
+                timeout=timeout,
+                max_tokens=600,
+            )
+            result = _parse_summary_sentiment_response(raw)
+            if not result or "resume" not in result:
+                default_logger.warning(
+                    "[Claude] Parsing JSON combiné échoué — usage de la réponse brute comme résumé"
+                )
+                raw_clean = re.sub(
+                    r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', raw
+                ).strip()
+                return {"resume": raw_clean}
+            return result
+        except Exception as e:
+            default_logger.warning(f"[Claude] Résumé+sentiment combiné échoué : {e}")
+            raise
 
     def synthesize_topic(self, topic: str, articles: list, timeout: int = 120) -> str:
         """Synthèse RAG multi-sources — utilise Sonnet (user-facing)."""
