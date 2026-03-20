@@ -79,6 +79,8 @@ def parse_args():
                         help="Délai entre appels API en secondes (défaut: 0.5)")
     parser.add_argument("--status", action="store_true",
                         help="Affiche l'état Round-Robin et quitte")
+    parser.add_argument("--max-articles", type=int, default=100, dest="max_articles",
+                        help="Nombre maximum d'articles à enrichir par exécution (défaut: 100, -1 = illimité)")
     return parser.parse_args()
 
 
@@ -129,8 +131,14 @@ def collect_json_files(config, flux: str = None, keyword: str = None) -> list[Pa
 
 SAVE_EVERY = 50  # Sauvegarde intermédiaire toutes les N enrichissements
 
-def enrich_file(json_file: Path, client, dry_run: bool, force: bool, delay: float) -> tuple[int, int]:
-    """Enrichit les articles d'un fichier JSON. Retourne (enrichis, ignorés)."""
+def enrich_file(json_file: Path, client, dry_run: bool, force: bool, delay: float,
+                max_articles: int = -1) -> tuple[int, int]:
+    """Enrichit les articles d'un fichier JSON. Retourne (enrichis, ignorés).
+
+    Args:
+        max_articles : Plafond d'articles enrichis pour cet appel (-1 = illimité).
+                       Permet de répartir le budget global d'un run sur plusieurs fichiers.
+    """
     try:
         articles = json.loads(json_file.read_text(encoding="utf-8"))
         if not isinstance(articles, list):
@@ -153,6 +161,10 @@ def enrich_file(json_file: Path, client, dry_run: bool, force: bool, delay: floa
         if already_done and not force:
             skipped += 1
             continue
+
+        # Plafond global du run atteint : arrêt propre (la sauvegarde finale suit)
+        if max_articles >= 0 and enriched >= max_articles:
+            break
 
         default_logger.info(
             f"  Analyse sentiment : {article.get('Sources', '?')} — "
@@ -241,6 +253,11 @@ def main():
     default_logger.info("=== Enrichissement sentiment WUDD.ai ===")
     if args.dry_run:
         default_logger.info("[DRY-RUN activé — aucune modification ne sera sauvegardée]")
+    limit = args.max_articles
+    if limit >= 0:
+        default_logger.info(f"[Plafond : {limit} articles max par exécution]")
+    else:
+        default_logger.info("[Plafond : illimité (--max-articles -1)]")
 
     # ── Mode ciblé (--flux ou --keyword) ─────────────────────────────────────
     if args.flux or args.keyword:
@@ -252,8 +269,13 @@ def main():
         total_enriched = 0
         total_skipped = 0
         for json_file in files:
+            remaining = (limit - total_enriched) if limit >= 0 else -1
+            if limit >= 0 and remaining <= 0:
+                default_logger.info(f"Plafond de {limit} articles atteint — arrêt.")
+                break
             default_logger.info(f"→ {json_file.relative_to(config.project_root)}")
-            e, s = enrich_file(json_file, client, args.dry_run, args.force, args.delay)
+            e, s = enrich_file(json_file, client, args.dry_run, args.force, args.delay,
+                               max_articles=remaining)
             total_enriched += e
             total_skipped += s
         default_logger.info(
@@ -272,8 +294,13 @@ def main():
         total_enriched = 0
         total_skipped = 0
         for json_file in all_files:
+            remaining = (limit - total_enriched) if limit >= 0 else -1
+            if limit >= 0 and remaining <= 0:
+                default_logger.info(f"Plafond de {limit} articles atteint — arrêt.")
+                break
             default_logger.info(f"→ {json_file.relative_to(config.project_root)}")
-            e, s = enrich_file(json_file, client, args.dry_run, args.force, args.delay)
+            e, s = enrich_file(json_file, client, args.dry_run, args.force, args.delay,
+                               max_articles=remaining)
             total_enriched += e
             total_skipped += s
         default_logger.info(
@@ -285,20 +312,41 @@ def main():
     total = len(all_files)
     state = _load_state()
     next_idx = (state.get("last_file_idx", -1) + 1) % total
-    json_file = all_files[next_idx]
-    rel_path = str(json_file.relative_to(config.project_root))
 
-    default_logger.info(f"Mode Round-Robin — fichier {next_idx + 1}/{total}")
-    default_logger.info(f"→ {rel_path}")
+    total_enriched = 0
+    total_skipped = 0
+    last_processed_idx = next_idx
 
-    enriched, skipped = enrich_file(json_file, client, args.dry_run, args.force, args.delay)
+    for offset in range(total):
+        cur_idx = (next_idx + offset) % total
+        json_file = all_files[cur_idx]
+        rel_path = str(json_file.relative_to(config.project_root))
+        remaining = (limit - total_enriched) if limit >= 0 else -1
+        if limit >= 0 and remaining <= 0:
+            break
 
-    if not args.dry_run:
-        _save_state(next_idx, total, rel_path, enriched)
+        default_logger.info(f"Mode Round-Robin — fichier {cur_idx + 1}/{total}")
+        default_logger.info(f"→ {rel_path}")
 
+        e, s = enrich_file(json_file, client, args.dry_run, args.force, args.delay,
+                           max_articles=remaining)
+        total_enriched += e
+        total_skipped += s
+        last_processed_idx = cur_idx
+
+        if not args.dry_run:
+            _save_state(cur_idx, total, rel_path, e)
+
+        # Si des articles ont été enrichis dans ce fichier, on s'arrête pour
+        # laisser les autres sources avoir leur tour lors des prochaines exécutions.
+        if e > 0:
+            break
+        # Fichier déjà entièrement enrichi → passer au suivant sans budget consommé
+
+    next_after = (last_processed_idx + 1) % total
     default_logger.info(
-        f"=== Terminé : {enriched} enrichis, {skipped} ignorés "
-        f"— prochain : fichier {(next_idx + 1) % total + 1}/{total} ==="
+        f"=== Terminé : {total_enriched} enrichis, {total_skipped} ignorés "
+        f"— prochain : fichier {next_after + 1}/{total} ==="
     )
 
 
