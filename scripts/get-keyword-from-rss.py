@@ -101,6 +101,12 @@ def _parse_feed_items(xml_root) -> list:
         try:
             pub_dt_aware = datetime.fromisoformat(pub_date_iso.replace("Z", "+00:00"))
             pub_dt = pub_dt_aware.replace(tzinfo=None)
+            # Plafonner les dates futures à maintenant (certains flux Atom
+            # publient une date de sortie stable planifiée dans le futur,
+            # ex. VS Code utilise <updated> avec la date de release finale)
+            now_naive = datetime.utcnow()
+            if pub_dt > now_naive:
+                pub_dt = now_naive
             # Convertir en RFC 822 pour cohérence avec le reste du pipeline
             pub_date_rfc = pub_dt.strftime("%a, %d %b %Y %H:%M:%S")
         except Exception:
