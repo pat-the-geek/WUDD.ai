@@ -83,12 +83,25 @@ def parse_args():
 
 
 def collect_all_json_files(config) -> list[Path]:
-    """Retourne la liste triée des fichiers JSON du répertoire articles-from-rss (Round-Robin)."""
+    """Retourne la liste triée des fichiers JSON pour le Round-Robin.
+
+    Parcourt les deux répertoires :
+      - data/articles-from-rss/  (articles par mot-clé RSS / web)
+      - data/articles/<flux>/    (articles par flux JSON)
+    """
     files = []
-    d = config.project_root / "data" / "articles-from-rss"
-    if d.exists():
-        for f in sorted(d.rglob("*.json")):
-            if "cache" not in f.relative_to(d).parts:
+    # Articles par mot-clé RSS
+    rss_dir = config.project_root / "data" / "articles-from-rss"
+    if rss_dir.exists():
+        for f in sorted(rss_dir.rglob("*.json")):
+            if "cache" not in f.relative_to(rss_dir).parts:
+                files.append(f)
+    # Articles par flux JSON
+    flux_dir = config.project_root / "data" / "articles"
+    if flux_dir.exists():
+        for f in sorted(flux_dir.rglob("*.json")):
+            parts = f.relative_to(flux_dir).parts
+            if "cache" not in parts:
                 files.append(f)
     return files
 

@@ -41,11 +41,13 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Parcourt data/articles/ et data/articles-from-rss/ — aucun appel IA, fetch HTTP uniquement
 30 2 * * * root cd /app && python3 scripts/enrich_images.py 2>&1 | tee -a /app/rapports/cron_enrich_images.log
 # Enrichissement sentiment Round-Robin : 1 fichier/source par jour à 3h00
-# Tourne sur tous les fichiers data/articles/ et data/articles-from-rss/ de façon cyclique
+# Tourne sur tous les fichiers data/articles-from-rss/ ET data/articles/<flux>/ de façon cyclique
 0 3 * * * root cd /app && python3 scripts/enrich_sentiment.py 2>&1 | tee -a /app/rapports/cron_sentiment.log
 # Réparation des résumés en erreur : chaque dimanche à 4h00 (maintenance hebdomadaire)
 # Régénère les articles dont le Résumé contient un message d'erreur API EurIA
 0 4 * * 0 root cd /app && python3 scripts/repair_failed_summaries.py 2>&1 | tee -a /app/rapports/cron_repair.log
+# Réparation des enrichissements NER/sentiment en échec : chaque dimanche à 4h30
+30 4 * * 0 root cd /app && python3 scripts/repair_failed_enrichments.py --type all 2>&1 | tee -a /app/rapports/cron_repair_enrichments.log
 # Synchronisation du registre des sources : chaque dimanche à 3h30
 # Ajoute dans sources_credibility.json les nouvelles sources détectées dans OPML, web_sources.json
 # et les articles existants — aucun appel HTTP externe, exécution rapide (< 10 s)

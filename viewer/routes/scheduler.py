@@ -91,6 +91,14 @@ def api_scheduler():
         },
         # ── Enrichissement nocturne ──────────────────────────────────────────────
         {
+            "name": "Remise à zéro des quotas",
+            "script": "utils.quota.reset_day()",
+            "cron": "1 0 * * *",
+            "category": "Enrichissement nocturne",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_quota_reset.log",
+        },
+        {
             "name": "Backup des données",
             "script": "backup_data.py",
             "cron": "0 1 * * *",
@@ -115,12 +123,20 @@ def api_scheduler():
             "log_file": PROJECT_ROOT / "rapports" / "cron_enrich_images.log",
         },
         {
-            "name": "Enrichissement sentiment",
+            "name": "Enrichissement sentiment (articles-from-rss + flux)",
             "script": "enrich_sentiment.py",
             "cron": "0 3 * * *",
             "category": "Enrichissement nocturne",
             "data_dir": None,
             "log_file": PROJECT_ROOT / "rapports" / "cron_sentiment.log",
+        },
+        {
+            "name": "Synchro registre sources (hebdo)",
+            "script": "enrich_source_credibility.py --sync-only",
+            "cron": "30 3 * * 0",
+            "category": "Enrichissement nocturne",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_enrich_credibility.log",
         },
         {
             "name": "Réparation résumés en erreur",
