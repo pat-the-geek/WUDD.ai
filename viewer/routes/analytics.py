@@ -720,8 +720,23 @@ def api_analytics_compare():
     if not (from1 and to1 and from2 and to2):
         return jsonify({"error": "Paramètres from1, to1, from2, to2 requis"}), 400
 
+    try:
+        sys.path.insert(0, str(PROJECT_ROOT))
+        from utils.date_utils import parse_article_date as _parse_article_date
+    except ImportError:
+        _parse_article_date = None
+
     def _in_range(date_str: str, d_from: str, d_to: str) -> bool:
-        d = date_str[:10] if date_str else ""
+        if not date_str:
+            return False
+        # Utilise parse_article_date (gère DD/MM/YYYY, RFC 822, ISO…)
+        if _parse_article_date:
+            dt = _parse_article_date(date_str)
+            if dt:
+                d = dt.strftime("%Y-%m-%d")
+                return d_from <= d <= d_to
+        # Fallback : ISO uniquement (YYYY-MM-DD...)
+        d = date_str[:10]
         return bool(d and d_from <= d <= d_to)
 
     def _stats(articles):

@@ -415,7 +415,7 @@ function IAPickerModal({ providers, onPick, onClose }) {
 }
 
 /** Carte article complète (vue grille / large) — style Liquid Glass. */
-function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged }) {
+function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged, localRapports = [] }) {
   const [expanded, setExpanded]                   = useState(index < 3)
   const [lightbox, setLightbox]                   = useState(false)
   const [noteOpen, setNoteOpen]                   = useState(false)
@@ -651,9 +651,9 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
         )}
 
         {/* Badges rapports exportés */}
-        {Array.isArray(article['rapports']) && article['rapports'].length > 0 && (
+        {(Array.isArray(article['rapports']) && article['rapports'].length > 0 || localRapports.length > 0) && (
           <div className="flex flex-wrap gap-1.5 mt-2">
-            {article['rapports'].map((rap, idx) => (
+            {[...(article['rapports'] || []), ...localRapports].map((rap, idx) => (
               <span
                 key={idx}
                 title={`${rap.cible === 'obsidian' ? 'Obsidian' : 'Local'} · ${rap.date_creation ?? ''}\n${rap.chemin ?? ''}`}
@@ -750,6 +750,7 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
   const [selectedSources, setSelectedSources] = useState(new Set())
   const [selectedEntity, setSelectedEntity]   = useState(null) // { type, value }
   const [reportArticle, setReportArticle]     = useState(null) // article pour le rapport complet
+  const [localReports, setLocalReports]       = useState({})   // rapports sauvegardés dans la session courante, par URL
   const [typesOpen, setTypesOpen]             = useState(false)
   const [sourcesOpen, setSourcesOpen]         = useState(false)
   const [annotFilter, setAnnotFilter]         = useState('tous') // 'tous' | 'importants' | 'non-lus'
@@ -1326,6 +1327,7 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
                 isFirstUnread={!hasScrolledRef.current && article['URL'] === firstUnreadUrl}
                 obsidianVault={obsidianVault}
                 isLarge
+                localRapports={localReports[article['URL']] || []}
                 onMerged={url => { pendingScrollUrlRef.current = url; onMerged?.() }}
               />
             </div>
@@ -1344,6 +1346,7 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
               availableProviders={availableProviders}
               isFirstUnread={!hasScrolledRef.current && article['URL'] === firstUnreadUrl}
               obsidianVault={obsidianVault}
+              localRapports={localReports[article['URL']] || []}
               onMerged={url => { pendingScrollUrlRef.current = url; onMerged?.() }}
             />
           ))}
@@ -1364,6 +1367,10 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
           filePath={filePath}
           obsidianVaultProp={obsidianVault}
           onClose={() => setReportArticle(null)}
+          onReportSaved={(url, rapport) => setLocalReports(prev => ({
+            ...prev,
+            [url]: [...(prev[url] || []), rapport]
+          }))}
         />
       )}
     </div>

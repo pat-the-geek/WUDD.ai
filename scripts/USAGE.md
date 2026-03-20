@@ -307,7 +307,7 @@ python3 scripts/entity_timeline.py --entity "OpenAI" --type ORG
 
 ### 14. cross_flux_analysis.py
 
-**Description** : Détecte les **entités transversales** présentes dans plusieurs flux distincts. Permet d'identifier les sujets qui dépassent un seul fil de veille et créent des convergences thématiques. Génère un rapport JSON et un rapport Markdown structuré.
+**Description** : Détecte les **entités transversales** présentes dans plusieurs flux distincts. Identifie les sujets qui dépassent un seul fil de veille et créent des convergences thématiques. Génère un rapport JSON et un rapport Markdown structuré incluant deux visualisations interactives rendues par le Viewer.
 
 **Arguments** :
 
@@ -331,9 +331,29 @@ python3 scripts/cross_flux_analysis.py --dry-run
 
 **Automatisation (cron)** — enchaîné après `flux_watcher.py` toutes les 5 minutes (voir §9). Ne possède plus d'entrée cron dédiée.
 
+**Visualisations dans le rapport Markdown** :
+
+Le rapport utilise deux blocs de code personnalisés interprétés par `MarkdownViewer.jsx` :
+
+| Bloc | Composant | Description |
+|---|---|---|
+| ` ```keyword-graph ` | `KeywordForceGraph` | Graphe force-directed des mots-clés RSS — **filtré** aux seuls mots-clés ayant au moins 1 article sur la période |
+| ` ```flux-chart ` | `FluxBarChart` | Barres horizontales des top flux par volume — chaque barre porte une **lettre alphabétique** correspondant à la liste textuelle du rapport |
+
+La lettre de chaque flux est assignée par `_assign_flux_letters()` (ordre alphabétique A, B, C…) et transmise via le champ `letter` du JSON.
+
+**Fonctions internes clés** :
+
+| Fonction | Rôle |
+|---|---|
+| `_normalize_keyword_stem(kw)` | Normalise un mot-clé vers le stem du fichier RSS (`strip().lower().replace(' ', '-')`) |
+| `_build_keyword_graph_block(project_root, active_stems)` | Génère le bloc `keyword-graph` en ne gardant que les stems présents dans `data/articles-from-rss/` avec `v > 0` |
+| `_build_flux_chart_block(flux_article_counts, flux_letter_map, top_n=15)` | Génère le bloc `flux-chart` avec `{name, count, letter}` par item |
+| `_assign_flux_letters(sorted_flux_names)` | Attribue A–Z puis AA, AB… aux flux triés alphabétiquement |
+
 **Sortie** :
 - `data/cross_flux_report.json` — entités transversales avec comptages par flux
-- `rapports/markdown/_CROSSFLUX_/cross_flux_YYYY-MM-DD.md` — rapport Markdown avec tableau de convergence
+- `rapports/markdown/_CROSSFLUX_/cross_flux_YYYY-MM-DD.md` — rapport Markdown avec tableau de convergence, graphe mots-clés et graphique flux
 
 ---
 

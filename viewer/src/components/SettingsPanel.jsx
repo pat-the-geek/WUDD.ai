@@ -5,11 +5,11 @@ import {
   Maximize2, Minimize2, ExternalLink, Database, Clipboard, BarChart2,
   ToggleLeft, ToggleRight, RotateCcw, ShieldOff,
   Sun, Moon, Monitor, Terminal, TrendingUp, Eye, Lock, EyeOff, Pencil,
-  BookOpen,
+  BookOpen, Network,
 } from 'lucide-react'
+import KeywordForceGraph from './KeywordForceGraph'
 
 // ─── Helpers partagés ────────────────────────────────────────────────────────
-
 function formatDateTime(isoStr) {
   if (!isoStr) return null
   return new Date(isoStr).toLocaleString('fr-FR', {
@@ -396,11 +396,12 @@ function TagInput({ tags, onChange, placeholder, color }) {
 // ─── Onglet Mots-clés ────────────────────────────────────────────────────────
 
 function KeywordsTab() {
-  const [keywords, setKeywords] = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [saving, setSaving]     = useState(false)
-  const [saved, setSaved]       = useState(false)
-  const [error, setError]       = useState(null)
+  const [keywords, setKeywords]   = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
+  const [saved, setSaved]         = useState(false)
+  const [error, setError]         = useState(null)
+  const [showMindmap, setShowMindmap] = useState(false)
 
   useEffect(() => {
     fetch('/api/keywords')
@@ -451,6 +452,13 @@ function KeywordsTab() {
           Appuyez sur <kbd className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1 rounded text-[10px]">Entrée</kbd> pour valider un terme.
         </p>
         <button
+          onClick={() => setShowMindmap(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-800/40 border border-indigo-200 dark:border-indigo-700/50 rounded-lg text-xs text-indigo-700 dark:text-indigo-300 transition-colors shrink-0"
+          title="Voir la carte des mots-clés"
+        >
+          <Network size={12} /> Carte
+        </button>
+        <button
           onClick={add}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-xs text-slate-700 dark:text-slate-300 transition-colors shrink-0"
         >
@@ -460,6 +468,33 @@ function KeywordsTab() {
       </div>
 
       <ErrorBanner message={error} />
+
+      {/* Modal mindmap — rendu hors du toolbar pour éviter tout clipping */}
+      {showMindmap && (
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col bg-white dark:bg-slate-900"
+          style={{ top: 0, left: 0, right: 0, bottom: 0 }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-900">
+            <div className="flex items-center gap-2">
+              <Network size={16} className="text-indigo-500" />
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-sm">Carte des mots-clés de veille</h3>
+              <span className="text-xs text-slate-400 dark:text-slate-500">({keywords?.length ?? 0} mots-clés)</span>
+            </div>
+            <button
+              onClick={() => setShowMindmap(false)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-xs text-slate-700 dark:text-slate-300 transition-colors"
+            >
+              <X size={14} /> Fermer
+            </button>
+          </div>
+          {/* Graphe force-directed — occupe tout l'espace restant */}
+          <div className="flex-1 overflow-hidden">
+            <KeywordForceGraph keywords={keywords} />
+          </div>
+        </div>
+      )}
 
       {/* Liste */}
       <div className="flex-1 overflow-y-auto p-5 space-y-3">

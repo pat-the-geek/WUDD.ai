@@ -264,6 +264,7 @@ The Docker container installs `archives/crontab` at startup and runs `cron -f` i
 | `generate_morning_digest.py` | Daily morning digest: top stories + active alerts + AI synthesis | `--ai`, `--dry-run` |
 | `generate_reading_notes.py` | Daily reading notes by tag — `rapports/markdown/_WUDD.AI_/` | (none) |
 | `generate_briefing.py` | Executive briefing: top entities + scored articles + trends narrative | `--period daily\|weekly`, `--dry-run`, `--no-ai` |
+| `cross_flux_analysis.py` | Detect cross-flux entities + generate structured Markdown report with custom `keyword-graph` and `flux-chart` blocks | `--min-flux`, `--top`, `--dry-run` |
 | `cluster_articles.py` | Thematic clustering of articles (entity-based, no ML deps) — on-demand via UI | `--days`, `--min-size`, `--output`, `--dry-run` |
 | `radar_wudd.py` | Monthly thematic radar — generates end-of-month statistics | (none) |
 | `Get_htmlText_From_JSONFile.py` | Extract raw HTML text from articles | (none; interactive file picker) |
@@ -310,9 +311,9 @@ Local web interface for browsing, reading and editing generated JSON/Markdown fi
 | Component | Role |
 |---|---|
 | `JsonViewer.jsx` | Syntax-highlighted JSON with inline edit/save |
-| `MarkdownViewer.jsx` | Rendered Markdown with image support |
+| `MarkdownViewer.jsx` | Rendered Markdown with image support; handles custom fenced blocks: `keyword-graph` → `KeywordForceGraph`, `flux-chart` → `FluxBarChart`, `mermaid` → `MermaidBlock` |
 | `SearchOverlay.jsx` | Full-text search across all files (⌘K) |
-| `SettingsPanel.jsx` | Flux management, cron scheduling, thematic config; RSS tab: manage `data/WUDD.opml` feeds (check availability, add via URL paste with title resolution, delete, save); Keywords tab: displays keywords sorted alphabetically (fr locale); Quota tab: configure and monitor daily import quotas (4 sliders incl. per-entity, Top 20 named entities section) |
+| `SettingsPanel.jsx` | Flux management, cron scheduling, thematic config; RSS tab: manage `data/WUDD.opml` feeds; Keywords tab: keywords sorted alphabetically (fr locale) + `KeywordForceGraph` in full-screen modal; Quota tab: 4 daily sliders incl. per-entity,  Top 20 named entities section |
 | `Sidebar.jsx` | File navigation by flux and type |
 | `FileViewer.jsx` | File content viewer; "Supprimer" button with confirmation dialog (restricted to data/ and rapports/) |
 | `ScriptConsolePanel.jsx` | Modal console to launch `get-keyword-from-rss.py` in the background; real-time SSE log streaming; auto-refreshes the file list on success |
@@ -325,7 +326,7 @@ Local web interface for browsing, reading and editing generated JSON/Markdown fi
 | `ComparePanel.jsx` | Article comparison interface |
 | `EntityCalendar.jsx` | Calendar view of entity mentions over time |
 | `EntityGallery.jsx` | Gallery view of entity-related images |
-| `EntityGraph.jsx` | Network graph visualization of entity co-occurrences |
+| `EntityGraph.jsx` | Network graph visualization of entity co-occurrences; "Liens" range slider (0.4–3.5x) for link length |
 | `EntityHighlighter.jsx` | Inline text highlighting for detected entities |
 | `EntityPanel.jsx` | Generic entity detail panel |
 | `EntitySearchModal.jsx` | Modal for entity search |
@@ -337,6 +338,8 @@ Local web interface for browsing, reading and editing generated JSON/Markdown fi
 | `SourceBiasPanel.jsx` | Source credibility and editorial bias visualization |
 | `TopArticlesPanel.jsx` | Top articles ranking — podium style (🥇🥈🥉 + numbered circles), mobile bottom sheet |
 | `TTSButton.jsx` | Text-to-speech button for article content |
+| `KeywordForceGraph.jsx` | Force-directed graph of WUDD.ai keywords; props: `{ keywords }` array of `{keyword, or, and}`; zoom/pan, "Liens" slider (0.4–3.5x), "Sous-termes" toggle; used in SettingsPanel and cross-flux report |
+| `FluxBarChart.jsx` | Horizontal SVG bar chart for top RSS flux by article count; props: `{ items }` array of `{name, count, letter}`; letters from Python alphabetical assignment; used in cross-flux report |
 
 ### Using Config
 

@@ -397,21 +397,18 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
           Dates / nombres
         </label>
 
-        {/* Espacement entre nœuds */}
-        <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
-          <span>Espacement</span>
-          <div className="flex rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <button
-              onClick={() => setSpacing(s => Math.max(0.4, +(s - 0.15).toFixed(2)))}
-              title="Rapprocher les nœuds"
-              className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors font-medium leading-none"
-            >−</button>
-            <button
-              onClick={() => setSpacing(s => Math.min(3.0, +(s + 0.15).toFixed(2)))}
-              title="Éloigner les nœuds"
-              className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-l border-slate-200 dark:border-slate-700 font-medium leading-none"
-            >+</button>
-          </div>
+        {/* Espacement entre nœuds — slider */}
+        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+          <span>Liens</span>
+          <input
+            type="range"
+            min="0.4" max="3.5" step="0.05"
+            value={spacing}
+            onChange={e => setSpacing(+e.target.value)}
+            className="w-20 accent-violet-500"
+            title={`Longueur des liens : ${spacing.toFixed(1)}×`}
+          />
+          <span className="tabular-nums w-7">{spacing.toFixed(1)}×</span>
         </div>
 
         {/* Contrôles zoom */}

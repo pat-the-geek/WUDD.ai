@@ -1,3 +1,70 @@
+# 20/03/2026 — Visualisations custom React dans le rapport cross-flux (sans Mermaid)
+
+## `scripts/cross_flux_analysis.py` — Remplacement des blocs Mermaid
+
+Les deux blocs Mermaid du rapport cross-flux ont été remplacés par des composants React personnalisés, plus fiables et entièrement contrôlables.
+
+**Fonctions supprimées :**
+- `_sanitize_mindmap_text()` — nettoyage pour Mermaid mindmap (obsolète)
+- `_build_mermaid_mindmap_keywords()` — génération du mindmap Mermaid (obsolète)
+- `_build_mermaid_top_flux()` — génération du xychart Mermaid (obsolète)
+
+**Nouvelles fonctions :**
+
+| Fonction | Description |
+|---|---|
+| `_normalize_keyword_stem(kw)` | Normalise un mot-clé vers le stem du fichier RSS correspondant (`strip().lower().replace(' ', '-')`) |
+| `_build_keyword_graph_block(project_root, active_stems)` | Génère un bloc `keyword-graph` (JSON) ne contenant que les mots-clés ayant au moins un article dans la période analysée |
+| `_build_flux_chart_block(flux_article_counts, flux_letter_map, top_n=15)` | Génère un bloc `flux-chart` (JSON) avec, pour chaque flux, son `name`, son `count` et sa `letter` issue de l'attribution alphabétique |
+
+**Fonctions inchangées :**
+- `_assign_flux_letters(sorted_flux_names)` — attribue A, B, C… aux flux triés alphabétiquement ; utilisé à la fois pour la liste textuelle et pour le champ `letter` du graphique
+
+## `viewer/src/components/KeywordForceGraph.jsx` — Nouveau composant
+
+Graphe force-directed des mots-clés WUDD.ai (remplace le mindmap Mermaid dans le rapport et dans le panneau Paramètres).
+
+- **Props :** `{ keywords }` — tableau de `{ keyword, or, and }`
+- **Interactions :** zoom/pan, slider "Liens" (facteur 0.4–3.5×), bouton "Sous-termes" (affiche/masque les termes OR/AND)
+- **Couleurs :** racine violet, mots-clés bleu, termes OR teal, termes AND orange
+- **Algorithme :** 280 itérations force-directed, zéro dépendance externe (SVG + React pur)
+
+## `viewer/src/components/FluxBarChart.jsx` — Nouveau composant
+
+Graphique à barres horizontales pour les statistiques par flux RSS (remplace le xychart Mermaid).
+
+- **Props :** `{ items }` — tableau de `{ name, count, letter }`
+- Affiche la **lettre alphabétique** assignée par Python (`flux_letter_map`) en couleur correspondant à la barre
+- Tronque les noms à 22 caractères, retire le préfixe `rss:`
+- Palette 10 couleurs (indigo/bleu/teal/orange), cycle automatique
+- SVG pur React, zéro dépendance
+
+## `viewer/src/components/MarkdownViewer.jsx` — Nouveaux blocs personnalisés
+
+Deux nouveaux types de blocs de code interprétés par le rendu Markdown :
+
+| Type de bloc | Composant rendu |
+|---|---|
+| ` ```keyword-graph ` | `<KeywordForceGraph keywords={JSON.parse(children)} />` dans un conteneur 600 px de hauteur |
+| ` ```flux-chart ` | `<FluxBarChart items={JSON.parse(children)} />` |
+
+Correction de `makeResponsiveSvg()` : remplacement de `height:auto` (invisible dans WebKit) par `aspect-ratio` calculé depuis le `viewBox` de l'SVG inline.
+
+## `viewer/src/components/EntityFullReportDialog.jsx`
+
+Même correction `makeResponsiveSvg()` (aspect-ratio) appliquée dans le `useEffect` du `MermaidBlock`.
+Thème Mermaid changé de `neutral` → `default`.
+
+## `viewer/src/components/SettingsPanel.jsx`
+
+Le mindmap Mermaid du panneau Paramètres (onglet Mots-clés) est remplacé par `KeywordForceGraph` dans une modal plein-écran (`fixed inset-0 z-[9999]`). Tout le code Mermaid résiduel supprimé.
+
+## `viewer/src/components/EntityGraph.jsx`
+
+Les boutons +/– d'espacement des liens sont remplacés par un slider `<input type="range" min="0.4" max="3.5" step="0.05">` labellisé "Liens".
+
+---
+
 # 17/03/2026 — Couche analytique DuckDB + script d'import d'articles
 
 ## `utils/db.py` — Nouvelle couche analytique DuckDB (Optimisation 2.1)

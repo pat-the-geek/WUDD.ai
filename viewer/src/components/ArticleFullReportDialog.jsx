@@ -306,7 +306,7 @@ function buildObsidianNoteBody(article, geoData = {}) {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-export default function ArticleFullReportDialog({ article, filePath, obsidianVaultProp, onClose }) {
+export default function ArticleFullReportDialog({ article, filePath, obsidianVaultProp, onClose, onReportSaved }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [reportMd, setReportMd]         = useState('')
   const [isLoading, setIsLoading]       = useState(true)
@@ -644,14 +644,18 @@ ${contentEl.innerHTML}
         }
         setExportState(prev => ({ ...prev, [target]: exportResult }))
 
-        // ── Enregistrer les métadonnées du rapport dans l'article JSON ──────
+        const rapport = {
+          fichier: d.filename,
+          chemin:  d.path,
+          cible:   target,
+          date_creation: d.saved_at,
+        }
+
+        // ── Afficher le badge immédiatement dans la session courante ─────────
+        onReportSaved?.(article['URL'], rapport)
+
+        // ── Persister les métadonnées dans l'article JSON (pour les rechargements) ──
         if (filePath && article['URL'] && !d.deduplicated) {
-          const rapport = {
-            fichier: d.filename,
-            chemin:  d.path,
-            cible:   target,
-            date_creation: d.saved_at,
-          }
           fetch('/api/article/set-report-meta', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

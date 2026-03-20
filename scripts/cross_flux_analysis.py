@@ -141,6 +141,45 @@ def _sanitize_for_mermaid(name: str) -> str:
     return clean[:28]
 
 
+def _normalize_keyword_stem(kw: str) -> str:
+    """Normalise un mot-clé vers le stem du fichier articles-from-rss correspondant."""
+    return kw.strip().lower().replace(' ', '-')
+
+
+def _build_keyword_graph_block(
+    project_root: Path,
+    active_stems: set[str] | None = None,
+) -> str:
+    """Génère un bloc ``\`\`\`keyword-graph`` avec le JSON des mots-clés actifs.
+    Ce bloc est rendu par KeywordForceGraph dans le viewer WUDD.ai.
+
+    Args:
+        project_root  : racine du projet
+        active_stems  : si fourni, ne conserve que les mots-clés dont le stem
+                        normalisé est dans cet ensemble (mots-clés avec articles).
+    """
+    kw_file = project_root / "config" / "keyword-to-search.json"
+    if not kw_file.exists():
+        return ""
+    try:
+        keywords = json.loads(kw_file.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    if not keywords:
+        return ""
+
+    if active_stems is not None:
+        keywords = [
+            entry for entry in keywords
+            if _normalize_keyword_stem(entry.get("keyword", "")) in active_stems
+        ]
+
+    if not keywords:
+        return ""
+
+    return "```keyword-graph\n" + json.dumps(keywords, ensure_ascii=False) + "\n```"
+
+
 def _count_articles_in_file(json_file: Path, cutoff: datetime | None) -> int:
     """Compte les articles valides dans une fenêtre temporelle."""
     try:
@@ -336,31 +375,23 @@ def _assign_flux_letters(flux_names_sorted: list[str]) -> dict[str, str]:
     return mapping
 
 
-def _build_mermaid_top_flux(
+def _build_flux_chart_block(
     flux_article_counts: dict[str, int],
-    flux_letter_map: dict[str, str],
-    top_n: int = 10,
+    flux_letter_map: dict[str, str] | None = None,
+    top_n: int = 15,
 ) -> str:
-    """Génère un diagramme Mermaid xychart-beta (barres) pour les top_n flux.
-    Utilise les lettres assignées comme labels pour éviter les caractères spéciaux.
+    """Génère un bloc ```flux-chart``` (JSON) rendu par FluxBarChart dans le viewer.
+    Inclut la lettre assignée à chaque flux (même ordre que la liste alphabétique).
     """
     if not flux_article_counts:
         return ""
     sorted_flux = sorted(flux_article_counts.items(), key=lambda x: -x[1])[:top_n]
-    labels = [f'"{flux_letter_map.get(name, _sanitize_for_mermaid(name))}"' for name, _ in sorted_flux]
-    values = [str(count) for _, count in sorted_flux]
-    max_val = max(c for _, c in sorted_flux)
-    y_max = ((max_val // 10) + 1) * 10
-    lines = [
-        "```mermaid",
-        "xychart-beta",
-        '    title "Top flux - nombre articles"',
-        f"    x-axis [{', '.join(labels)}]",
-        f"    y-axis " + '"Articles" ' + f"0 --> {y_max}",
-        f"    bar [{', '.join(values)}]",
-        "```",
+    letter_map = flux_letter_map or {}
+    items = [
+        {"name": name, "count": count, "letter": letter_map.get(name, "")}
+        for name, count in sorted_flux
     ]
-    return "\n".join(lines)
+    return "```flux-chart\n" + json.dumps(items, ensure_ascii=False) + "\n```"
 
 
 def build_cross_flux_markdown(
@@ -369,6 +400,7 @@ def build_cross_flux_markdown(
     flux_names: list[str],
     cross_entities: list[dict],
     flux_article_counts: dict[str, int] | None = None,
+    project_root: Path | None = None,
 ) -> str:
     """Génère le rapport Markdown de l'analyse croisée."""
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -395,11 +427,11 @@ def build_cross_flux_markdown(
     sorted_flux_names = sorted(f for f in flux_names if counts.get(f, 0) > 0)
     flux_letter_map = _assign_flux_letters(sorted_flux_names)
 
-    # Graphique Mermaid top 10 flux (avec lettres comme labels)
+    # Graphique top flux (lettres issues de la liste alphabétique)
     if counts:
-        mermaid_chart = _build_mermaid_top_flux(counts, flux_letter_map, top_n=10)
-        if mermaid_chart:
-            lines.append(mermaid_chart)
+        flux_chart = _build_flux_chart_block(counts, flux_letter_map, top_n=15)
+        if flux_chart:
+            lines.append(flux_chart)
             lines.append("")
 
     # Liste compacte : lettre — flux séparés par des virgules avec nombre d'articles
@@ -452,7 +484,28 @@ def build_cross_flux_markdown(
                 lines.append(f"- **{fd['flux']}** : {fd['mentions']} mention(s)")
             lines.append("")
 
+    # Mindmap des mots-clés de veille (avant le pied de page)
+    # N'inclure que les mots-clés qui ont des articles dans la période analysée
+    root = project_root or _PROJECT_ROOT
+    active_stems: set[str] | None = None
+    if counts:
+        active_stems = {
+            k[4:]  # strip "rss:"
+            for k, v in counts.items()
+            if k.startswith("rss:") and v > 0
+        } or None  # None si vide = afficher tous (fallback)
+    kw_graph = _build_keyword_graph_block(root, active_stems=active_stems)
+    if kw_graph:
+        lines += [
+            "",
+            "## Carte des mots-clés de veille",
+            "",
+            kw_graph,
+            "",
+        ]
+
     lines += ["---", f"*Rapport généré par WUDD.ai — {now_str}*"]
+
     return "\n".join(lines)
 
 
@@ -525,6 +578,7 @@ def main():
         flux_names=flux_names,
         cross_entities=cross_entities,
         flux_article_counts=flux_article_counts,
+        project_root=project_root,
     )
 
     if args.dry_run:

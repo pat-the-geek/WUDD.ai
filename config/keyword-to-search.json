@@ -35,7 +35,8 @@
       "iPhone",
       "iPad",
       "iOS",
-      "MacBook"
+      "MacBook",
+      "HomePod"
     ]
   },
   {
@@ -94,6 +95,18 @@
   },
   {
     "keyword": "Grok"
+  },
+  {
+    "and": [],
+    "keyword": "Guerre",
+    "or": []
+  },
+  {
+    "and": [],
+    "keyword": "Humanité",
+    "or": [
+      "Humanity"
+    ]
   },
   {
     "and": [],
@@ -278,5 +291,15 @@
       "Visual Studio Code",
       "Multi-Agent Development"
     ]
+  },
+  {
+    "keyword": "Planète",
+    "or": [
+      "Planet",
+      "moon",
+      "lune",
+      "mars"
+    ],
+    "and": []
   }
 ]

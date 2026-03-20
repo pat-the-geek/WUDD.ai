@@ -1,26 +1,93 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
-import { useMemo, useEffect, useRef } from 'react'
+import { useMemo, useEffect, useRef, useState } from 'react'
 import mermaid from 'mermaid'
 import TTSButton from './TTSButton'
+import KeywordForceGraph from './KeywordForceGraph'
+import FluxBarChart from './FluxBarChart'
 
-mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' })
+mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' })
+
+/** Rend le SVG Mermaid responsive.
+ * Calcule l'aspect-ratio depuis le viewBox pour éviter height:0 sur les mindmaps.
+ */
+function makeResponsiveSvg(svg) {
+  return svg.replace(/<svg([^>]*)>/i, (_, attrs) => {
+    const vbMatch    = attrs.match(/viewBox="([^"]*)"/i)
+    const wMatch     = attrs.match(/\bwidth="([^"]*)"/i)
+    const hMatch     = attrs.match(/\bheight="([^"]*)"/i)
+    const styleMatch = attrs.match(/\bstyle="([^"]*)"/i)
+
+    let extraViewBox = ''
+    let arStyle = 'min-height:200px;'  // fallback si aucune dimension trouvée
+
+    let vb = vbMatch ? vbMatch[1] : null
+
+    if (!vb) {
+      // Essayer attributs explicites, puis style (ex. mindmap: style="max-width:Npx;")
+      let w = wMatch ? parseFloat(wMatch[1]) : NaN
+      let h = hMatch ? parseFloat(hMatch[1]) : NaN
+      if ((isNaN(w) || isNaN(h)) && styleMatch) {
+        const s = styleMatch[1]
+        if (isNaN(w)) { const m = s.match(/(?:max-width|width)\s*:\s*([\d.]+)px/i); if (m) w = parseFloat(m[1]) }
+        if (isNaN(h)) { const m = s.match(/height\s*:\s*([\d.]+)px/i);             if (m) h = parseFloat(m[1]) }
+      }
+      if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
+        vb = `0 0 ${w} ${h}`
+        extraViewBox = ` viewBox="${vb}"`
+      }
+    }
+
+    if (vb) {
+      const parts = vb.trim().split(/\s+/)
+      if (parts.length === 4) {
+        const vbW = parseFloat(parts[2]) - parseFloat(parts[0])
+        const vbH = parseFloat(parts[3]) - parseFloat(parts[1])
+        if (vbW > 0 && vbH > 0) arStyle = `aspect-ratio:${vbW}/${vbH};`
+      }
+    }
+
+    const cleaned = attrs
+      .replace(/\s+width="[^"]*"/gi, '')
+      .replace(/\s+height="[^"]*"/gi, '')
+      .replace(/\s+style="[^"]*"/gi, '')
+    return `<svg${cleaned}${extraViewBox} width="100%" style="width:100%;${arStyle}max-width:100%;display:block;">`
+  })
+}
 
 function MermaidBlock({ code }) {
   const ref = useRef(null)
-  const id = useRef(`mermaid-${Math.random().toString(36).slice(2)}`)
+  const id  = useRef(`mermaid-${Math.random().toString(36).slice(2)}`)
+  const [errMsg, setErrMsg] = useState(null)
 
   useEffect(() => {
-    if (!ref.current) return
-    mermaid.render(id.current, code).then(({ svg }) => {
-      if (ref.current) ref.current.innerHTML = svg
-    }).catch(err => {
-      if (ref.current) ref.current.textContent = `Erreur Mermaid : ${err.message}`
-    })
+    if (!ref.current || !code) return
+    setErrMsg(null)
+    let cancelled = false
+    mermaid.parse(code)
+      .then(() => mermaid.render(id.current, code))
+      .then(({ svg }) => {
+        if (!cancelled && ref.current) {
+          ref.current.innerHTML = makeResponsiveSvg(svg)
+        }
+      })
+      .catch(err => {
+        if (cancelled) return
+        const msg = (err?.message ?? 'Erreur Mermaid').split('\n').find(l => l.trim()) ?? 'Erreur Mermaid'
+        setErrMsg(msg.length > 120 ? msg.slice(0, 120) + '…' : msg)
+      })
+    return () => { cancelled = true }
   }, [code])
 
-  return <div ref={ref} className="my-6 flex justify-center overflow-x-auto" />
+  if (errMsg) {
+    return (
+      <div className="my-6 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
+        <p className="text-xs text-amber-700 dark:text-amber-400">⚠ Diagramme non rendu : {errMsg}</p>
+      </div>
+    )
+  }
+  return <div ref={ref} className="my-6 w-full flex justify-center overflow-x-auto" />
 }
 
 /** Parse le frontmatter YAML entre --- et retourne { meta, body } */
@@ -113,6 +180,12 @@ export default function MarkdownViewer({ content }) {
             if (child?.props?.className === 'language-mermaid') {
               return <>{children}</>
             }
+            if (child?.props?.className === 'language-keyword-graph') {
+              return <>{children}</>
+            }
+            if (child?.props?.className === 'language-flux-chart') {
+              return <>{children}</>
+            }
             return (
               <pre className="bg-slate-100 dark:bg-slate-950 rounded-xl p-4 overflow-x-auto mb-4 border border-slate-200 dark:border-slate-800">
                 {children}
@@ -122,6 +195,26 @@ export default function MarkdownViewer({ content }) {
           code: ({ className, children }) => {
             if (className === 'language-mermaid') {
               return <MermaidBlock code={String(children).trim()} />
+            }
+            if (className === 'language-keyword-graph') {
+              try {
+                const kwData = JSON.parse(String(children).trim())
+                return (
+                  <div className="my-6 w-full" style={{ height: 600 }}>
+                    <KeywordForceGraph keywords={kwData} />
+                  </div>
+                )
+              } catch {
+                return null
+              }
+            }
+            if (className === 'language-flux-chart') {
+              try {
+                const items = JSON.parse(String(children).trim())
+                return <FluxBarChart items={items} />
+              } catch {
+                return null
+              }
             }
             const isBlock = className || String(children).includes('\n')
             if (!isBlock) {
