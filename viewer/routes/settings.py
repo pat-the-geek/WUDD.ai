@@ -112,8 +112,9 @@ def api_get_rss_feeds():
             title   = o.get("title") or o.get("text") or ""
             xml_url = o.get("xmlUrl") or ""
             html_url = o.get("htmlUrl") or ""
+            bypass_quota = o.get("bypassQuota", "false").lower() == "true"
             if xml_url:
-                feeds.append({"title": title, "xmlUrl": xml_url, "htmlUrl": html_url})
+                feeds.append({"title": title, "xmlUrl": xml_url, "htmlUrl": html_url, "bypassQuota": bypass_quota})
         feeds.sort(key=lambda f: f["title"].lower())
         return jsonify(feeds)
     except Exception as e:
@@ -178,7 +179,7 @@ def api_resolve_rss_feed():
             pass
         if not title:
             title = urlparse(url).netloc
-        return jsonify({"ok": True, "title": title, "xmlUrl": url, "htmlUrl": html_url})
+        return jsonify({"ok": True, "title": title, "xmlUrl": url, "htmlUrl": html_url, "bypassQuota": False})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
@@ -197,12 +198,16 @@ def api_save_rss_feeds():
         ET.SubElement(head, "title").text = "Reeder"
         body = ET.SubElement(root, "body")
         for f in feeds:
-            ET.SubElement(body, "outline",
-                          type="rss",
-                          title=f.get("title", ""),
-                          text=f.get("title", ""),
-                          xmlUrl=f.get("xmlUrl", ""),
-                          htmlUrl=f.get("htmlUrl", ""))
+            attrs = {
+                "type": "rss",
+                "title": f.get("title", ""),
+                "text": f.get("title", ""),
+                "xmlUrl": f.get("xmlUrl", ""),
+                "htmlUrl": f.get("htmlUrl", ""),
+            }
+            if f.get("bypassQuota"):
+                attrs["bypassQuota"] = "true"
+            ET.SubElement(body, "outline", **attrs)
         tree = ET.ElementTree(root)
         ET.indent(tree, space="  ")
         with open(opml_path, "wb") as fh:
