@@ -391,8 +391,8 @@ def build_cross_flux_markdown(
         "",
     ]
 
-    # Assigner une lettre à chaque flux (trié alphabétiquement)
-    sorted_flux_names = sorted(flux_names)
+    # N'inclure que les flux avec au moins 1 article
+    sorted_flux_names = sorted(f for f in flux_names if counts.get(f, 0) > 0)
     flux_letter_map = _assign_flux_letters(sorted_flux_names)
 
     # Graphique Mermaid top 10 flux (avec lettres comme labels)
