@@ -323,22 +323,40 @@ def compute_cross_flux(
 
 # ── Génération du rapport Markdown ───────────────────────────────────────────
 
-def _build_mermaid_top_flux(flux_article_counts: dict[str, int], top_n: int = 10) -> str:
-    """Génère un diagramme Mermaid xychart-beta (barres) pour les top_n flux."""
+def _assign_flux_letters(flux_names_sorted: list[str]) -> dict[str, str]:
+    """Assigne une lettre A-Z (puis AA, AB...) à chaque flux trié."""
+    import string
+    letters = list(string.ascii_uppercase)
+    mapping: dict[str, str] = {}
+    for i, name in enumerate(flux_names_sorted):
+        if i < 26:
+            mapping[name] = letters[i]
+        else:
+            mapping[name] = letters[(i // 26) - 1] + letters[i % 26]
+    return mapping
+
+
+def _build_mermaid_top_flux(
+    flux_article_counts: dict[str, int],
+    flux_letter_map: dict[str, str],
+    top_n: int = 10,
+) -> str:
+    """Génère un diagramme Mermaid xychart-beta (barres) pour les top_n flux.
+    Utilise les lettres assignées comme labels pour éviter les caractères spéciaux.
+    """
     if not flux_article_counts:
         return ""
     sorted_flux = sorted(flux_article_counts.items(), key=lambda x: -x[1])[:top_n]
-    labels = [f'"{_sanitize_for_mermaid(name)}"' for name, _ in sorted_flux]
+    labels = [f'"{flux_letter_map.get(name, _sanitize_for_mermaid(name))}"' for name, _ in sorted_flux]
     values = [str(count) for _, count in sorted_flux]
     max_val = max(c for _, c in sorted_flux)
-    # Arrondir le max à la dizaine supérieure
     y_max = ((max_val // 10) + 1) * 10
     lines = [
         "```mermaid",
         "xychart-beta",
         '    title "Top flux - nombre articles"',
         f"    x-axis [{', '.join(labels)}]",
-        f"    y-axis "+ '"Articles" ' + f"0 --> {y_max}",
+        f"    y-axis " + '"Articles" ' + f"0 --> {y_max}",
         f"    bar [{', '.join(values)}]",
         "```",
     ]
@@ -373,18 +391,23 @@ def build_cross_flux_markdown(
         "",
     ]
 
-    # Graphique Mermaid top 10 flux
+    # Assigner une lettre à chaque flux (trié alphabétiquement)
+    sorted_flux_names = sorted(flux_names)
+    flux_letter_map = _assign_flux_letters(sorted_flux_names)
+
+    # Graphique Mermaid top 10 flux (avec lettres comme labels)
     if counts:
-        mermaid_chart = _build_mermaid_top_flux(counts, top_n=10)
+        mermaid_chart = _build_mermaid_top_flux(counts, flux_letter_map, top_n=10)
         if mermaid_chart:
             lines.append(mermaid_chart)
             lines.append("")
 
-    # Liste compacte : flux séparés par des virgules avec nombre d'articles
+    # Liste compacte : lettre — flux séparés par des virgules avec nombre d'articles
     flux_items = []
-    for f in sorted(flux_names):
+    for f in sorted_flux_names:
         nb = counts.get(f, 0)
-        flux_items.append(f"`{f}` ({nb} article(s))")
+        letter = flux_letter_map[f]
+        flux_items.append(f"**{letter}** `{f}` ({nb} article(s))")
     lines.append(", ".join(flux_items))
     lines.append("")
 
