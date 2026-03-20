@@ -175,3 +175,49 @@ class TestRollingWindowRebuild:
         assert n == 0
         data = json.loads(output.read_text())
         assert data == []
+
+    def test_rebuild_preserves_rapports_from_existing_output(self, tmp_path):
+        """Les rapports Obsidian sauvegardés dans le fichier agrégé doivent être
+        préservés lors de la reconstruction depuis les fichiers sources, même si
+        ces fichiers sources ne contiennent pas encore le champ 'rapports'."""
+        src = tmp_path / "articles-from-rss"
+        src.mkdir()
+        # Fichier source sans 'rapports'
+        article = _make_article("https://a.com/article-1", days_ago=0)
+        self._write_keyword_file(src / "ia.json", [article])
+
+        output = tmp_path / "48-heures.json"
+        # Première reconstruction : pas encore de rapport
+        update_rolling_window([], output, hours=48, source_dir=src)
+        data = json.loads(output.read_text())
+        assert data[0].get("rapports") is None
+
+        # Simulation : un rapport Obsidian est ajouté directement dans 48-heures.json
+        rapport = {"fichier": "rapport_test.md", "cible": "obsidian", "date_creation": "2026-03-20T10:00:00"}
+        data[0]["rapports"] = [rapport]
+        output.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+        # Deuxième reconstruction depuis les fichiers sources (sans 'rapports')
+        n = update_rolling_window([], output, hours=48, source_dir=src)
+        assert n == 1
+        rebuilt = json.loads(output.read_text())
+        # Le champ 'rapports' doit être préservé depuis l'ancienne version du fichier
+        assert rebuilt[0].get("rapports") == [rapport]
+
+    def test_rebuild_does_not_overwrite_existing_rapports_in_source(self, tmp_path):
+        """Si le fichier source contient déjà 'rapports', il ne doit pas être écrasé."""
+        src = tmp_path / "articles-from-rss"
+        src.mkdir()
+        rapport_source = {"fichier": "source.md", "cible": "local", "date_creation": "2026-03-19T08:00:00"}
+        article = {**_make_article("https://a.com/article-2", days_ago=0), "rapports": [rapport_source]}
+        self._write_keyword_file(src / "ia.json", [article])
+
+        output = tmp_path / "48-heures.json"
+        # Le fichier agrégé a une version sans le champ 'rapports'
+        output.write_text(json.dumps([_make_article("https://a.com/article-2", days_ago=0)]), encoding="utf-8")
+
+        n = update_rolling_window([], output, hours=48, source_dir=src)
+        assert n == 1
+        rebuilt = json.loads(output.read_text())
+        # Le champ 'rapports' du fichier source est conservé (non écrasé par la version agrégée vide)
+        assert rebuilt[0].get("rapports") == [rapport_source]

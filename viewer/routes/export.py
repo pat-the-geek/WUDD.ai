@@ -768,7 +768,70 @@ def api_article_set_report_meta():
     except OSError as e:
         return jsonify({"error": f"Écriture impossible : {e}"}), 500
 
+    # Propager le rapport aux fichiers sources (articles-from-rss/*.json et
+    # articles/**/*.json) pour que les métadonnées survivent à la reconstruction
+    # de la fenêtre glissante 48-heures.json.
+    _propagate_rapport_to_source_files(article_url, rapport, fp, PROJECT_ROOT)
+
     return jsonify({"ok": True})
+
+
+def _propagate_rapport_to_source_files(
+    article_url: str,
+    rapport: dict,
+    updated_file: Path,
+    project_root: Path,
+) -> None:
+    """Propage les métadonnées de rapport aux fichiers sources contenant l'article.
+
+    Recherche l'article par URL dans les fichiers JSON sources (articles-from-rss/
+    et articles/<flux>/) et y ajoute le rapport si absent.  N'échoue jamais de
+    façon bloquante : les erreurs sont ignorées silencieusement.
+
+    Args:
+        article_url  : URL de l'article mis à jour.
+        rapport      : Métadonnées du rapport { fichier, chemin, cible, date_creation }.
+        updated_file : Fichier déjà mis à jour (éviter de le réécrire une 2e fois).
+        project_root : Racine du projet WUDD.ai.
+    """
+    fichier_rapport = rapport.get("fichier", "")
+    scan_dirs = [
+        project_root / "data" / "articles-from-rss",
+        project_root / "data" / "articles",
+    ]
+    for scan_dir in scan_dirs:
+        if not scan_dir.exists():
+            continue
+        # articles-from-rss : fichiers .json au niveau racine du répertoire
+        # articles : fichiers .json dans les sous-répertoires de flux
+        pattern = "*.json" if scan_dir.name == "articles-from-rss" else "**/*.json"
+        for json_file in scan_dir.glob(pattern):
+            if json_file.resolve() == updated_file.resolve():
+                continue
+            if "cache" in json_file.parts:
+                continue
+            try:
+                other_articles = json.loads(json_file.read_text(encoding="utf-8"))
+                if not isinstance(other_articles, list):
+                    continue
+                other_changed = False
+                for other_art in other_articles:
+                    if other_art.get("URL") == article_url:
+                        other_rapports = other_art.get("rapports") or []
+                        if not any(
+                            r.get("fichier") == fichier_rapport for r in other_rapports
+                        ):
+                            other_rapports.append(rapport)
+                            other_art["rapports"] = other_rapports
+                            other_changed = True
+                        break  # Premier article correspondant à l'URL traité
+                if other_changed:
+                    json_file.write_text(
+                        json.dumps(other_articles, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+            except Exception:
+                continue  # propagation optionnelle, ne jamais bloquer
 
 
 @export_bp.route("/api/entity/set-report-meta", methods=["POST"])
