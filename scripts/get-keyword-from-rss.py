@@ -133,7 +133,14 @@ with open(OPML_PATH, "r", encoding="utf-8") as f:
     tree = ET.parse(f)
     root = tree.getroot()
     outlines = root.findall(".//outline[@type='rss']")
-    feeds = [(o.attrib["xmlUrl"], o.attrib.get("title", "Unknown")) for o in outlines]
+    feeds = [
+        (
+            o.attrib["xmlUrl"],
+            o.attrib.get("title", "Unknown"),
+            o.attrib.get("bypassQuota", "false").lower() == "true",
+        )
+        for o in outlines
+    ]
 print_console(f"{len(feeds)} flux RSS trouvés.")
 
 # Fenêtre temporelle : 7 derniers jours
@@ -175,7 +182,7 @@ _progress = {
 _write_progress(_progress)
 
 total_feeds = len(feeds)
-for feed_idx, (feed_url, feed_title) in enumerate(feeds, 1):
+for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
     _progress["current_feed_idx"] = feed_idx
     _progress["current_feed_title"] = feed_title
     _progress["last_action"] = f"Lecture flux : {feed_title}"
@@ -188,11 +195,13 @@ for feed_idx, (feed_url, feed_title) in enumerate(feeds, 1):
         rss = ET.fromstring(resp.content)
         parsed_items = _parse_feed_items(rss)
         print_console(f"  {len(parsed_items)} articles trouvés dans le flux.")
+        if bypass_quota:
+            print_console(f"  ⚡ Quota ignoré pour ce flux (bypassQuota activé).", level="info")
         for idx, (title, link, pub_date, pub_dt) in enumerate(parsed_items, 1):
             if pub_dt < one_week_ago:
                 continue
-            # Arrêt global si le plafond journalier est atteint
-            if quota.is_global_exhausted():
+            # Arrêt global si le plafond journalier est atteint (sauf pour les flux avec bypassQuota activé)
+            if not bypass_quota and quota.is_global_exhausted():
                 print_console("Plafond global de quota atteint — traitement interrompu.", level="warning")
                 break
             # Tri adaptatif : traiter en priorité les mots-clés les moins consommés
@@ -231,8 +240,8 @@ for feed_idx, (feed_url, feed_title) in enumerate(feeds, 1):
                 if link in existing_urls or link in results[kw]:
                     print_console(f"    [Article {idx}] Déjà présent pour '{kw}', ignoré.", level="debug")
                     continue
-                # Vérifier le quota (global + par mot-clé + par source)
-                if not quota.can_process(kw, feed_title):
+                # Vérifier le quota (global + par mot-clé + par source) — sauf si bypassQuota activé
+                if not bypass_quota and not quota.can_process(kw, feed_title):
                     print_console(f"    [Article {idx}] Quota atteint pour '{kw}' / '{feed_title}', ignoré.", level="debug")
                     continue
                 print_console(f"    [Article {idx}] Mot-clé '{kw}' trouvé dans le titre.")
@@ -253,8 +262,8 @@ for feed_idx, (feed_url, feed_title) in enumerate(feeds, 1):
                     continue
                 print_console(f"      Extraction des entités nommées...")
                 entities = api_client.generate_entities(resume)
-                # Vérifier le quota par entité (après détection, avant ajout)
-                if entities:
+                # Vérifier le quota par entité (après détection, avant ajout) — sauf si bypassQuota activé
+                if entities and not bypass_quota:
                     ok, saturated = quota.can_process_entities(entities)
                     if not ok:
                         print_console(f"      Quota entité atteint pour '{saturated}', article ignoré.", level="debug")
@@ -283,7 +292,9 @@ for feed_idx, (feed_url, feed_title) in enumerate(feeds, 1):
                 _write_progress(_progress)
                 print_console(f"      ✓ Article ajouté pour '{kw}'.")
                 # Vérification après ajout : quota global épuisé → stop ce flux
-                if quota.is_global_exhausted():
+                # Pour les flux avec bypassQuota, ce plafond est intentionnellement ignoré
+                # afin de traiter tous les articles correspondants, même en cas de dépassement.
+                if not bypass_quota and quota.is_global_exhausted():
                     print_console("Plafond global atteint après ajout — passage au flux suivant.", level="warning")
                     break
     except Exception as e:

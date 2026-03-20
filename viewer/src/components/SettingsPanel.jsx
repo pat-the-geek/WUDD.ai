@@ -3,7 +3,7 @@ import {
   X, Settings, Clock, Tag, Rss, Globe, Plus, Trash2, RefreshCw,
   CheckCircle2, HelpCircle, Calendar, Check, AlertTriangle, Save,
   Maximize2, Minimize2, ExternalLink, Database, Clipboard, BarChart2,
-  ToggleLeft, ToggleRight, RotateCcw,
+  ToggleLeft, ToggleRight, RotateCcw, ShieldOff,
   Sun, Moon, Monitor, Terminal, TrendingUp, Eye, Lock, EyeOff, Pencil,
   BookOpen,
 } from 'lucide-react'
@@ -573,6 +573,11 @@ function RssTab() {
     setIsDirty(true)
   }, [])
 
+  const toggleBypassQuota = useCallback((xmlUrl) => {
+    setFeeds(prev => prev.map(f => f.xmlUrl === xmlUrl ? { ...f, bypassQuota: !f.bypassQuota } : f))
+    setIsDirty(true)
+  }, [])
+
   const checkOne = useCallback(async (xmlUrl) => {
     setChecking(prev => new Set([...prev, xmlUrl]))
     try {
@@ -855,6 +860,13 @@ function RssTab() {
                       title="Ouvrir le flux RSS">
                       <ExternalLink size={11} />
                     </a>
+                    <button
+                      onClick={() => toggleBypassQuota(f.xmlUrl)}
+                      className={`transition-opacity shrink-0 ${f.bypassQuota ? 'text-amber-500 dark:text-amber-400 opacity-100' : 'opacity-30 group-hover:opacity-100 text-slate-400 hover:text-amber-500 dark:hover:text-amber-400'}`}
+                      title={f.bypassQuota ? 'Quota ignoré pour ce flux (cliquer pour réactiver)' : 'Ignorer le quota pour ce flux'}
+                    >
+                      <ShieldOff size={11} />
+                    </button>
                     <button
                       onClick={() => removeFeed(f.xmlUrl)}
                       className="opacity-30 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-500 dark:hover:text-red-400"
