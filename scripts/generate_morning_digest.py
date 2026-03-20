@@ -184,19 +184,56 @@ def first_image_url(article: dict) -> str:
 
 # ── Construction du Markdown ──────────────────────────────────────────────────
 
+def _highlight_ner(text: str, entities: dict) -> str:
+    """Met en gras les entités NER dans le texte avec indication du type.
+
+    Ex : "OpenAI" → "**OpenAI** *(ORG)*"
+    Traite les entités de la plus longue à la plus courte pour éviter les
+    remplacements partiels. Insensible à la casse pour la recherche.
+    """
+    import re
+    if not entities or not isinstance(entities, dict):
+        return text
+
+    # Construire la liste (nom, type), triée par longueur décroissante
+    pairs = []
+    for etype, names in entities.items():
+        if etype not in ENTITY_TYPES_PERTINENTS or not isinstance(names, list):
+            continue
+        for name in names:
+            name_clean = str(name).strip()
+            if len(name_clean) >= 3:
+                pairs.append((name_clean, etype))
+    pairs.sort(key=lambda x: len(x[0]), reverse=True)
+
+    seen: set = set()
+    for name_clean, etype in pairs:
+        key = name_clean.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        pattern = re.compile(r'(?<!\w)' + re.escape(name_clean) + r'(?!\w)', re.IGNORECASE | re.UNICODE)
+        replacement = f"**{name_clean}** *({etype})*"
+        text = pattern.sub(replacement, text, count=1)
+    return text
+
+
 def _format_article_card(article: dict, rank: int) -> str:
-    """Formate un article en bloc Markdown compact pour le digest."""
+    """Formate un article en bloc Markdown pour le digest.
+
+    Affiche le résumé complet avec les entités NER mises en gras.
+    """
     source = article.get("Sources", "Source inconnue")
     url = article.get("URL", "")
     resume = article.get("Résumé", "")
     date_raw = article.get("Date de publication", "")
     score = article.get("score_pertinence", 0)
     sentiment = article.get("sentiment", "")
+    entities = article.get("entities", {})
 
     # Titre synthétique : première ligne non vide du résumé
     titre_lines = [l.strip() for l in resume.split("\n") if l.strip()]
     titre = titre_lines[0][:120] if titre_lines else "Sans titre"
-    extrait = " ".join(titre_lines[1:3])[:200] if len(titre_lines) > 1 else ""
 
     sent_emoji = SENTIMENT_EMOJI.get(sentiment.lower(), "") if sentiment else ""
 
@@ -214,22 +251,24 @@ def _format_article_card(article: dict, rank: int) -> str:
             date_label = date_raw[:10] if date_raw else ""
 
     lines = [f"### {rank}. {titre}"]
-    if sent_emoji or score:
-        meta_parts = []
-        if sent_emoji:
-            meta_parts.append(sent_emoji)
-        if score:
-            meta_parts.append(f"Score {score:.0f}/100")
-        if date_label:
-            meta_parts.append(date_label)
-        meta_parts.append(f"**{source}**")
-        lines.append(" · ".join(meta_parts))
-    if extrait:
-        lines.append(f"\n{extrait}…")
+    meta_parts = []
+    if sent_emoji:
+        meta_parts.append(sent_emoji)
+    if score:
+        meta_parts.append(f"Score {score:.0f}/100")
+    if date_label:
+        meta_parts.append(date_label)
+    meta_parts.append(f"**{source}**")
+    lines.append(" · ".join(meta_parts))
 
     img_url = first_image_url(article)
     if img_url:
         lines.append(f"\n![]({img_url})")
+
+    # Résumé complet avec entités NER en gras
+    if resume:
+        resume_highlighted = _highlight_ner(resume, entities if isinstance(entities, dict) else {})
+        lines.append(f"\n{resume_highlighted}")
 
     if url:
         lines.append(f"\n[→ Lire l'article]({url})")
@@ -425,11 +464,23 @@ def generate_morning_digest(
 
     # 2. Top 5 articles les mieux scorés (fenêtre 24h, toutes sources)
     engine = get_scoring_engine(PROJECT_ROOT)
-    top_articles = engine.get_top_articles_from_index(top_n=5, hours=24, include_rss=True)
+    top_articles = engine.get_top_articles_from_index(top_n=10, hours=24, include_rss=True)
     if not top_articles:
         # Fallback : scorer directement les articles 48h sans filtre temporel
-        top_articles = engine.score_and_sort(list(articles_48h), top_n=5)
-    print_console(f"{len(top_articles)} articles sélectionnés pour le Top 5")
+        top_articles = engine.score_and_sort(list(articles_48h), top_n=10)
+
+    # Déduplication par URL (un même article peut être indexé dans plusieurs fichiers)
+    seen_urls: set = set()
+    deduped: list = []
+    for art in top_articles:
+        url = art.get("URL", "")
+        if url and url not in seen_urls:
+            seen_urls.add(url)
+            deduped.append(art)
+        elif not url:
+            deduped.append(art)  # articles sans URL : conserver
+    top_articles = deduped[:5]
+    print_console(f"{len(top_articles)} articles sélectionnés pour le Top 5 (après déduplication)")
 
     # 3. Calculs statistiques
     top_entities = compute_top_entities(articles_48h, top_n=10)

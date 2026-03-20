@@ -12,6 +12,7 @@ Usage:
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from datetime import datetime
@@ -30,6 +31,33 @@ ENTITY_TYPES_PERTINENTS = {"PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "
 
 # Champ "Date de publication" au format RFC 822 (ex: "Wed, 04 Mar 2026 10:00:00")
 DATE_FORMAT_RSS = "%a, %d %b %Y %H:%M:%S"
+
+
+def _highlight_ner(text: str, entities: dict) -> str:
+    """Met en gras les entités NER dans le texte : **Nom** *(TYPE)*.
+    Tri par longueur décroissante pour éviter les sous-matches.
+    Word-boundary (?<!)\\w)…(?!\\w) pour ne pas toucher les sous-mots.
+    """
+    pairs = [
+        (name, etype)
+        for etype, names in entities.items()
+        if etype in ENTITY_TYPES_PERTINENTS
+        for name in names
+        if len(str(name).strip()) >= 3
+    ]
+    pairs.sort(key=lambda x: len(x[0]), reverse=True)
+    seen: set = set()
+    for name_clean, etype in pairs:
+        key = name_clean.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        pattern = re.compile(
+            r'(?<!\w)' + re.escape(name_clean) + r'(?!\w)',
+            re.IGNORECASE | re.UNICODE,
+        )
+        text = pattern.sub(f"**{name_clean}** *({etype})*", text, count=1)
+    return text
 
 
 def compute_top_entities(
@@ -133,11 +161,15 @@ def build_slim_articles(articles: list, top_entities: list, max_per_entity: int 
     entity_quota: dict = {name.lower(): 0 for name, _, _ in top_entities}
 
     # Trier les articles par date (les plus récents d'abord)
+    # Supporte les formats RFC 822 (flux_watcher) et DD/MM/YYYY (web_watcher)
     def _safe_date(a: dict):
-        try:
-            return datetime.strptime(a.get("Date de publication", "")[:25], DATE_FORMAT_RSS)
-        except Exception:
-            return datetime.min
+        dp = a.get("Date de publication", "")
+        for fmt in (DATE_FORMAT_RSS, "%d/%m/%Y", "%Y-%m-%dT%H:%M:%SZ"):
+            try:
+                return datetime.strptime(dp[:25], fmt)
+            except Exception:
+                continue
+        return datetime.min
 
     sorted_articles = sorted(articles, key=_safe_date, reverse=True)
 
@@ -170,11 +202,13 @@ def build_slim_articles(articles: list, top_entities: list, max_per_entity: int 
         entity_quota[matched_entity] += 1
         selected_urls.add(url)
 
+        resume = art.get("Résumé", "")[:400]  # 400 chars max par résumé
+        resume_highlighted = _highlight_ner(resume, entities)
         entry = {
             "Date de publication": art.get("Date de publication", ""),
             "Sources": art.get("Sources", ""),
             "URL": url,
-            "Résumé": art.get("Résumé", "")[:400],  # 400 chars max par résumé
+            "Résumé": resume_highlighted,
             "entities": {
                 k: v for k, v in entities.items()
                 if k in ENTITY_TYPES_PERTINENTS
@@ -329,6 +363,35 @@ def generate_48h_report(dry_run: bool = False) -> None:
     slim_articles = build_slim_articles(articles, top_entities, max_per_entity=5)
     print_console(f"{len(slim_articles)} articles sélectionnés pour le rapport ({len(top_entities)} entités × max 5)")
 
+    # Fallback : si aucune entité détectée ou aucun article sélectionné,
+    # inclure les 50 articles les plus récents pour que l'IA puisse quand même générer un rapport
+    if not slim_articles:
+        print_console(
+            "Aucun article sélectionné via entités — utilisation des 50 articles les plus récents comme fallback",
+            level="warning"
+        )
+
+        def _safe_date_fallback(a: dict):
+            dp = a.get("Date de publication", "")
+            for fmt in (DATE_FORMAT_RSS, "%d/%m/%Y", "%Y-%m-%dT%H:%M:%SZ"):
+                try:
+                    return datetime.strptime(dp[:25], fmt)
+                except Exception:
+                    continue
+            return datetime.min
+
+        slim_articles = sorted(articles, key=_safe_date_fallback, reverse=True)[:50]
+        slim_articles = [
+            {
+                "Date de publication": a.get("Date de publication", ""),
+                "Sources": a.get("Sources", ""),
+                "URL": a.get("URL", ""),
+                "Résumé": a.get("Résumé", "")[:400],
+            }
+            for a in slim_articles
+        ]
+        print_console(f"{len(slim_articles)} articles inclus (mode fallback sans entités)")
+
     today_str = datetime.now().strftime("%d/%m/%Y")
     prompt = build_prompt(slim_articles, top_entities, today_str)
 
@@ -354,7 +417,6 @@ def generate_48h_report(dry_run: bool = False) -> None:
 
     # Nettoyage : supprimer les blocs de code parasites que le LLM peut générer
     # autour du frontmatter (```yaml\n---...---\n```) et en fin de fichier
-    import re
     report_content = re.sub(r'^```(?:yaml|markdown)?\s*\n', '', report_content, flags=re.IGNORECASE)
     report_content = re.sub(r'\n```\s*$', '', report_content)
 

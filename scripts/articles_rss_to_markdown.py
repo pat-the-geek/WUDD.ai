@@ -39,10 +39,30 @@ def _get_month_range():
 
 
 def _parse_pub_date(date_str: str):
-    """Parse une date RFC 822 (ex: 'Fri, 06 Mar 2026 10:00:00 +0000')."""
+    """Parse une date dans tous les formats du pipeline (RFC 822, DD/MM/YYYY, ISO 8601)."""
+    if not date_str:
+        return None
+    date_str = date_str.strip()
+    # ISO 8601
+    for fmt, length in (("%Y-%m-%dT%H:%M:%SZ", 20), ("%Y-%m-%dT%H:%M:%S", 19), ("%Y-%m-%d", 10)):
+        try:
+            return datetime.strptime(date_str[:length], fmt)
+        except (ValueError, TypeError):
+            continue
+    # DD/MM/YYYY — format web_watcher.py
     try:
-        return datetime.strptime(date_str[:25].strip(), "%a, %d %b %Y %H:%M:%S")
+        return datetime.strptime(date_str[:10], "%d/%m/%Y")
     except (ValueError, TypeError):
+        pass
+    # RFC 822 (flux_watcher.py / get-keyword-from-rss.py)
+    try:
+        return datetime.strptime(date_str[:25], "%a, %d %b %Y %H:%M:%S")
+    except (ValueError, TypeError):
+        pass
+    try:
+        from email.utils import parsedate_to_datetime
+        return parsedate_to_datetime(date_str).replace(tzinfo=None)
+    except Exception:
         return None
 
 

@@ -304,7 +304,7 @@ class ArticleDB:
         sql = f"""
             SELECT
                 "Date de publication"  AS date,
-                entities::VARCHAR      AS entities_json
+                CAST(entities AS JSON) AS entities_json
             FROM (
                 SELECT "Date de publication", entities
                 FROM read_json_auto('{glob_art}', ignore_errors=true)
@@ -333,7 +333,7 @@ class ArticleDB:
         """
         safe_path = str(file_path).replace("'", "''")
         sql = f"""
-            SELECT entities::VARCHAR AS entities_json
+            SELECT CAST(entities AS JSON) AS entities_json
             FROM read_json_auto('{safe_path}', ignore_errors=true)
             WHERE entities IS NOT NULL
         """
