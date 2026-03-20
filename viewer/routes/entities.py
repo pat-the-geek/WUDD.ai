@@ -234,17 +234,21 @@ def api_entities_dashboard():
                 by_type[etype] = {}
             by_type[etype][value] = by_type[etype].get(value, 0) + len(refs)
 
-        # Totaux depuis l'article_index
+        # Totaux depuis l'article_index (URL-dédupliqué)
         aidx = get_article_index(PROJECT_ROOT)
         astats = aidx.stats()
-        total_files = len({ref.get("file", "") for refs in all_entries.values() for ref in refs if ref.get("file")})
+        # Exclure les fichiers dérivés/_WUDD.AI_/ du comptage (48-heures.json = agrégat glissant
+        # dont les articles sont déjà présents dans les fichiers par mot-clé → double-comptage)
+        total_files = len({
+            ref.get("file", "")
+            for refs in all_entries.values()
+            for ref in refs
+            if ref.get("file") and "_WUDD.AI_" not in ref.get("file", "")
+        })
         total_articles = astats.get("total", 0)
-        # Approximation : articles avec entités = ceux que l'index entités a référencés
-        seen_refs: set[tuple] = set()
-        for refs in all_entries.values():
-            for ref in refs:
-                seen_refs.add((ref.get("file", ""), ref.get("idx", -1)))
-        total_with_entities = len(seen_refs)
+        # Utiliser l'article_index (URL-dédupliqué) pour éviter de compter 2×
+        # les articles présents à la fois dans un fichier mot-clé et dans 48-heures.json
+        total_with_entities = astats.get("with_entities", 0)
 
     except Exception:
         # Fallback rglob
@@ -255,11 +259,13 @@ def api_entities_dashboard():
         total_files = 0
         total_articles = 0
         total_with_entities = 0
+        seen_urls: set[str] = set()
         for data_dir in data_dirs:
             if not data_dir.exists():
                 continue
             for json_file in sorted(data_dir.rglob("*.json")):
-                if "cache" in json_file.relative_to(data_dir).parts:
+                rel_parts = json_file.relative_to(data_dir).parts
+                if "cache" in rel_parts or "_WUDD.AI_" in rel_parts:
                     continue
                 try:
                     articles = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
@@ -268,8 +274,12 @@ def api_entities_dashboard():
                 except (json.JSONDecodeError, OSError):
                     continue
                 total_files += 1
-                total_articles += len(articles)
                 for article in articles:
+                    url = str(article.get("URL") or article.get("url") or "").strip()
+                    if not url or url in seen_urls:
+                        continue
+                    seen_urls.add(url)
+                    total_articles += 1
                     ents = article.get("entities")
                     if not ents or not isinstance(ents, dict):
                         continue
