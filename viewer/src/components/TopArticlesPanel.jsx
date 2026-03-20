@@ -270,7 +270,7 @@ function IAPickerModal({ providers, onPick, onClose }) {
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-white/50 dark:border-white/10 rounded-2xl shadow-2xl p-6 w-full max-w-xs">
-        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">Rafraîchir le résumé</h3>
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">Enrichir l'article</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Choisir le fournisseur IA :</p>
         <div className="flex flex-col gap-2">
           {providers.map(p => (
@@ -293,13 +293,15 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
   const [lightbox, setLightbox]           = useState(false)
   const [noteOpen, setNoteOpen]           = useState(false)
   const [refreshing, setRefreshing]       = useState(false)
-  const [refreshResume, setRefreshResume] = useState(null)
+  const [localEnrichment, setLocalEnrichment] = useState(null)
   const [showIAPicker, setShowIAPicker]   = useState(false)
 
-  const resume      = refreshResume ?? article['Résumé'] ?? ''
-  const entities    = article.entities ?? null
+  const displayArticle = localEnrichment ? { ...article, ...localEnrichment } : article
+
+  const resume      = displayArticle['Résumé'] ?? ''
+  const entities    = displayArticle.entities ?? null
   const hasEntities = entities && Object.keys(entities).length > 0
-  const count       = useMemo(() => entityCount(article), [article])
+  const count       = useMemo(() => entityCount(displayArticle), [displayArticle])
   const imgUrl      = firstImage(article['Images'])
   const date        = formatDate(article['Date de publication'])
   const time        = formatTime(article['Date de publication'])
@@ -328,7 +330,19 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
         body: JSON.stringify({ file_path: filePath, article_url: url, provider }),
       })
       const d = await r.json()
-      if (d.ok) setRefreshResume(d.resume)
+      if (d.ok) {
+        const enriched = { 'Résumé': d.resume }
+        if (d.entities && Object.keys(d.entities).length > 0) enriched.entities = d.entities
+        if (d.sentiment)               enriched.sentiment              = d.sentiment
+        if (d.score_sentiment != null) enriched.score_sentiment        = d.score_sentiment
+        if (d.ton_editorial)           enriched.ton_editorial          = d.ton_editorial
+        if (d.score_ton != null)       enriched.score_ton              = d.score_ton
+        if (d.temps_lecture_minutes != null) {
+          enriched.temps_lecture_minutes = d.temps_lecture_minutes
+          enriched.temps_lecture_label   = d.temps_lecture_label
+        }
+        setLocalEnrichment(enriched)
+      }
     } catch { /* silence */ } finally {
       setRefreshing(false)
     }
@@ -401,9 +415,9 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
                 <Tag size={9} />{count} entités
               </span>
             )}
-            <ReadingTimeBadge article={article} />
+            <ReadingTimeBadge article={displayArticle} />
           </div>
-          <SentimentBadge article={article} />
+          <SentimentBadge article={displayArticle} />
           {titre && (
             <h3 className="mt-1.5 text-xl font-bold text-slate-800 dark:text-slate-100 leading-tight">
               {titre}
@@ -432,7 +446,7 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
             )}
             {filePath && availableProviders?.length > 0 && (
               <button onClick={triggerRefresh} disabled={refreshing}
-                title="Rafraîchir le résumé avec l'IA"
+                title="Enrichir l'article avec l'IA"
                 className="p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 disabled:opacity-40">
                 <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
               </button>

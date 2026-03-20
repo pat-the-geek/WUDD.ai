@@ -229,13 +229,15 @@ def api_delete_file():
 
 @files_bp.route("/api/article/refresh-resume", methods=["POST"])
 def api_article_refresh_resume():
-    """Régénère le résumé d'un article via l'IA choisie et met à jour le fichier JSON.
+    """Enrichit complètement un article via l'IA : résumé, NER, sentiment, temps de lecture.
 
     Body JSON :
       file_path   (str) — chemin relatif du fichier JSON dans PROJECT_ROOT
       article_url (str) — URL de l'article à rafraîchir
       provider    (str) — 'euria', 'claude', ou 'auto' (utilise AI_PROVIDER depuis .env)
-    Retourne : { ok: bool, resume: str }
+    Retourne : { ok: bool, resume: str, entities: dict, sentiment: str,
+                 score_sentiment: int, ton_editorial: str, score_ton: int,
+                 temps_lecture_minutes: float, temps_lecture_label: str }
     """
     body = request.get_json(force=True, silent=True) or {}
     rel_path = (body.get("file_path") or "").strip()
@@ -306,10 +308,41 @@ def api_article_refresh_resume():
 
         new_resume = client.generate_summary(source_text)
     except Exception as exc:
-        return jsonify({"error": f"Erreur IA : {exc}"}), 500
+        return jsonify({"error": f"Erreur IA (résumé) : {exc}"}), 500
 
-    # Mettre à jour le fichier JSON
+    # Enrichissement NER — entités nommées
+    entities = {}
+    try:
+        entities = client.generate_entities(new_resume) or {}
+    except Exception:
+        pass
+
+    # Enrichissement sentiment + ton éditorial
+    sentiment_data = {}
+    try:
+        sentiment_data = client.generate_sentiment(new_resume) or {}
+    except Exception:
+        pass
+
+    # Temps de lecture
+    reading_data = {}
+    try:
+        from utils.reading_time import estimate_reading_time
+        reading_data = estimate_reading_time(new_resume) or {}
+    except Exception:
+        pass
+
+    # Mettre à jour l'article avec tous les enrichissements
     article["Résumé"] = new_resume
+    if entities:
+        article["entities"] = entities
+    for field in ("sentiment", "score_sentiment", "ton_editorial", "score_ton"):
+        if field in sentiment_data:
+            article[field] = sentiment_data[field]
+    if reading_data.get("temps_lecture_minutes") is not None:
+        article["temps_lecture_minutes"] = reading_data["temps_lecture_minutes"]
+        article["temps_lecture_label"]   = reading_data.get("temps_lecture_label", "")
+
     try:
         tmp = target.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(articles, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -317,7 +350,17 @@ def api_article_refresh_resume():
     except OSError as e:
         return jsonify({"error": f"Erreur écriture : {e}"}), 500
 
-    return jsonify({"ok": True, "resume": new_resume})
+    return jsonify({
+        "ok": True,
+        "resume": new_resume,
+        "entities": entities,
+        "sentiment": sentiment_data.get("sentiment"),
+        "score_sentiment": sentiment_data.get("score_sentiment"),
+        "ton_editorial": sentiment_data.get("ton_editorial"),
+        "score_ton": sentiment_data.get("score_ton"),
+        "temps_lecture_minutes": reading_data.get("temps_lecture_minutes"),
+        "temps_lecture_label": reading_data.get("temps_lecture_label"),
+    })
 
 
 @files_bp.route("/api/article/full-report")
