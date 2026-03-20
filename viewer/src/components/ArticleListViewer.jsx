@@ -743,7 +743,8 @@ function TimelineItem({ article }) {
 export default function ArticleListViewer({ content, annotations, onAnnotate, filePath, availableProviders, searchInjection = null, focusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged }) {
   const [searchQuery, setSearchQuery]         = useState(searchInjection?.query || '')
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
-  const [mobileFilterMode, setMobileFilterMode] = useState(null) // null | 'star' | 'source' | 'entity'
+  const [mobileFilterMode, setMobileFilterMode] = useState(null) // null | 'star' | 'source' | 'entity' | 'obsidian'
+  const [filterObsidian, setFilterObsidian]     = useState(false)
   const [sortBy, setSortBy]                   = useState('date-desc')
   const [viewStyle, setViewStyle]             = useState('grid') // 'grid' | 'large' | 'timeline'
   const [selectedTypes, setSelectedTypes]     = useState(new Set())
@@ -797,12 +798,20 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
       setAnnotFilter('importants')
       setSelectedTypes(new Set())
       setSelectedSources(new Set())
+      setFilterObsidian(false)
     } else if (mode === 'source') {
       setAnnotFilter('tous')
       setSelectedTypes(new Set())
+      setFilterObsidian(false)
     } else if (mode === 'entity') {
       setAnnotFilter('tous')
       setSelectedSources(new Set())
+      setFilterObsidian(false)
+    } else if (mode === 'obsidian') {
+      setAnnotFilter('tous')
+      setSelectedTypes(new Set())
+      setSelectedSources(new Set())
+      setFilterObsidian(true)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobileFilterSignal?.version])
@@ -878,6 +887,11 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
       result = result.filter(a => !annotations?.[a['URL']]?.is_read)
     }
 
+    // Filtre rapport Obsidian
+    if (filterObsidian) {
+      result = result.filter(a => Array.isArray(a['rapports']) && a['rapports'].some(r => r.cible === 'obsidian'))
+    }
+
     result = [...result].sort((a, b) => {
       if (sortBy === 'date-desc') return toTimestamp(b['Date de publication']) - toTimestamp(a['Date de publication'])
       if (sortBy === 'date-asc')  return toTimestamp(a['Date de publication']) - toTimestamp(b['Date de publication'])
@@ -887,7 +901,7 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
     })
 
     return result
-  }, [articles, searchQuery, selectedTypes, selectedSources, sortBy, annotFilter, annotations])
+  }, [articles, searchQuery, selectedTypes, selectedSources, sortBy, annotFilter, annotations, filterObsidian])
 
   // Groupes timeline (toujours triés date-desc)
   const timelineGroups = useMemo(() => {
@@ -948,13 +962,14 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
   const toggleType   = type => setSelectedTypes(prev => { const s = new Set(prev); s.has(type) ? s.delete(type) : s.add(type); return s })
   const toggleSource = src  => setSelectedSources(prev => { const s = new Set(prev); s.has(src)  ? s.delete(src)  : s.add(src);  return s })
 
-  const hasActiveFilters = searchQuery.trim() || selectedTypes.size > 0 || selectedSources.size > 0 || annotFilter !== 'tous'
+  const hasActiveFilters = searchQuery.trim() || selectedTypes.size > 0 || selectedSources.size > 0 || annotFilter !== 'tous' || filterObsidian
 
   const clearAll = () => {
     setSearchQuery('')
     setSelectedTypes(new Set())
     setSelectedSources(new Set())
     setAnnotFilter('tous')
+    setFilterObsidian(false)
     searchRef.current?.focus()
   }
 
@@ -963,6 +978,12 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
     if (!articles || !annotations) return 0
     return articles.filter(a => annotations[a['URL']]?.is_important).length
   }, [articles, annotations])
+
+  // Comptage articles avec rapport Obsidian
+  const obsidianCount = useMemo(() => {
+    if (!articles) return 0
+    return articles.filter(a => Array.isArray(a['rapports']) && a['rapports'].some(r => r.cible === 'obsidian')).length
+  }, [articles])
 
   const handleExport = () => {
     const filename = `articles_${new Date().toISOString().slice(0, 10)}_${displayedArticles.length}.json`
@@ -1109,6 +1130,23 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
               </button>
             </div>
           )}
+
+          {/* Barre filtre : rapport Obsidian ── */}
+          {mobileFilterMode === 'obsidian' && (
+            <div className="flex items-center gap-3 px-4 py-2.5 bg-violet-50 dark:bg-violet-900/20 border-b-2 border-violet-500 shadow-md">
+              <BookOpen size={15} className="text-violet-500 shrink-0" />
+              <span className="flex-1 text-sm font-medium text-violet-700 dark:text-violet-300">
+                Rapport Obsidian
+                {obsidianCount > 0 && <span className="ml-2 text-xs font-normal text-violet-500 dark:text-violet-400">({obsidianCount} article{obsidianCount > 1 ? 's' : ''})</span>}
+              </span>
+              <button
+                onClick={() => { setFilterObsidian(false); setMobileFilterMode(null); onMobileFilterClose?.() }}
+                className="text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 shrink-0 p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1154,6 +1192,23 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
               </button>
             ))}
           </div>
+        )}
+
+        {/* Chip filtre rapport Obsidian */}
+        {obsidianCount > 0 && (
+          <button
+            onClick={() => setFilterObsidian(v => !v)}
+            title={filterObsidian ? 'Désactiver le filtre Obsidian' : `Afficher uniquement les ${obsidianCount} article${obsidianCount > 1 ? 's' : ''} avec rapport Obsidian`}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors shrink-0 ${
+              filterObsidian
+                ? 'bg-violet-600 text-white border-violet-700'
+                : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-600 dark:hover:text-violet-400'
+            }`}
+          >
+            <BookOpen size={12} />
+            Obsidian
+            <span className={`tabular-nums ${filterObsidian ? 'opacity-80' : 'opacity-55'}`}>{obsidianCount}</span>
+          </button>
         )}
 
         {/* Tri + vue + export — sur une seule ligne (2e ligne sur mobile) */}
