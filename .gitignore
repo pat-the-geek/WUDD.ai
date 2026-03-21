@@ -198,7 +198,8 @@ archives/
 # Exception : captures d'écran de documentation
 !docs/Screen-captures/*.png
 Unused-Code/
-.github/
+# .github/ est versionné pour les GitHub Actions workflows
+!.github/
 
 # Viewer — artefacts de build (générés via npm run build)
 viewer/node_modules/

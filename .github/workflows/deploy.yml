@@ -1,0 +1,20 @@
+name: Deploy on merge to main
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy WUDD.ai local
+    runs-on: self-hosted   # runner installé sur le Mac Mini
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run deploy_local.sh
+        run: bash "$GITHUB_WORKSPACE/deploy_local.sh"
