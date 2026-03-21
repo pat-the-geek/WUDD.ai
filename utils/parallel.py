@@ -249,3 +249,28 @@ def batch_process(
     )
     
     return results
+
+
+def run_parallel(
+    func: Callable[[Any], Any],
+    items: List[Any],
+    max_workers: int = 5,
+) -> List[Any]:
+    """Applique ``func`` à chaque élément de ``items`` en parallèle.
+
+    Signature simplifiée (func-first) utilisée par ``async_enricher`` en mode
+    fallback synchrone.  Contrairement à ``process_items_parallel``, retourne
+    une **liste ordonnée** de résultats (même ordre que ``items``).
+
+    Args:
+        func       : Fonction à appliquer à chaque élément.
+        items      : Liste d'éléments à traiter.
+        max_workers: Nombre maximal de threads (défaut : 5).
+
+    Returns:
+        Liste des valeurs renvoyées par ``func`` pour chaque élément d'``items``.
+    """
+    if not items:
+        return []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(executor.map(func, items))
