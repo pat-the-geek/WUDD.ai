@@ -13,10 +13,11 @@ import TTSButton from './TTSButton'
 import SimilarArticlesPanel from './SimilarArticlesPanel'
 
 // ── Badge sentiment ───────────────────────────────────────────────────────────
+// Couleurs HIG : systemGreen #34C759 / systemRed #FF3B30 / slate pour neutre
 const SENTIMENT_CFG = {
-  positif: { label: 'Positif', score: null, dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800' },
-  neutre:  { label: 'Neutre',  score: null, dot: 'bg-slate-400',   text: 'text-slate-600 dark:text-slate-400',     bg: 'bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600' },
-  négatif: { label: 'Négatif', score: null, dot: 'bg-rose-500',    text: 'text-rose-700 dark:text-rose-300',       bg: 'bg-rose-50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800' },
+  positif: { label: 'Positif', score: null, dot: 'bg-[#34C759] dark:bg-[#30D158]', text: 'text-[#1a7a34] dark:text-[#30D158]', bg: 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800' },
+  neutre:  { label: 'Neutre',  score: null, dot: 'bg-slate-400',                   text: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600' },
+  négatif: { label: 'Négatif', score: null, dot: 'bg-[#FF3B30] dark:bg-[#FF453A]', text: 'text-[#c0392b] dark:text-[#FF453A]', bg: 'bg-rose-50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800' },
 }
 const TON_LABELS = { factuel: 'Factuel', alarmiste: 'Alarmiste', promotionnel: 'Promo', critique: 'Critique', analytique: 'Analytique' }
 
@@ -55,7 +56,7 @@ function SentimentBadge({ article }) {
 
 const CHIP_COLORS = {
   PERSON:      { idle: 'bg-violet-100 dark:bg-violet-900/50 text-violet-800 dark:text-violet-200 border-violet-200 dark:border-violet-800',       on: 'bg-violet-500 dark:bg-violet-600 text-white border-violet-600 dark:border-violet-500' },
-  ORG:         { idle: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-800',                   on: 'bg-blue-500 dark:bg-blue-600 text-white border-blue-600 dark:border-blue-500' },
+  ORG:         { idle: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-800',                   on: 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF] dark:border-[#0A84FF]' },
   GPE:         { idle: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800', on: 'bg-emerald-500 dark:bg-emerald-600 text-white border-emerald-600 dark:border-emerald-500' },
   PRODUCT:     { idle: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-800',       on: 'bg-orange-500 dark:bg-orange-600 text-white border-orange-600 dark:border-orange-500' },
   EVENT:       { idle: 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800',             on: 'bg-amber-500 dark:bg-amber-600 text-white border-amber-600 dark:border-amber-500' },
@@ -544,7 +545,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
             </span>
             {date && <span className="text-xs text-slate-400 dark:text-slate-500">{date}{time ? <> · <span>{time}</span></> : ''}</span>}
             {hasEntities && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
+              <span className="inline-flex items-center gap-1 text-[11px] text-[#5856D6] dark:text-[#5E5CE6] bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
                 <Tag size={9} />{count} entités
               </span>
             )}
@@ -585,7 +586,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
             {filePath && availableProviders?.length > 0 && (
               <button onClick={triggerRefresh} disabled={refreshing}
                 title="Enrichir l'article avec l'IA"
-                className="p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 disabled:opacity-40">
+                className="p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:bg-blue-50/50 dark:hover:bg-blue-900/20 disabled:opacity-40">
                 <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
               </button>
             )}
@@ -600,13 +601,13 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
             {url && filePath && (
               <button onClick={e => { e.stopPropagation(); setShowSimilar(true) }}
                 title="Rechercher des articles similaires à fusionner"
-                className="p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50/50 dark:hover:bg-violet-900/20">
+                className="p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-[#5856D6] dark:hover:text-[#5E5CE6] hover:bg-violet-50/50 dark:hover:bg-violet-900/20">
                 <GitMerge size={14} />
               </button>
             )}
             {article['URL'] && (
               <a href={article['URL']} target="_blank" rel="noopener noreferrer"
-                className="p-1.5 rounded-xl min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors" title="Ouvrir l'article">
+                className="p-1.5 rounded-xl min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors" title="Ouvrir l'article">
                 <ExternalLink size={14} />
               </a>
             )}
@@ -636,7 +637,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
             {url && (
               <button
                 onClick={() => onFullReport?.(article)}
-                className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
                 title="Générer un rapport complet"
               >
                 <FileText size={12} /> Rapport
@@ -730,7 +731,7 @@ function TimelineItem({ article }) {
           </span>
           {date && <span className="text-xs text-slate-400 dark:text-slate-500">{date}{time ? <> · <span>{time}</span></> : ''}</span>}
           {hasEntities && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
+            <span className="inline-flex items-center gap-1 text-[11px] text-[#5856D6] dark:text-[#5E5CE6] bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
               <Tag size={9} />{count}
             </span>
           )}
@@ -738,7 +739,7 @@ function TimelineItem({ article }) {
           <SentimentBadge article={article} />
           {article['URL'] && (
             <a href={article['URL']} target="_blank" rel="noopener noreferrer"
-              className="ml-auto shrink-0 text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all"
+              className="ml-auto shrink-0 text-slate-300 dark:text-slate-600 hover:text-[#007AFF] dark:hover:text-[#0A84FF] opacity-0 group-hover:opacity-100 transition-all"
               title="Ouvrir l'article">
               <ExternalLink size={12} />
             </a>
@@ -1068,7 +1069,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           </span>
         )}
         {withEntities.length > 0 ? (
-          <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400">
+          <span className="flex items-center gap-1 text-[#5856D6] dark:text-[#5E5CE6]">
             <Tag size={11} />{withEntities.length} enrichi{withEntities.length > 1 ? 's' : ''} avec entités
           </span>
         ) : (
@@ -1181,7 +1182,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
               </div>
               <button
                 onClick={() => { setSelectedTypes(new Set()); setSelectedSources(new Set()); setAnnotFilter('tous'); setMobileFilterMode(null); onMobileFilterClose?.() }}
-                className="text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 shrink-0 p-1"
+                className="text-violet-400 hover:text-[#5856D6] dark:hover:text-[#5E5CE6] shrink-0 p-1"
               >
                 <X size={18} />
               </button>
@@ -1198,7 +1199,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
               </span>
               <button
                 onClick={() => { setFilterObsidian(false); setMobileFilterMode(null); onMobileFilterClose?.() }}
-                className="text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 shrink-0 p-1"
+                className="text-violet-400 hover:text-[#5856D6] dark:hover:text-[#5E5CE6] shrink-0 p-1"
               >
                 <X size={18} />
               </button>
@@ -1235,7 +1236,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Rechercher dans les résumés…"
-            className="w-full pl-8 pr-8 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors"
+            className="w-full pl-8 pr-8 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 focus:border-[#007AFF] transition-colors"
           />
           {searchQuery && (
             <button onClick={() => setSearchQuery('')}
@@ -1277,7 +1278,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors shrink-0 ${
               filterObsidian
                 ? 'bg-violet-600 text-white border-violet-700'
-                : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-600 dark:hover:text-violet-400'
+                : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-violet-400 dark:hover:border-violet-600 hover:text-[#5856D6] dark:hover:text-[#5E5CE6]'
             }`}
           >
             <BookOpen size={12} />
@@ -1291,7 +1292,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           <div className="relative shrink-0">
             <ArrowUpDown size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
             <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-              className="pl-7 pr-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors appearance-none cursor-pointer">
+              className="pl-7 pr-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 focus:border-[#007AFF] transition-colors appearance-none cursor-pointer">
               {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
@@ -1299,22 +1300,22 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           {/* Bascule vue grille / timeline */}
           <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
             <button onClick={() => setViewStyle('grid')} title="Vue grille"
-              className={`px-2.5 py-2 transition-colors ${viewStyle === 'grid' ? 'bg-blue-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              className={`px-2.5 py-2 transition-colors ${viewStyle === 'grid' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
               <LayoutGrid size={13} />
             </button>
             <button onClick={() => setViewStyle('large')} title="Vue large (1 article / ligne)"
-              className={`px-2.5 py-2 transition-colors ${viewStyle === 'large' ? 'bg-blue-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              className={`px-2.5 py-2 transition-colors ${viewStyle === 'large' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
               <LayoutList size={13} />
             </button>
             <button onClick={() => setViewStyle('timeline')} title="Vue timeline"
-              className={`px-2.5 py-2 transition-colors ${viewStyle === 'timeline' ? 'bg-blue-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              className={`px-2.5 py-2 transition-colors ${viewStyle === 'timeline' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
               <AlignLeft size={13} />
             </button>
           </div>
 
           {/* Export */}
           <button onClick={handleExport} title={`Exporter ${displayedArticles.length} article(s) en JSON`}
-            className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 bg-white dark:bg-slate-800 transition-all shrink-0">
+            className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:border-[#007AFF] dark:hover:border-[#0A84FF] bg-white dark:bg-slate-800 transition-all shrink-0">
             <Download size={13} />
           </button>
         </div>
@@ -1330,7 +1331,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
             <Filter size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Type d'entité</span>
             {selectedTypes.size > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">{selectedTypes.size}</span>
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-[#007AFF] dark:text-[#0A84FF]">{selectedTypes.size}</span>
             )}
             {selectedTypes.size > 0 && (
               <span
@@ -1373,7 +1374,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
             <Newspaper size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Source</span>
             {selectedSources.size > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">{selectedSources.size}</span>
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-[#007AFF] dark:text-[#0A84FF]">{selectedSources.size}</span>
             )}
             {selectedSources.size > 0 && (
               <span
@@ -1414,7 +1415,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           <div className="text-2xl mb-2">🔍</div>
           Aucun article ne correspond aux filtres actifs.
           <br />
-          <button onClick={clearAll} className="mt-2 text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 underline text-xs">
+          <button onClick={clearAll} className="mt-2 text-blue-500 hover:text-[#007AFF] dark:hover:text-[#0A84FF] underline text-xs">
             Tout réinitialiser
           </button>
         </div>

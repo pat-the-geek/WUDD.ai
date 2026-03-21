@@ -44,10 +44,11 @@ function entityCount(article) {
 
 // ── Badges ────────────────────────────────────────────────────────────────────
 
+// Couleurs HIG : systemGreen #34C759 / systemRed #FF3B30 / slate pour neutre
 const SENTIMENT_CFG = {
-  positif: { label: 'Positif', dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800' },
-  neutre:  { label: 'Neutre',  dot: 'bg-slate-400',   text: 'text-slate-600 dark:text-slate-400',     bg: 'bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600' },
-  négatif: { label: 'Négatif', dot: 'bg-rose-500',    text: 'text-rose-700 dark:text-rose-300',       bg: 'bg-rose-50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800' },
+  positif: { label: 'Positif', dot: 'bg-[#34C759] dark:bg-[#30D158]', text: 'text-[#1a7a34] dark:text-[#30D158]', bg: 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800' },
+  neutre:  { label: 'Neutre',  dot: 'bg-slate-400',                   text: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600' },
+  négatif: { label: 'Négatif', dot: 'bg-[#FF3B30] dark:bg-[#FF453A]', text: 'text-[#c0392b] dark:text-[#FF453A]', bg: 'bg-rose-50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800' },
 }
 const TON_LABELS = { factuel: 'Factuel', alarmiste: 'Alarmiste', promotionnel: 'Promo', critique: 'Critique', analytique: 'Analytique' }
 
@@ -411,7 +412,7 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
             </span>
             {date && <span className="text-xs text-slate-400 dark:text-slate-500">{date}{time ? <> · <span>{time}</span></> : ''}</span>}
             {hasEntities && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
+              <span className="inline-flex items-center gap-1 text-[11px] text-[#5856D6] dark:text-[#5E5CE6] bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
                 <Tag size={9} />{count} entités
               </span>
             )}
@@ -447,14 +448,14 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
             {filePath && availableProviders?.length > 0 && (
               <button onClick={triggerRefresh} disabled={refreshing}
                 title="Enrichir l'article avec l'IA"
-                className="p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 disabled:opacity-40">
+                className="p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:bg-blue-50/50 dark:hover:bg-blue-900/20 disabled:opacity-40">
                 <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
               </button>
             )}
             {resume && <TTSButton text={resume || titre} size={14} />}
             {url && url !== '#' && (
               <a href={url} target="_blank" rel="noopener noreferrer"
-                className="p-1.5 rounded-xl min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors" title="Ouvrir l'article">
+                className="p-1.5 rounded-xl min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors" title="Ouvrir l'article">
                 <ExternalLink size={14} />
               </a>
             )}
@@ -482,7 +483,7 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
             {url && url !== '#' && (
               <button
                 onClick={() => onReport?.(article)}
-                className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
                 title="Générer un rapport complet">
                 <FileText size={12} /> Rapport
               </button>
@@ -509,7 +510,7 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
         {/* Barre score + podcast */}
         <div className="mt-3 pt-3 border-t border-white/40 dark:border-white/5 flex items-center gap-2">
           {isCurrentPodcast && (
-            <span className="flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 font-medium">
+            <span className="flex items-center gap-1 text-[11px] text-[#5856D6] dark:text-[#5E5CE6] font-medium">
               <Volume2 size={11} className="animate-pulse" />En cours…
             </span>
           )}

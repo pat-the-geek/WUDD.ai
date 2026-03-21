@@ -170,7 +170,7 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
                         </span>
                         <button
                           onClick={() => onOpenArticles?.(e.type, e.value)}
-                          className="font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-left"
+                          className="font-medium text-slate-800 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors text-left"
                         >
                           {e.value}
                         </button>

@@ -267,7 +267,7 @@ function WeekView({ monday, dayMap, onSelectDay }) {
                 {d.getDate()}
               </span>
               {count > 0 && (
-                <span className="text-[11px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 rounded-full px-1.5 font-semibold">
+                <span className="text-[11px] bg-violet-100 dark:bg-violet-900/40 text-[#5856D6] dark:text-[#5E5CE6] rounded-full px-1.5 font-semibold">
                   {count}
                 </span>
               )}
@@ -356,7 +356,7 @@ function DayView({ date, dayMap }) {
             {art['URL'] && (
               <a
                 href={art['URL']} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0"
+                className="inline-flex items-center gap-1 text-xs text-[#007AFF] dark:text-[#0A84FF] hover:underline shrink-0"
               >
                 Lire <ExternalLink size={11} />
               </a>

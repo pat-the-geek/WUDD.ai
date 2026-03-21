@@ -14,7 +14,7 @@ const THEME_COLORS = {
 }
 
 const SENTIMENT_COLORS = {
-  positif: 'text-green-600 dark:text-green-400',
+  positif: 'text-[#1a7a34] dark:text-[#30D158]',
   neutre:  'text-slate-500 dark:text-slate-400',
   négatif: 'text-red-500 dark:text-red-400',
 }

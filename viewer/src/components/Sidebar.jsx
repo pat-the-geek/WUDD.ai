@@ -95,7 +95,7 @@ export default function Sidebar({
             value={nameSearch}
             onChange={e => onNameSearchChange(e.target.value)}
             placeholder="Filtrer par nom…"
-            className="w-full pl-8 pr-7 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full pl-8 pr-7 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#007AFF] transition-colors"
           />
           {nameSearch && (
             <button
@@ -153,7 +153,7 @@ export default function Sidebar({
                 >
                   {file.type === 'json'
                     ? <FileJson size={14} className="shrink-0 mt-0.5 text-amber-500 dark:text-amber-400" />
-                    : <FileText size={14} className="shrink-0 mt-0.5 text-blue-500 dark:text-blue-400" />
+                    : <FileText size={14} className="shrink-0 mt-0.5 text-[#007AFF] dark:text-[#0A84FF]" />
                   }
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate leading-snug flex items-center gap-1.5">

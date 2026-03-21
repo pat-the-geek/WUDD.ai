@@ -9,7 +9,7 @@ function TabButton({ active, onClick, icon: Icon, label }) {
       onClick={onClick}
       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
         active
-          ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+          ? 'border-blue-500 text-[#007AFF] dark:text-[#0A84FF]'
           : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
       }`}
     >
@@ -87,7 +87,7 @@ function AtomTab({ fluxes, keywords }) {
               onClick={() => setSourceType(v)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                 sourceType === v
-                  ? 'bg-blue-600 text-white border-blue-500'
+                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF]'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >
@@ -103,7 +103,7 @@ function AtomTab({ fluxes, keywords }) {
           <select
             value={flux}
             onChange={e => setFlux(e.target.value)}
-            className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
           >
             <option value="">— Choisir un flux —</option>
             {fluxes.map(f => <option key={f} value={f}>{f}</option>)}
@@ -117,7 +117,7 @@ function AtomTab({ fluxes, keywords }) {
           <select
             value={keyword}
             onChange={e => setKeyword(e.target.value)}
-            className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
           >
             <option value="">— Choisir un mot-clé —</option>
             {keywords.map(k => <option key={k} value={k}>{k}</option>)}
@@ -256,7 +256,7 @@ function NewsletterTab() {
               onClick={() => setHours(h)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                 hours === h
-                  ? 'bg-blue-600 text-white border-blue-500'
+                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF]'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >
@@ -276,7 +276,7 @@ function NewsletterTab() {
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder={`Veille WUDD.ai — ${new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`}
-          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
         />
       </div>
 
@@ -421,7 +421,7 @@ function WebhookTab() {
               ['NTFY_TOKEN',      'Token Ntfy (optionnel, auth privée)'],
             ].map(([k, v]) => (
               <tr key={k} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                <td className="px-3 py-2 font-mono text-blue-600 dark:text-blue-400">{k}</td>
+                <td className="px-3 py-2 font-mono text-[#007AFF] dark:text-[#0A84FF]">{k}</td>
                 <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{v}</td>
               </tr>
             ))}

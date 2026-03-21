@@ -755,7 +755,7 @@ ${contentEl.innerHTML}
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 underline underline-offset-2"
+        className="text-[#007AFF] dark:text-[#0A84FF] hover:text-blue-500 dark:hover:text-blue-300 underline underline-offset-2"
       >
         {children}
       </a>
@@ -880,7 +880,7 @@ ${contentEl.innerHTML}
                     className={`p-1.5 rounded-lg border transition-colors disabled:opacity-40 ${
                       exportState.obsidian?.ok    ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300' :
                       exportState.obsidian?.error ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400' :
-                      'bg-violet-50 dark:bg-violet-900/30 border-violet-200 dark:border-violet-700 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50'
+                      'bg-violet-50 dark:bg-violet-900/30 border-violet-200 dark:border-violet-700 text-[#5856D6] dark:text-[#5E5CE6] hover:bg-violet-100 dark:hover:bg-violet-900/50'
                     }`}
                   >
                     {exportState.obsidian === 'saving' ? <Loader2 size={14} className="animate-spin" /> : exportState.obsidian?.ok ? <Check size={14} /> : <BookOpen size={14} />}
@@ -974,7 +974,7 @@ ${contentEl.innerHTML}
         {Array.isArray(article['rapports']) && article['rapports'].length > 0 && (
           <div className="no-print flex items-center gap-2 px-5 py-2 bg-violet-50/60 dark:bg-violet-900/20 border-b border-violet-100 dark:border-violet-800/40 overflow-x-auto shrink-0 flex-wrap">
             <BookOpen size={11} className="text-violet-500 shrink-0" />
-            <span className="text-[11px] font-medium text-violet-600 dark:text-violet-400 shrink-0">Rapports générés :</span>
+            <span className="text-[11px] font-medium text-[#5856D6] dark:text-[#5E5CE6] shrink-0">Rapports générés :</span>
             {article['rapports'].map((rap, idx) => (
               <span
                 key={idx}
@@ -987,7 +987,7 @@ ${contentEl.innerHTML}
                 {rap.cible === 'obsidian' && rap.fichier && (
                   <button
                     onClick={() => openInObsidian(rap.fichier, obsidianVault)}
-                    className="ml-0.5 underline underline-offset-1 text-violet-600 dark:text-violet-400 hover:text-violet-900 dark:hover:text-violet-100"
+                    className="ml-0.5 underline underline-offset-1 text-[#5856D6] dark:text-[#5E5CE6] hover:text-violet-900 dark:hover:text-violet-100"
                     title="Ouvrir dans Obsidian"
                   >↗</button>
                 )}

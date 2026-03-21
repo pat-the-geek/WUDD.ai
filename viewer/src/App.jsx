@@ -122,8 +122,8 @@ function RssStatusBar({ status, nextRssLabel }) {
       {running ? (
         <>
           {/* Indicateur en cours */}
-          <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+          <span className="inline-flex items-center gap-1 text-xs text-[#1a7a34] dark:text-[#30D158] font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse inline-block" />
             En cours{elapsed ? ` (${elapsed})` : ''}
           </span>
           {/* Progression flux X/Y */}
@@ -133,7 +133,7 @@ function RssStatusBar({ status, nextRssLabel }) {
               {/* barre de progression */}
               <span className="w-20 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden inline-block align-middle">
                 <span
-                  className="h-full bg-green-500 rounded-full block transition-all duration-500"
+                  className="h-full bg-[#34C759] rounded-full block transition-all duration-500"
                   style={{ width: `${pct}%` }}
                 />
               </span>
@@ -627,7 +627,7 @@ export default function App() {
         >
           <Terminal size={13} />
           {rssStatus?.running ? (
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
           ) : null}
           <span className="hidden xl:inline">RSS</span>
           {!rssStatus?.running && rssStatus?.file_count > 0 && (
@@ -730,7 +730,7 @@ export default function App() {
           <span className="relative">
             <Settings size={13} />
             {rssStatus?.running ? (
-              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
             ) : null}
           </span>
           <span className="hidden xl:inline">Réglages</span>
@@ -872,7 +872,7 @@ export default function App() {
             <span className="relative">
               <Settings size={24} strokeWidth={settingsOpen ? 2.2 : 1.8} />
               {rssStatus?.running ? (
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#34C759] animate-pulse" />
               ) : null}
             </span>
             <span className="text-[11px] font-medium leading-none">Réglages</span>

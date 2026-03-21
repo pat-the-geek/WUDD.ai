@@ -607,7 +607,7 @@ export default function EntityFullReportDialog({
     },
     a: ({ href, children }) => (
       <a href={href} target="_blank" rel="noopener noreferrer"
-        className="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 underline underline-offset-2">
+        className="text-[#007AFF] dark:text-[#0A84FF] hover:text-blue-500 dark:hover:text-blue-300 underline underline-offset-2">
         {children}
       </a>
     ),
@@ -689,7 +689,7 @@ export default function EntityFullReportDialog({
           <FileText size={17} className="text-violet-500 shrink-0" />
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
-              Rapport — <span className="text-violet-600 dark:text-violet-400">{entityValue}</span>
+              Rapport — <span className="text-[#5856D6] dark:text-[#5E5CE6]">{entityValue}</span>
               <span className="ml-1.5 text-[11px] uppercase tracking-wider text-slate-400">{entityType}</span>
             </h2>
             <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">

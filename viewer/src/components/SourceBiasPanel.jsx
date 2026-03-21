@@ -8,9 +8,9 @@ import { useState, useEffect, useRef } from 'react'
 import { X, RefreshCw, Eye, AlertTriangle, ShieldCheck, Terminal } from 'lucide-react'
 
 const SENTIMENT_COLORS = {
-  positif: 'bg-green-500',
+  positif: 'bg-[#34C759] dark:bg-[#30D158]',
   neutre:  'bg-slate-400',
-  négatif: 'bg-red-500',
+  négatif: 'bg-[#FF3B30] dark:bg-[#FF453A]',
 }
 
 const TON_BADGE = {
@@ -359,7 +359,7 @@ export default function SourceBiasPanel({ onClose }) {
                     <td className="px-4 py-3"><TonBadge distribution={s.ton_distribution} /></td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {s.avg_score_ton !== null && s.avg_score_ton !== undefined ? (
-                        <span className={`font-medium ${s.avg_score_ton >= 4 ? 'text-green-600 dark:text-green-400' : s.avg_score_ton <= 2 ? 'text-red-600 dark:text-red-400' : 'text-slate-500'}`}>
+                        <span className={`font-medium ${s.avg_score_ton >= 4 ? 'text-[#1a7a34] dark:text-[#30D158]' : s.avg_score_ton <= 2 ? 'text-red-600 dark:text-red-400' : 'text-slate-500'}`}>
                           {s.avg_score_ton}/5
                         </span>
                       ) : (

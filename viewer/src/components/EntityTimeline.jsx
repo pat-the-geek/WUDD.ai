@@ -71,7 +71,7 @@ function EntityRow({ entry, onEntitySearch }) {
       </span>
       {/* Nom cliquable */}
       <button
-        className="flex-1 min-w-0 text-left text-sm font-medium text-slate-800 dark:text-slate-100 truncate hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
+        className="flex-1 min-w-0 text-left text-sm font-medium text-slate-800 dark:text-slate-100 truncate hover:text-[#5856D6] dark:hover:text-[#5E5CE6] transition-colors"
         onClick={() => onEntitySearch?.(value, type)}
         title={`Rechercher «${value}» dans les articles`}
       >

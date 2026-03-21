@@ -245,7 +245,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
                               {c.source}
                             </span>
                             {c.has_obsidian && (
-                              <span className="text-[11px] px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800">
+                              <span className="text-[11px] px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-[#5856D6] dark:text-[#5E5CE6] border border-violet-200 dark:border-violet-800">
                                 Obsidian
                               </span>
                             )}
@@ -273,7 +273,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
                           {c.resume_extrait && (
                             <button
                               onClick={() => setExpandedUrl(v => v === c.url ? null : c.url)}
-                              className="text-[11px] text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 flex items-center gap-0.5 transition-colors ml-auto"
+                              className="text-[11px] text-violet-400 hover:text-[#5856D6] dark:hover:text-[#5E5CE6] flex items-center gap-0.5 transition-colors ml-auto"
                             >
                               {isExpanded ? <><ChevronUp size={9} /> Moins</> : <><ChevronDown size={9} /> Extrait</>}
                             </button>
@@ -293,7 +293,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={e => e.stopPropagation()}
-                        className="shrink-0 p-1 rounded-lg text-slate-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                        className="shrink-0 p-1 rounded-lg text-slate-300 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
                         title="Ouvrir l'article"
                       >
                         <ExternalLink size={12} />
@@ -319,7 +319,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
                     <strong>{mergeResult.primary_source}</strong>
                   </p>
                   {mergeResult.obsidian_updated?.length > 0 && (
-                    <p className="text-[11px] text-violet-600 dark:text-violet-400 mt-1">
+                    <p className="text-[11px] text-[#5856D6] dark:text-[#5E5CE6] mt-1">
                       {mergeResult.obsidian_updated.length} note{mergeResult.obsidian_updated.length > 1 ? 's' : ''} Obsidian mise{mergeResult.obsidian_updated.length > 1 ? 's' : ''} à jour
                     </p>
                   )}
@@ -374,7 +374,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
                     onClick={generateSynthesis}
                     disabled={synthesizing}
                     title="Regénérer"
-                    className="text-[11px] text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 flex items-center gap-0.5 transition-colors"
+                    className="text-[11px] text-violet-400 hover:text-[#5856D6] dark:hover:text-[#5E5CE6] flex items-center gap-0.5 transition-colors"
                   >
                     {synthesizing ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
                     {synthesizing ? 'Génération…' : 'Regénérer'}
