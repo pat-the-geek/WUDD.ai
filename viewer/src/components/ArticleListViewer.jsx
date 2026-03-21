@@ -25,7 +25,7 @@ function ReadingTimeBadge({ article }) {
   const label = article.temps_lecture_label
   if (!label) return null
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400">
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400">
       <Clock size={9} className="shrink-0" />
       {label}
     </span>
@@ -40,13 +40,13 @@ function SentimentBadge({ article }) {
   if (!sentiment) return null
   const cfg = SENTIMENT_CFG[sentiment] ?? SENTIMENT_CFG.neutre
   return (
-    <div className="flex items-center gap-1.5 flex-wrap mt-1">
-      <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.text}`}>
+    <div className="flex items-center gap-2 flex-wrap mt-1">
+      <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${cfg.bg} ${cfg.text}`}>
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
         {cfg.label}{scoreSent ? ` ${scoreSent}/5` : ''}
       </span>
       {ton && (
-        <span className="inline-flex items-center text-[11px] font-medium px-1.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400">
+        <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400">
           {TON_LABELS[ton] ?? ton}{scoreTon ? ` ${scoreTon}/5` : ''}
         </span>
       )}
@@ -214,7 +214,7 @@ function AnnotationPanel({ annotation, onSave, onClose }) {
   return (
     <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60">
       {/* Tags */}
-      <div className="flex flex-wrap gap-1.5 mb-2">
+      <div className="flex flex-wrap gap-2 mb-2">
         {tags.map(t => (
           <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 dark:bg-amber-800/50 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
             {t}
@@ -238,7 +238,7 @@ function AnnotationPanel({ annotation, onSave, onClose }) {
         placeholder="Notes personnelles…"
         maxLength={5000}
         rows={2}
-        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+        className="w-full text-xs px-3 py-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
       />
       <div className="flex items-center justify-end gap-2 mt-1.5">
         <button onClick={onClose} className="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
@@ -251,7 +251,7 @@ function AnnotationPanel({ annotation, onSave, onClose }) {
             onSave({ notes, tags: finalTags })
             onClose()
           }}
-          className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors"
+          className="inline-flex items-center gap-1 text-[11px] px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors"
         >
           <Check size={10} /> Enregistrer
         </button>
@@ -364,7 +364,7 @@ function ContradictionDialog({ article, onClose }) {
             <div className="text-slate-500 animate-pulse">Connexion en cours…</div>
           )}
           {!done && !error && logs.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-1 text-slate-500">
+            <div className="flex items-center gap-2 mt-1 text-slate-500">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
               En cours…
             </div>
@@ -381,7 +381,7 @@ function ContradictionDialog({ article, onClose }) {
             {done ? 'Analyse terminée' : error ? 'Erreur' : 'Analyse en cours…'}
           </span>
           <button onClick={onClose}
-            className="text-xs px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors">
+            className="text-xs px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors">
             Fermer
           </button>
         </div>
@@ -402,7 +402,7 @@ function IAPickerModal({ providers, onPick, onClose }) {
         <div className="flex flex-col gap-2">
           {providers.map(p => (
             <button key={p} onClick={() => onPick(p)}
-              className="w-full px-4 py-2.5 rounded-xl text-sm font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white transition-colors">
+              className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white transition-colors">
               {LABELS[p] ?? p}
             </button>
           ))}
@@ -540,12 +540,12 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
         <div className="mb-2">
           {/* Source + date en pill frosted */}
           <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="inline-flex items-center text-[11px] font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-black/5 dark:bg-white/10 backdrop-blur-sm px-2.5 py-0.5 rounded-full">
+            <span className="inline-flex items-center text-[11px] font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-black/5 dark:bg-white/10 backdrop-blur-sm px-3 py-0.5 rounded-full">
               {article['Sources'] ?? '—'}
             </span>
             {date && <span className="text-xs text-slate-400 dark:text-slate-500">{date}{time ? <> · <span>{time}</span></> : ''}</span>}
             {hasEntities && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-[#5856D6] dark:text-[#5E5CE6] bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
+              <span className="inline-flex items-center gap-1 text-[11px] text-[#5856D6] dark:text-[#5E5CE6] bg-violet-50 dark:bg-violet-900/30 px-2 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
                 <Tag size={9} />{count} entités
               </span>
             )}
@@ -558,7 +558,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
             </h3>
           )}
           {/* Boutons d'action — pleine largeur sous le titre */}
-          <div className="flex items-center gap-0.5 mt-2 -ml-1.5">
+          <div className="flex items-center gap-1 mt-2 -ml-2">
             {onAnnotate && url && (
               <>
                 <button onClick={() => toggle('is_important')}
@@ -663,7 +663,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
 
         {/* Affichage note si fermé */}
         {!noteOpen && hasNote && (
-          <div className="mt-2 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60">
+          <div className="mt-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60">
             <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed line-clamp-2">
               {annotation.notes}
             </p>
@@ -672,7 +672,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
 
         {/* Badges rapports exportés */}
         {allRapports.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
+          <div className="flex flex-wrap gap-2 mt-2">
             {allRapports.map((rap, idx) => (
               <span
                 key={idx}
@@ -731,7 +731,7 @@ function TimelineItem({ article }) {
           </span>
           {date && <span className="text-xs text-slate-400 dark:text-slate-500">{date}{time ? <> · <span>{time}</span></> : ''}</span>}
           {hasEntities && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-[#5856D6] dark:text-[#5E5CE6] bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
+            <span className="inline-flex items-center gap-1 text-[11px] text-[#5856D6] dark:text-[#5E5CE6] bg-violet-50 dark:bg-violet-900/30 px-2 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
               <Tag size={9} />{count}
             </span>
           )}
@@ -965,18 +965,18 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   }, [displayedArticles, viewStyle])
 
   // Calcule l'URL du premier article non lu à l'ouverture du fichier.
-  // Intentionnellement limité à [articles] : on ne recalcule PAS quand les annotations changent
-  // pour éviter un nouveau défilement automatique à chaque marque-lu.
-  // useMemo (synchrone) garantit que la valeur est disponible dès le rendu courant,
-  // ce qui permet à ArticleCard d'appliquer data-first-unread avant que les effets de scroll s'exécutent.
+  // Dépend de [articles, annotations] : on attend que les annotations soient chargées
+  // (annotations === null tant que le fetch initial n'est pas terminé) pour éviter de
+  // défiler vers le premier article de la liste quand toutes les annotations semblent absentes.
+  // Le re-défilement automatique à chaque marque-lu est bloqué par hasScrolledRef.current.
   const firstUnreadUrl = useMemo(() => {
-    if (!articles) return null
+    if (!articles || annotations === null) return null
     const sorted = [...articles].sort(
       (a, b) => toTimestamp(b['Date de publication']) - toTimestamp(a['Date de publication'])
     )
-    const first = sorted.find(a => !annotationsRef.current?.[a['URL']]?.is_read)
+    const first = sorted.find(a => !annotations?.[a['URL']]?.is_read)
     return first?.['URL'] ?? null
-  }, [articles]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [articles, annotations]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Réinitialise les filtres et le flag de scroll à chaque changement de fichier
   useEffect(() => {
@@ -1119,7 +1119,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
 
           {/* Barre filtre : favoris ── */}
           {mobileFilterMode === 'star' && (
-            <div className="flex items-center gap-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 border-b-2 border-amber-400 shadow-md">
+            <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b-2 border-amber-400 shadow-md">
               <Star size={15} className="text-amber-500 shrink-0" />
               <span className="flex-1 text-sm font-medium text-amber-700 dark:text-amber-300">
                 Favoris uniquement
@@ -1138,12 +1138,12 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           {mobileFilterMode === 'source' && (
             <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-900 border-b-2 border-slate-400 dark:border-slate-500 shadow-md">
               <Newspaper size={14} className="text-slate-400 shrink-0" />
-              <div className="flex-1 flex items-center gap-1.5 overflow-x-auto py-0.5" style={{ scrollbarWidth: 'none' }}>
+              <div className="flex-1 flex items-center gap-2 overflow-x-auto py-0.5" style={{ scrollbarWidth: 'none' }}>
                 {availableSources.map(([src, count]) => {
                   const active = selectedSources.has(src)
                   return (
                     <button key={src} onClick={() => toggleSource(src)}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border shrink-0 transition-all active:scale-95 ${
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium border shrink-0 transition-all active:scale-95 ${
                         active
                           ? 'bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-800 border-slate-700 dark:border-slate-200'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600'
@@ -1167,13 +1167,13 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           {mobileFilterMode === 'entity' && (
             <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-900 border-b-2 border-violet-400 dark:border-violet-500 shadow-md">
               <Filter size={14} className="text-violet-400 shrink-0" />
-              <div className="flex-1 flex items-center gap-1.5 overflow-x-auto py-0.5" style={{ scrollbarWidth: 'none' }}>
+              <div className="flex-1 flex items-center gap-2 overflow-x-auto py-0.5" style={{ scrollbarWidth: 'none' }}>
                 {availableTypes.map(([type, count]) => {
                   const colors = CHIP_COLORS[type] ?? FALLBACK_CHIP
                   const active = selectedTypes.has(type)
                   return (
                     <button key={type} onClick={() => toggleType(type)}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border shrink-0 transition-all active:scale-95 ${active ? colors.on : colors.idle}`}>
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium border shrink-0 transition-all active:scale-95 ${active ? colors.on : colors.idle}`}>
                       {type}
                       <span className={`tabular-nums text-[11px] ${active ? 'opacity-80' : 'opacity-55'}`}>{count}</span>
                     </button>
@@ -1191,7 +1191,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
 
           {/* Barre filtre : rapport Obsidian ── */}
           {mobileFilterMode === 'obsidian' && (
-            <div className="flex items-center gap-3 px-4 py-2.5 bg-violet-50 dark:bg-violet-900/20 border-b-2 border-violet-500 shadow-md">
+            <div className="flex items-center gap-3 px-4 py-3 bg-violet-50 dark:bg-violet-900/20 border-b-2 border-violet-500 shadow-md">
               <BookOpen size={15} className="text-violet-500 shrink-0" />
               <span className="flex-1 text-sm font-medium text-violet-700 dark:text-violet-300">
                 Rapport Obsidian
@@ -1208,7 +1208,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
 
           {/* Barre filtre : articles masqués ── */}
           {mobileFilterMode === 'hidden' && (
-            <div className="flex items-center gap-3 px-4 py-2.5 bg-slate-100 dark:bg-slate-800/60 border-b-2 border-slate-400 dark:border-slate-500 shadow-md">
+            <div className="flex items-center gap-3 px-4 py-3 bg-slate-100 dark:bg-slate-800/60 border-b-2 border-slate-400 dark:border-slate-500 shadow-md">
               <EyeOff size={15} className="text-slate-500 shrink-0" />
               <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-300">
                 Articles masqués
@@ -1258,7 +1258,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
               <button
                 key={key}
                 onClick={() => setAnnotFilter(key)}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
                   annotFilter === key
                     ? 'bg-amber-500 text-white border-amber-600'
                     : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-600 hover:text-amber-600 dark:hover:text-amber-400'
@@ -1275,7 +1275,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           <button
             onClick={() => setFilterObsidian(v => !v)}
             title={filterObsidian ? 'Désactiver le filtre Obsidian' : `Afficher uniquement les ${obsidianCount} article${obsidianCount > 1 ? 's' : ''} avec rapport Obsidian`}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors shrink-0 ${
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-colors shrink-0 ${
               filterObsidian
                 ? 'bg-violet-600 text-white border-violet-700'
                 : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-violet-400 dark:hover:border-violet-600 hover:text-[#5856D6] dark:hover:text-[#5E5CE6]'
@@ -1300,22 +1300,22 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           {/* Bascule vue grille / timeline */}
           <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
             <button onClick={() => setViewStyle('grid')} title="Vue grille"
-              className={`px-2.5 py-2 transition-colors ${viewStyle === 'grid' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              className={`px-3 py-2 transition-colors ${viewStyle === 'grid' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
               <LayoutGrid size={13} />
             </button>
             <button onClick={() => setViewStyle('large')} title="Vue large (1 article / ligne)"
-              className={`px-2.5 py-2 transition-colors ${viewStyle === 'large' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              className={`px-3 py-2 transition-colors ${viewStyle === 'large' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
               <LayoutList size={13} />
             </button>
             <button onClick={() => setViewStyle('timeline')} title="Vue timeline"
-              className={`px-2.5 py-2 transition-colors ${viewStyle === 'timeline' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              className={`px-3 py-2 transition-colors ${viewStyle === 'timeline' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
               <AlignLeft size={13} />
             </button>
           </div>
 
           {/* Export */}
           <button onClick={handleExport} title={`Exporter ${displayedArticles.length} article(s) en JSON`}
-            className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:border-[#007AFF] dark:hover:border-[#0A84FF] bg-white dark:bg-slate-800 transition-all shrink-0">
+            className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:border-[#007AFF] dark:hover:border-[#0A84FF] bg-white dark:bg-slate-800 transition-all shrink-0">
             <Download size={13} />
           </button>
         </div>
@@ -1326,12 +1326,12 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
         <div className="hidden md:block mb-3 bg-white/70 dark:bg-slate-800/40 backdrop-blur-sm border border-white/40 dark:border-slate-700/60 rounded-xl overflow-hidden">
           <button
             onClick={() => setTypesOpen(v => !v)}
-            className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
           >
             <Filter size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Type d'entité</span>
             {selectedTypes.size > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-[#007AFF] dark:text-[#0A84FF]">{selectedTypes.size}</span>
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-[#007AFF] dark:text-[#0A84FF]">{selectedTypes.size}</span>
             )}
             {selectedTypes.size > 0 && (
               <span
@@ -1346,14 +1346,14 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
             {typesOpen ? <ChevronUp size={12} className="text-slate-400 shrink-0" /> : <ChevronDown size={12} className="text-slate-400 shrink-0" />}
           </button>
           {typesOpen && (
-            <div className="px-3 pb-3 pt-1 flex flex-wrap gap-1.5">
+            <div className="px-3 pb-3 pt-1 flex flex-wrap gap-2">
               {availableTypes.map(([type, count]) => {
                 const colors = CHIP_COLORS[type] ?? FALLBACK_CHIP
                 const active = selectedTypes.has(type)
                 return (
                   <button key={type} onClick={() => toggleType(type)}
                     title={`Filtrer les articles avec des entités de type ${type}`}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all hover:scale-105 active:scale-95 ${active ? colors.on : colors.idle}`}>
+                    className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-medium border transition-all hover:scale-105 active:scale-95 ${active ? colors.on : colors.idle}`}>
                     {type}
                     <span className={`tabular-nums text-[11px] ${active ? 'opacity-80' : 'opacity-55'}`}>{count}</span>
                   </button>
@@ -1369,12 +1369,12 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
         <div className="hidden md:block mb-5 bg-white/70 dark:bg-slate-800/40 backdrop-blur-sm border border-white/40 dark:border-slate-700/60 rounded-xl overflow-hidden">
           <button
             onClick={() => setSourcesOpen(v => !v)}
-            className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors"
           >
             <Newspaper size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Source</span>
             {selectedSources.size > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-[#007AFF] dark:text-[#0A84FF]">{selectedSources.size}</span>
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-[#007AFF] dark:text-[#0A84FF]">{selectedSources.size}</span>
             )}
             {selectedSources.size > 0 && (
               <span
@@ -1389,12 +1389,12 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
             {sourcesOpen ? <ChevronUp size={12} className="text-slate-400 shrink-0" /> : <ChevronDown size={12} className="text-slate-400 shrink-0" />}
           </button>
           {sourcesOpen && (
-            <div className="px-3 pb-3 pt-1 flex flex-wrap gap-1.5">
+            <div className="px-3 pb-3 pt-1 flex flex-wrap gap-2">
               {availableSources.map(([src, count]) => {
                 const active = selectedSources.has(src)
                 return (
                   <button key={src} onClick={() => toggleSource(src)}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all hover:scale-105 active:scale-95 ${
+                    className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-medium border transition-all hover:scale-105 active:scale-95 ${
                       active
                         ? 'bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-800 border-slate-700 dark:border-slate-200'
                         : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-400'

@@ -63,7 +63,7 @@ function ImageGallery({ content }) {
         <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
           Images
         </span>
-        <span className="text-xs text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">
+        <span className="text-xs text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
           {visible.length}
         </span>
       </div>
@@ -89,7 +89,7 @@ function ImageGallery({ content }) {
             </div>
             {/* Méta */}
             {(img.source || img.date) && (
-              <div className="px-2.5 py-2">
+              <div className="px-3 py-2">
                 {img.source && (
                   <div className="text-[11px] text-slate-700 dark:text-slate-300 truncate font-medium">{img.source}</div>
                 )}
@@ -336,9 +336,9 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
         style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
       >
         {/* Fil d'Ariane — desktop uniquement */}
-        <div className="hidden md:flex items-center gap-0.5 min-w-0 flex-1 text-xs text-slate-400 dark:text-slate-500 overflow-hidden">
+        <div className="hidden md:flex items-center gap-1 min-w-0 flex-1 text-xs text-slate-400 dark:text-slate-500 overflow-hidden">
           {pathParts.map((part, i) => (
-            <span key={i} className="flex items-center gap-0.5 shrink-0">
+            <span key={i} className="flex items-center gap-1 shrink-0">
               {i > 0 && <ChevronRight size={10} className="text-slate-300 dark:text-slate-700" />}
               <span className={i === pathParts.length - 1 ? 'text-slate-700 dark:text-slate-300 font-medium' : ''}>
                 {part}
@@ -375,7 +375,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             <button
               onClick={() => setViewMode('articles')}
               title="Vue articles annotés"
-              className={`flex items-center gap-1 px-2 py-1.5 text-xs transition-colors ${
+              className={`flex items-center gap-1 px-2 py-2 text-xs transition-colors ${
                 viewMode === 'articles'
                   ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -387,7 +387,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             <button
               onClick={() => setViewMode('json')}
               title="Vue JSON brut"
-              className={`flex items-center gap-1 px-2 py-1.5 text-xs transition-colors ${
+              className={`flex items-center gap-1 px-2 py-2 text-xs transition-colors ${
                 viewMode === 'json'
                   ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -405,7 +405,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
         <div ref={exportRef} className="hidden shrink-0">
           <button
             onClick={() => setExportOpen(v => !v)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+            className={`flex items-center gap-1 px-3 py-2 text-xs font-medium rounded-lg border transition-colors ${
               exportOpen
                 ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
                 : 'bg-slate-100 dark:bg-slate-700/70 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'
@@ -417,11 +417,11 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
           </button>
 
           {exportOpen && (
-            <div className="absolute bottom-full mb-2 right-0 glass-panel rounded-xl border border-white/40 dark:border-slate-700/60 shadow-2xl z-[200] py-1.5 min-w-[9.5rem] overflow-hidden">
+            <div className="absolute bottom-full mb-2 right-0 glass-panel rounded-xl border border-white/40 dark:border-slate-700/60 shadow-2xl z-[200] py-2 min-w-[9.5rem] overflow-hidden">
               {/* JSON brut */}
               <button
                 onClick={() => { onDownload(); setExportOpen(false) }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 active:bg-slate-200/70 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 active:bg-slate-200/70 transition-colors"
               >
                 <Download size={13} className="text-blue-500 shrink-0" />
                 <span>JSON</span>
@@ -433,7 +433,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
                   href={`/api/export/csv?path=${encodeURIComponent(file.path)}`}
                   download
                   onClick={() => setExportOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 active:bg-slate-200/70 transition-colors"
+                  className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 active:bg-slate-200/70 transition-colors"
                 >
                   <Download size={13} className="text-green-500 shrink-0" />
                   <span>CSV</span>
@@ -446,7 +446,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
                   href={`/api/export/xlsx?path=${encodeURIComponent(file.path)}`}
                   download
                   onClick={() => setExportOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 active:bg-slate-200/70 transition-colors"
+                  className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 active:bg-slate-200/70 transition-colors"
                 >
                   <Download size={13} className="text-emerald-500 shrink-0" />
                   <span>XLSX</span>
@@ -456,7 +456,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
               {/* PDF / impression */}
               <button
                 onClick={() => { window.print(); setExportOpen(false) }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 active:bg-slate-200/70 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 active:bg-slate-200/70 transition-colors"
               >
                 <Printer size={13} className="text-purple-500 shrink-0" />
                 <span>PDF</span>
@@ -469,7 +469,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
         <button
           onClick={onDownload}
           title="Télécharger le fichier JSON"
-          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] active:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
+          className="hidden md:flex items-center gap-2 px-3 py-2 bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] active:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
         >
           <Download size={12} />
           JSON
@@ -481,7 +481,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
               href={`/api/export/csv?path=${encodeURIComponent(file.path)}`}
               download
               title="Exporter en CSV"
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-green-700 hover:bg-green-600 active:bg-green-800 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
+              className="hidden md:flex items-center gap-2 px-3 py-2 bg-green-700 hover:bg-green-600 active:bg-green-800 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
             >
               <Download size={12} /> CSV
             </a>
@@ -489,7 +489,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
               href={`/api/export/xlsx?path=${encodeURIComponent(file.path)}`}
               download
               title="Exporter en Excel (XLSX)"
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
+              className="hidden md:flex items-center gap-2 px-3 py-2 bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
             >
               <Download size={12} /> XLSX
             </a>
@@ -500,7 +500,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
         <button
           onClick={() => window.print()}
           title="Imprimer / Exporter en PDF"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
+          className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
         >
           <Printer size={12} />
           <span className="hidden sm:inline">PDF</span>
