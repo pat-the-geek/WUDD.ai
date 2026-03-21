@@ -844,7 +844,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   // ── Défilement vers le premier article non lu ─────────────────────────────
   const containerRef        = useRef(null)   // ref sur le div racine — couvre toutes les vues (grille, large, timeline)
   const gridRef             = useRef(null)   // ref sur le div de la vue grille/large (pour compatibilité interne)
-  const hasScrolledRef      = useRef(false)  // a-t-on déjà défilé pour ce fichier ?
+  const scrolledFileRef     = useRef(null)   // filePath pour lequel on a déjà défilé (évite la course avec le reset des filtres)
   const pendingScrollUrlRef = useRef(null)   // URL source d'une fusion — scroll après rechargement
   // Capture le snapshot des annotations au moment du chargement du fichier
   const annotationsRef = useRef(annotations)
@@ -970,7 +970,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   // Dépend de [articles, annotations] : on attend que les annotations soient chargées
   // (annotations === null tant que le fetch initial n'est pas terminé) pour éviter de
   // défiler vers le premier article de la liste quand toutes les annotations semblent absentes.
-  // Le re-défilement automatique à chaque marque-lu est bloqué par hasScrolledRef.current.
+  // Le re-défilement automatique à chaque marque-lu est bloqué par scrolledFileRef.current.
   const firstUnreadUrl = useMemo(() => {
     if (!articles || annotations === null) return null
     const sorted = [...articles].sort(
@@ -980,9 +980,9 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
     return first?.['URL'] ?? null
   }, [articles, annotations]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Réinitialise les filtres et le flag de scroll à chaque changement de fichier
+  // Réinitialise les filtres à chaque changement de fichier
+  // Note : scrolledFileRef est comparé directement au filePath courant — pas besoin de reset explicite.
   useEffect(() => {
-    hasScrolledRef.current = false
     setAnnotFilter('tous')
     setFilterObsidian(false)
     setMobileFilterMode(null)
@@ -1003,17 +1003,17 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   }, [articles])
 
   // Défile vers le premier article non lu après le rendu de la liste.
-  // Utilise data-article-url (présent sur toutes les vues) via containerRef
-  // pour éviter la dépendance sur hasScrolledRef.current au moment du rendu.
+  // scrolledFileRef stocke le filePath du dernier scroll — on ne scrolle qu'une fois par fichier,
+  // mais on peut rescroller si le fichier change (même si les filtres ont été réinitialisés entretemps).
   useEffect(() => {
-    if (hasScrolledRef.current || !firstUnreadUrl) return
+    if (scrolledFileRef.current === filePath || !firstUnreadUrl) return
     const el = containerRef.current?.querySelector(`[data-article-url="${CSS.escape(firstUnreadUrl)}"]`)
     if (!el) return
-    hasScrolledRef.current = true
+    scrolledFileRef.current = filePath
     requestAnimationFrame(() => {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
-  }, [displayedArticles, firstUnreadUrl])
+  }, [displayedArticles, firstUnreadUrl, filePath])
 
   const toggleType   = type => setSelectedTypes(prev => { const s = new Set(prev); s.has(type) ? s.delete(type) : s.add(type); return s })
   const toggleSource = src  => setSelectedSources(prev => { const s = new Set(prev); s.has(src)  ? s.delete(src)  : s.add(src);  return s })
@@ -1459,7 +1459,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
                 onAnnotate={onAnnotate}
                 filePath={filePath}
                 availableProviders={availableProviders}
-                isFirstUnread={!hasScrolledRef.current && article['URL'] === firstUnreadUrl}
+                isFirstUnread={article['URL'] === firstUnreadUrl}
                 obsidianVault={obsidianVault}
                 isLarge
                 localRapports={localReports[article['URL']] || []}
@@ -1479,7 +1479,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
               onAnnotate={onAnnotate}
               filePath={filePath}
               availableProviders={availableProviders}
-              isFirstUnread={!hasScrolledRef.current && article['URL'] === firstUnreadUrl}
+              isFirstUnread={article['URL'] === firstUnreadUrl}
               obsidianVault={obsidianVault}
               localRapports={localReports[article['URL']] || []}
               onMerged={url => { pendingScrollUrlRef.current = url; onMerged?.() }}
