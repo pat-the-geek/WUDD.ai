@@ -22,7 +22,7 @@ import mermaid from 'mermaid'
 import EntityHighlighter, { EntityHighlighterSegments } from './EntityHighlighter'
 import { obsidianUri, openInObsidian } from '../utils/obsidian'
 
-mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' })
+mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' })
 
 // ── Mermaid block ─────────────────────────────────────────────────────────────
 
@@ -66,23 +66,38 @@ function MermaidBlock({ code, isStreaming }) {
           // on manipule la chaîne pour éviter tout recalcul de layout
           // qui remettrait les dimensions fixes (flex reflow, Mermaid style attr…)
           const responsiveSvg = svg.replace(/<svg([^>]*)>/i, (_, attrs) => {
-            const vbMatch = attrs.match(/viewBox="([^"]*)"/i)
-            const wMatch  = attrs.match(/width="([^"]*)"/i)
-            const hMatch  = attrs.match(/height="([^"]*)"/i)
-
-            // Construire un viewBox si absent
-            let extra = ''
-            if (!vbMatch && wMatch && hMatch) {
-              extra = ` viewBox="0 0 ${parseFloat(wMatch[1])} ${parseFloat(hMatch[1])}"`
+            const vbMatch    = attrs.match(/viewBox="([^"]*)"/i)
+            const wMatch     = attrs.match(/\bwidth="([^"]*)"/i)
+            const hMatch     = attrs.match(/\bheight="([^"]*)"/i)
+            const styleMatch = attrs.match(/\bstyle="([^"]*)"/i)
+            let extraViewBox = ''
+            let arStyle = 'min-height:200px;'
+            let vb = vbMatch ? vbMatch[1] : null
+            if (!vb) {
+              let w = wMatch ? parseFloat(wMatch[1]) : NaN
+              let h = hMatch ? parseFloat(hMatch[1]) : NaN
+              if ((isNaN(w) || isNaN(h)) && styleMatch) {
+                const s = styleMatch[1]
+                if (isNaN(w)) { const m = s.match(/(?:max-width|width)\s*:\s*([\d.]+)px/i); if (m) w = parseFloat(m[1]) }
+                if (isNaN(h)) { const m = s.match(/height\s*:\s*([\d.]+)px/i);             if (m) h = parseFloat(m[1]) }
+              }
+              if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) { vb = `0 0 ${w} ${h}`; extraViewBox = ` viewBox="${vb}"` }
             }
-
+            if (vb) {
+              const parts = vb.trim().split(/\s+/)
+              if (parts.length === 4) {
+                const vbW = parseFloat(parts[2]) - parseFloat(parts[0])
+                const vbH = parseFloat(parts[3]) - parseFloat(parts[1])
+                if (vbW > 0 && vbH > 0) arStyle = `aspect-ratio:${vbW}/${vbH};`
+              }
+            }
             // Supprimer width, height et tout style inline existant
             const cleaned = attrs
               .replace(/\s+width="[^"]*"/gi,  '')
               .replace(/\s+height="[^"]*"/gi, '')
               .replace(/\s+style="[^"]*"/gi,  '')
 
-            return `<svg${cleaned}${extra} width="100%" style="width:100%;height:auto;max-width:100%;display:block;">`
+            return `<svg${cleaned}${extraViewBox} width="100%" style="width:100%;${arStyle}max-width:100%;display:block;">`
           })
           containerRef.current.innerHTML = responsiveSvg
           setRendered(true)
