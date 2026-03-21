@@ -1,5 +1,9 @@
 # WUDD.ai
 
+<p align="center">
+    <img alt="WUDD.ai" src="https://github.com/pat-the-geek/WUDD.ai/blob/main/Design/wudd-prism-floyd/wudd-prism-floyd.svg" />
+</p>
+
 <p align="left">
   <a href="https://github.com/pat-the-geek/WUDD.ai/actions">
     <img alt="Build" src="https://img.shields.io/github/actions/workflow/status/pat-the-geek/WUDD.ai/ci.yml?branch=main&label=build&logo=github" />
