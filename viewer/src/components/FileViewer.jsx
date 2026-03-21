@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { Download, FileText, Calendar, HardDrive, ChevronRight, ChevronDown, Images, ArrowUp, Tag, Braces, LayoutList, Trash2, AlertTriangle, Printer } from 'lucide-react'
+import { Download, FileText, Calendar, HardDrive, ChevronRight, ChevronDown, Images, ArrowUp, Tag, Braces, LayoutList, Trash2, AlertTriangle, Printer, BookOpen } from 'lucide-react'
 import JsonViewer from './JsonViewer'
 import MarkdownViewer from './MarkdownViewer'
 import EntityPanel from './EntityPanel'
@@ -198,6 +198,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
   const entitiesRef = useRef(null)
   const imagesRef = useRef(null)
   const exportRef = useRef(null)
+  const articleListRef = useRef(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewMode, setViewMode] = useState('articles') // 'json' | 'articles'
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -540,7 +541,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
           <div className="text-slate-400 dark:text-slate-500 text-sm">Contenu indisponible</div>
         ) : file.type === 'json' ? (
           viewMode === 'articles' && isArticleArray ? (
-            <ArticleListViewer content={content} annotations={annotations} onAnnotate={onAnnotate} filePath={file?.path} availableProviders={availableProviders} searchInjection={articleSearchQuery} focusSignal={articleFocusSignal} onMobileSearchClose={onMobileSearchClose} mobileFilterSignal={mobileFilterSignal} onMobileFilterClose={onMobileFilterClose} onMerged={onMerged} />
+            <ArticleListViewer ref={articleListRef} content={content} annotations={annotations} onAnnotate={onAnnotate} filePath={file?.path} availableProviders={availableProviders} searchInjection={articleSearchQuery} focusSignal={articleFocusSignal} onMobileSearchClose={onMobileSearchClose} mobileFilterSignal={mobileFilterSignal} onMobileFilterClose={onMobileFilterClose} onMerged={onMerged} />
           ) : (
             <>
               <div className="bg-slate-100 dark:bg-slate-950 rounded-xl p-6 border border-slate-200 dark:border-slate-800/60">
@@ -621,6 +622,16 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
               className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 hover:border-violet-400 dark:hover:border-violet-500 hover:shadow-violet-500/20 transition-all"
             >
               <Tag size={16} />
+            </button>
+          )}
+          {isArticleArray && viewMode === 'articles' && (
+            <button
+              onClick={() => articleListRef.current?.scrollToFirstUnread()}
+              title="Aller au premier article non lu"
+              aria-label="Aller au premier article non lu"
+              className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:shadow-emerald-500/20 transition-all"
+            >
+              <BookOpen size={16} />
             </button>
           )}
           <button

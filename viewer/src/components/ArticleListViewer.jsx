@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
+import { useMemo, useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
 import {
   ExternalLink, ChevronDown, ChevronUp, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
@@ -740,7 +740,7 @@ function TimelineItem({ article }) {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-export default function ArticleListViewer({ content, annotations, onAnnotate, filePath, availableProviders, searchInjection = null, focusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged }) {
+const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annotations, onAnnotate, filePath, availableProviders, searchInjection = null, focusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged }, ref) {
   const [searchQuery, setSearchQuery]         = useState(searchInjection?.query || '')
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [mobileFilterMode, setMobileFilterMode] = useState(null) // null | 'star' | 'source' | 'entity' | 'obsidian'
@@ -833,6 +833,22 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
       return data
     } catch { return null }
   }, [content])
+
+  // Expose la méthode scrollToFirstUnread au composant parent via ref.
+  // Intentionnellement séparé de displayedArticles : on cherche dans tous les articles
+  // (indépendamment des filtres actifs) triés par date décroissante, comme l'auto-scroll initial.
+  useImperativeHandle(ref, () => ({
+    scrollToFirstUnread() {
+      if (!articles) return
+      const sorted = [...articles].sort(
+        (a, b) => toTimestamp(b['Date de publication']) - toTimestamp(a['Date de publication'])
+      )
+      const firstUnread = sorted.find(a => !annotationsRef.current?.[a['URL']]?.is_read)
+      if (!firstUnread) return
+      const el = gridRef.current?.querySelector(`[data-article-url="${CSS.escape(firstUnread['URL'])}"]`)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    },
+  }), [articles])
 
   // Types d'entités disponibles (comptage global)
   const availableTypes = useMemo(() => {
@@ -1430,4 +1446,6 @@ export default function ArticleListViewer({ content, annotations, onAnnotate, fi
       )}
     </div>
   )
-}
+})
+
+export default ArticleListViewer
