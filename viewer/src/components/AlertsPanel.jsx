@@ -67,7 +67,7 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
             <TrendingUp size={18} className="text-orange-500" />
             <h2 className="font-semibold text-slate-900 dark:text-slate-100">Tendances &amp; Alertes</h2>
             {alerts.length > 0 && (
-              <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs rounded-full font-medium">
+              <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs rounded-full font-medium">
                 {alerts.length}
               </span>
             )}
@@ -109,7 +109,7 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
           <button
             onClick={runDetector}
             disabled={running}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
           >
             <RefreshCw size={13} className={running ? 'animate-spin' : ''} />
             {running ? 'Analyse…' : 'Lancer l\'analyse'}
@@ -153,7 +153,7 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold">{alert.entity_value}</span>
                         <span className="text-xs opacity-70">{typeLabel}</span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium border ${cfg.color}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded font-medium border ${cfg.color}`}>
                           {cfg.label}
                         </span>
                       </div>
@@ -183,7 +183,7 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
       style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
     >
       <div className="flex flex-wrap items-center gap-2 flex-1">
-        <div className="flex items-center gap-1.5 text-sm">
+        <div className="flex items-center gap-2 text-sm">
           <label className="text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">Seuil :</label>
           <select
             value={threshold}
@@ -196,7 +196,7 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
             <option value="5.0">×5.0 (critique)</option>
           </select>
         </div>
-        <div className="flex items-center gap-1.5 text-sm">
+        <div className="flex items-center gap-2 text-sm">
           <label className="text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">Filtre :</label>
           <select
             value={filterNiveau}
@@ -212,7 +212,7 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
         <button
           onClick={runDetector}
           disabled={running}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-xs rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-xs rounded-lg transition-colors"
         >
           <RefreshCw size={12} className={running ? 'animate-spin' : ''} />
           {running ? 'Analyse…' : 'Lancer'}

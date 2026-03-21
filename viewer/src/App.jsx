@@ -128,7 +128,7 @@ function RssStatusBar({ status, nextRssLabel }) {
           </span>
           {/* Progression flux X/Y */}
           {prog && prog.total_feeds > 0 && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <span className="inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
               <span className="tabular-nums">{prog.current_feed_idx}/{prog.total_feeds}</span>
               {/* barre de progression */}
               <span className="w-20 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden inline-block align-middle">
@@ -247,8 +247,8 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen]     = useState(() => window.innerWidth >= 768)
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [isRefreshing, setIsRefreshing]   = useState(false)
-  // Annotations manuelles (dict keyed par URL article)
-  const [annotations, setAnnotations]     = useState({})
+  // Annotations manuelles (dict keyed par URL article) — null tant que le fetch initial n'est pas terminé
+  const [annotations, setAnnotations]     = useState(null)
   // Compteur de requêtes pour ignorer les réponses périmées (race condition)
   const fetchIdRef = useRef(0)
   // Ref sur le fichier en cours de consultation (accessible dans les callbacks
@@ -393,8 +393,9 @@ export default function App() {
     if (!url) return
     // Mise à jour optimiste immédiate
     setAnnotations(prev => {
-      const existing = prev[url] || {}
-      return { ...prev, [url]: { ...existing, ...changes } }
+      const base = prev ?? {}
+      const existing = base[url] || {}
+      return { ...base, [url]: { ...existing, ...changes } }
     })
     try {
       const r = await fetch('/api/annotations', {
@@ -571,11 +572,11 @@ export default function App() {
     <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden">
       {/* ── Barre de navigation desktop ── */}
       <header
-        className="hidden md:flex items-center gap-1.5 px-3 py-2 glass-nav border-b border-white/35 dark:border-white/[0.08] shrink-0 relative z-50"
+        className="hidden md:flex items-center gap-2 px-3 py-2 glass-nav border-b border-white/35 dark:border-white/[0.08] shrink-0 relative z-50"
         style={{ paddingTop: 'max(8px, env(safe-area-inset-top))' }}
       >
         {/* Logo compact */}
-        <div className="flex items-center gap-1.5 shrink-0 mr-1">
+        <div className="flex items-center gap-2 shrink-0 mr-1">
           <img src={wuddLogo} alt="WUDD.ai" className="w-8 h-8 rounded-md select-none" />
           <span className="hidden xl:block font-semibold text-hig-callout text-slate-900 dark:text-slate-100 whitespace-nowrap">WUDD.ai</span>
         </div>
@@ -598,7 +599,7 @@ export default function App() {
               key={key}
               onClick={() => setTheme(key)}
               title={title}
-              className={`px-1.5 py-1.5 transition-colors ${
+              className={`p-2 transition-colors ${
                 theme === key
                   ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200'
@@ -615,7 +616,7 @@ export default function App() {
         {/* Console RSS keywords */}
         <button
           onClick={() => setConsoleOpen(true)}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 border rounded-lg text-sm transition-colors ${
+          className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${
             rssStatus?.running
               ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
               : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
@@ -638,7 +639,7 @@ export default function App() {
         {/* Top articles */}
         <button
           onClick={() => setTopOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Top articles par score de pertinence"
         >
           <Star size={13} />
@@ -648,7 +649,7 @@ export default function App() {
         {/* Tendances & alertes */}
         <button
           onClick={() => setAlertsOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Alertes de tendances"
         >
           <TrendingUp size={13} />
@@ -658,7 +659,7 @@ export default function App() {
         {/* Dashboard entités */}
         <button
           onClick={() => setDashboardOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Dashboard des entités nommées"
         >
           <BarChart2 size={13} />
@@ -671,7 +672,7 @@ export default function App() {
         {/* Chatbot IA */}
         <button
           onClick={() => setChatOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-green-900/20 border border-slate-200 dark:border-slate-600 hover:border-green-300 dark:hover:border-green-700 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-green-700 dark:hover:text-green-400 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-green-900/20 border border-slate-200 dark:border-slate-600 hover:border-green-300 dark:hover:border-green-700 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-green-700 dark:hover:text-green-400 transition-colors"
           title="Chatbot IA — interrogez vos données et rapports"
         >
           <span className="font-mono text-sm">&gt;_ IA</span>
@@ -681,7 +682,7 @@ export default function App() {
         <div ref={outilsMenuRef} className="relative shrink-0">
           <button
             onClick={() => setOutilsOpen(v => !v)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 border rounded-lg text-sm transition-colors ${
+            className={`flex items-center gap-1 px-3 py-2 border rounded-lg text-sm transition-colors ${
               outilsOpen
                 ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300'
                 : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
@@ -705,7 +706,7 @@ export default function App() {
                 <button
                   key={label}
                   onClick={action}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-100/80 dark:hover:bg-slate-700/60 transition-colors group"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-100/80 dark:hover:bg-slate-700/60 transition-colors group"
                 >
                   <Icon size={14} className="text-slate-400 dark:text-slate-500 shrink-0 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                   <div className="min-w-0">
@@ -724,7 +725,7 @@ export default function App() {
         {/* Réglages */}
         <button
           onClick={() => setSettingsOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Réglages — planification, mots-clés, flux"
         >
           <span className="relative">
@@ -739,7 +740,7 @@ export default function App() {
         {/* Recherche plein texte */}
         <button
           onClick={() => setSearchOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Recherche plein texte (Ctrl+K)"
         >
           <Search size={13} />
@@ -914,7 +915,7 @@ export default function App() {
             <div className="flex flex-col gap-2 px-4 pb-5">
               <button
                 onClick={() => { setSearchMode('file'); setSearchTypeMenuOpen(false); setSearchOpen(true) }}
-                className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-left active:opacity-70 transition-opacity"
+                className="flex items-center gap-3 px-4 py-4 rounded-xl bg-slate-100 dark:bg-slate-700 text-left active:opacity-70 transition-opacity"
               >
                 <Search size={20} className="text-blue-500 shrink-0" />
                 <div>
@@ -932,7 +933,7 @@ export default function App() {
                   }
                 }}
                 disabled={!selectedFile || selectedFile?.type !== 'json'}
-                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-opacity ${
+                className={`flex items-center gap-3 px-4 py-4 rounded-xl text-left transition-opacity ${
                   selectedFile && selectedFile.type === 'json'
                     ? 'bg-slate-100 dark:bg-slate-700 active:opacity-70'
                     : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'
@@ -964,7 +965,7 @@ export default function App() {
                   }
                 }}
                 disabled={!selectedFile || selectedFile?.type !== 'json'}
-                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-opacity ${
+                className={`flex items-center gap-3 px-4 py-4 rounded-xl text-left transition-opacity ${
                   selectedFile && selectedFile.type === 'json'
                     ? 'bg-slate-100 dark:bg-slate-700 active:opacity-70'
                     : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'
@@ -987,7 +988,7 @@ export default function App() {
                   }
                 }}
                 disabled={!selectedFile || selectedFile?.type !== 'json'}
-                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-opacity ${
+                className={`flex items-center gap-3 px-4 py-4 rounded-xl text-left transition-opacity ${
                   selectedFile && selectedFile.type === 'json'
                     ? 'bg-slate-100 dark:bg-slate-700 active:opacity-70'
                     : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'
@@ -1010,7 +1011,7 @@ export default function App() {
                   }
                 }}
                 disabled={!selectedFile || selectedFile?.type !== 'json'}
-                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-opacity ${
+                className={`flex items-center gap-3 px-4 py-4 rounded-xl text-left transition-opacity ${
                   selectedFile && selectedFile.type === 'json'
                     ? 'bg-slate-100 dark:bg-slate-700 active:opacity-70'
                     : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'
@@ -1033,7 +1034,7 @@ export default function App() {
                   }
                 }}
                 disabled={!selectedFile || selectedFile?.type !== 'json'}
-                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-opacity ${
+                className={`flex items-center gap-3 px-4 py-4 rounded-xl text-left transition-opacity ${
                   selectedFile && selectedFile.type === 'json'
                     ? 'bg-slate-100 dark:bg-slate-700 active:opacity-70'
                     : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'
@@ -1056,7 +1057,7 @@ export default function App() {
                   }
                 }}
                 disabled={!selectedFile || selectedFile?.type !== 'json'}
-                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-opacity ${
+                className={`flex items-center gap-3 px-4 py-4 rounded-xl text-left transition-opacity ${
                   selectedFile && selectedFile.type === 'json'
                     ? 'bg-slate-100 dark:bg-slate-700 active:opacity-70'
                     : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'

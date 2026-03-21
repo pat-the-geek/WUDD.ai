@@ -65,7 +65,7 @@ export default function Sidebar({
         </button>
       </div>
       {/* ── Filtres ── visibles sur mobile et desktop */}
-      <div className="p-3 border-b border-slate-200 dark:border-slate-700 space-y-2.5">
+      <div className="p-3 border-b border-slate-200 dark:border-slate-700 space-y-3">
         {/* Boutons type */}
         <div className="flex gap-1">
           {[
@@ -76,7 +76,7 @@ export default function Sidebar({
             <button
               key={key}
               onClick={() => onTypeFilterChange(key)}
-              className={`flex-1 py-1.5 text-hig-caption1 font-medium rounded transition-colors ${
+              className={`flex-1 py-2 text-hig-caption1 font-medium rounded transition-colors ${
                 typeFilter === key
                   ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-700 dark:hover:text-slate-200'
@@ -89,13 +89,13 @@ export default function Sidebar({
 
         {/* Recherche par nom */}
         <div className="relative">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
             type="text"
             value={nameSearch}
             onChange={e => onNameSearchChange(e.target.value)}
             placeholder="Filtrer par nom…"
-            className="w-full pl-8 pr-7 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#007AFF] transition-colors"
+            className="w-full pl-8 pr-7 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#007AFF] transition-colors"
           />
           {nameSearch && (
             <button
@@ -130,7 +130,7 @@ export default function Sidebar({
         {grouped.map(([flux, fluxFiles]) => (
           <div key={flux}>
             {/* En-tête de groupe */}
-            <div className="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 px-3 py-1.5 flex items-center gap-1.5 border-b border-slate-200/60 dark:border-slate-700/60 backdrop-blur-sm">
+            <div className="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 px-3 py-2 flex items-center gap-2 border-b border-slate-200/60 dark:border-slate-700/60 backdrop-blur-sm">
               <Folder size={11} className="text-slate-400 dark:text-slate-500" />
               <span className="text-hig-caption2 font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider truncate">
                 {flux}
@@ -145,7 +145,7 @@ export default function Sidebar({
                 <button
                   key={file.path}
                   onClick={() => onSelect(file)}
-                  className={`w-full text-left px-3 py-2.5 flex items-start gap-2.5 border-b border-slate-200/30 dark:border-slate-700/30 transition-colors ${
+                  className={`w-full text-left px-3 py-3 flex items-start gap-3 border-b border-slate-200/30 dark:border-slate-700/30 transition-colors ${
                     isSelected
                       ? 'bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 border-l-2 border-l-[#007AFF] dark:border-l-[#0A84FF] pl-[10px]'
                       : 'hover:bg-slate-100/50 dark:hover:bg-slate-700/50'
@@ -156,16 +156,16 @@ export default function Sidebar({
                     : <FileText size={14} className="shrink-0 mt-0.5 text-[#007AFF] dark:text-[#0A84FF]" />
                   }
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate leading-snug flex items-center gap-1.5">
+                    <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate leading-snug flex items-center gap-2">
                       <span className="truncate">{file.name}</span>
                       {isToday(file.modified) && (
-                        <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-orange-500 text-white leading-none">
+                        <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded bg-orange-500 text-white leading-none">
                           new
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-[11px] px-1.5 rounded font-mono leading-4 ${
+                      <span className={`text-[11px] px-2 rounded font-mono leading-4 ${
                         file.type === 'json'
                           ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
                           : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'

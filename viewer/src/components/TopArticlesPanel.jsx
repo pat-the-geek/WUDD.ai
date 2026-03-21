@@ -660,7 +660,7 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
                     rank={i + 1}
                     isCurrentPodcast={playing && currentIdx === i}
                     onEntityClick={(type, value) => setSelectedEntity({ type, value })}
-                    annotation={artUrl ? annotations[artUrl] : undefined}
+                    annotation={artUrl ? annotations?.[artUrl] : undefined}
                     onAnnotate={onAnnotate}
                     availableProviders={availableProviders}
                     onReport={a => setReportArticle(a)}
