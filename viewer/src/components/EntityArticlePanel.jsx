@@ -504,7 +504,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
               Occurrences de{' '}
               <span className="text-violet-600 dark:text-violet-400">{current.value}</span>
             </span>
-            <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0">
+            <span className="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0">
               {current.type}
             </span>
             {!loading && (
@@ -515,7 +515,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
             {/* Badge rapports générés */}
             {entityRapports.length > 0 && (
               <span className="pointer-events-auto flex items-center gap-1 shrink-0">
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700">
                   <BookOpen size={9} />
                   {entityRapports.length} rapport{entityRapports.length > 1 ? 's' : ''}
                 </span>
@@ -527,7 +527,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                       openInObsidian(rap.fichier, obsidianVaultName)
                     }}
                     title={`Ouvrir dans Obsidian : ${entityRapports[entityRapports.length - 1].fichier}`}
-                    className="inline-flex items-center gap-0.5 text-[10px] text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 underline underline-offset-2 transition-colors"
+                    className="inline-flex items-center gap-0.5 text-[11px] text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 underline underline-offset-2 transition-colors"
                   >
                     Ouvrir
                   </button>
@@ -539,7 +539,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
           {/* Badge rapports générés — mobile uniquement */}
           {entityRapports.length > 0 && (
             <span className="flex md:hidden items-center gap-1.5 w-full pointer-events-auto">
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700">
                 <BookOpen size={9} />
                 {entityRapports.length} rapport{entityRapports.length > 1 ? 's' : ''}
               </span>
@@ -550,7 +550,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                     openInObsidian(rap.fichier, obsidianVaultName)
                   }}
                   title={`Ouvrir dans Obsidian : ${entityRapports[entityRapports.length - 1].fichier}`}
-                  className="inline-flex items-center gap-0.5 text-[10px] text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 underline underline-offset-2 transition-colors"
+                  className="inline-flex items-center gap-0.5 text-[11px] text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 underline underline-offset-2 transition-colors"
                 >
                   Ouvrir
                 </button>
@@ -782,7 +782,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                     {art['rapports'].map((rap, idx) => (
                       <span
                         key={idx}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
                         title={`Rapport ${rap.cible === 'obsidian' ? 'Obsidian' : 'local'} — ${rap.date_creation ?? ''}\n${rap.chemin ?? ''}`}
                       >
                         <BookOpen size={9} />

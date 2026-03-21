@@ -1,10 +1,89 @@
 /* ── Polices auto-hébergées (aucune dépendance réseau) ── */
-/* Inter Variable : UI + contenu — lisible sur toutes les plateformes */
+/* Inter Variable : UI + contenu — lisible sur toutes les plateformes (fallback si SF Pro absent) */
 @import '@fontsource-variable/inter';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ══ Couleurs système Apple — Apple Human Interface Guidelines ═════════════
+   Source : developer.apple.com/design/human-interface-guidelines/color
+   Ces variables CSS exposent la palette système Apple pour les deux modes.
+   Utilisées par les classes Tailwind `accent-*` et les styles custom ci-dessous.
+══════════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── System Accent (System Blue) ── */
+  --color-accent:           #007AFF;
+  --color-accent-hover:     #0071EB;
+  --color-accent-subtle:    rgba(0, 122, 255, 0.12);
+
+  /* ── System Semantic Colors ── */
+  --color-success:          #34C759;
+  --color-warning:          #FF9500;
+  --color-danger:           #FF3B30;
+  --color-yellow:           #FFCC00;
+  --color-teal:             #5AC8FA;
+  --color-indigo:           #5856D6;
+  --color-purple:           #AF52DE;
+
+  /* ── Label Colors ── */
+  --color-label:            rgba(0, 0, 0, 1);
+  --color-label-secondary:  rgba(60, 60, 67, 0.60);
+  --color-label-tertiary:   rgba(60, 60, 67, 0.30);
+  --color-label-quaternary: rgba(60, 60, 67, 0.18);
+
+  /* ── Fill Colors (pour les contrôles et champs) ── */
+  --color-fill:             rgba(120, 120, 128, 0.20);
+  --color-fill-secondary:   rgba(120, 120, 128, 0.16);
+  --color-fill-tertiary:    rgba(118, 118, 128, 0.12);
+  --color-fill-quaternary:  rgba(116, 116, 128, 0.08);
+
+  /* ── System Backgrounds ── */
+  --color-bg-primary:       #FFFFFF;
+  --color-bg-secondary:     #F2F2F7;
+  --color-bg-tertiary:      #FFFFFF;
+
+  /* ── Separator ── */
+  --color-separator:        rgba(60, 60, 67, 0.29);
+  --color-separator-opaque: #C6C6C8;
+}
+
+.dark {
+  /* ── System Accent (System Blue — dark) ── */
+  --color-accent:           #0A84FF;
+  --color-accent-hover:     #1E8FFF;
+  --color-accent-subtle:    rgba(10, 132, 255, 0.18);
+
+  /* ── System Semantic Colors — dark ── */
+  --color-success:          #30D158;
+  --color-warning:          #FF9F0A;
+  --color-danger:           #FF453A;
+  --color-yellow:           #FFD60A;
+  --color-teal:             #64D2FF;
+  --color-indigo:           #5E5CE6;
+  --color-purple:           #BF5AF2;
+
+  /* ── Label Colors — dark ── */
+  --color-label:            rgba(255, 255, 255, 1);
+  --color-label-secondary:  rgba(235, 235, 245, 0.60);
+  --color-label-tertiary:   rgba(235, 235, 245, 0.30);
+  --color-label-quaternary: rgba(235, 235, 245, 0.18);
+
+  /* ── Fill Colors — dark ── */
+  --color-fill:             rgba(120, 120, 128, 0.36);
+  --color-fill-secondary:   rgba(120, 120, 128, 0.32);
+  --color-fill-tertiary:    rgba(118, 118, 128, 0.24);
+  --color-fill-quaternary:  rgba(118, 118, 128, 0.18);
+
+  /* ── System Backgrounds — dark ── */
+  --color-bg-primary:       #000000;
+  --color-bg-secondary:     #1C1C1E;
+  --color-bg-tertiary:      #2C2C2E;
+
+  /* ── Separator — dark ── */
+  --color-separator:        rgba(84, 84, 88, 0.65);
+  --color-separator-opaque: #38383A;
+}
 
 /* Scrollbar fine et discrète */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -20,6 +99,84 @@ html { -webkit-text-size-adjust: auto; text-size-adjust: auto; }
 
 html, body { overflow-x: hidden; }
 body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; touch-action: pan-y; }
+
+/* ══ Classes utilitaires HIG — boutons, états actifs ═══════════════════════
+   Utiliser .btn-accent au lieu de bg-blue-600 pour les CTA et états sélectionnés.
+   Ces classes appliquent automatiquement la System Blue Apple (light + dark).
+══════════════════════════════════════════════════════════════════════════════ */
+
+/* Bouton CTA plein (filled) — équivalent du Filled Button HIG */
+.btn-accent {
+  background-color: var(--color-accent);
+  color: #FFFFFF;
+  transition: background-color 150ms ease-out, opacity 150ms ease-out;
+}
+.btn-accent:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+}
+.btn-accent:disabled {
+  opacity: 0.4;
+}
+
+/* Fond subtil teinté (tinted) — états sélectionnés, badges actifs */
+.bg-accent-subtle {
+  background-color: var(--color-accent-subtle);
+}
+
+/* Texte couleur accent */
+.text-accent {
+  color: var(--color-accent);
+}
+
+/* Bordure accent */
+.border-accent {
+  border-color: var(--color-accent);
+}
+
+/* Champ de saisie style HIG (Tertiary System Fill + rounded-[10px]) */
+.input-hig {
+  background-color: var(--color-fill-tertiary);
+  border-radius: 10px;
+  border: none;
+  transition: background-color 150ms ease-out;
+}
+.input-hig:focus {
+  background-color: var(--color-fill-secondary);
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* ══ Cibles tactiles HIG — Apple Human Interface Guidelines ════════════════
+   HIG : minimum 44×44pt pour toute cible interactive sur iOS/macOS.
+   Sur mobile, les éléments trop petits reçoivent une zone de tap étendue
+   via ::after pseudo-element (invisible, n'affecte pas le layout).
+   Sur desktop, les boutons icon-only ont min-width/height de 32px (toléré).
+══════════════════════════════════════════════════════════════════════════════ */
+
+/* Boutons icon-only : zone de tap minimum 44px sur mobile */
+@media (max-width: 767px) {
+  /* Boutons dans les drawers mobiles, modals, navigation */
+  .touch-target {
+    position: relative;
+  }
+  .touch-target::after {
+    content: '';
+    position: absolute;
+    inset: 50% 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Classe utilitaire explicite : cible tactile garantie 44px (visible + invisible) */
+.min-touch {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
 /* ══ Liquid Glass — matériaux inspirés iOS 26 / macOS Tahoe ══════════════════
    Trois niveaux de profondeur :

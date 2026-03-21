@@ -565,7 +565,7 @@ Voici ce que je peux faire pour vous :
               <div className="flex items-center gap-2 pl-4 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => saveMessage(msg.content)}
-                  className="inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-green-400 transition-colors font-mono"
+                  className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-green-400 transition-colors font-mono"
                   title="Sauvegarder cette réponse en Markdown"
                 >
                   <Save size={10} />
@@ -614,7 +614,7 @@ Voici ce que je peux faire pour vous :
             {/* Badge entité — affiché quand un contexte entité est chargé */}
             {entityContext && (
               <span
-                className={`font-mono text-[10px] px-2 py-0.5 rounded border max-w-[200px] truncate ${
+                className={`font-mono text-[11px] px-2 py-0.5 rounded border max-w-[200px] truncate ${
                   entityContextLoading
                     ? 'text-amber-400 bg-amber-900/30 border-amber-800/50 animate-pulse'
                     : entityContextStep === 'done'
@@ -636,7 +636,7 @@ Voici ce que je peux faire pour vous :
             )}
             {/* Indicateur de fichiers de contexte */}
             {contextFiles.length > 0 && (
-              <span className="font-mono text-[10px] text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">
+              <span className="font-mono text-[11px] text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">
                 {contextFiles.length} fichier{contextFiles.length > 1 ? 's' : ''} en contexte
               </span>
             )}
@@ -644,7 +644,7 @@ Voici ce que je peux faire pour vous :
             {notesPeriod && (
               <button
                 onClick={() => setNotesPeriod(null)}
-                className="inline-flex items-center gap-1 font-mono text-[10px] text-amber-400 bg-amber-900/30 border border-amber-800/50 px-2 py-0.5 rounded hover:bg-amber-900/50 transition-colors"
+                className="inline-flex items-center gap-1 font-mono text-[11px] text-amber-400 bg-amber-900/30 border border-amber-800/50 px-2 py-0.5 rounded hover:bg-amber-900/50 transition-colors"
                 title="Cliquez pour désactiver les notes personnelles"
               >
                 <BookOpen size={9} />
@@ -658,7 +658,7 @@ Voici ce que je peux faire pour vous :
                   <button
                     key={p}
                     onClick={() => setSelectedProvider(p)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wide transition-colors ${
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold uppercase tracking-wide transition-colors ${
                       selectedProvider === p
                         ? p === 'claude'
                           ? 'bg-purple-700 text-white'
@@ -696,7 +696,7 @@ Voici ce que je peux faire pour vous :
                 <FileText size={12} className="text-green-500 shrink-0" />
                 <span className="font-mono text-xs text-green-400 flex-1 uppercase tracking-widest">Contexte</span>
                 {contextFiles.length > 0 && (
-                  <span className="font-mono text-[10px] text-green-300 bg-green-900/40 px-2 py-0.5 rounded">
+                  <span className="font-mono text-[11px] text-green-300 bg-green-900/40 px-2 py-0.5 rounded">
                     {contextFiles.length} sélectionné{contextFiles.length > 1 ? 's' : ''}
                   </span>
                 )}
@@ -724,7 +724,7 @@ Voici ce que je peux faire pour vous :
                     <div className="sticky top-0 z-10 flex items-center gap-1.5 px-3 py-2 border-b border-green-900/20" style={{ background: '#0d1117' }}>
                       <Folder size={10} className="text-green-800 shrink-0" />
                       <span className="font-mono text-[11px] text-green-700 uppercase tracking-widest truncate flex-1">{flux}</span>
-                      <span className="font-mono text-[10px] text-green-900">{fluxFiles.length}</span>
+                      <span className="font-mono text-[11px] text-green-900">{fluxFiles.length}</span>
                     </div>
                     {fluxFiles.map(f => (
                       <button
@@ -744,7 +744,7 @@ Voici ce que je peux faire pour vous :
                           {f.name}
                         </span>
                         {isToday(f.modified) && (
-                          <span className="shrink-0 text-[9px] font-bold uppercase bg-orange-500 text-white px-1.5 py-0.5 rounded">new</span>
+                          <span className="shrink-0 text-[11px] font-bold uppercase bg-orange-500 text-white px-1.5 py-0.5 rounded">new</span>
                         )}
                         {contextFiles.includes(f.path) && (
                           <Check size={14} className="shrink-0 text-green-500" />
@@ -797,15 +797,15 @@ Voici ce que je peux faire pour vous :
               </div>
               <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {filteredFiles.length === 0 ? (
-                  <p className="text-[10px] font-mono text-slate-400 px-3 py-3">Aucun fichier disponible</p>
+                  <p className="text-[11px] font-mono text-slate-400 px-3 py-3">Aucun fichier disponible</p>
                 ) : (
                   groupedFiles.map(([flux, fluxFiles]) => (
                     <div key={flux}>
                       {/* En-tête de groupe */}
                       <div className="sticky top-0 z-10 flex items-center gap-1.5 px-3 py-1.5 border-b border-green-900/30" style={{background:'#0d1117'}}>
                         <Folder size={10} className="text-green-800 shrink-0" />
-                        <span className="font-mono text-[10px] text-green-700 uppercase tracking-widest truncate flex-1">{flux}</span>
-                        <span className="font-mono text-[9px] text-green-900">{fluxFiles.length}</span>
+                        <span className="font-mono text-[11px] text-green-700 uppercase tracking-widest truncate flex-1">{flux}</span>
+                        <span className="font-mono text-[11px] text-green-900">{fluxFiles.length}</span>
                       </div>
                       {/* Fichiers du groupe */}
                       {fluxFiles.map(f => (
@@ -832,13 +832,13 @@ Voici ce que je peux faire pour vous :
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className={`text-[9px] px-1 rounded font-mono leading-4 ${
+                              <span className={`text-[11px] px-1 rounded font-mono leading-4 ${
                                 f.type === 'json'
                                   ? 'bg-amber-900/40 text-amber-600'
                                   : 'bg-blue-900/40 text-blue-500'
                               }`}>{f.type === 'json' ? 'JSON' : 'MD'}</span>
-                              <span className="text-[9px] text-slate-500">{formatSize(f.size)}</span>
-                              <span className="text-[9px] text-slate-600 ml-auto">{formatDateShort(f.modified)}</span>
+                              <span className="text-[11px] text-slate-500">{formatSize(f.size)}</span>
+                              <span className="text-[11px] text-slate-600 ml-auto">{formatDateShort(f.modified)}</span>
                             </div>
                           </div>
                         </button>
@@ -862,7 +862,7 @@ Voici ce que je peux faire pour vous :
                     <button
                       key={opt.value}
                       onClick={() => setNotesPeriod(prev => prev === opt.value ? null : opt.value)}
-                      className={`w-full text-left px-2 py-1 rounded text-[10px] font-mono transition-colors flex items-start gap-1.5 ${
+                      className={`w-full text-left px-2 py-1 rounded text-[11px] font-mono transition-colors flex items-start gap-1.5 ${
                         notesPeriod === opt.value
                           ? 'bg-amber-900/40 text-amber-300'
                           : 'text-slate-300 hover:text-amber-400 hover:bg-slate-800/50'
@@ -882,7 +882,7 @@ Voici ce que je peux faire pour vous :
                   {contextFiles.length > 0 && (
                     <button
                       onClick={() => setContextFiles([])}
-                      className="w-full text-[10px] font-mono text-slate-400 hover:text-red-400 transition-colors text-left flex items-center gap-1 mb-1"
+                      className="w-full text-[11px] font-mono text-slate-400 hover:text-red-400 transition-colors text-left flex items-center gap-1 mb-1"
                     >
                       <Trash2 size={9} />
                       Vider le contexte
@@ -891,7 +891,7 @@ Voici ce que je peux faire pour vous :
                   {notesPeriod && (
                     <button
                       onClick={() => setNotesPeriod(null)}
-                      className="w-full text-[10px] font-mono text-slate-400 hover:text-amber-400 transition-colors text-left flex items-center gap-1"
+                      className="w-full text-[11px] font-mono text-slate-400 hover:text-amber-400 transition-colors text-left flex items-center gap-1"
                     >
                       <Trash2 size={9} />
                       Désactiver les notes
@@ -957,7 +957,7 @@ Voici ce que je peux faire pour vous :
                             <div key={flux}>
                               <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-900/60 border-b border-green-900/20">
                                 <Folder size={9} className="text-green-800 shrink-0" />
-                                <span className="font-mono text-[9px] text-green-700 uppercase tracking-widest truncate">{flux}</span>
+                                <span className="font-mono text-[11px] text-green-700 uppercase tracking-widest truncate">{flux}</span>
                               </div>
                               {fluxFiles.map(f => (
                                 <button
@@ -973,7 +973,7 @@ Voici ce que je peux faire pour vous :
                                     ? <FileJson size={10} className="shrink-0 text-amber-500" />
                                     : <FileText size={10} className="shrink-0 text-blue-400" />
                                   }
-                                  <span className={`truncate flex-1 text-[10px] font-mono ${
+                                  <span className={`truncate flex-1 text-[11px] font-mono ${
                                     contextFiles.includes(f.path) ? 'text-green-300' : 'text-slate-200'
                                   }`}>{f.name}</span>
                                   {isToday(f.modified) && (
@@ -989,7 +989,7 @@ Voici ce que je peux faire pour vous :
                     {/* Commandes rapides spécifiques à l'entité */}
                     {entityContext && (
                       <div className="space-y-1 mb-4">
-                        <p className="font-mono text-[10px] text-emerald-600 uppercase tracking-widest mb-2 flex items-center gap-1">
+                        <p className="font-mono text-[11px] text-emerald-600 uppercase tracking-widest mb-2 flex items-center gap-1">
                           <span>◆</span>
                           {entityContext.value}
                         </p>
@@ -1015,7 +1015,7 @@ Voici ce que je peux faire pour vous :
                     )}
                     {/* Commandes rapides */}
                     <div className="space-y-1">
-                      <p className="font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2">
+                      <p className="font-mono text-[11px] text-slate-400 uppercase tracking-widest mb-2">
                         Commandes rapides
                       </p>
                       {QUICK_COMMANDS.map((cmd, i) => (
@@ -1032,7 +1032,7 @@ Voici ce que je peux faire pour vous :
                     </div>
                     {/* Notes personnelles */}
                     <div className="space-y-1 mt-4">
-                      <p className="font-mono text-[10px] text-amber-700 uppercase tracking-widest mb-2 flex items-center gap-1">
+                      <p className="font-mono text-[11px] text-amber-700 uppercase tracking-widest mb-2 flex items-center gap-1">
                         <BookOpen size={9} />
                         Notes personnelles
                       </p>
@@ -1056,7 +1056,7 @@ Voici ce que je peux faire pour vous :
 
                 {/* Log de chargement du contexte entité */}
                 {entityContext && (entityContextLoading || entityContextStats) && (
-                  <div className="mb-4 font-mono text-[10px] border border-emerald-900/40 rounded-lg overflow-hidden">
+                  <div className="mb-4 font-mono text-[11px] border border-emerald-900/40 rounded-lg overflow-hidden">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-emerald-900/30" style={{ background: '#0f2318' }}>
                       <span className="text-emerald-600">◆</span>
                       <span className="text-emerald-500 font-semibold uppercase tracking-widest">
@@ -1098,7 +1098,7 @@ Voici ce que je peux faire pour vous :
               {/* Toast sauvegarde — flotte au-dessus sans pousser le layout */}
               {savedMsg && (
                 <div className="shrink-0 px-3 pt-1.5 pb-0" style={{ background: '#161b22' }}>
-                  <div className="flex items-center gap-1.5 font-mono text-[10px] border border-green-900/40 rounded px-2 py-1 bg-slate-900/80">
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] border border-green-900/40 rounded px-2 py-1 bg-slate-900/80">
                     {savedMsg.startsWith('Erreur') ? (
                       <span className="text-red-400">{savedMsg}</span>
                     ) : (

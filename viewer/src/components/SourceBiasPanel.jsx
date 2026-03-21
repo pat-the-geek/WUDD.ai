@@ -104,7 +104,7 @@ function MbfcBadge({ rating }) {
   const cls = MBFC_BADGE[rating] || 'bg-slate-100 text-slate-600'
   const short = { 'VERY HIGH': 'Très haut', 'HIGH': 'Haut', 'MOSTLY FACTUAL': 'Factuel', 'MIXED': 'Mixte', 'LOW': 'Bas', 'VERY LOW': 'Très bas' }
   return (
-    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap ${cls}`} title={`MBFC : ${rating}`}>
+    <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap ${cls}`} title={`MBFC : ${rating}`}>
       {short[rating] || rating}
     </span>
   )
@@ -263,7 +263,7 @@ export default function SourceBiasPanel({ onClose }) {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowEnrich(true)}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white rounded-lg transition-colors"
               title="Lancer l'enrichissement WHOIS + MBFC + transparence"
             >
               <ShieldCheck size={12} />

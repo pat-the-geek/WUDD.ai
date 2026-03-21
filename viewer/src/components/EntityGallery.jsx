@@ -71,7 +71,7 @@ function GalleryTile({ name, img, type, shape, h, onClick }) {
           </div>
         )}
       </div>
-      <span className="text-[10px] leading-tight text-center text-slate-600 dark:text-slate-400 max-w-full truncate px-0.5 w-full">
+      <span className="text-[11px] leading-tight text-center text-slate-600 dark:text-slate-400 max-w-full truncate px-0.5 w-full">
         {name}
       </span>
     </button>

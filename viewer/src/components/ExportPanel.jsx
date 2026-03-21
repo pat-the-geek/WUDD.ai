@@ -157,7 +157,7 @@ function AtomTab({ fluxes, keywords }) {
         <a
           href={atomUrl}
           download="wudd-feed.xml"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white transition-colors"
         >
           <Download size={14} /> Télécharger le flux
         </a>
@@ -293,7 +293,7 @@ function NewsletterTab() {
         <button
           onClick={handleDownload}
           disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] disabled:opacity-60 text-white transition-colors"
         >
           {loading ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
           Télécharger HTML
@@ -484,7 +484,7 @@ export default function ExportPanel({ onClose, files = [] }) {
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            className="p-2.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors touch-target"
           >
             <X size={16} />
           </button>

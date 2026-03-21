@@ -60,7 +60,7 @@ function TypeSection({ section, maxMentions, onEntitySearch }) {
             <span className={`text-sm font-semibold ${cfg.text}`}>
               {cfg.label || section.type}
             </span>
-            <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            <span className="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500">
               {section.type}
             </span>
           </div>
@@ -73,7 +73,7 @@ function TypeSection({ section, maxMentions, onEntitySearch }) {
           <div className="text-sm font-bold tabular-nums text-slate-700 dark:text-slate-300">
             {section.mention_count.toLocaleString('fr-FR')}
           </div>
-          <div className="text-[10px] text-slate-400 dark:text-slate-500">
+          <div className="text-[11px] text-slate-400 dark:text-slate-500">
             {section.unique_count} uniques
           </div>
         </div>

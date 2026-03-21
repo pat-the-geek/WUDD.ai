@@ -182,12 +182,12 @@ function TaskSection({ title, desc, tasks }) {
     <div>
       <div className="sticky top-0 bg-slate-900 px-5 py-2 border-b border-slate-700 flex items-baseline gap-3">
         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{title}</span>
-        {desc && <span className="text-[10px] text-slate-600 normal-case tracking-normal">{desc}</span>}
-        <span className="ml-auto text-[10px] text-slate-600">{tasks.length} tâche{tasks.length !== 1 ? 's' : ''}</span>
+        {desc && <span className="text-[11px] text-slate-600 normal-case tracking-normal">{desc}</span>}
+        <span className="ml-auto text-[11px] text-slate-600">{tasks.length} tâche{tasks.length !== 1 ? 's' : ''}</span>
       </div>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-[10px] font-medium text-slate-500 uppercase tracking-wider border-b border-slate-700/50">
+          <tr className="text-[11px] font-medium text-slate-500 uppercase tracking-wider border-b border-slate-700/50">
             <th className="text-left px-5 py-2.5">Tâche</th>
             <th className="text-left px-4 py-2.5">Fréquence</th>
             <th className="text-left px-4 py-2.5">Dernière exécution</th>
@@ -210,7 +210,7 @@ function TaskSection({ title, desc, tasks }) {
               </td>
               <td className="px-4 py-3">
                 <div className="text-slate-300 text-sm">{task.label}</div>
-                <div className="text-[10px] text-slate-600 font-mono mt-0.5">{task.cron}</div>
+                <div className="text-[11px] text-slate-600 font-mono mt-0.5">{task.cron}</div>
               </td>
               <td className="px-4 py-3">
                 {task.last_run ? (

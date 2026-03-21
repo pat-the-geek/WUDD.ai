@@ -160,7 +160,7 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
                             {item.types.map(t => (
                               <span
                                 key={t}
-                                className="text-[10px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1 py-0.5 rounded border border-violet-200 dark:border-violet-800"
+                                className="text-[11px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1 py-0.5 rounded border border-violet-200 dark:border-violet-800"
                               >
                                 {t}
                               </span>

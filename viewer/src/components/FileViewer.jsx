@@ -94,7 +94,7 @@ function ImageGallery({ content }) {
                   <div className="text-[11px] text-slate-700 dark:text-slate-300 truncate font-medium">{img.source}</div>
                 )}
                 {img.date && (
-                  <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{img.date}</div>
+                  <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{img.date}</div>
                 )}
               </div>
             )}
@@ -357,7 +357,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             <HardDrive size={11} />
             {formatSize(file.size)}
           </span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
             file.type === 'json'
               ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
               : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
@@ -469,7 +469,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
         <button
           onClick={onDownload}
           title="Télécharger le fichier JSON"
-          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
+          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] active:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
         >
           <Download size={12} />
           JSON
