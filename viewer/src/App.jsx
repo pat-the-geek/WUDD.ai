@@ -6,7 +6,7 @@ import SettingsPanel from './components/SettingsPanel'
 import EntitySearchModal from './components/EntitySearchModal'
 import EntityDashboard from './components/EntityDashboard'
 import ScriptConsolePanel from './components/ScriptConsolePanel'
-import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, MoreHorizontal, MessageSquare, Newspaper, Filter, Tag, BookOpen } from 'lucide-react'
+import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, EyeOff, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, MoreHorizontal, MessageSquare, Newspaper, Filter, Tag, BookOpen } from 'lucide-react'
 import AlertsPanel from './components/AlertsPanel'
 import ExportPanel from './components/ExportPanel'
 import TopArticlesPanel from './components/TopArticlesPanel'
@@ -1043,6 +1043,29 @@ export default function App() {
                 <div>
                   <div className="text-sm font-medium text-slate-800 dark:text-slate-100">Rapport Obsidian</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">Afficher uniquement les articles avec un rapport Obsidian attaché</div>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedFile && selectedFile.type === 'json') {
+                    mobileFilterSignalRef.current = { mode: 'hidden', version: (mobileFilterSignalRef.current.version ?? 0) + 1 }
+                    setMobileFilterSignal({ ...mobileFilterSignalRef.current })
+                    setMobileFiltersActive(true)
+                    setSearchTypeMenuOpen(false)
+                    if (window.innerWidth < 768) setSidebarOpen(false)
+                  }
+                }}
+                disabled={!selectedFile || selectedFile?.type !== 'json'}
+                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-opacity ${
+                  selectedFile && selectedFile.type === 'json'
+                    ? 'bg-slate-100 dark:bg-slate-700 active:opacity-70'
+                    : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'
+                }`}
+              >
+                <EyeOff size={20} className="text-slate-500 shrink-0" />
+                <div>
+                  <div className="text-sm font-medium text-slate-800 dark:text-slate-100">Articles masqués</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">Afficher uniquement les articles que vous avez masqués</div>
                 </div>
               </button>
             </div>

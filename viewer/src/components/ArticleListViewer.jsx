@@ -762,7 +762,7 @@ function TimelineItem({ article }) {
 const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annotations, onAnnotate, filePath, availableProviders, searchInjection = null, focusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged }, ref) {
   const [searchQuery, setSearchQuery]         = useState(searchInjection?.query || '')
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
-  const [mobileFilterMode, setMobileFilterMode] = useState(null) // null | 'star' | 'source' | 'entity' | 'obsidian'
+  const [mobileFilterMode, setMobileFilterMode] = useState(null) // null | 'star' | 'source' | 'entity' | 'obsidian' | 'hidden'
   const [filterObsidian, setFilterObsidian]     = useState(false)
   const [sortBy, setSortBy]                   = useState('date-desc')
   const [viewStyle, setViewStyle]             = useState('grid') // 'grid' | 'large' | 'timeline'
@@ -831,6 +831,11 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
       setSelectedTypes(new Set())
       setSelectedSources(new Set())
       setFilterObsidian(true)
+    } else if (mode === 'hidden') {
+      setAnnotFilter('masqués')
+      setSelectedTypes(new Set())
+      setSelectedSources(new Set())
+      setFilterObsidian(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobileFilterSignal?.version])
@@ -972,10 +977,16 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
     return first?.['URL'] ?? null
   }, [articles]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Réinitialise le flag de scroll chaque fois qu'un nouveau fichier est ouvert
+  // Réinitialise les filtres et le flag de scroll à chaque changement de fichier
   useEffect(() => {
     hasScrolledRef.current = false
-  }, [articles])
+    setAnnotFilter('tous')
+    setFilterObsidian(false)
+    setMobileFilterMode(null)
+    setSelectedTypes(new Set())
+    setSelectedSources(new Set())
+    setSearchQuery('')
+  }, [filePath]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Après une fusion : scroll vers l'article source dès que le contenu est rechargé
   useEffect(() => {
@@ -1188,6 +1199,23 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
               <button
                 onClick={() => { setFilterObsidian(false); setMobileFilterMode(null); onMobileFilterClose?.() }}
                 className="text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 shrink-0 p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
+          {/* Barre filtre : articles masqués ── */}
+          {mobileFilterMode === 'hidden' && (
+            <div className="flex items-center gap-3 px-4 py-2.5 bg-slate-100 dark:bg-slate-800/60 border-b-2 border-slate-400 dark:border-slate-500 shadow-md">
+              <EyeOff size={15} className="text-slate-500 shrink-0" />
+              <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-300">
+                Articles masqués
+                {hiddenCount > 0 && <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">({hiddenCount} article{hiddenCount > 1 ? 's' : ''})</span>}
+              </span>
+              <button
+                onClick={() => { setAnnotFilter('tous'); setMobileFilterMode(null); onMobileFilterClose?.() }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 shrink-0 p-1"
               >
                 <X size={18} />
               </button>

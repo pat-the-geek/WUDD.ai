@@ -122,8 +122,10 @@ class TestRollingWindowEntityHook:
     def test_hook_disabled_by_default(self, tmp_path):
         """Sans update_entity_index, le comportement existant est inchangé."""
         from utils.rolling_window import update_rolling_window
+        from datetime import datetime, timedelta
 
-        articles = [{"URL": "https://a.com/1", "Date de publication": "2026-03-16",
+        recent_date = (datetime.utcnow() - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        articles = [{"URL": "https://a.com/1", "Date de publication": recent_date,
                      "Résumé": "Test", "Sources": "A"}]
         output = tmp_path / "48-heures.json"
         count = update_rolling_window(articles, output)
@@ -133,8 +135,10 @@ class TestRollingWindowEntityHook:
     def test_hook_enabled_no_crash_without_entities(self, tmp_path):
         """update_entity_index=True ne crash pas si les articles n'ont pas d'entités."""
         from utils.rolling_window import update_rolling_window
+        from datetime import datetime, timedelta
 
-        articles = [{"URL": "https://b.com/1", "Date de publication": "2026-03-16",
+        recent_date = (datetime.utcnow() - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        articles = [{"URL": "https://b.com/1", "Date de publication": recent_date,
                      "Résumé": "Test sans entités", "Sources": "B"}]
         output = tmp_path / "48-heures.json"
         # Ne doit pas lever d'exception même si entity_index.json n'existe pas
