@@ -207,3 +207,6 @@ viewer/dist/
 # package-lock.json à la racine uniquement (viewer/package-lock.json doit
 # être versionné pour que `npm ci` fonctionne dans le build Docker)
 /package-lock.json
+
+# Runner GitHub Actions (installé localement, ne pas versionner)
+actions-runner/

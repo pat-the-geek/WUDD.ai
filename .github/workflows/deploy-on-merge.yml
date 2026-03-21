@@ -1,0 +1,35 @@
+name: 🚀 Deploy on merge to main
+
+# Déclenché à chaque push sur main (merge inclus)
+on:
+  push:
+    branches:
+      - main
+
+# Répertoire du projet sur la machine locale (self-hosted runner)
+env:
+  PROJECT_DIR: /Users/patrickostertag/Documents/DataForIA/WUDD.ai
+
+jobs:
+  deploy:
+    name: Git pull → Docker → Tests
+    runs-on: self-hosted   # runner installé sur la machine locale macOS
+
+    steps:
+      # ── 1. Mise à jour du code ──────────────────────────────────────────────
+      - name: 📥 Git pull
+        run: |
+          echo "=== Git pull sur $PROJECT_DIR ==="
+          git -C "$PROJECT_DIR" pull --ff-only
+
+      # ── 2. Déploiement Docker ───────────────────────────────────────────────
+      - name: 🐳 Déploiement Docker
+        run: |
+          echo "=== Build & redémarrage du conteneur ==="
+          docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d --build
+
+      # ── 3. Exécution des tests ──────────────────────────────────────────────
+      - name: 🧪 Tests pytest (inside Docker)
+        run: |
+          echo "=== Execution de la suite de tests dans le conteneur ==="
+          docker exec analyse-actualites pytest tests/ -v --tb=short
