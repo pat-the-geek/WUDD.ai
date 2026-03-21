@@ -66,7 +66,7 @@ function EntityRow({ entry, onEntitySearch }) {
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 dark:border-slate-800/60 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
       {/* Type badge */}
-      <span className={`shrink-0 hidden sm:inline text-[11px] font-medium px-1.5 py-0.5 rounded border ${cfg.badge}`}>
+      <span className={`shrink-0 hidden sm:inline text-[11px] font-medium px-1.5 py-0.5 rounded-full border ${cfg.badge}`}>
         {type}
       </span>
       {/* Nom cliquable */}
@@ -192,7 +192,7 @@ export default function EntityTimeline({ onEntitySearch }) {
           <span className="text-3xl">📈</span>
           <span>Aucune donnée disponible pour cette sélection.</span>
           <span className="text-xs text-center max-w-xs">
-            Lancez <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">entity_timeline.py</code> ou enrichissez d'abord les entités avec <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">enrich_entities.py</code>.
+            Lancez <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">entity_timeline.py</code> ou enrichissez d'abord les entités avec <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">enrich_entities.py</code>.
           </span>
         </div>
       ) : (

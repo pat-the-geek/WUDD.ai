@@ -57,7 +57,7 @@ function TonBadge({ distribution }) {
   const [ton, count] = dominant
   const cls = TON_BADGE[ton] || 'bg-slate-100 text-slate-600'
   return (
-    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${cls}`} title={`${ton}: ${count}`}>
+    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${cls}`} title={`${ton}: ${count}`}>
       {ton}
     </span>
   )
@@ -104,7 +104,7 @@ function MbfcBadge({ rating }) {
   const cls = MBFC_BADGE[rating] || 'bg-slate-100 text-slate-600'
   const short = { 'VERY HIGH': 'Très haut', 'HIGH': 'Haut', 'MOSTLY FACTUAL': 'Factuel', 'MIXED': 'Mixte', 'LOW': 'Bas', 'VERY LOW': 'Très bas' }
   return (
-    <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap ${cls}`} title={`MBFC : ${rating}`}>
+    <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${cls}`} title={`MBFC : ${rating}`}>
       {short[rating] || rating}
     </span>
   )
@@ -158,7 +158,7 @@ function EnrichConsole({ onClose, onDone }) {
           <Terminal size={14} className="text-green-400" />
           <span className="text-sm font-medium text-slate-200">Enrichissement crédibilité sources</span>
           {done && <span className="ml-2 text-xs text-green-400">✓ Terminé</span>}
-          <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-slate-700 text-slate-400">
+          <button onClick={onClose} className="ml-auto p-1 rounded-lg hover:bg-slate-700 text-slate-400">
             <X size={14} />
           </button>
         </div>
@@ -279,7 +279,7 @@ export default function SourceBiasPanel({ onClose }) {
         {!loading && enriched.length === 0 && (
           <div className="mx-6 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg text-sm flex items-center gap-2">
             <AlertTriangle size={14} />
-            Aucun article enrichi avec sentiment. Lancez d'abord <code className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">scripts/enrich_sentiment.py</code>
+            Aucun article enrichi avec sentiment. Lancez d'abord <code className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded-full">scripts/enrich_sentiment.py</code>
           </div>
         )}
 

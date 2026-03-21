@@ -153,7 +153,7 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold">{alert.entity_value}</span>
                         <span className="text-xs opacity-70">{typeLabel}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded font-medium border ${cfg.color}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${cfg.color}`}>
                           {cfg.label}
                         </span>
                       </div>

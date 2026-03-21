@@ -614,7 +614,7 @@ Voici ce que je peux faire pour vous :
             {/* Badge entité — affiché quand un contexte entité est chargé */}
             {entityContext && (
               <span
-                className={`font-mono text-[11px] px-2 py-0.5 rounded border max-w-[200px] truncate ${
+                className={`font-mono text-[11px] px-2 py-0.5 rounded-full border max-w-[200px] truncate ${
                   entityContextLoading
                     ? 'text-amber-400 bg-amber-900/30 border-amber-800/50 animate-pulse'
                     : entityContextStep === 'done'
@@ -636,7 +636,7 @@ Voici ce que je peux faire pour vous :
             )}
             {/* Indicateur de fichiers de contexte */}
             {contextFiles.length > 0 && (
-              <span className="font-mono text-[11px] text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">
+              <span className="font-mono text-[11px] text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded-full">
                 {contextFiles.length} fichier{contextFiles.length > 1 ? 's' : ''} en contexte
               </span>
             )}
@@ -644,7 +644,7 @@ Voici ce que je peux faire pour vous :
             {notesPeriod && (
               <button
                 onClick={() => setNotesPeriod(null)}
-                className="inline-flex items-center gap-1 font-mono text-[11px] text-amber-400 bg-amber-900/30 border border-amber-800/50 px-2 py-0.5 rounded hover:bg-amber-900/50 transition-colors"
+                className="inline-flex items-center gap-1 font-mono text-[11px] text-amber-400 bg-amber-900/30 border border-amber-800/50 px-2 py-0.5 rounded-full hover:bg-amber-900/50 transition-colors"
                 title="Cliquez pour désactiver les notes personnelles"
               >
                 <BookOpen size={9} />
@@ -653,12 +653,12 @@ Voici ce que je peux faire pour vous :
             )}
             {/* Toggle EurIA / Claude — visible uniquement si les deux sont configurés */}
             {aiProviders.length >= 2 && (
-              <div className="flex items-center gap-0.5 bg-slate-800 rounded p-0.5" title="Choisir le moteur IA">
+              <div className="flex items-center gap-0.5 bg-slate-800 rounded-lg p-0.5" title="Choisir le moteur IA">
                 {aiProviders.map(p => (
                   <button
                     key={p}
                     onClick={() => setSelectedProvider(p)}
-                    className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold uppercase tracking-wide transition-colors ${
+                    className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold uppercase tracking-wide transition-colors ${
                       selectedProvider === p
                         ? p === 'claude'
                           ? 'bg-purple-700 text-white'
@@ -696,7 +696,7 @@ Voici ce que je peux faire pour vous :
                 <FileText size={12} className="text-green-500 shrink-0" />
                 <span className="font-mono text-xs text-green-400 flex-1 uppercase tracking-widest">Contexte</span>
                 {contextFiles.length > 0 && (
-                  <span className="font-mono text-[11px] text-green-300 bg-green-900/40 px-2 py-0.5 rounded">
+                  <span className="font-mono text-[11px] text-green-300 bg-green-900/40 px-2 py-0.5 rounded-full">
                     {contextFiles.length} sélectionné{contextFiles.length > 1 ? 's' : ''}
                   </span>
                 )}
@@ -714,7 +714,7 @@ Voici ce que je peux faire pour vous :
                   placeholder="Filtrer les fichiers…"
                   value={fileSearch}
                   onChange={e => setFileSearch(e.target.value)}
-                  className="w-full bg-slate-900 border border-green-900/40 rounded px-3 py-2 text-sm font-mono text-green-400 placeholder:text-slate-400 focus:outline-none focus:border-green-600"
+                  className="w-full bg-slate-900 border border-green-900/40 rounded-lg px-3 py-2 text-sm font-mono text-green-400 placeholder:text-slate-400 focus:outline-none focus:border-green-600"
                 />
               </div>
               {/* Liste */}
@@ -744,7 +744,7 @@ Voici ce que je peux faire pour vous :
                           {f.name}
                         </span>
                         {isToday(f.modified) && (
-                          <span className="shrink-0 text-[11px] font-bold uppercase bg-orange-500 text-white px-1.5 py-0.5 rounded">new</span>
+                          <span className="shrink-0 text-[11px] font-bold uppercase bg-orange-500 text-white px-1.5 py-0.5 rounded-full">new</span>
                         )}
                         {contextFiles.includes(f.path) && (
                           <Check size={14} className="shrink-0 text-green-500" />
@@ -792,7 +792,7 @@ Voici ce que je peux faire pour vous :
                   placeholder="Filtrer…"
                   value={fileSearch}
                   onChange={e => setFileSearch(e.target.value)}
-                  className="w-full bg-slate-900 border border-green-900/40 rounded px-2 py-1 text-[11px] font-mono text-green-400 placeholder:text-slate-400 focus:outline-none focus:border-green-600"
+                  className="w-full bg-slate-900 border border-green-900/40 rounded-lg px-2 py-1 text-[11px] font-mono text-green-400 placeholder:text-slate-400 focus:outline-none focus:border-green-600"
                 />
               </div>
               <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -828,11 +828,11 @@ Voici ce que je peux faire pour vous :
                                 contextFiles.includes(f.path) ? 'text-green-300' : 'text-slate-200'
                               }`}>{f.name}</span>
                               {isToday(f.modified) && (
-                                <span className="shrink-0 text-[8px] font-bold uppercase tracking-wide px-1 rounded bg-orange-500 text-white leading-tight" style={{paddingTop:'1px',paddingBottom:'1px'}}>new</span>
+                                <span className="shrink-0 text-[8px] font-bold uppercase tracking-wide px-1 rounded-full bg-orange-500 text-white leading-tight" style={{paddingTop:'1px',paddingBottom:'1px'}}>new</span>
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className={`text-[11px] px-1 rounded font-mono leading-4 ${
+                              <span className={`text-[11px] px-1 rounded-full font-mono leading-4 ${
                                 f.type === 'json'
                                   ? 'bg-amber-900/40 text-amber-600'
                                   : 'bg-blue-900/40 text-blue-500'
@@ -862,7 +862,7 @@ Voici ce que je peux faire pour vous :
                     <button
                       key={opt.value}
                       onClick={() => setNotesPeriod(prev => prev === opt.value ? null : opt.value)}
-                      className={`w-full text-left px-2 py-1 rounded text-[11px] font-mono transition-colors flex items-start gap-1.5 ${
+                      className={`w-full text-left px-2 py-1 rounded-lg text-[11px] font-mono transition-colors flex items-start gap-1.5 ${
                         notesPeriod === opt.value
                           ? 'bg-amber-900/40 text-amber-300'
                           : 'text-slate-300 hover:text-amber-400 hover:bg-slate-800/50'
@@ -923,7 +923,7 @@ Voici ce que je peux faire pour vous :
                       <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => setPickerOpen(v => !v)}
-                          className="inline-flex items-center gap-1.5 text-xs font-mono text-green-600 hover:text-green-400 border border-green-900/40 rounded px-2 py-1 transition-colors"
+                          className="inline-flex items-center gap-1.5 text-xs font-mono text-green-600 hover:text-green-400 border border-green-900/40 rounded-lg px-2 py-1 transition-colors"
                         >
                           <FileText size={11} />
                           {contextFiles.length > 0
@@ -932,7 +932,7 @@ Voici ce que je peux faire pour vous :
                         </button>
                         <button
                           onClick={() => setNotesPeriod(prev => prev ? null : 'week')}
-                          className={`inline-flex items-center gap-1.5 text-xs font-mono border rounded px-2 py-1 transition-colors ${
+                          className={`inline-flex items-center gap-1.5 text-xs font-mono border rounded-lg px-2 py-1 transition-colors ${
                             notesPeriod
                               ? 'text-amber-400 border-amber-800/50 bg-amber-900/30'
                               : 'text-amber-700 border-amber-900/40 hover:text-amber-400'
@@ -943,14 +943,14 @@ Voici ce que je peux faire pour vous :
                         </button>
                       </div>
                       {pickerOpen && (
-                        <div className="mt-2 border border-green-900/30 rounded overflow-hidden max-h-52 overflow-y-auto">
+                        <div className="mt-2 border border-green-900/30 rounded-lg overflow-hidden max-h-52 overflow-y-auto">
                           <div className="p-2 border-b border-green-900/30">
                             <input
                               type="text"
                               placeholder="Filtrer…"
                               value={fileSearch}
                               onChange={e => setFileSearch(e.target.value)}
-                              className="w-full bg-slate-900 border border-green-900/40 rounded px-2 py-1 text-[11px] font-mono text-green-400 placeholder:text-slate-400 focus:outline-none focus:border-green-600"
+                              className="w-full bg-slate-900 border border-green-900/40 rounded-lg px-2 py-1 text-[11px] font-mono text-green-400 placeholder:text-slate-400 focus:outline-none focus:border-green-600"
                             />
                           </div>
                           {groupedFiles.map(([flux, fluxFiles]) => (
@@ -977,7 +977,7 @@ Voici ce que je peux faire pour vous :
                                     contextFiles.includes(f.path) ? 'text-green-300' : 'text-slate-200'
                                   }`}>{f.name}</span>
                                   {isToday(f.modified) && (
-                                    <span className="shrink-0 text-[8px] font-bold uppercase bg-orange-500 text-white px-1 rounded" style={{paddingTop:'1px',paddingBottom:'1px'}}>new</span>
+                                    <span className="shrink-0 text-[8px] font-bold uppercase bg-orange-500 text-white px-1 rounded-full" style={{paddingTop:'1px',paddingBottom:'1px'}}>new</span>
                                   )}
                                 </button>
                               ))}
@@ -1005,7 +1005,7 @@ Voici ce que je peux faire pour vous :
                             key={i}
                             onClick={() => sendMessage(cmd.text)}
                             disabled={streaming || entityContextLoading}
-                            className="block w-full text-left font-mono text-xs text-slate-300 hover:text-emerald-400 hover:bg-slate-800/40 px-2 py-1 rounded transition-colors disabled:opacity-40"
+                            className="block w-full text-left font-mono text-xs text-slate-300 hover:text-emerald-400 hover:bg-slate-800/40 px-2 py-1 rounded-lg transition-colors disabled:opacity-40"
                           >
                             <ChevronRight size={10} className="inline mr-1 text-emerald-800" />
                             {cmd.label}
@@ -1023,7 +1023,7 @@ Voici ce que je peux faire pour vous :
                           key={i}
                           onClick={() => sendMessage(cmd.text)}
                           disabled={streaming}
-                          className="block w-full text-left font-mono text-xs text-slate-300 hover:text-green-400 hover:bg-slate-800/40 px-2 py-1 rounded transition-colors disabled:opacity-40"
+                          className="block w-full text-left font-mono text-xs text-slate-300 hover:text-green-400 hover:bg-slate-800/40 px-2 py-1 rounded-lg transition-colors disabled:opacity-40"
                         >
                           <ChevronRight size={10} className="inline mr-1 text-green-700" />
                           {cmd.label}
@@ -1044,7 +1044,7 @@ Voici ce que je peux faire pour vous :
                             sendMessage(cmd.text, cmd.period)
                           }}
                           disabled={streaming}
-                          className="block w-full text-left font-mono text-xs text-slate-300 hover:text-amber-400 hover:bg-slate-800/40 px-2 py-1 rounded transition-colors disabled:opacity-40"
+                          className="block w-full text-left font-mono text-xs text-slate-300 hover:text-amber-400 hover:bg-slate-800/40 px-2 py-1 rounded-lg transition-colors disabled:opacity-40"
                         >
                           <ChevronRight size={10} className="inline mr-1 text-amber-800" />
                           {cmd.label}
@@ -1098,7 +1098,7 @@ Voici ce que je peux faire pour vous :
               {/* Toast sauvegarde — flotte au-dessus sans pousser le layout */}
               {savedMsg && (
                 <div className="shrink-0 px-3 pt-1.5 pb-0" style={{ background: '#161b22' }}>
-                  <div className="flex items-center gap-1.5 font-mono text-[11px] border border-green-900/40 rounded px-2 py-1 bg-slate-900/80">
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] border border-green-900/40 rounded-lg px-2 py-1 bg-slate-900/80">
                     {savedMsg.startsWith('Erreur') ? (
                       <span className="text-red-400">{savedMsg}</span>
                     ) : (
@@ -1183,7 +1183,7 @@ Voici ce que je peux faire pour vous :
                     <button
                       onClick={() => setPickerOpen(v => !v)}
                       title="Ajouter des fichiers en contexte"
-                      className="lg:hidden w-7 h-7 rounded flex items-center justify-center transition-colors"
+                      className="lg:hidden w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
                       style={{ color: contextFiles.length > 0 ? '#4ade80' : '#64748b' }}
                     >
                       <FileText size={13} />
@@ -1193,7 +1193,7 @@ Voici ce que je peux faire pour vous :
                       <button
                         onClick={() => { ctrlRef.current?.abort(); setMessages([WELCOME_MSG]); setSavedMsg(null) }}
                         title="Effacer la conversation"
-                        className="w-7 h-7 rounded flex items-center justify-center text-slate-600 hover:text-red-400 transition-colors"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-red-400 transition-colors"
                       >
                         <RefreshCw size={13} />
                       </button>
@@ -1204,7 +1204,7 @@ Voici ce que je peux faire pour vous :
                         onClick={saveConversation}
                         disabled={saving}
                         title="Sauvegarder la conversation en Markdown"
-                        className="w-7 h-7 rounded flex items-center justify-center text-slate-500 hover:text-green-400 transition-colors disabled:opacity-40"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-green-400 transition-colors disabled:opacity-40"
                       >
                         {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                       </button>
@@ -1213,7 +1213,7 @@ Voici ce que je peux faire pour vous :
                     <button
                       onClick={() => sendMessage()}
                       disabled={!input.trim() || streaming}
-                      className="w-7 h-7 rounded bg-green-800 hover:bg-green-700 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-green-200 transition-colors"
+                      className="w-7 h-7 rounded-lg bg-green-800 hover:bg-green-700 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-green-200 transition-colors"
                     >
                       {streaming ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
                     </button>

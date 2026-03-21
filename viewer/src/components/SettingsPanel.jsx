@@ -359,7 +359,7 @@ function TagInput({ tags, onChange, placeholder, color }) {
   return (
     <div className="flex flex-wrap gap-1.5 items-center min-h-[28px]">
       {tags.map(tag => (
-        <span key={tag} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${s.tag}`}>
+        <span key={tag} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${s.tag}`}>
           {tag}
           <button
             onClick={() => remove(tag)}
@@ -379,7 +379,7 @@ function TagInput({ tags, onChange, placeholder, color }) {
             if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit() }
           }}
           placeholder={placeholder}
-          className="text-xs bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded px-2 py-0.5 text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-[#007AFF] w-40 transition-colors"
+          className="text-xs bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-0.5 text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-[#007AFF] w-40 transition-colors"
         />
         <button
           onClick={commit}
@@ -534,7 +534,7 @@ function KeywordsTab() {
             {/* Termes OU */}
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-[11px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700/50 rounded px-1.5 py-0.5 font-bold">OU</span>
+                <span className="text-[11px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700/50 rounded-full px-1.5 py-0.5 font-bold">OU</span>
                 <span className="text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                   correspond si l'un de ces termes est présent
                 </span>
@@ -550,7 +550,7 @@ function KeywordsTab() {
             {/* Termes ET */}
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-[11px] bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700/50 rounded px-1.5 py-0.5 font-bold">ET</span>
+                <span className="text-[11px] bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700/50 rounded-full px-1.5 py-0.5 font-bold">ET</span>
                 <span className="text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                   doit aussi contenir au moins un de ces termes
                 </span>
@@ -855,7 +855,7 @@ function RssTab() {
                 const fDomain = (() => { try { return new URL(f.htmlUrl || f.xmlUrl).hostname.replace(/^www\./, '') } catch { return '' } })()
                 const stat = feedStats[fDomain]
                 return (
-                  <div key={f.xmlUrl} className={`flex items-center gap-2 py-1 group rounded transition-colors ${result === false ? 'bg-red-50/60 dark:bg-red-900/20' : ''}`}>
+                  <div key={f.xmlUrl} className={`flex items-center gap-2 py-1 group rounded-lg transition-colors ${result === false ? 'bg-red-50/60 dark:bg-red-900/20' : ''}`}>
                     <Rss size={11} className="text-orange-400 dark:text-orange-500 shrink-0" />
                     <span className="text-sm text-slate-700 dark:text-slate-200 flex-1 truncate">{f.title}</span>
                     <span className="text-xs text-slate-400 dark:text-slate-500 truncate max-w-[160px] hidden sm:block">
@@ -1631,7 +1631,7 @@ function FiabiliteTab() {
                   </td>
                   <td className="px-4 py-3 text-center">
                     {s.mbfc_rating ? (
-                      <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${MBFC_BADGE_SETTINGS[s.mbfc_rating] || 'bg-slate-100 text-slate-600'}`}>
+                      <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${MBFC_BADGE_SETTINGS[s.mbfc_rating] || 'bg-slate-100 text-slate-600'}`}>
                         {s.mbfc_rating}
                       </span>
                     ) : <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>}
@@ -1826,7 +1826,7 @@ function EnvTab() {
               value={editVal}
               onChange={e => setEditVal(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') saveVar(key, editVal); if (e.key === 'Escape') setEditKey(null) }}
-              className="flex-1 bg-white dark:bg-slate-900 border border-blue-400 rounded px-2 py-1 text-xs font-mono focus:outline-none"
+              className="flex-1 bg-white dark:bg-slate-900 border border-blue-400 rounded-lg px-2 py-1 text-xs font-mono focus:outline-none"
               autoFocus
             />
             <button onClick={() => saveVar(key, editVal)} disabled={saving}
@@ -1850,18 +1850,18 @@ function EnvTab() {
           {masked && (
             <button onClick={() => setShowMasked(s => ({ ...s, [key]: !s[key] }))}
               title={showMasked[key] ? 'Masquer' : 'Afficher'}
-              className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded">
+              className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg">
               {showMasked[key] ? <EyeOff size={13} /> : <Eye size={13} />}
             </button>
           )}
           <button onClick={() => { setEditKey(key); setEditVal(masked ? '' : value) }}
             title="Modifier"
-            className="p-1 text-slate-400 hover:text-blue-500 rounded">
+            className="p-1 text-slate-400 hover:text-blue-500 rounded-lg">
             <Pencil size={13} />
           </button>
           <button onClick={() => deleteVar(key)}
             title="Supprimer"
-            className="p-1 text-slate-400 hover:text-red-500 rounded">
+            className="p-1 text-slate-400 hover:text-red-500 rounded-lg">
             <Trash2 size={13} />
           </button>
         </div>
@@ -1963,7 +1963,7 @@ function EnvTab() {
                             <button
                               onClick={() => checkAI(group.provider)}
                               disabled={checkState === 'checking'}
-                              className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-[#007AFF] hover:text-[#007AFF] dark:hover:text-[#0A84FF] disabled:opacity-50 transition-colors"
+                              className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-[#007AFF] hover:text-[#007AFF] dark:hover:text-[#0A84FF] disabled:opacity-50 transition-colors"
                             >
                               {checkState === 'checking'
                                 ? <><RefreshCw size={10} className="animate-spin" /> Test…</>
@@ -1990,7 +1990,7 @@ function EnvTab() {
                     value={newKey}
                     onChange={e => setNewKey(e.target.value)}
                     placeholder="NOM_VARIABLE"
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-blue-400"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-blue-400"
                   />
                 </td>
                 <td className="px-4 py-3">
@@ -2000,7 +2000,7 @@ function EnvTab() {
                     onChange={e => setNewVal(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && addVar()}
                     placeholder="valeur"
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-blue-400"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-blue-400"
                   />
                 </td>
                 <td className="px-4 py-3">
@@ -2043,7 +2043,7 @@ function EnvTab() {
                   onChange={e => { setVal(e.target.value); setBackupCheck(prev => ({ ...prev, [key]: null })) }}
                   onKeyDown={e => e.key === 'Enter' && saveBackupDir(key)}
                   placeholder={`/chemin/absolu/backup-${key}`}
-                  className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-blue-400"
+                  className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-blue-400"
                 />
                 <button
                   onClick={() => checkBackupDir(key)}
@@ -2102,7 +2102,7 @@ function EnvTab() {
                 }
               }}
               placeholder="/chemin/absolu/vers/vault-obsidian"
-              className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-violet-400"
+              className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-violet-400"
             />
             <button
               onClick={async () => {

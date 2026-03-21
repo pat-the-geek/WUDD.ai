@@ -31,7 +31,7 @@ function SentimentBar({ label, sentiments }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
-      <div className="flex h-4 rounded overflow-hidden gap-px">
+      <div className="flex h-4 rounded-lg overflow-hidden gap-px">
         {Object.entries(sentiments).map(([s, c]) => (
           <div
             key={s}
@@ -128,10 +128,10 @@ export default function ComparePanel({ onClose }) {
               <span className="text-[11px] font-semibold text-[#007AFF] dark:text-[#0A84FF] uppercase tracking-wider">Période 1</span>
               <div className="flex items-center gap-2">
                 <input type="date" value={from1} onChange={e => setFrom1(e.target.value)}
-                  className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400" />
+                  className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400" />
                 <span className="text-xs text-slate-400">→</span>
                 <input type="date" value={to1} onChange={e => setTo1(e.target.value)}
-                  className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400" />
+                  className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400" />
               </div>
             </div>
 
@@ -142,10 +142,10 @@ export default function ComparePanel({ onClose }) {
               <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Période 2</span>
               <div className="flex items-center gap-2">
                 <input type="date" value={from2} onChange={e => setFrom2(e.target.value)}
-                  className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400" />
+                  className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400" />
                 <span className="text-xs text-slate-400">→</span>
                 <input type="date" value={to2} onChange={e => setTo2(e.target.value)}
-                  className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400" />
+                  className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400" />
               </div>
             </div>
 

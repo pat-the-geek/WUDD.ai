@@ -165,7 +165,7 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
                   <tr key={i} className="border-b border-slate-200/40 dark:border-slate-700/40 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
-                        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${TYPE_COLORS[e.type] || 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
+                        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${TYPE_COLORS[e.type] || 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
                           {ENTITY_TYPE_FR[e.type] || e.type}
                         </span>
                         <button
@@ -189,7 +189,7 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
                       <button
                         onClick={() => removeEntity(e.type, e.value)}
                         title="Ne plus surveiller"
-                        className="p-1 text-slate-300 dark:text-slate-600 hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-all"
+                        className="p-1 text-slate-300 dark:text-slate-600 hover:text-red-500 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                       >
                         <Trash2 size={13} />
                       </button>

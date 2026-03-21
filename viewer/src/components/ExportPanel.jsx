@@ -241,7 +241,7 @@ function NewsletterTab() {
       <p className="text-sm text-slate-500 dark:text-slate-400">
         Génère une <strong className="font-medium text-slate-700 dark:text-slate-300">newsletter HTML</strong> avec les
         20 articles les mieux classés de la fenêtre temporelle. Peut être envoyée par SMTP si configuré dans{' '}
-        <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs">.env</code>.
+        <code className="px-1 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-xs">.env</code>.
       </p>
 
       {/* Fenêtre temporelle */}
@@ -311,10 +311,10 @@ function NewsletterTab() {
 
       <p className="text-xs text-slate-400 dark:text-slate-500 flex items-start gap-1.5">
         <AlertTriangle size={12} className="shrink-0 mt-0.5" />
-        L'envoi SMTP nécessite <code className="px-1 rounded bg-slate-100 dark:bg-slate-800">SMTP_HOST</code>,{' '}
-        <code className="px-1 rounded bg-slate-100 dark:bg-slate-800">SMTP_USER</code>,{' '}
-        <code className="px-1 rounded bg-slate-100 dark:bg-slate-800">SMTP_PASSWORD</code> et{' '}
-        <code className="px-1 rounded bg-slate-100 dark:bg-slate-800">SMTP_TO</code> dans <code className="px-1 rounded bg-slate-100 dark:bg-slate-800">.env</code>.
+        L'envoi SMTP nécessite <code className="px-1 rounded-full bg-slate-100 dark:bg-slate-800">SMTP_HOST</code>,{' '}
+        <code className="px-1 rounded-full bg-slate-100 dark:bg-slate-800">SMTP_USER</code>,{' '}
+        <code className="px-1 rounded-full bg-slate-100 dark:bg-slate-800">SMTP_PASSWORD</code> et{' '}
+        <code className="px-1 rounded-full bg-slate-100 dark:bg-slate-800">SMTP_TO</code> dans <code className="px-1 rounded-full bg-slate-100 dark:bg-slate-800">.env</code>.
       </p>
     </div>
   )
@@ -376,7 +376,7 @@ function WebhookTab() {
       <p className="text-sm text-slate-500 dark:text-slate-400">
         Envoie les <strong className="font-medium text-slate-700 dark:text-slate-300">alertes de tendances</strong> actuelles
         vers vos canaux de notification. Les URLs sont configurées dans{' '}
-        <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs">.env</code>.
+        <code className="px-1 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-xs">.env</code>.
       </p>
 
       {globalError && <StatusBanner ok={false} message={globalError} />}

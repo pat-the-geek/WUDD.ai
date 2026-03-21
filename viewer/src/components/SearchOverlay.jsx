@@ -154,7 +154,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
             <button
               onClick={() => setShowFilters(f => !f)}
               title="Filtres avancés"
-              className={`shrink-0 p-1 rounded transition-colors ${showFilters || hasFilters ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+              className={`shrink-0 p-1 rounded-lg transition-colors ${showFilters || hasFilters ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
             >
               <SlidersHorizontal size={14} />
             </button>
@@ -173,7 +173,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
               <select
                 value={filterSentiment}
                 onChange={e => setFilterSentiment(e.target.value)}
-                className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1 focus:outline-none focus:border-blue-400"
+                className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400"
               >
                 <option value="">Tous</option>
                 <option value="positif">Positif</option>
@@ -190,7 +190,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
                 value={filterSource}
                 onChange={e => setFilterSource(e.target.value)}
                 placeholder="ex: Le Monde"
-                className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1 focus:outline-none focus:border-blue-400"
+                className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400"
               />
             </div>
 
@@ -201,7 +201,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
                 type="date"
                 value={filterFrom}
                 onChange={e => setFilterFrom(e.target.value)}
-                className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1 focus:outline-none focus:border-blue-400"
+                className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400"
               />
             </div>
 
@@ -212,14 +212,14 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
                 type="date"
                 value={filterTo}
                 onChange={e => setFilterTo(e.target.value)}
-                className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1 focus:outline-none focus:border-blue-400"
+                className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400"
               />
             </div>
 
             {hasFilters && (
               <button
                 onClick={() => { setFilterSentiment(''); setFilterSource(''); setFilterFrom(''); setFilterTo('') }}
-                className="self-end text-xs text-red-500 hover:text-red-400 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                className="self-end text-xs text-red-500 hover:text-red-400 px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 Réinitialiser
               </button>
@@ -285,7 +285,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
                 }
                 <span className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{file.name}</span>
                 {file.flux && (
-                  <span className="text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700 px-1.5 rounded shrink-0">{file.flux}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700 px-1.5 rounded-full shrink-0">{file.flux}</span>
                 )}
                 <span className="ml-auto text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1 shrink-0">
                   {file.matches.length} résultat{file.matches.length > 1 ? 's' : ''}
@@ -296,7 +296,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
                 {file.matches.slice(0, 3).map((m, i) => (
                   <div
                     key={i}
-                    className="text-[11px] text-slate-500 dark:text-slate-400 font-mono bg-slate-100/60 dark:bg-slate-950/60 rounded px-2 py-1 truncate"
+                    className="text-[11px] text-slate-500 dark:text-slate-400 font-mono bg-slate-100/60 dark:bg-slate-950/60 rounded-lg px-2 py-1 truncate"
                   >
                     <span className="text-slate-400 dark:text-slate-600 mr-2 select-none">L{m.line}</span>
                     <HighlightMatch text={m.text} query={query} />

@@ -280,7 +280,7 @@ export default function KeywordForceGraph({ keywords }) {
           <button
             onClick={() => applyView({ ...viewRef.current, scale: Math.max(0.15, viewRef.current.scale * 0.82) })}
             title="Dézoomer"
-            className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
           >
             <ZoomOut size={13} />
           </button>
@@ -288,14 +288,14 @@ export default function KeywordForceGraph({ keywords }) {
           <button
             onClick={() => applyView({ ...viewRef.current, scale: Math.min(14, viewRef.current.scale * 1.22) })}
             title="Zoomer"
-            className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
           >
             <ZoomIn size={13} />
           </button>
           <button
             onClick={resetView}
             title="Vue initiale"
-            className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
           >
             <Maximize2 size={12} />
           </button>

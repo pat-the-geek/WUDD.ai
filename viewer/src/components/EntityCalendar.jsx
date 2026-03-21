@@ -211,7 +211,7 @@ function MonthView({ year, month, dayMap, onSelectDay }) {
               {pills.map((art, j) => (
                 <div
                   key={j}
-                  className={`flex items-center gap-1 rounded text-white text-[11px] leading-4 px-1.5 py-0.5 truncate ${sourceColor(art['Sources'])}`}
+                  className={`flex items-center gap-1 rounded-full text-white text-[11px] leading-4 px-1.5 py-0.5 truncate ${sourceColor(art['Sources'])}`}
                   title={art['Résumé'] || ''}
                 >
                   <span className="truncate">{articleTitle(art)}</span>
@@ -348,7 +348,7 @@ function DayView({ date, dayMap }) {
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
               {art['Sources'] && (
-                <span className={`text-xs font-semibold text-white rounded px-2 py-0.5 ${sourceColor(art['Sources'])}`}>
+                <span className={`text-xs font-semibold text-white rounded-full px-2 py-0.5 ${sourceColor(art['Sources'])}`}>
                   {art['Sources']}
                 </span>
               )}

@@ -245,7 +245,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
                               {c.source}
                             </span>
                             {c.has_obsidian && (
-                              <span className="text-[11px] px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-[#5856D6] dark:text-[#5E5CE6] border border-violet-200 dark:border-violet-800">
+                              <span className="text-[11px] px-1 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-[#5856D6] dark:text-[#5E5CE6] border border-violet-200 dark:border-violet-800">
                                 Obsidian
                               </span>
                             )}
