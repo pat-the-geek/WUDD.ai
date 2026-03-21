@@ -594,7 +594,7 @@ export default function EntityFullReportDialog({
       const isBlock = className || String(children).includes('\n')
       if (!isBlock) {
         return (
-          <code className="bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded text-[0.85em] font-mono">
+          <code className="bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full text-[0.85em] font-mono">
             {children}
           </code>
         )
@@ -663,7 +663,7 @@ export default function EntityFullReportDialog({
           {isSaving ? <Loader2 size={14} className="animate-spin" /> : isDone ? <Check size={14} /> : <Icon size={14} />}
         </button>
         {(isDone || isFail) && (
-          <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[11px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
+          <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[11px] rounded-lg px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
             {isDone ? st.path : st.error}
           </div>
         )}

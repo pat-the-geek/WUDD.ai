@@ -188,7 +188,7 @@ const mdComponents = {
             const isBlock = className || String(children).includes('\n')
             if (!isBlock) {
               return (
-                <code className="bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded text-[0.85em] font-mono">
+                <code className="bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full text-[0.85em] font-mono">
                   {children}
                 </code>
               )

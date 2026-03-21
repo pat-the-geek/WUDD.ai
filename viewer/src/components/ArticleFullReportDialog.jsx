@@ -739,7 +739,7 @@ ${contentEl.innerHTML}
       const isBlock = className || String(children).includes('\n')
       if (!isBlock) {
         return (
-          <code className="bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded text-[0.85em] font-mono">
+          <code className="bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full text-[0.85em] font-mono">
             {children}
           </code>
         )
@@ -866,7 +866,7 @@ ${contentEl.innerHTML}
                     {exportState.local === 'saving' ? <Loader2 size={14} className="animate-spin" /> : exportState.local?.ok ? <Check size={14} /> : <Download size={14} />}
                   </button>
                   {(exportState.local?.ok || exportState.local?.error) && (
-                    <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[11px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
+                    <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[11px] rounded-lg px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
                       {exportState.local?.ok ? exportState.local.path : exportState.local?.error}
                     </div>
                   )}
@@ -886,7 +886,7 @@ ${contentEl.innerHTML}
                     {exportState.obsidian === 'saving' ? <Loader2 size={14} className="animate-spin" /> : exportState.obsidian?.ok ? <Check size={14} /> : <BookOpen size={14} />}
                   </button>
                   {(exportState.obsidian?.ok || exportState.obsidian?.error) && (
-                    <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[11px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
+                    <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[11px] rounded-lg px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
                       {exportState.obsidian?.ok
                         ? (exportState.obsidian.deduplicated ? '✓ Déjà exporté — ' : '') + exportState.obsidian.path
                         : exportState.obsidian?.error}

@@ -45,7 +45,7 @@ function ClusterCard({ cluster }) {
               {cluster.top_entities.slice(0, 8).map(e => (
                 <span
                   key={e.value}
-                  className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-white/70 dark:bg-black/30 font-medium"
+                  className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full bg-white/70 dark:bg-black/30 font-medium"
                 >
                   <Hash size={8} />
                   {e.value}
@@ -158,7 +158,7 @@ export default function ClusterView({ onClose }) {
             <select
               value={days}
               onChange={e => setDays(Number(e.target.value))}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-1.5 py-1 focus:outline-none focus:border-blue-400"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-1.5 py-1 focus:outline-none focus:border-blue-400"
             >
               {[1, 3, 7, 14, 30].map(d => (
                 <option key={d} value={d}>{d} jour{d > 1 ? 's' : ''}</option>
@@ -170,7 +170,7 @@ export default function ClusterView({ onClose }) {
             <select
               value={minSize}
               onChange={e => setMinSize(Number(e.target.value))}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-1.5 py-1 focus:outline-none focus:border-blue-400"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-1.5 py-1 focus:outline-none focus:border-blue-400"
             >
               {[1, 2, 3, 5].map(n => (
                 <option key={n} value={n}>{n} article{n > 1 ? 's' : ''}</option>

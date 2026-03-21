@@ -86,11 +86,11 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
               <span className="font-semibold text-slate-800 dark:text-slate-100">
                 Occurrences de
               </span>
-              <code className="bg-violet-100 dark:bg-violet-900/50 text-violet-800 dark:text-violet-200 px-2 py-0.5 rounded text-sm font-mono">
+              <code className="bg-violet-100 dark:bg-violet-900/50 text-violet-800 dark:text-violet-200 px-2 py-0.5 rounded-full text-sm font-mono">
                 {query}
               </code>
               {entityType && (
-                <span className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-600">
+                <span className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-600">
                   {entityType}
                 </span>
               )}
@@ -160,7 +160,7 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
                             {item.types.map(t => (
                               <span
                                 key={t}
-                                className="text-[11px] text-[#5856D6] dark:text-[#5E5CE6] bg-violet-50 dark:bg-violet-900/30 px-1 py-0.5 rounded border border-violet-200 dark:border-violet-800"
+                                className="text-[11px] text-[#5856D6] dark:text-[#5E5CE6] bg-violet-50 dark:bg-violet-900/30 px-1 py-0.5 rounded-full border border-violet-200 dark:border-violet-800"
                               >
                                 {t}
                               </span>

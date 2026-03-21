@@ -247,7 +247,7 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
                 Aucune entité trouvée.
                 <br />
                 <span className="text-xs">
-                  Lancez <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">enrich_entities.py</code> pour enrichir vos données.
+                  Lancez <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded-full">enrich_entities.py</code> pour enrichir vos données.
                 </span>
               </div>
             ) : (

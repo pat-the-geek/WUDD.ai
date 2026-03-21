@@ -76,7 +76,7 @@ export default function Sidebar({
             <button
               key={key}
               onClick={() => onTypeFilterChange(key)}
-              className={`flex-1 py-2 text-hig-caption1 font-medium rounded transition-colors ${
+              className={`flex-1 py-2 text-hig-caption1 font-medium rounded-lg transition-colors ${
                 typeFilter === key
                   ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-700 dark:hover:text-slate-200'
@@ -95,7 +95,7 @@ export default function Sidebar({
             value={nameSearch}
             onChange={e => onNameSearchChange(e.target.value)}
             placeholder="Filtrer par nom…"
-            className="w-full pl-8 pr-7 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#007AFF] transition-colors"
+            className="w-full pl-8 pr-7 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#007AFF] transition-colors"
           />
           {nameSearch && (
             <button
@@ -116,7 +116,7 @@ export default function Sidebar({
               onClick={onRefresh}
               disabled={isRefreshing}
               title="Actualiser la liste des fichiers"
-              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors disabled:opacity-50"
             >
               <RefreshCw size={11} className={isRefreshing ? 'animate-spin' : ''} />
               Actualiser
@@ -159,13 +159,13 @@ export default function Sidebar({
                     <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate leading-snug flex items-center gap-2">
                       <span className="truncate">{file.name}</span>
                       {isToday(file.modified) && (
-                        <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded bg-orange-500 text-white leading-none">
+                        <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-orange-500 text-white leading-none">
                           new
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-[11px] px-2 rounded font-mono leading-4 ${
+                      <span className={`text-[11px] px-2 rounded-full font-mono leading-4 ${
                         file.type === 'json'
                           ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
                           : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'

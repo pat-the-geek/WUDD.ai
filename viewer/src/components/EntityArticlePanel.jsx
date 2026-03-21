@@ -20,8 +20,8 @@ const MD = {
   strong: ({ children }) => <strong className="font-semibold text-slate-800 dark:text-slate-200">{children}</strong>,
   a:  ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#5856D6] dark:text-[#5E5CE6] hover:underline">{children}</a>,
   code: ({ className, children }) => className
-    ? <code className="block bg-slate-100 dark:bg-slate-800/70 rounded p-0.5 font-mono text-xs">{children}</code>
-    : <code className="bg-slate-100 dark:bg-slate-800/70 px-1.5 py-0.5 rounded font-mono text-xs text-slate-700 dark:text-slate-300">{children}</code>,
+    ? <code className="block bg-slate-100 dark:bg-slate-800/70 rounded-lg p-0.5 font-mono text-xs">{children}</code>
+    : <code className="bg-slate-100 dark:bg-slate-800/70 px-1.5 py-0.5 rounded-full font-mono text-xs text-slate-700 dark:text-slate-300">{children}</code>,
   blockquote: ({ children }) => <blockquote className="border-l-2 border-violet-400 pl-3 italic text-slate-600 dark:text-slate-400 mb-3">{children}</blockquote>,
   hr: () => <hr className="border-slate-200 dark:border-slate-700 my-4" />,
 }
