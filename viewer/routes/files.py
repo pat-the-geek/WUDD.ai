@@ -483,11 +483,10 @@ def api_article_full_report():
         if not api_url or not bearer:
             return jsonify({"error": "URL ou bearer manquant dans .env (AI_PROVIDER=euria)"}), 503
         payload = {
-            "messages":        [{"role": "user", "content": prompt}],
-            "model":           "qwen3",
-            "stream":          True,
-            "max_tokens":      16000,
-            "enable_thinking": False,
+            "messages":   [{"role": "user", "content": prompt}],
+            "model":      "qwen3",
+            "stream":     True,
+            "max_tokens": 16000,
         }
         api_headers = {
             "Authorization": f"Bearer {bearer}",
@@ -503,7 +502,10 @@ def api_article_full_report():
                 r.raise_for_status()
                 for line in r.iter_lines():
                     if line:
-                        yield line.decode("utf-8") + "\n\n"
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data:"):
+                            decoded = "data: " + decoded
+                        yield decoded + "\n\n"
             except Exception as exc:
                 yield f'data: {json.dumps({"error": str(exc)})}\n\n'
 
