@@ -113,41 +113,10 @@ function preprocess(body) {
     .replace(/^===\s*$/gm, '---')
 }
 
-export default function MarkdownViewer({ content }) {
-  const { meta, body } = useMemo(() => {
-    const { meta, body } = parseFrontmatter(content)
-    return { meta, body: preprocess(body) }
-  }, [content])
-
-  return (
-    <div className="max-w-3xl mx-auto">
-      {/* Bouton lecture à voix haute */}
-      <div className="no-print flex justify-end mb-2">
-        <TTSButton text={body} size={14} />
-      </div>
-
-      {/* Métadonnées frontmatter */}
-      {meta && (
-        <div className="mb-6 p-4 bg-white/60 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-sm">
-          <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
-            Métadonnées du rapport
-          </div>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5">
-            {Object.entries(meta).map(([k, v]) => (
-              <div key={k} className="contents">
-                <dt className="text-slate-400 dark:text-slate-500 text-xs">{k}</dt>
-                <dd className="text-slate-700 dark:text-slate-300 text-xs">{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      )}
-
-      {/* Rendu Markdown */}
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
-        components={{
+// ── Composants de rendu Markdown (définis hors du composant pour référence stable)
+// Cela empêche React de remonter les composants enfants (ex: KeywordForceGraph)
+// à chaque re-rendu de MarkdownViewer, ce qui préserve l'état interne (zoom, etc.)
+const mdComponents = {
           h1: ({ children }) => (
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-8 mb-4 pb-2 border-b border-slate-200 dark:border-slate-700 first:mt-0">
               {children}
@@ -276,7 +245,43 @@ export default function MarkdownViewer({ content }) {
             <strong className="text-slate-900 dark:text-slate-100 font-semibold">{children}</strong>
           ),
           em: ({ children }) => <em className="text-slate-700 dark:text-slate-300 italic">{children}</em>,
-        }}
+}
+
+export default function MarkdownViewer({ content }) {
+  const { meta, body } = useMemo(() => {
+    const { meta, body } = parseFrontmatter(content)
+    return { meta, body: preprocess(body) }
+  }, [content])
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      {/* Bouton lecture à voix haute */}
+      <div className="no-print flex justify-end mb-2">
+        <TTSButton text={body} size={14} />
+      </div>
+
+      {/* Métadonnées frontmatter */}
+      {meta && (
+        <div className="mb-6 p-4 bg-white/60 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-sm">
+          <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
+            Métadonnées du rapport
+          </div>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5">
+            {Object.entries(meta).map(([k, v]) => (
+              <div key={k} className="contents">
+                <dt className="text-slate-400 dark:text-slate-500 text-xs">{k}</dt>
+                <dd className="text-slate-700 dark:text-slate-300 text-xs">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+
+      {/* Rendu Markdown */}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw]}
+        components={mdComponents}
       >
         {body}
       </ReactMarkdown>
