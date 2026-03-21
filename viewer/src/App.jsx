@@ -695,7 +695,7 @@ export default function App() {
           </button>
 
           {outilsOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-54 glass-panel rounded-xl border border-white/45 dark:border-white/[0.09] shadow-2xl z-[100] py-1 overflow-hidden min-w-[13rem]">
+            <div className="hig-dropdown-enter absolute right-0 top-full mt-1.5 w-54 glass-panel rounded-xl border border-white/45 dark:border-white/[0.09] shadow-2xl z-[100] py-1 overflow-hidden min-w-[13rem]">
               {[
                 { Icon: Eye,           label: 'Biais éditoriaux',    desc: 'Analyse par source',             action: () => { setBiasOpen(true);    setOutilsOpen(false) } },
                 { Icon: Share2,        label: 'Export & Diffusion',  desc: 'Atom, Newsletter, Webhook',      action: () => { setExportOpen(true);  setOutilsOpen(false) } },
@@ -803,7 +803,7 @@ export default function App() {
           <button
             onClick={() => setSidebarOpen(v => !v)}
             title="Fichiers"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               sidebarOpen || selectedFile
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
@@ -817,7 +817,7 @@ export default function App() {
           <button
             onClick={() => setTopOpen(true)}
             title="Top articles"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               topOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
@@ -831,7 +831,7 @@ export default function App() {
           <button
             onClick={() => { setSearchTypeMenuOpen(true) }}
             title="Recherche"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               searchOpen || searchTypeMenuOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
@@ -850,7 +850,7 @@ export default function App() {
           <button
             onClick={() => setDashboardOpen(true)}
             title="Dashboard entités"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               dashboardOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
@@ -864,7 +864,7 @@ export default function App() {
           <button
             onClick={() => setSettingsOpen(true)}
             title="Réglages"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               settingsOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
@@ -898,11 +898,11 @@ export default function App() {
       {/* Sélecteur type de recherche — mobile uniquement */}
       {searchTypeMenuOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end"
+          className="hig-overlay-enter md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end"
           onClick={() => setSearchTypeMenuOpen(false)}
         >
           <div
-            className="w-full bg-white dark:bg-slate-800 rounded-t-2xl shadow-2xl border-t border-slate-200/60 dark:border-white/10"
+            className="hig-sheet-enter w-full bg-white dark:bg-slate-800 rounded-t-2xl shadow-2xl border-t border-slate-200/60 dark:border-white/10"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
             onClick={e => e.stopPropagation()}
           >

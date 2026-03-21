@@ -457,13 +457,13 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
     <>
       {/* Fond semi-transparent (clic → ferme) */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+        className="hig-overlay-enter fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
         onClick={onClose}
       />
 
       {/* Fenêtre flottante */}
       <div
-        className={`fixed z-[61] flex flex-col bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-2xl shadow-2xl border border-white/30 dark:border-slate-700/50 overflow-hidden ${isMaximized ? '' : 'rounded-2xl'}`}
+        className={`hig-modal-enter fixed z-[61] flex flex-col bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-2xl shadow-2xl border border-white/30 dark:border-slate-700/50 overflow-hidden ${isMaximized ? '' : 'rounded-2xl'}`}
         style={isMaximized || isMobileFullscreen
           ? { inset: 0 }
           : { left: win.x, top: win.y, width: win.w, height: win.h, minWidth: 320, minHeight: 300 }}
