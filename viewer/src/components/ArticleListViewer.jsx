@@ -842,7 +842,8 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   }, [mobileFilterSignal?.version])
 
   // ── Défilement vers le premier article non lu ─────────────────────────────
-  const gridRef             = useRef(null)
+  const containerRef        = useRef(null)   // ref sur le div racine — couvre toutes les vues (grille, large, timeline)
+  const gridRef             = useRef(null)   // ref sur le div de la vue grille/large (pour compatibilité interne)
   const hasScrolledRef      = useRef(false)  // a-t-on déjà défilé pour ce fichier ?
   const pendingScrollUrlRef = useRef(null)   // URL source d'une fusion — scroll après rechargement
   // Capture le snapshot des annotations au moment du chargement du fichier
@@ -862,6 +863,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   // Expose la méthode scrollToFirstUnread au composant parent via ref.
   // Intentionnellement séparé de displayedArticles : on cherche dans tous les articles
   // (indépendamment des filtres actifs) triés par date décroissante, comme l'auto-scroll initial.
+  // Utilise containerRef (div racine) pour couvrir toutes les vues, y compris timeline.
   useImperativeHandle(ref, () => ({
     scrollToFirstUnread() {
       if (!articles) return
@@ -870,7 +872,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
       )
       const firstUnread = sorted.find(a => !annotationsRef.current?.[a['URL']]?.is_read)
       if (!firstUnread) return
-      const el = gridRef.current?.querySelector(`[data-article-url="${CSS.escape(firstUnread['URL'])}"]`)
+      const el = containerRef.current?.querySelector(`[data-article-url="${CSS.escape(firstUnread['URL'])}"]`)
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     },
   }), [articles])
@@ -1000,10 +1002,12 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
     })
   }, [articles])
 
-  // Défile vers le premier article non lu après le rendu de la liste
+  // Défile vers le premier article non lu après le rendu de la liste.
+  // Utilise data-article-url (présent sur toutes les vues) via containerRef
+  // pour éviter la dépendance sur hasScrolledRef.current au moment du rendu.
   useEffect(() => {
     if (hasScrolledRef.current || !firstUnreadUrl) return
-    const el = gridRef.current?.querySelector('[data-first-unread]')
+    const el = containerRef.current?.querySelector(`[data-article-url="${CSS.escape(firstUnreadUrl)}"]`)
     if (!el) return
     hasScrolledRef.current = true
     requestAnimationFrame(() => {
@@ -1057,7 +1061,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   const withEntities = articles.filter(a => a.entities && Object.keys(a.entities).length > 0)
 
   return (
-    <div>
+    <div ref={containerRef}>
       {/* ── Barre de stats ── */}
       <div className="flex items-center gap-3 mb-4 text-xs text-slate-500 dark:text-slate-400">
         <span className="font-medium text-slate-700 dark:text-slate-300">
