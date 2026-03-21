@@ -1,6 +1,6 @@
 # WUDD.ai
 
-<p align="center">
+<p align="left">
     <img alt="WUDD.ai" src="https://github.com/pat-the-geek/WUDD.ai/blob/main/Design/wudd-prism-floyd/wudd-prism-floyd.svg" />
 </p>
 
