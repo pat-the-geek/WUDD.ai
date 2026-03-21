@@ -106,7 +106,7 @@ function ScoreBar({ score }) {
 function ImageLightbox({ url, alt, onClose }) {
   return (
     <div
-      className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+      className="hig-overlay-enter fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}
     >
       <img src={url} alt={alt} className="max-w-full max-h-[90vh] rounded-xl object-contain shadow-2xl" />
@@ -565,10 +565,10 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
   return (
     <>
     <div
-      className={`fixed inset-0 z-50 flex bg-black/60 backdrop-blur-sm ${isMaximized ? 'items-stretch' : 'items-start justify-center p-4 overflow-y-auto'}`}
+      className={`hig-overlay-enter fixed inset-0 z-50 flex bg-black/60 backdrop-blur-sm ${isMaximized ? 'items-stretch' : 'items-start justify-center p-4 overflow-y-auto'}`}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className={`flex flex-col glass-panel shadow-2xl border border-white/45 dark:border-white/[0.09] overflow-hidden w-full ${isMaximized ? '' : 'max-w-5xl rounded-2xl my-4 max-h-[calc(100dvh-4rem)]'}`}>
+      <div className={`hig-modal-enter flex flex-col glass-panel shadow-2xl border border-white/45 dark:border-white/[0.09] overflow-hidden w-full ${isMaximized ? '' : 'max-w-5xl rounded-2xl my-4 max-h-[calc(100dvh-4rem)]'}`}>
 
         {/* ── En-tête ── */}
         <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl shrink-0">
@@ -691,7 +691,7 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
 
     {/* ── Toolbar mobile ── */}
     <div
-      className="md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-700/60 px-4 pt-2 flex flex-col gap-2"
+      className="hig-sheet-enter md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-700/60 px-4 pt-2 flex flex-col gap-2"
       style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
     >
       {/* Ligne 1 : filtres + rafraîchir + fermer */}

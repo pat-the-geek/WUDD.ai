@@ -6,7 +6,7 @@ import SettingsPanel from './components/SettingsPanel'
 import EntitySearchModal from './components/EntitySearchModal'
 import EntityDashboard from './components/EntityDashboard'
 import ScriptConsolePanel from './components/ScriptConsolePanel'
-import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, EyeOff, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, MoreHorizontal, MessageSquare, Newspaper, Filter, Tag, BookOpen } from 'lucide-react'
+import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, EyeOff, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, ChevronRight, MoreHorizontal, MessageSquare, Newspaper, Filter, Tag, BookOpen } from 'lucide-react'
 import AlertsPanel from './components/AlertsPanel'
 import ExportPanel from './components/ExportPanel'
 import TopArticlesPanel from './components/TopArticlesPanel'
@@ -605,7 +605,7 @@ export default function App() {
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
-              <Icon size={13} />
+              <Icon size={16} />
             </button>
           ))}
         </div>
@@ -626,7 +626,7 @@ export default function App() {
             : "Lancer l'extraction des mots-clés RSS"
           }
         >
-          <Terminal size={13} />
+          <Terminal size={16} />
           {rssStatus?.running ? (
             <span className="w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
           ) : null}
@@ -642,7 +642,7 @@ export default function App() {
           className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Top articles par score de pertinence"
         >
-          <Star size={13} />
+          <Star size={16} />
           <span className="hidden xl:inline">Top</span>
         </button>
 
@@ -652,7 +652,7 @@ export default function App() {
           className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Alertes de tendances"
         >
-          <TrendingUp size={13} />
+          <TrendingUp size={16} />
           <span className="hidden xl:inline">Tendances</span>
         </button>
 
@@ -662,7 +662,7 @@ export default function App() {
           className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Dashboard des entités nommées"
         >
-          <BarChart2 size={13} />
+          <BarChart2 size={16} />
           <span className="hidden xl:inline">Entités</span>
         </button>
 
@@ -689,13 +689,13 @@ export default function App() {
             }`}
             title="Outils d'analyse : Biais, Export, Clusters, Veille, Comparer"
           >
-            <MoreHorizontal size={13} />
+            <MoreHorizontal size={16} />
             <span className="hidden xl:inline">Outils</span>
-            <ChevronDown size={11} className={`transition-transform duration-200 ${outilsOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown size={12} className={`transition-transform duration-200 ${outilsOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {outilsOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-54 glass-panel rounded-xl border border-white/45 dark:border-white/[0.09] shadow-2xl z-[100] py-1 overflow-hidden min-w-[13rem]">
+            <div className="hig-dropdown-enter absolute right-0 top-full mt-1.5 w-54 glass-panel rounded-xl border border-white/45 dark:border-white/[0.09] shadow-2xl z-[100] py-1 overflow-hidden min-w-[13rem]">
               {[
                 { Icon: Eye,           label: 'Biais éditoriaux',    desc: 'Analyse par source',             action: () => { setBiasOpen(true);    setOutilsOpen(false) } },
                 { Icon: Share2,        label: 'Export & Diffusion',  desc: 'Atom, Newsletter, Webhook',      action: () => { setExportOpen(true);  setOutilsOpen(false) } },
@@ -729,7 +729,7 @@ export default function App() {
           title="Réglages — planification, mots-clés, flux"
         >
           <span className="relative">
-            <Settings size={13} />
+            <Settings size={16} />
             {rssStatus?.running ? (
               <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
             ) : null}
@@ -743,7 +743,7 @@ export default function App() {
           className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Recherche plein texte (Ctrl+K)"
         >
-          <Search size={13} />
+          <Search size={16} />
         </button>
       </header>
 
@@ -803,13 +803,13 @@ export default function App() {
           <button
             onClick={() => setSidebarOpen(v => !v)}
             title="Fichiers"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
-              sidebarOpen
+            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
+              sidebarOpen || selectedFile
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
-            <Menu size={24} strokeWidth={sidebarOpen ? 2.2 : 1.8} />
+            <Menu size={24} strokeWidth={sidebarOpen || selectedFile ? 2.2 : 1.8} />
             <span className="text-[11px] font-medium leading-none">Fichiers</span>
           </button>
 
@@ -817,7 +817,7 @@ export default function App() {
           <button
             onClick={() => setTopOpen(true)}
             title="Top articles"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               topOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
@@ -831,7 +831,7 @@ export default function App() {
           <button
             onClick={() => { setSearchTypeMenuOpen(true) }}
             title="Recherche"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               searchOpen || searchTypeMenuOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
@@ -850,7 +850,7 @@ export default function App() {
           <button
             onClick={() => setDashboardOpen(true)}
             title="Dashboard entités"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               dashboardOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
@@ -864,7 +864,7 @@ export default function App() {
           <button
             onClick={() => setSettingsOpen(true)}
             title="Réglages"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               settingsOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
@@ -898,11 +898,11 @@ export default function App() {
       {/* Sélecteur type de recherche — mobile uniquement */}
       {searchTypeMenuOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end"
+          className="hig-overlay-enter md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end"
           onClick={() => setSearchTypeMenuOpen(false)}
         >
           <div
-            className="w-full bg-white dark:bg-slate-800 rounded-t-2xl shadow-2xl border-t border-slate-200/60 dark:border-white/10"
+            className="hig-sheet-enter w-full bg-white dark:bg-slate-800 rounded-t-2xl shadow-2xl border-t border-slate-200/60 dark:border-white/10"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
             onClick={e => e.stopPropagation()}
           >
@@ -918,10 +918,11 @@ export default function App() {
                 className="flex items-center gap-3 px-4 py-4 rounded-xl bg-slate-100 dark:bg-slate-700 text-left active:opacity-70 transition-opacity"
               >
                 <Search size={20} className="text-blue-500 shrink-0" />
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-slate-800 dark:text-slate-100">Recherche fichier</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">Trouver des fichiers contenant un mot-clé</div>
                 </div>
+                <ChevronRight size={16} className="text-slate-300 dark:text-slate-600 shrink-0" />
               </button>
               <button
                 onClick={() => {
@@ -940,7 +941,7 @@ export default function App() {
                 }`}
               >
                 <Newspaper size={20} className="text-amber-500 shrink-0" />
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-slate-800 dark:text-slate-100">Recherche article</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">
                     {selectedFile && selectedFile.type === 'json'
@@ -948,6 +949,7 @@ export default function App() {
                       : "Ouvrez d'abord un fichier JSON"}
                   </div>
                 </div>
+                <ChevronRight size={16} className="text-slate-300 dark:text-slate-600 shrink-0" />
               </button>
 
               {/* Séparateur */}

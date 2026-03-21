@@ -106,10 +106,10 @@ export default function ComparePanel({ onClose }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="hig-overlay-enter hig-overlay-enter fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="glass-panel w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl border border-white/45 dark:border-white/[0.09] overflow-hidden">
+      <div className="hig-modal-enter glass-panel w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl border border-white/45 dark:border-white/[0.09] overflow-hidden">
 
         {/* En-tête */}
         <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">

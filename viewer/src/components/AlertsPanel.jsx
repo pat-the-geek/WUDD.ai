@@ -59,8 +59,8 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl glass-panel rounded-2xl shadow-2xl mt-8 border border-white/45 dark:border-white/[0.09]">
+    <div className="hig-overlay-enter fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="hig-modal-enter w-full max-w-2xl glass-panel rounded-2xl shadow-2xl mt-8 border border-white/45 dark:border-white/[0.09]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-2">

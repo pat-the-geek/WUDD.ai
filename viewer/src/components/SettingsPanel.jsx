@@ -2729,10 +2729,10 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
 
   return (
     <div
-      className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center ${isMaximized ? 'items-stretch' : 'items-stretch md:items-start md:pt-10 md:px-4 md:pb-4'}`}
+      className={`hig-overlay-enter fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center ${isMaximized ? 'items-stretch' : 'items-stretch md:items-start md:pt-10 md:px-4 md:pb-4'}`}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className={`glass-panel shadow-2xl w-full border border-white/45 dark:border-white/[0.09] flex flex-col overflow-hidden ${isMaximized ? '' : 'md:max-w-5xl md:max-h-[88vh] md:rounded-2xl'}`}>
+      <div className={`hig-modal-enter glass-panel shadow-2xl w-full border border-white/45 dark:border-white/[0.09] flex flex-col overflow-hidden ${isMaximized ? '' : 'md:max-w-5xl md:max-h-[88vh] md:rounded-2xl'}`}>
 
         {/* ── Navigation tabs — desktop : header / mobile : tab bar bas harmonisé ── */}
         <div

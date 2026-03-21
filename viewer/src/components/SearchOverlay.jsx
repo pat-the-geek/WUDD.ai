@@ -117,10 +117,10 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex sm:items-start items-end justify-center sm:pt-20 pt-0 sm:px-4 px-0"
+      className="hig-overlay-enter fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex sm:items-start items-end justify-center sm:pt-20 pt-0 sm:px-4 px-0"
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full sm:max-w-2xl glass-panel sm:rounded-2xl rounded-t-2xl rounded-b-none shadow-2xl border border-white/45 dark:border-white/[0.09] overflow-hidden">
+      <div className="hig-modal-enter w-full sm:max-w-2xl glass-panel sm:rounded-2xl rounded-t-2xl rounded-b-none shadow-2xl border border-white/45 dark:border-white/[0.09] overflow-hidden">
 
         {/* Handle bar — mobile uniquement */}
         <div className="sm:hidden flex justify-center pt-2.5 pb-0">

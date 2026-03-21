@@ -152,7 +152,7 @@ function EnrichConsole({ onClose, onDone }) {
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [lines])
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="hig-overlay-enter fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="w-full max-w-2xl bg-slate-900 rounded-xl shadow-2xl border border-slate-700 flex flex-col overflow-hidden max-h-[70vh]">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-700">
           <Terminal size={14} className="text-green-400" />
@@ -244,8 +244,8 @@ export default function SourceBiasPanel({ onClose }) {
       />
     )}
 
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-4xl glass-panel rounded-2xl shadow-2xl mt-8 border border-white/45 dark:border-white/[0.09]">
+    <div className="hig-overlay-enter fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="hig-modal-enter w-full max-w-4xl glass-panel rounded-2xl shadow-2xl mt-8 border border-white/45 dark:border-white/[0.09]">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">

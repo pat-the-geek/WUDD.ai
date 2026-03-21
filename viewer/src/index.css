@@ -294,6 +294,49 @@ html:not(.dark) .json-number { color: #1d4ed8; }
 .chat-markdown td      { border: 1px solid #1a3a2a; padding: 0.25em 0.6em; color: #86efac; }
 .chat-markdown tr:nth-child(even) td { background: #0a1a12; }
 
+/* ══ Animations HIG — Axe 6 ═══════════════════════════════════════════════
+   Spring easing : cubic-bezier(0.34, 1.56, 0.64, 1) — rebond élastique
+   Ease-out expo : cubic-bezier(0.16, 1, 0.3, 1)     — entrée rapide, décélération douce
+   Durées normalisées : fast 150ms / normal 220ms / slow 350ms
+══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast:    150ms;
+  --dur-normal:  220ms;
+  --dur-slow:    350ms;
+}
+
+@keyframes hig-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes hig-scale-in {
+  from { opacity: 0; transform: scale(0.94) translateY(4px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+@keyframes hig-slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes hig-slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Backdrop d'overlay */
+.hig-overlay-enter  { animation: hig-fade-in   var(--dur-normal) var(--ease-out-expo) both; }
+/* Modale centrée — scale + fade */
+.hig-modal-enter    { animation: hig-scale-in   var(--dur-normal) var(--ease-out-expo) both; }
+/* Bottom sheet — glisse depuis le bas */
+.hig-sheet-enter    { animation: hig-slide-up   var(--dur-normal) var(--ease-out-expo) both; }
+/* Dropdown — glisse depuis le haut */
+.hig-dropdown-enter { animation: hig-slide-down var(--dur-fast)   var(--ease-out-expo) both; }
+
 /* ── Scrollbar fine — style terminal ── */
 .custom-scrollbar::-webkit-scrollbar        { width: 4px; height: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track  { background: transparent; }

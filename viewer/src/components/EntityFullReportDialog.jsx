@@ -674,11 +674,11 @@ export default function EntityFullReportDialog({
   // ── Render ─────────────────────────────────────────────────────────────────
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="hig-overlay-enter fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       onClick={e => e.target === e.currentTarget && !isFullscreen && onClose()}
     >
       <div
-        className={`flex flex-col shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 transition-all duration-200 ${
+        className={`hig-modal-enter flex flex-col shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 transition-all duration-200 ${
           isFullscreen
             ? 'fixed inset-0 rounded-none'
             : 'w-[92vw] max-w-[1400px] h-[92vh] rounded-2xl'
