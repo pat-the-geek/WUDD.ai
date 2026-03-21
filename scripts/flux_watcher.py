@@ -178,6 +178,16 @@ def main(dry_run: bool = False) -> None:
     api_client = get_ai_client()
     new_articles_all: list = []
 
+    # Charger les URLs masquées — ces articles ne seront pas réimportés
+    _annotations_path = PROJECT_ROOT / "data" / "annotations.json"
+    _hidden_urls: set[str] = set()
+    if _annotations_path.exists():
+        try:
+            _ann = json.loads(_annotations_path.read_text(encoding="utf-8"))
+            _hidden_urls = {url for url, ann in _ann.items() if ann.get("is_hidden")}
+        except (json.JSONDecodeError, OSError):
+            pass
+
     # Lire le flux
     try:
         resp = requests.get(feed_url, timeout=15)
@@ -237,6 +247,11 @@ def main(dry_run: bool = False) -> None:
 
             if link in existing_urls:
                 print_console(f"  Déjà présent pour '{kw}' : {link[:60]}...", level="debug")
+                continue
+
+            # Vérifier si l'article est masqué par l'utilisateur
+            if link in _hidden_urls:
+                print_console(f"  Article masqué, ignoré pour '{kw}' : {link[:60]}...", level="debug")
                 continue
 
             # Vérifier le quota (global + par mot-clé + par source)

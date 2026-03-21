@@ -168,6 +168,18 @@ else:
 # Index par mot-clé
 results = {kw_obj["keyword"]: {} for kw_obj in keywords}
 
+# Charger les URLs masquées (annotations avec is_hidden=true) — ces articles ne seront pas réimportés
+_annotations_path = PROJECT_ROOT / "data" / "annotations.json"
+_hidden_urls: set[str] = set()
+if _annotations_path.exists():
+    try:
+        _annotations_data = json.loads(_annotations_path.read_text(encoding="utf-8"))
+        _hidden_urls = {url for url, ann in _annotations_data.items() if ann.get("is_hidden")}
+        if _hidden_urls:
+            print_console(f"{len(_hidden_urls)} URL(s) masquée(s) chargée(s) — ces articles seront ignorés.")
+    except (json.JSONDecodeError, OSError) as _e:
+        print_console(f"Avertissement : impossible de charger les annotations ({_e})", level="warning")
+
 # Démarrage du suivi de progression
 _progress = {
     "started_at": datetime.now(timezone.utc).isoformat(),
@@ -239,6 +251,10 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                 # Vérifier si déjà traité
                 if link in existing_urls or link in results[kw]:
                     print_console(f"    [Article {idx}] Déjà présent pour '{kw}', ignoré.", level="debug")
+                    continue
+                # Vérifier si l'article est masqué par l'utilisateur
+                if link in _hidden_urls:
+                    print_console(f"    [Article {idx}] Article masqué, ignoré pour '{kw}'.", level="debug")
                     continue
                 # Vérifier le quota (global + par mot-clé + par source) — sauf si bypassQuota activé
                 if not bypass_quota and not quota.can_process(kw, feed_title):
