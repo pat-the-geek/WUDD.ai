@@ -197,7 +197,7 @@ def api_rss_direct_stream():
 
 @rss_direct_bp.route("/api/rss/direct/article", methods=["POST"])
 def api_rss_direct_article():
-    """Génère résumé + entités pour un article RSS à la volée (sans sauvegarde disque).
+    """Génère résumé + entités pour un article RSS et le sauvegarde dans direct.json et 48-heures.json.
 
     Body JSON :
       url         : URL de l'article (obligatoire)
@@ -281,5 +281,23 @@ def api_rss_direct_article():
     }
     if main_image:
         article["Images"] = [{"URL": main_image, "Width": 1200}]
+
+    # ── 6. Sauvegarde dans direct.json et 48-heures.json ──────────────────────
+    try:
+        from utils.rolling_window import update_rolling_window
+        from utils.article_index import get_article_index
+
+        wudd_dir     = PROJECT_ROOT / "data" / "articles-from-rss" / "_WUDD.AI_"
+        direct_path  = wudd_dir / "direct.json"
+        heures48_path = wudd_dir / "48-heures.json"
+
+        update_rolling_window([article], direct_path,   hours=48)
+        update_rolling_window([article], heures48_path, hours=48)
+
+        # Mise à jour de l'index article
+        aidx = get_article_index(PROJECT_ROOT)
+        aidx.update([article], str(direct_path))
+    except Exception:
+        pass  # Non bloquant : l'affichage fonctionne même si la sauvegarde échoue
 
     return jsonify(article)
