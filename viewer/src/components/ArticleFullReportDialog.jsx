@@ -670,7 +670,7 @@ ${contentEl.innerHTML}
         onReportSaved?.(article['URL'], rapport)
 
         // ── Persister les métadonnées dans l'article JSON (pour les rechargements) ──
-        if (filePath && article['URL'] && !d.deduplicated) {
+        if (filePath && article['URL']) {
           fetch('/api/article/set-report-meta', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

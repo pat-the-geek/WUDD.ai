@@ -414,6 +414,15 @@ function IAPickerModal({ providers, onPick, onClose }) {
   )
 }
 
+/** Vérifie si un article possède un rapport Obsidian (JSON ou session courante). */
+function hasObsidianReport(article, localReportsByUrl) {
+  const url = article['URL']
+  return (
+    (Array.isArray(article['rapports']) && article['rapports'].some(r => r.cible === 'obsidian')) ||
+    (url && (localReportsByUrl[url] || []).some(r => r.cible === 'obsidian'))
+  )
+}
+
 /** Carte article complète (vue grille / large) — style Liquid Glass. */
 function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged, localRapports = [] }) {
   const [expanded, setExpanded]                   = useState(index < 3)
@@ -434,6 +443,10 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
   const imgUrl   = firstImage(article['Images'])
   const date     = formatDate(article['Date de publication'])
   const time     = formatTime(article['Date de publication'])
+
+  // Rapport badges : union de article['rapports'] et localRapports, sans doublons (même fichier)
+  const existingFiles = new Set((article['rapports'] || []).map(r => r.fichier))
+  const allRapports   = [...(article['rapports'] || []), ...localRapports.filter(lr => !existingFiles.has(lr.fichier))]
   const count    = useMemo(() => entityCount(displayArticle), [displayArticle])
   const url      = article['URL'] ?? ''
 
@@ -651,9 +664,9 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
         )}
 
         {/* Badges rapports exportés */}
-        {(Array.isArray(article['rapports']) && article['rapports'].length > 0 || localRapports.length > 0) && (
+        {allRapports.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
-            {[...(article['rapports'] || []), ...localRapports].map((rap, idx) => (
+            {allRapports.map((rap, idx) => (
               <span
                 key={idx}
                 title={`${rap.cible === 'obsidian' ? 'Obsidian' : 'Local'} · ${rap.date_creation ?? ''}\n${rap.chemin ?? ''}`}
@@ -905,7 +918,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
 
     // Filtre rapport Obsidian
     if (filterObsidian) {
-      result = result.filter(a => Array.isArray(a['rapports']) && a['rapports'].some(r => r.cible === 'obsidian'))
+      result = result.filter(a => hasObsidianReport(a, localReports))
     }
 
     result = [...result].sort((a, b) => {
@@ -917,7 +930,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
     })
 
     return result
-  }, [articles, searchQuery, selectedTypes, selectedSources, sortBy, annotFilter, annotations, filterObsidian])
+  }, [articles, searchQuery, selectedTypes, selectedSources, sortBy, annotFilter, annotations, filterObsidian, localReports])
 
   // Groupes timeline (toujours triés date-desc)
   const timelineGroups = useMemo(() => {
@@ -998,8 +1011,8 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   // Comptage articles avec rapport Obsidian
   const obsidianCount = useMemo(() => {
     if (!articles) return 0
-    return articles.filter(a => Array.isArray(a['rapports']) && a['rapports'].some(r => r.cible === 'obsidian')).length
-  }, [articles])
+    return articles.filter(a => hasObsidianReport(a, localReports)).length
+  }, [articles, localReports])
 
   const handleExport = () => {
     const filename = `articles_${new Date().toISOString().slice(0, 10)}_${displayedArticles.length}.json`
