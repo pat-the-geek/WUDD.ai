@@ -18,7 +18,7 @@ const MD = {
   ol: ({ children }) => <ol className="list-decimal ml-5 mb-3 space-y-1 text-sm text-slate-700 dark:text-slate-300">{children}</ol>,
   li: ({ children }) => <li className="leading-relaxed">{children}</li>,
   strong: ({ children }) => <strong className="font-semibold text-slate-800 dark:text-slate-200">{children}</strong>,
-  a:  ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-violet-600 dark:text-violet-400 hover:underline">{children}</a>,
+  a:  ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#5856D6] dark:text-[#5E5CE6] hover:underline">{children}</a>,
   code: ({ className, children }) => className
     ? <code className="block bg-slate-100 dark:bg-slate-800/70 rounded p-0.5 font-mono text-xs">{children}</code>
     : <code className="bg-slate-100 dark:bg-slate-800/70 px-1.5 py-0.5 rounded font-mono text-xs text-slate-700 dark:text-slate-300">{children}</code>,
@@ -502,7 +502,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
           <div className="hidden md:flex items-center gap-1.5 min-w-0 flex-1 pointer-events-none">
             <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm truncate">
               Occurrences de{' '}
-              <span className="text-violet-600 dark:text-violet-400">{current.value}</span>
+              <span className="text-[#5856D6] dark:text-[#5E5CE6]">{current.value}</span>
             </span>
             <span className="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0">
               {current.type}
@@ -527,7 +527,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                       openInObsidian(rap.fichier, obsidianVaultName)
                     }}
                     title={`Ouvrir dans Obsidian : ${entityRapports[entityRapports.length - 1].fichier}`}
-                    className="inline-flex items-center gap-0.5 text-[11px] text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 underline underline-offset-2 transition-colors"
+                    className="inline-flex items-center gap-0.5 text-[11px] text-[#5856D6] dark:text-[#5E5CE6] hover:text-[#3d3bab] dark:hover:text-[#8785ff] underline underline-offset-2 transition-colors"
                   >
                     Ouvrir
                   </button>
@@ -550,7 +550,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                     openInObsidian(rap.fichier, obsidianVaultName)
                   }}
                   title={`Ouvrir dans Obsidian : ${entityRapports[entityRapports.length - 1].fichier}`}
-                  className="inline-flex items-center gap-0.5 text-[11px] text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 underline underline-offset-2 transition-colors"
+                  className="inline-flex items-center gap-0.5 text-[11px] text-[#5856D6] dark:text-[#5E5CE6] hover:text-[#3d3bab] dark:hover:text-[#8785ff] underline underline-offset-2 transition-colors"
                 >
                   Ouvrir
                 </button>
@@ -764,7 +764,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                     {art['URL'] && (
                       <a
                         href={art['URL']} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        className="inline-flex items-center gap-1 text-xs text-[#007AFF] dark:text-[#0A84FF] hover:underline"
                       >
                         Lire <ExternalLink size={11} />
                       </a>

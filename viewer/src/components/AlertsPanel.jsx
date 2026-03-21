@@ -5,10 +5,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, RefreshCw, TrendingUp, AlertTriangle, Bell } from 'lucide-react'
 
+// Couleurs HIG : systemRed #FF3B30 / systemOrange #FF9500 / systemYellow #FFCC00
 const NIVEAU_CONFIG = {
-  critique: { color: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700', dot: 'bg-red-500', label: 'Critique' },
-  élevé:    { color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700', dot: 'bg-orange-500', label: 'Élevé' },
-  modéré:   { color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-700', dot: 'bg-yellow-500', label: 'Modéré' },
+  critique: { color: 'bg-red-50 dark:bg-red-900/25 text-[#c0392b] dark:text-[#FF453A] border-red-200 dark:border-red-800',       dot: 'bg-[#FF3B30] dark:bg-[#FF453A]', label: 'Critique' },
+  élevé:    { color: 'bg-orange-50 dark:bg-orange-900/25 text-[#a05000] dark:text-[#FF9F0A] border-orange-200 dark:border-orange-800', dot: 'bg-[#FF9500] dark:bg-[#FF9F0A]', label: 'Élevé' },
+  modéré:   { color: 'bg-yellow-50 dark:bg-yellow-900/20 text-[#7a6000] dark:text-[#FFD60A] border-yellow-200 dark:border-yellow-800', dot: 'bg-[#FFCC00] dark:bg-[#FFD60A]', label: 'Modéré' },
 }
 
 const ENTITY_TYPE_FR = {

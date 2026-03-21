@@ -3,7 +3,7 @@ import { X, BarChart2, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide
 
 function StatBlock({ label, value, delta, isPercent }) {
   const sign = delta > 0 ? '+' : delta < 0 ? '' : '='
-  const color = delta > 0 ? 'text-green-600 dark:text-green-400'
+  const color = delta > 0 ? 'text-[#1a7a34] dark:text-[#30D158]'
     : delta < 0 ? 'text-red-500 dark:text-red-400'
     : 'text-slate-400'
   const Icon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Minus
@@ -24,9 +24,9 @@ function StatBlock({ label, value, delta, isPercent }) {
 function SentimentBar({ label, sentiments }) {
   const total = Object.values(sentiments).reduce((a, b) => a + b, 0) || 1
   const COLORS = {
-    positif: 'bg-green-500',
+    positif: 'bg-[#34C759] dark:bg-[#30D158]',
     neutre: 'bg-slate-400',
-    négatif: 'bg-red-500',
+    négatif: 'bg-[#FF3B30] dark:bg-[#FF453A]',
   }
   return (
     <div className="flex flex-col gap-1">
@@ -125,7 +125,7 @@ export default function ComparePanel({ onClose }) {
           <div className="flex flex-wrap gap-4 items-end">
             {/* Période 1 */}
             <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Période 1</span>
+              <span className="text-[11px] font-semibold text-[#007AFF] dark:text-[#0A84FF] uppercase tracking-wider">Période 1</span>
               <div className="flex items-center gap-2">
                 <input type="date" value={from1} onChange={e => setFrom1(e.target.value)}
                   className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400" />

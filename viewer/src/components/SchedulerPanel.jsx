@@ -113,7 +113,7 @@ export default function SchedulerPanel({ onClose }) {
 
         {/* ── Prochaine tâche ── */}
         {upcoming && (
-          <div className="px-5 py-2.5 bg-blue-600/10 border-b border-blue-500/20 shrink-0">
+          <div className="px-5 py-2.5 bg-[#007AFF]/10 border-b border-blue-500/20 shrink-0">
             <div className="flex items-center gap-2 text-sm">
               <Calendar size={13} className="text-blue-400 shrink-0" />
               <span className="text-blue-300">

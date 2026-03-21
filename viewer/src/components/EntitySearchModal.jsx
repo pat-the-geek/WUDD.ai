@@ -131,7 +131,7 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
                     <FileText size={12} className="text-slate-400 shrink-0" />
                     <button
                       onClick={() => onSelectFile({ path: file.path, name: file.name, type: 'json' })}
-                      className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline truncate text-left"
+                      className="text-xs font-medium text-[#007AFF] dark:text-[#0A84FF] hover:underline truncate text-left"
                     >
                       {file.name}
                     </button>
@@ -160,7 +160,7 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
                             {item.types.map(t => (
                               <span
                                 key={t}
-                                className="text-[11px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1 py-0.5 rounded border border-violet-200 dark:border-violet-800"
+                                className="text-[11px] text-[#5856D6] dark:text-[#5E5CE6] bg-violet-50 dark:bg-violet-900/30 px-1 py-0.5 rounded border border-violet-200 dark:border-violet-800"
                               >
                                 {t}
                               </span>
@@ -171,7 +171,7 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
                               href={item.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="ml-auto shrink-0 text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                              className="ml-auto shrink-0 text-slate-300 dark:text-slate-600 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
                               title="Ouvrir l'article"
                               onClick={e => e.stopPropagation()}
                             >

@@ -74,7 +74,7 @@ function ImageGallery({ content }) {
           <button
             key={i}
             onClick={() => setLightbox(i)}
-            className="group text-left rounded-xl overflow-hidden bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-500/60 transition-all hover:shadow-lg hover:shadow-blue-500/10 dark:hover:shadow-blue-900/20 focus:outline-none focus:border-blue-500"
+            className="group text-left rounded-xl overflow-hidden bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-[#007AFF]/60 transition-all hover:shadow-lg hover:shadow-blue-500/10 dark:hover:shadow-blue-900/20 focus:outline-none focus:border-[#007AFF]"
           >
             {/* Vignette */}
             <div className="aspect-video overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
@@ -377,7 +377,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
               title="Vue articles annotés"
               className={`flex items-center gap-1 px-2 py-1.5 text-xs transition-colors ${
                 viewMode === 'articles'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
               }`}
             >
@@ -389,7 +389,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
               title="Vue JSON brut"
               className={`flex items-center gap-1 px-2 py-1.5 text-xs transition-colors ${
                 viewMode === 'json'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
               }`}
             >
@@ -610,7 +610,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             <button
               onClick={scrollToImages}
               title="Aller aux images"
-              className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-blue-500/20 transition-all"
+              className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:border-[#007AFF] dark:hover:border-[#0A84FF] hover:shadow-blue-500/20 transition-all"
             >
               <Images size={16} />
             </button>
@@ -619,7 +619,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             <button
               onClick={scrollToEntities}
               title="Aller aux entités nommées"
-              className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 hover:border-violet-400 dark:hover:border-violet-500 hover:shadow-violet-500/20 transition-all"
+              className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#5856D6] dark:hover:text-[#5E5CE6] hover:border-[#5856D6] dark:hover:border-[#5E5CE6] hover:shadow-violet-500/20 transition-all"
             >
               <Tag size={16} />
             </button>
@@ -637,7 +637,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
           <button
             onClick={scrollToTop}
             title="Retour en haut"
-            className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-blue-500/20 transition-all"
+            className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:border-[#007AFF] dark:hover:border-[#0A84FF] hover:shadow-blue-500/20 transition-all"
           >
             <ArrowUp size={16} />
           </button>
