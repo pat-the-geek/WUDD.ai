@@ -61,6 +61,16 @@ GENERIC_IMAGE_HOSTS = {"filepicker.io", "filestack.com", "cloudinary.com"}
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 WUDD_DIR.mkdir(parents=True, exist_ok=True)
 
+# Charger les URLs masquées au démarrage — ces articles ne seront pas réimportés
+_ANNOTATIONS_FILE = PROJECT_ROOT / "data" / "annotations.json"
+_hidden_urls: set[str] = set()
+if _ANNOTATIONS_FILE.exists():
+    try:
+        _ann = json.loads(_ANNOTATIONS_FILE.read_text(encoding="utf-8"))
+        _hidden_urls = {url for url, ann in _ann.items() if ann.get("is_hidden")}
+    except (json.JSONDecodeError, OSError):
+        pass
+
 # ─── Utilitaires généraux ────────────────────────────────────────────────────
 
 def _write_atomic(path: Path, data: list | dict) -> None:
@@ -383,6 +393,13 @@ def _process_article(
 
     # Doublon tardif
     if url in existing_urls:
+        src_state["processed_urls"].append(url)
+        processed_set.add(_normalize_url(url))
+        return None
+
+    # Article masqué par l'utilisateur — ne pas réimporter
+    if url in _hidden_urls:
+        print_console(f"    ✗ Article masqué — ignoré", level="debug")
         src_state["processed_urls"].append(url)
         processed_set.add(_normalize_url(url))
         return None

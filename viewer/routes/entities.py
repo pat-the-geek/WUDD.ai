@@ -1380,6 +1380,7 @@ def api_annotations_post():
         url         (str, obligatoire) — URL de l'article
         is_important (bool, optionnel)
         is_read      (bool, optionnel)
+        is_hidden    (bool, optionnel)
         tags         (list[str], optionnel, max 20 items)
         notes        (str, optionnel, max 5000 chars)
     """
@@ -1400,6 +1401,8 @@ def api_annotations_post():
             updated["is_important"] = bool(body["is_important"])
         if "is_read" in body:
             updated["is_read"] = bool(body["is_read"])
+        if "is_hidden" in body:
+            updated["is_hidden"] = bool(body["is_hidden"])
         if "tags" in body:
             tags = body["tags"]
             if not isinstance(tags, list):

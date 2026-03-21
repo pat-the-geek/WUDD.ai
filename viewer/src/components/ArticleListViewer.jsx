@@ -3,7 +3,7 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
   Download, LayoutGrid, AlignLeft, LayoutList, Maximize2, Clock,
-  Star, Eye, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge,
+  Star, Eye, EyeOff, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge,
 } from 'lucide-react'
 import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
@@ -452,6 +452,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
 
   const isImportant = annotation?.is_important ?? false
   const isRead      = annotation?.is_read ?? false
+  const isHidden    = annotation?.is_hidden ?? false
   const tags        = annotation?.tags ?? []
   const hasNote     = !!(annotation?.notes?.trim())
 
@@ -568,6 +569,11 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
                   title={isRead ? 'Marquer comme non lu' : 'Marquer comme lu'}
                   className={`p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center ${isRead ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30' : 'text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 hover:bg-slate-100/50 dark:hover:bg-slate-700/50'}`}>
                   <Eye size={14} fill={isRead ? 'currentColor' : 'none'} />
+                </button>
+                <button onClick={() => toggle('is_hidden')}
+                  title={isHidden ? 'Afficher cet article' : 'Masquer cet article'}
+                  className={`p-1.5 rounded-xl transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center ${isHidden ? 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/60' : 'text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 hover:bg-slate-100/50 dark:hover:bg-slate-700/50'}`}>
+                  <EyeOff size={14} />
                 </button>
                 <button onClick={() => setNoteOpen(v => !v)}
                   title="Notes et tags"
@@ -767,7 +773,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   const [localReports, setLocalReports]       = useState({})   // rapports sauvegardés dans la session courante, par URL
   const [typesOpen, setTypesOpen]             = useState(false)
   const [sourcesOpen, setSourcesOpen]         = useState(false)
-  const [annotFilter, setAnnotFilter]         = useState('tous') // 'tous' | 'importants' | 'non-lus'
+  const [annotFilter, setAnnotFilter]         = useState('tous') // 'tous' | 'importants' | 'non-lus' | 'masqués'
   const [obsidianVault, setObsidianVault]     = useState(null)
   const searchRef = useRef(null)
   const mobileSearchRef = useRef(null)
@@ -914,6 +920,11 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
       result = result.filter(a => annotations?.[a['URL']]?.is_important)
     } else if (annotFilter === 'non-lus') {
       result = result.filter(a => !annotations?.[a['URL']]?.is_read)
+    } else if (annotFilter === 'masqués') {
+      result = result.filter(a => annotations?.[a['URL']]?.is_hidden)
+    } else {
+      // Par défaut : exclure les articles masqués
+      result = result.filter(a => !annotations?.[a['URL']]?.is_hidden)
     }
 
     // Filtre rapport Obsidian
@@ -1006,6 +1017,12 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   const importantCount = useMemo(() => {
     if (!articles || !annotations) return 0
     return articles.filter(a => annotations[a['URL']]?.is_important).length
+  }, [articles, annotations])
+
+  // Comptage articles masqués
+  const hiddenCount = useMemo(() => {
+    if (!articles || !annotations) return 0
+    return articles.filter(a => annotations[a['URL']]?.is_hidden).length
   }, [articles, annotations])
 
   // Comptage articles avec rapport Obsidian
@@ -1207,7 +1224,8 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
               { key: 'tous',       label: 'Tous' },
               { key: 'importants', label: `⭐ ${importantCount > 0 ? importantCount : ''}` },
               { key: 'non-lus',    label: '👁 Non lus' },
-            ].map(({ key, label }) => (
+              { key: 'masqués',    label: `🚫 ${hiddenCount > 0 ? hiddenCount : ''}`, show: hiddenCount > 0 },
+            ].filter(({ show }) => show !== false).map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => setAnnotFilter(key)}
