@@ -115,7 +115,7 @@ export default function JsonViewer({ content, onSave }) {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white rounded-lg text-xs font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] disabled:opacity-60 text-white rounded-lg text-xs font-medium transition-colors"
           >
             <Save size={12} />
             {saving ? 'Sauvegarde…' : 'Sauvegarder'}

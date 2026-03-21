@@ -663,7 +663,7 @@ export default function EntityFullReportDialog({
           {isSaving ? <Loader2 size={14} className="animate-spin" /> : isDone ? <Check size={14} /> : <Icon size={14} />}
         </button>
         {(isDone || isFail) && (
-          <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[10px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
+          <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[11px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
             {isDone ? st.path : st.error}
           </div>
         )}
@@ -690,7 +690,7 @@ export default function EntityFullReportDialog({
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
               Rapport — <span className="text-violet-600 dark:text-violet-400">{entityValue}</span>
-              <span className="ml-1.5 text-[10px] uppercase tracking-wider text-slate-400">{entityType}</span>
+              <span className="ml-1.5 text-[11px] uppercase tracking-wider text-slate-400">{entityType}</span>
             </h2>
             <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
               {articles.length} article{articles.length !== 1 ? 's' : ''}
@@ -729,7 +729,7 @@ export default function EntityFullReportDialog({
               {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             </button>
             <button onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+              className="p-2.5 rounded-lg text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors touch-target"
               title="Fermer">
               <X size={14} />
             </button>

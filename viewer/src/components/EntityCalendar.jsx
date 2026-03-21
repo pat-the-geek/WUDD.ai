@@ -211,7 +211,7 @@ function MonthView({ year, month, dayMap, onSelectDay }) {
               {pills.map((art, j) => (
                 <div
                   key={j}
-                  className={`flex items-center gap-1 rounded text-white text-[10px] leading-4 px-1.5 py-0.5 truncate ${sourceColor(art['Sources'])}`}
+                  className={`flex items-center gap-1 rounded text-white text-[11px] leading-4 px-1.5 py-0.5 truncate ${sourceColor(art['Sources'])}`}
                   title={art['Résumé'] || ''}
                 >
                   <span className="truncate">{articleTitle(art)}</span>
@@ -219,7 +219,7 @@ function MonthView({ year, month, dayMap, onSelectDay }) {
               ))}
 
               {extra > 0 && (
-                <div className="text-[10px] text-slate-400 dark:text-slate-500 px-1 leading-4">
+                <div className="text-[11px] text-slate-400 dark:text-slate-500 px-1 leading-4">
                   +{extra} autre{extra > 1 ? 's' : ''}
                 </div>
               )}
@@ -256,7 +256,7 @@ function WeekView({ monday, dayMap, onSelectDay }) {
               key={i}
               className="flex flex-col items-center py-2 gap-0.5"
             >
-              <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide">
                 {DAYS_FR[i]}
               </span>
               <span className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full ${
@@ -267,7 +267,7 @@ function WeekView({ monday, dayMap, onSelectDay }) {
                 {d.getDate()}
               </span>
               {count > 0 && (
-                <span className="text-[9px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 rounded-full px-1.5 font-semibold">
+                <span className="text-[11px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 rounded-full px-1.5 font-semibold">
                   {count}
                 </span>
               )}
@@ -301,17 +301,17 @@ function WeekView({ monday, dayMap, onSelectDay }) {
                     className="w-full text-left rounded-md overflow-hidden border border-slate-100 dark:border-slate-800 hover:border-violet-300 dark:hover:border-violet-600 bg-white dark:bg-slate-800/50 transition-colors"
                   >
                     {/* Bandeau source coloré */}
-                    <div className={`px-1.5 py-0.5 text-[9px] font-semibold text-white truncate ${sourceColor(source)}`}>
+                    <div className={`px-1.5 py-0.5 text-[11px] font-semibold text-white truncate ${sourceColor(source)}`}>
                       {source || '—'}
                     </div>
                     {/* Titre ou début du résumé */}
                     {titre && (
-                      <p className="px-1.5 pt-0.5 text-[10px] font-medium text-slate-700 dark:text-slate-200 line-clamp-2 leading-snug">
+                      <p className="px-1.5 pt-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-200 line-clamp-2 leading-snug">
                         {titre}
                       </p>
                     )}
                     {/* Extrait du résumé */}
-                    <p className="px-1.5 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 line-clamp-3 leading-snug">
+                    <p className="px-1.5 py-0.5 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-3 leading-snug">
                       {resume}
                     </p>
                   </button>

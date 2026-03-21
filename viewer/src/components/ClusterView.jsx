@@ -45,7 +45,7 @@ function ClusterCard({ cluster }) {
               {cluster.top_entities.slice(0, 8).map(e => (
                 <span
                   key={e.value}
-                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-white/70 dark:bg-black/30 font-medium"
+                  className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-white/70 dark:bg-black/30 font-medium"
                 >
                   <Hash size={8} />
                   {e.value}
@@ -60,7 +60,7 @@ function ClusterCard({ cluster }) {
             {cluster.articles.map((art, i) => (
               <li key={i} className="px-4 py-2.5 flex flex-col gap-0.5">
                 <div className="flex items-start gap-2">
-                  <span className="text-[10px] text-current/50 shrink-0 mt-0.5 tabular-nums">
+                  <span className="text-[11px] text-current/50 shrink-0 mt-0.5 tabular-nums">
                     {art['Date de publication']
                       ? parseArticleDate(art['Date de publication']).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })
                       : '—'}
@@ -82,15 +82,15 @@ function ClusterCard({ cluster }) {
                     )}
                     <div className="flex items-center gap-2 mt-0.5">
                       {art.Sources && (
-                        <span className="text-[10px] opacity-60">{art.Sources}</span>
+                        <span className="text-[11px] opacity-60">{art.Sources}</span>
                       )}
                       {art.sentiment && (
-                        <span className={`text-[10px] font-medium ${SENTIMENT_COLORS[art.sentiment] || ''}`}>
+                        <span className={`text-[11px] font-medium ${SENTIMENT_COLORS[art.sentiment] || ''}`}>
                           {art.sentiment}
                         </span>
                       )}
                       {art.score_pertinence != null && (
-                        <span className="text-[10px] opacity-50">⭐ {art.score_pertinence}</span>
+                        <span className="text-[11px] opacity-50">⭐ {art.score_pertinence}</span>
                       )}
                     </div>
                   </div>
@@ -178,7 +178,7 @@ export default function ClusterView({ onClose }) {
             </select>
           </div>
           {data?.generated_at && (
-            <span className="ml-auto text-[10px] text-slate-400">
+            <span className="ml-auto text-[11px] text-slate-400">
               Calculé {new Date(data.generated_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}

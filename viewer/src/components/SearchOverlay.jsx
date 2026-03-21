@@ -130,7 +130,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
         {/* Badge mode article */}
         {isArticleMode && (
           <div className="px-4 pt-2 pb-0">
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
               <Newspaper size={10} />
               Articles · {currentFile.name}
             </span>
@@ -169,7 +169,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 flex flex-wrap gap-3">
             {/* Sentiment */}
             <div className="flex flex-col gap-1 min-w-[130px]">
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Sentiment</label>
+              <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Sentiment</label>
               <select
                 value={filterSentiment}
                 onChange={e => setFilterSentiment(e.target.value)}
@@ -184,7 +184,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
 
             {/* Source */}
             <div className="flex flex-col gap-1 flex-1 min-w-[140px]">
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Source</label>
+              <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Source</label>
               <input
                 type="text"
                 value={filterSource}
@@ -196,7 +196,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
 
             {/* Date début */}
             <div className="flex flex-col gap-1 min-w-[130px]">
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Du</label>
+              <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Du</label>
               <input
                 type="date"
                 value={filterFrom}
@@ -207,7 +207,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
 
             {/* Date fin */}
             <div className="flex flex-col gap-1 min-w-[130px]">
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Au</label>
+              <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Au</label>
               <input
                 type="date"
                 value={filterTo}
@@ -258,7 +258,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
                 <span className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate flex-1">
                   <HighlightMatch text={art.source} query={query} />
                 </span>
-                <span className="text-[10px] text-slate-400 shrink-0">{art.date}</span>
+                <span className="text-[11px] text-slate-400 shrink-0">{art.date}</span>
                 {art.url && <ExternalLink size={11} className="text-slate-400 shrink-0" />}
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 text-left">
@@ -308,7 +308,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
         </div>
 
         {/* Pied — masqué sur mobile */}
-        <div className="hidden sm:flex px-4 py-2 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 items-center gap-4 text-[10px] text-slate-400 dark:text-slate-600 select-none">
+        <div className="hidden sm:flex px-4 py-2 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 items-center gap-4 text-[11px] text-slate-400 dark:text-slate-600 select-none">
           <span>↑↓ Naviguer</span>
           <span>↵ Ouvrir</span>
           <span>Échap Fermer</span>

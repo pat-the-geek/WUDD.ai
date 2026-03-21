@@ -263,7 +263,7 @@ export default function MarkdownViewer({ content }) {
       {/* Métadonnées frontmatter */}
       {meta && (
         <div className="mb-6 p-4 bg-white/60 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-sm">
-          <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
+          <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
             Métadonnées du rapport
           </div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5">

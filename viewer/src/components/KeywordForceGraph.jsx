@@ -268,7 +268,7 @@ export default function KeywordForceGraph({ keywords }) {
             { color: COLOR_OR,  label: 'OU' },
             { color: COLOR_AND, label: 'ET' },
           ].map(({ color, label }) => (
-            <span key={label} className="inline-flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+            <span key={label} className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
               {label}
             </span>
@@ -284,7 +284,7 @@ export default function KeywordForceGraph({ keywords }) {
           >
             <ZoomOut size={13} />
           </button>
-          <span className="text-[10px] text-slate-400 w-10 text-center tabular-nums">{zoomPct}%</span>
+          <span className="text-[11px] text-slate-400 w-10 text-center tabular-nums">{zoomPct}%</span>
           <button
             onClick={() => applyView({ ...viewRef.current, scale: Math.min(14, viewRef.current.scale * 1.22) })}
             title="Zoomer"
@@ -399,7 +399,7 @@ export default function KeywordForceGraph({ keywords }) {
           style={{ left: tooltip.x + 14, top: tooltip.y - 46 }}
         >
           <div className="font-semibold">{tooltip.node.label}</div>
-          <div className="text-slate-300 text-[10px] mt-0.5">
+          <div className="text-slate-300 text-[11px] mt-0.5">
             {tooltip.node.termType === 'root' ? 'Centre — WUDD.ai'
               : tooltip.node.termType === 'kw' ? 'Mot-clé de veille'
               : tooltip.node.termType === 'or' ? 'Terme OU (élargit la recherche)'

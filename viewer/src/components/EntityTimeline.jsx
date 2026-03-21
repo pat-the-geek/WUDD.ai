@@ -66,7 +66,7 @@ function EntityRow({ entry, onEntitySearch }) {
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 dark:border-slate-800/60 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
       {/* Type badge */}
-      <span className={`shrink-0 hidden sm:inline text-[10px] font-medium px-1.5 py-0.5 rounded border ${cfg.badge}`}>
+      <span className={`shrink-0 hidden sm:inline text-[11px] font-medium px-1.5 py-0.5 rounded border ${cfg.badge}`}>
         {type}
       </span>
       {/* Nom cliquable */}
@@ -160,7 +160,7 @@ export default function EntityTimeline({ onEntitySearch }) {
             <button
               key={t}
               onClick={() => setTypeFilter(t)}
-              className={`text-[10px] px-2 py-0.5 rounded-full border font-medium transition-colors ${
+              className={`text-[11px] px-2 py-0.5 rounded-full border font-medium transition-colors ${
                 typeFilter === t
                   ? 'bg-violet-500 text-white border-violet-500'
                   : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-violet-300 dark:hover:border-violet-600'
@@ -198,7 +198,7 @@ export default function EntityTimeline({ onEntitySearch }) {
       ) : (
         <div className="flex-1 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 min-h-0">
           {/* En-tête de tableau */}
-          <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/60 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 rounded-t-2xl sticky top-0 z-10">
+          <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/60 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 rounded-t-2xl sticky top-0 z-10">
             <span className="hidden sm:block w-16 shrink-0">Type</span>
             <span className="flex-1">Entité</span>
             <span className="w-[84px] shrink-0">Évolution ({days}j)</span>
@@ -212,7 +212,7 @@ export default function EntityTimeline({ onEntitySearch }) {
 
       {/* Horodatage */}
       {generatedAt && !loading && (
-        <p className="mt-2 text-[10px] text-slate-400 dark:text-slate-500 text-right shrink-0">
+        <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500 text-right shrink-0">
           Calculé le {new Date(generatedAt).toLocaleString('fr-FR')}
         </p>
       )}

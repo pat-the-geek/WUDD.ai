@@ -60,12 +60,12 @@ function SentimentBadge({ article }) {
   const cfg = SENTIMENT_CFG[sentiment] ?? SENTIMENT_CFG.neutre
   return (
     <div className="flex items-center gap-1.5 flex-wrap mt-1">
-      <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.text}`}>
+      <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.text}`}>
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
         {cfg.label}{scoreSent ? ` ${scoreSent}/5` : ''}
       </span>
       {ton && (
-        <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400">
+        <span className="inline-flex items-center text-[11px] font-medium px-1.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400">
           {TON_LABELS[ton] ?? ton}{scoreTon ? ` ${scoreTon}/5` : ''}
         </span>
       )}
@@ -77,7 +77,7 @@ function ReadingTimeBadge({ article }) {
   const label = article.temps_lecture_label
   if (!label) return null
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400">
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400">
       <Clock size={9} className="shrink-0" />
       {label}
     </span>
@@ -91,7 +91,7 @@ function ScoreBar({ score }) {
   const color = pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-500' : 'bg-slate-400'
   return (
     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
-      <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">Score</span>
+      <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">Score</span>
       <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
       </div>
@@ -275,7 +275,7 @@ function IAPickerModal({ providers, onPick, onClose }) {
         <div className="flex flex-col gap-2">
           {providers.map(p => (
             <button key={p} onClick={() => onPick(p)}
-              className="w-full px-4 py-2.5 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+              className="w-full px-4 py-2.5 rounded-xl text-sm font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white transition-colors">
               {LABELS[p] ?? p}
             </button>
           ))}
@@ -411,7 +411,7 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
             </span>
             {date && <span className="text-xs text-slate-400 dark:text-slate-500">{date}{time ? <> · <span>{time}</span></> : ''}</span>}
             {hasEntities && (
-              <span className="inline-flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
+              <span className="inline-flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
                 <Tag size={9} />{count} entités
               </span>
             )}
@@ -465,7 +465,7 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
             {tags.map(t => (
-              <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">{t}</span>
+              <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">{t}</span>
             ))}
           </div>
         )}
@@ -509,12 +509,12 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
         {/* Barre score + podcast */}
         <div className="mt-3 pt-3 border-t border-white/40 dark:border-white/5 flex items-center gap-2">
           {isCurrentPodcast && (
-            <span className="flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400 font-medium">
+            <span className="flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 font-medium">
               <Volume2 size={11} className="animate-pulse" />En cours…
             </span>
           )}
           <div className="ml-auto flex items-center gap-2 flex-1 min-w-0">
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">Score</span>
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">Score</span>
             <div className="flex-1 h-1.5 bg-slate-200/60 dark:bg-slate-700/50 rounded-full overflow-hidden">
               <div className={`h-full rounded-full ${
                 (article.score_pertinence ?? 0) >= 70 ? 'bg-emerald-500' :

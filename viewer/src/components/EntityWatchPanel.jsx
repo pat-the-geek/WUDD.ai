@@ -130,7 +130,7 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
             <button
               onClick={addEntity}
               disabled={!newValue.trim() || saving}
-              className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 shrink-0"
+              className="flex items-center gap-1.5 px-3 py-2 bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 shrink-0"
             >
               <Plus size={13} /> Surveiller
             </button>
@@ -153,7 +153,7 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-200/50 dark:border-slate-700/50">
+                <tr className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-200/50 dark:border-slate-700/50">
                   <th className="text-left px-5 py-2.5">Entité</th>
                   <th className="text-left px-4 py-2.5">Activité</th>
                   <th className="text-left px-4 py-2.5">Ajoutée le</th>
@@ -165,7 +165,7 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
                   <tr key={i} className="border-b border-slate-200/40 dark:border-slate-700/40 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${TYPE_COLORS[e.type] || 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
+                        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${TYPE_COLORS[e.type] || 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
                           {ENTITY_TYPE_FR[e.type] || e.type}
                         </span>
                         <button

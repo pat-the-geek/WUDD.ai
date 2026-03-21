@@ -423,7 +423,7 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
           >
             <ZoomOut size={13} />
           </button>
-          <span className="text-[10px] text-slate-400 w-10 text-center tabular-nums">
+          <span className="text-[11px] text-slate-400 w-10 text-center tabular-nums">
             {zoomPct}%
           </span>
           <button
@@ -544,15 +544,15 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
       {/* ── Légende compacte (une seule ligne) ── */}
       <div className="mt-1 shrink-0 flex items-center gap-x-3 px-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
         {presentTypes.map(type => (
-          <span key={type} className="inline-flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0">
+          <span key={type} className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0">
             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: TYPE_CFG[type]?.node ?? '#94a3b8' }} />
             {TYPE_CFG[type]?.label ?? type}
           </span>
         ))}
         {depth === 2 && nL2 > 0 && (
-          <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">· ● L1 ╌ L2</span>
+          <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">· ● L1 ╌ L2</span>
         )}
-        <span className="ml-auto text-[10px] text-slate-300 dark:text-slate-600 whitespace-nowrap shrink-0 pl-2">
+        <span className="ml-auto text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0 pl-2">
           <span className="hidden sm:inline">⌀ zoom · drag · clic</span>
           <span className="sm:hidden">pince · glisse · touche</span>
         </span>
@@ -565,7 +565,7 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
           style={{ left: tooltip.x + 14, top: tooltip.y - 48 }}
         >
           <div className="font-semibold">{tooltip.node.value}</div>
-          <div className="text-slate-300 text-[10px] mt-0.5">
+          <div className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">
             {TYPE_CFG[tooltip.node.type]?.label ?? tooltip.node.type}
             {!tooltip.node.central && (
               <> · <span className="text-violet-300">
@@ -577,7 +577,7 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
             )}
           </div>
           {!tooltip.node.central && (
-            <div className="text-slate-400 text-[10px] mt-0.5">Cliquer pour explorer →</div>
+            <div className="text-slate-400 text-[11px] mt-0.5">Cliquer pour explorer →</div>
           )}
         </div>
       )}

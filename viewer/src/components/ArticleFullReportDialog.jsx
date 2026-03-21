@@ -866,7 +866,7 @@ ${contentEl.innerHTML}
                     {exportState.local === 'saving' ? <Loader2 size={14} className="animate-spin" /> : exportState.local?.ok ? <Check size={14} /> : <Download size={14} />}
                   </button>
                   {(exportState.local?.ok || exportState.local?.error) && (
-                    <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[10px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
+                    <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[11px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
                       {exportState.local?.ok ? exportState.local.path : exportState.local?.error}
                     </div>
                   )}
@@ -886,7 +886,7 @@ ${contentEl.innerHTML}
                     {exportState.obsidian === 'saving' ? <Loader2 size={14} className="animate-spin" /> : exportState.obsidian?.ok ? <Check size={14} /> : <BookOpen size={14} />}
                   </button>
                   {(exportState.obsidian?.ok || exportState.obsidian?.error) && (
-                    <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[10px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
+                    <div className="absolute top-full mt-1 right-0 z-10 max-w-xs bg-slate-800 text-white text-[11px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis">
                       {exportState.obsidian?.ok
                         ? (exportState.obsidian.deduplicated ? '✓ Déjà exporté — ' : '') + exportState.obsidian.path
                         : exportState.obsidian?.error}
@@ -925,7 +925,7 @@ ${contentEl.innerHTML}
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+              className="p-2.5 rounded-lg text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors touch-target"
               title="Fermer"
             >
               <X size={14} />
@@ -974,11 +974,11 @@ ${contentEl.innerHTML}
         {Array.isArray(article['rapports']) && article['rapports'].length > 0 && (
           <div className="no-print flex items-center gap-2 px-5 py-2 bg-violet-50/60 dark:bg-violet-900/20 border-b border-violet-100 dark:border-violet-800/40 overflow-x-auto shrink-0 flex-wrap">
             <BookOpen size={11} className="text-violet-500 shrink-0" />
-            <span className="text-[10px] font-medium text-violet-600 dark:text-violet-400 shrink-0">Rapports générés :</span>
+            <span className="text-[11px] font-medium text-violet-600 dark:text-violet-400 shrink-0">Rapports générés :</span>
             {article['rapports'].map((rap, idx) => (
               <span
                 key={idx}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-white dark:bg-slate-800 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 shrink-0"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-white dark:bg-slate-800 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 shrink-0"
                 title={`${rap.chemin ?? ''}`}
               >
                 {rap.cible === 'obsidian' ? 'Obsidian' : 'Local'}

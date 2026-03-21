@@ -577,7 +577,7 @@ export default function App() {
         {/* Logo compact */}
         <div className="flex items-center gap-1.5 shrink-0 mr-1">
           <img src={wuddLogo} alt="WUDD.ai" className="w-8 h-8 rounded-md select-none" />
-          <span className="hidden xl:block font-semibold text-sm text-slate-900 dark:text-slate-100 whitespace-nowrap">WUDD.ai</span>
+          <span className="hidden xl:block font-semibold text-hig-callout text-slate-900 dark:text-slate-100 whitespace-nowrap">WUDD.ai</span>
         </div>
 
         {/* Statut RSS */}
@@ -600,7 +600,7 @@ export default function App() {
               title={title}
               className={`px-1.5 py-1.5 transition-colors ${
                 theme === key
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
@@ -710,7 +710,7 @@ export default function App() {
                   <Icon size={14} className="text-slate-400 dark:text-slate-500 shrink-0 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</div>
-                    <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">{desc}</div>
+                    <div className="text-[11px] text-slate-400 dark:text-slate-500 leading-tight">{desc}</div>
                   </div>
                 </button>
               ))}
@@ -804,12 +804,12 @@ export default function App() {
             title="Fichiers"
             className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
               sidebarOpen
-                ? 'text-blue-600 dark:text-blue-400'
+                ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
             <Menu size={24} strokeWidth={sidebarOpen ? 2.2 : 1.8} />
-            <span className="text-[10px] font-medium leading-none">Fichiers</span>
+            <span className="text-[11px] font-medium leading-none">Fichiers</span>
           </button>
 
           {/* 2 — Top articles */}
@@ -818,12 +818,12 @@ export default function App() {
             title="Top articles"
             className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
               topOpen
-                ? 'text-blue-600 dark:text-blue-400'
+                ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
             <Star size={24} strokeWidth={topOpen ? 2.2 : 1.8} />
-            <span className="text-[10px] font-medium leading-none">Top</span>
+            <span className="text-[11px] font-medium leading-none">Top</span>
           </button>
 
           {/* 3 — Recherche : centre = zone pouce prioritaire */}
@@ -832,7 +832,7 @@ export default function App() {
             title="Recherche"
             className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
               searchOpen || searchTypeMenuOpen
-                ? 'text-blue-600 dark:text-blue-400'
+                ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
@@ -842,7 +842,7 @@ export default function App() {
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-violet-500" />
               )}
             </span>
-            <span className="text-[10px] font-medium leading-none">Recherche</span>
+            <span className="text-[11px] font-medium leading-none">Recherche</span>
           </button>
 
           {/* 4 — Entités */}
@@ -851,12 +851,12 @@ export default function App() {
             title="Dashboard entités"
             className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
               dashboardOpen
-                ? 'text-blue-600 dark:text-blue-400'
+                ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
             <BarChart2 size={24} strokeWidth={dashboardOpen ? 2.2 : 1.8} />
-            <span className="text-[10px] font-medium leading-none">Entités</span>
+            <span className="text-[11px] font-medium leading-none">Entités</span>
           </button>
 
           {/* 5 — Réglages (inclut : thème, RSS, tendances, biais) */}
@@ -865,7 +865,7 @@ export default function App() {
             title="Réglages"
             className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
               settingsOpen
-                ? 'text-blue-600 dark:text-blue-400'
+                ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
@@ -875,7 +875,7 @@ export default function App() {
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               ) : null}
             </span>
-            <span className="text-[10px] font-medium leading-none">Réglages</span>
+            <span className="text-[11px] font-medium leading-none">Réglages</span>
           </button>
 
         </div>

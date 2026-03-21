@@ -167,11 +167,11 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
 
         {/* ── Article source ─────────────────────────────────────────────── */}
         <div className="px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 shrink-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">
             Article source
           </p>
           <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{articleTitle}</p>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500">
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">
             {article['Sources']} · {article['Date de publication']}
           </p>
         </div>
@@ -241,17 +241,17 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                               {c.source}
                             </span>
                             {c.has_obsidian && (
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800">
+                              <span className="text-[11px] px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800">
                                 Obsidian
                               </span>
                             )}
                           </div>
                           {/* Score composite */}
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${scoreBg(c.score)} ${scoreColor(c.score)}`}>
+                          <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${scoreBg(c.score)} ${scoreColor(c.score)}`}>
                             {Math.round(c.score * 100)}%
                           </span>
                         </div>
@@ -259,21 +259,21 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
                         <p className="text-xs font-medium text-slate-700 dark:text-slate-200 mt-0.5 leading-tight line-clamp-2">
                           {c.titre || c.url}
                         </p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{c.date}</p>
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{c.date}</p>
 
                         {/* Scores détaillés + bouton extrait */}
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <span className="text-[9px] text-slate-400 dark:text-slate-500">
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500">
                             Entités {Math.round(c.score_entites * 100)}%
                           </span>
-                          <span className="text-[9px] text-slate-300 dark:text-slate-600">·</span>
-                          <span className="text-[9px] text-slate-400 dark:text-slate-500">
+                          <span className="text-[11px] text-slate-300 dark:text-slate-600">·</span>
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500">
                             Texte {Math.round(c.score_bigrammes * 100)}%
                           </span>
                           {c.resume_extrait && (
                             <button
                               onClick={() => setExpandedUrl(v => v === c.url ? null : c.url)}
-                              className="text-[9px] text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 flex items-center gap-0.5 transition-colors ml-auto"
+                              className="text-[11px] text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 flex items-center gap-0.5 transition-colors ml-auto"
                             >
                               {isExpanded ? <><ChevronUp size={9} /> Moins</> : <><ChevronDown size={9} /> Extrait</>}
                             </button>
@@ -323,7 +323,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
                       {mergeResult.obsidian_updated.length} note{mergeResult.obsidian_updated.length > 1 ? 's' : ''} Obsidian mise{mergeResult.obsidian_updated.length > 1 ? 's' : ''} à jour
                     </p>
                   )}
-                  <p className="text-[10px] text-emerald-500/70 dark:text-emerald-500/60 mt-1 font-mono break-all">
+                  <p className="text-[11px] text-emerald-500/70 dark:text-emerald-500/60 mt-1 font-mono break-all">
                     Archive : {mergeResult.archive_path}
                   </p>
                 </div>
@@ -363,7 +363,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
             {synthesis !== null && (
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                     Synthèse{' '}
                     {synthMode === 'ia'
                       ? <span className="normal-case font-normal text-violet-500 dark:text-violet-400">générée par l'IA</span>
@@ -374,7 +374,7 @@ export default function SimilarArticlesPanel({ article, filePath, onClose, onMer
                     onClick={generateSynthesis}
                     disabled={synthesizing}
                     title="Regénérer"
-                    className="text-[10px] text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 flex items-center gap-0.5 transition-colors"
+                    className="text-[11px] text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 flex items-center gap-0.5 transition-colors"
                   >
                     {synthesizing ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
                     {synthesizing ? 'Génération…' : 'Regénérer'}

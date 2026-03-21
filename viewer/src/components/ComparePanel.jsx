@@ -9,7 +9,7 @@ function StatBlock({ label, value, delta, isPercent }) {
   const Icon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Minus
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
+      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
       <span className="text-xl font-bold text-slate-800 dark:text-slate-100">{value}</span>
       {delta !== null && (
         <span className={`flex items-center gap-0.5 text-xs font-medium ${color}`}>
@@ -30,7 +30,7 @@ function SentimentBar({ label, sentiments }) {
   }
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
+      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
       <div className="flex h-4 rounded overflow-hidden gap-px">
         {Object.entries(sentiments).map(([s, c]) => (
           <div
@@ -57,7 +57,7 @@ function TopList({ items, labelKey, countKey, title }) {
   if (!items?.length) return <span className="text-xs text-slate-400 italic">Aucune donnée</span>
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{title}</span>
+      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{title}</span>
       <ol className="space-y-0.5">
         {items.slice(0, 5).map((item, i) => (
           <li key={i} className="flex items-center gap-2 text-xs">
@@ -125,7 +125,7 @@ export default function ComparePanel({ onClose }) {
           <div className="flex flex-wrap gap-4 items-end">
             {/* Période 1 */}
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Période 1</span>
+              <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Période 1</span>
               <div className="flex items-center gap-2">
                 <input type="date" value={from1} onChange={e => setFrom1(e.target.value)}
                   className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400" />
@@ -139,7 +139,7 @@ export default function ComparePanel({ onClose }) {
 
             {/* Période 2 */}
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Période 2</span>
+              <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Période 2</span>
               <div className="flex items-center gap-2">
                 <input type="date" value={from2} onChange={e => setFrom2(e.target.value)}
                   className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400" />
@@ -152,7 +152,7 @@ export default function ComparePanel({ onClose }) {
             <button
               onClick={compare}
               disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-60 self-end"
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-60 self-end"
             >
               {loading ? <RefreshCw size={12} className="animate-spin" /> : <BarChart2 size={12} />}
               Comparer

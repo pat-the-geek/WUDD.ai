@@ -24,7 +24,7 @@ function ReadingTimeBadge({ article }) {
   const label = article.temps_lecture_label
   if (!label) return null
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400">
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400">
       <Clock size={9} className="shrink-0" />
       {label}
     </span>
@@ -40,12 +40,12 @@ function SentimentBadge({ article }) {
   const cfg = SENTIMENT_CFG[sentiment] ?? SENTIMENT_CFG.neutre
   return (
     <div className="flex items-center gap-1.5 flex-wrap mt-1">
-      <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.text}`}>
+      <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.text}`}>
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
         {cfg.label}{scoreSent ? ` ${scoreSent}/5` : ''}
       </span>
       {ton && (
-        <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400">
+        <span className="inline-flex items-center text-[11px] font-medium px-1.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400">
           {TON_LABELS[ton] ?? ton}{scoreTon ? ` ${scoreTon}/5` : ''}
         </span>
       )}
@@ -401,7 +401,7 @@ function IAPickerModal({ providers, onPick, onClose }) {
         <div className="flex flex-col gap-2">
           {providers.map(p => (
             <button key={p} onClick={() => onPick(p)}
-              className="w-full px-4 py-2.5 rounded-xl text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+              className="w-full px-4 py-2.5 rounded-xl text-sm font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white transition-colors">
               {LABELS[p] ?? p}
             </button>
           ))}
@@ -544,7 +544,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
             </span>
             {date && <span className="text-xs text-slate-400 dark:text-slate-500">{date}{time ? <> · <span>{time}</span></> : ''}</span>}
             {hasEntities && (
-              <span className="inline-flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
+              <span className="inline-flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
                 <Tag size={9} />{count} entités
               </span>
             )}
@@ -617,7 +617,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
             {tags.map(t => (
-              <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+              <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                 {t}
               </span>
             ))}
@@ -676,7 +676,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
               <span
                 key={idx}
                 title={`${rap.cible === 'obsidian' ? 'Obsidian' : 'Local'} · ${rap.date_creation ?? ''}\n${rap.chemin ?? ''}`}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
               >
                 <BookOpen size={9} />
                 Rapport {rap.cible === 'obsidian' ? 'Obsidian' : 'local'}
@@ -730,7 +730,7 @@ function TimelineItem({ article }) {
           </span>
           {date && <span className="text-xs text-slate-400 dark:text-slate-500">{date}{time ? <> · <span>{time}</span></> : ''}</span>}
           {hasEntities && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
+            <span className="inline-flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1.5 py-0.5 rounded-full border border-violet-200 dark:border-violet-800">
               <Tag size={9} />{count}
             </span>
           )}
@@ -1148,7 +1148,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600'
                       }`}>
                       {src}
-                      <span className={`tabular-nums text-[10px] ${active ? 'opacity-75' : 'opacity-55'}`}>{count}</span>
+                      <span className={`tabular-nums text-[11px] ${active ? 'opacity-75' : 'opacity-55'}`}>{count}</span>
                     </button>
                   )
                 })}
@@ -1174,7 +1174,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
                     <button key={type} onClick={() => toggleType(type)}
                       className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border shrink-0 transition-all active:scale-95 ${active ? colors.on : colors.idle}`}>
                       {type}
-                      <span className={`tabular-nums text-[10px] ${active ? 'opacity-80' : 'opacity-55'}`}>{count}</span>
+                      <span className={`tabular-nums text-[11px] ${active ? 'opacity-80' : 'opacity-55'}`}>{count}</span>
                     </button>
                   )
                 })}
@@ -1330,7 +1330,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
             <Filter size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Type d'entité</span>
             {selectedTypes.size > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">{selectedTypes.size}</span>
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">{selectedTypes.size}</span>
             )}
             {selectedTypes.size > 0 && (
               <span
@@ -1354,7 +1354,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
                     title={`Filtrer les articles avec des entités de type ${type}`}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all hover:scale-105 active:scale-95 ${active ? colors.on : colors.idle}`}>
                     {type}
-                    <span className={`tabular-nums text-[10px] ${active ? 'opacity-80' : 'opacity-55'}`}>{count}</span>
+                    <span className={`tabular-nums text-[11px] ${active ? 'opacity-80' : 'opacity-55'}`}>{count}</span>
                   </button>
                 )
               })}
@@ -1373,7 +1373,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
             <Newspaper size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Source</span>
             {selectedSources.size > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">{selectedSources.size}</span>
+              <span className="ml-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">{selectedSources.size}</span>
             )}
             {selectedSources.size > 0 && (
               <span
@@ -1399,7 +1399,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
                         : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-400'
                     }`}>
                     {src}
-                    <span className={`tabular-nums text-[10px] ${active ? 'opacity-75' : 'opacity-55'}`}>{count}</span>
+                    <span className={`tabular-nums text-[11px] ${active ? 'opacity-75' : 'opacity-55'}`}>{count}</span>
                   </button>
                 )
               })}
