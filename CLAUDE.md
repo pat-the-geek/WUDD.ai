@@ -7,7 +7,7 @@ This file provides essential context for AI assistants working in this codebase.
 **WUDD.ai** (also called *Analyse Actualités*) is a French-language intelligent news monitoring platform. It fetches articles from JSON feeds accessible via HTTP URL, summarizes them with an AI API (Infomaniak EurIA / Qwen3), and produces structured JSON outputs and Markdown reports.
 
 - **Language:** All configuration keys, prompts, log messages, and output are in **French**
-- **Version:** 2.3.0 (déduplication, crédibilité sources, timeline entités, backup)
+- **Version:** 2.4.0 (index articles/entités, détection contradictions, enrichissement async, fusion articles)
 - **License:** MIT — Patrick Ostertag
 - **Python:** 3.10+
 
@@ -270,7 +270,17 @@ The Docker container installs `archives/crontab` at startup and runs `cron -f` i
 | `Get_htmlText_From_JSONFile.py` | Extract raw HTML text from articles | (none; interactive file picker) |
 | `backup_data.py` | Incremental backup of `data/` to `BACKUP_L1` and optionally `BACKUP_L2` | `--dry-run` |
 | `enrich_images.py` | Add `Images` field to articles without images — fetches HTML and extracts `og:image`/`twitter:image` | `--flux`, `--keyword`, `--dry-run`, `--delay`, `--force` |
+| `enrich_source_credibility.py` | Auto-enrich `config/sources_credibility.json` with domain age (WHOIS), editorial transparency, and MBFC rating; can sync new sources from OPML/web_sources.json | `--sync`, `--force`, `--dry-run` |
 | `web_watcher.py` | Watch web sources without RSS via sitemap.xml — fetches pages, generates AI summaries, saves to `data/articles-from-rss/` | `--dry-run`, `--source` |
+| `detect_contradictions.py` | Detect contradictions between sources on the same event using claim extraction + deterministic rules + LLM arbitration | `--article <url>`, `--days`, `--flux`, `--dry-run` |
+| `entity_timeline.py` | Build chronological time series of entity mentions across all article files — saves to `data/entity_timeline.json` | (none) |
+| `fix_article_dates.py` | One-time migration: normalize RFC 2822 dates to DD/MM/YYYY in `data/articles-from-rss/` | `--dry-run` |
+| `generate_data_quality_report.py` | Generate a Markdown data-quality report (missing fields, API errors, quality score) for all article JSON files | `--dry-run`, `--dir articles\|rss`, `--output` |
+| `import_articles.py` | Import articles from an external JSON file into a flux or keyword source, with deduplication and index update | `--file`, `--flux`, `--keyword`, `--rss`, `--dry-run` |
+| `import_obsidian_reports.py` | Sync WUDD.ai Markdown reports from Obsidian back into article JSON and `data/entity_reports_index.json` (idempotent) | `--dry-run`, `--force` |
+| `migrate_build_indexes.py` | One-time migration: build `data/article_index.json` and `data/entity_index.json` from scratch | `--dry-run` |
+| `normalize_entity_index.py` | Migration v1→v2: normalize entity keys to lowercase in `data/entity_index.json` and add canonical display form (`caps`) | `--dry-run`, `--backup` |
+| `rebuild_48h.py` | Reconstruct `data/articles-from-rss/_WUDD.AI_/48-heures.json` by aggregating all articles from the last 48h | (none) |
 
 ---
 
@@ -293,6 +303,15 @@ All utility modules are importable as `from utils.X import Y`. They are the corr
 | `utils/source_credibility.py` | `CredibilityEngine` — source credibility score (0–100) from `config/sources_credibility.json`; influences article ranking via `scoring.py` multiplier. Methods: `get_score()`, `get_multiplier()`, `rate_articles()` |
 | `utils/reading_time.py` | Reading time estimation at 230 wpm (francophone average). Returns `temps_lecture_minutes` (float) and `temps_lecture_label` (str). Functions: `estimate_reading_time()`, `enrich_reading_time()` |
 | `utils/rolling_window.py` | Shared rolling-window helper — maintains `48-heures.json` incrementally or by full rebuild from source dir. Used by `flux_watcher.py`, `get-keyword-from-rss.py` and `web_watcher.py`. Function: `update_rolling_window(new_articles, output_path, hours, source_dir)` |
+| `utils/article_index.py` | `ArticleIndex` — lightweight index of article metadata (`data/article_index.json`): URL, source, date, presence of entities/sentiment/images, file path + array index. Avoids full `data/` scans for scoring and reports. Methods: `update()`, `get_articles()`, `get_by_url()` |
+| `utils/entity_index.py` | `EntityIndex` — inverted index entity → articles (`data/entity_index.json`): maps `TYPE:value` keys to `[{file, idx, date}]` references. Keys are lowercase; canonical display form stored in `caps`. Methods: `update()`, `get_refs()`, `load_articles()` |
+| `utils/article_merger.py` | Article similarity search and merge — `find_similar(article, project_root, days, threshold)` returns ranked similar articles; `execute_merge()` archives secondaries, removes them from corpus, and inserts the merged article into the primary source file |
+| `utils/async_enricher.py` | `AsyncEnricher` — async NER and sentiment enrichment via `asyncio` + `aiohttp` (optional dep); falls back to synchronous client if unavailable. Methods: `enrich_entities_batch()`, `enrich_sentiment_batch()`. Concurrency configurable (default 15) |
+| `utils/claim_extractor.py` | Extract atomic factual claims from an article summary via the configured AI provider. Returns typed claims (`CHIFFRE`, `DATE`, `FAIT_BINAIRE`, `ATTRIBUTION`, `AUTRE`) for use by `contradiction_engine` |
+| `utils/contradiction_engine.py` | Two-pass contradiction detection: deterministic rules (figures, dates, antonym pairs) then LLM arbitration for ambiguous cases. Used by `detect_contradictions.py` |
+| `utils/source_enricher.py` | Auto-enrich source entries in `config/sources_credibility.json` with domain age (WHOIS), editorial transparency (HTTP scrape), and MBFC rating. Functions: `enrich_source()`, `run_enrichment()` |
+| `utils/source_registry.py` | Collect all active source names from OPML, `web_sources.json`, and existing article JSON files. Function: `collect_sources(project_root) → set[str]` |
+| `utils/synthesis_cache.py` | `SynthesisCache` — persistent TTL cache for AI entity syntheses (`data/synthesis_cache.json`, default 24h). Avoids redundant AI calls for recently-analyzed entities. Methods: `get()`, `set()`, `invalidate()`. Singleton via `get_synthesis_cache()` |
 | `utils/exporters/atom_feed.py` | Atom XML feed generation (`generate_atom_feed()`, `generate_atom_from_flux()`) |
 | `utils/exporters/newsletter.py` | Newsletter HTML generation + SMTP send (`generate_newsletter_html()`, `send_newsletter()`) |
 | `utils/exporters/webhook.py` | Webhook notifications — Discord, Slack, Ntfy (`send_discord()`, `send_slack()`, `send_ntfy()`) |
@@ -338,6 +357,9 @@ Local web interface for browsing, reading and editing generated JSON/Markdown fi
 | `SourceBiasPanel.jsx` | Source credibility and editorial bias visualization |
 | `TopArticlesPanel.jsx` | Top articles ranking — podium style (🥇🥈🥉 + numbered circles), mobile bottom sheet |
 | `TTSButton.jsx` | Text-to-speech button for article content |
+| `ArticleFullReportDialog.jsx` | Full-report modal for a single article — streamed Markdown via SSE, entity avatar band, main image, Mermaid diagrams; actions: copy, download .md, print/PDF, regenerate, full-screen |
+| `EntityFullReportDialog.jsx` | Full-report modal for an entity — progressive SSE streaming (info → RAG → articles), Mermaid mindmap + pie chart; actions: copy, local export, Obsidian export, regenerate, full-screen |
+| `SimilarArticlesPanel.jsx` | Panel showing articles similar to the current one (similarity score, color-coded); allows selecting and merging articles via `article_merger` backend endpoint |
 | `KeywordForceGraph.jsx` | Force-directed graph of WUDD.ai keywords; props: `{ keywords }` array of `{keyword, or, and}`; zoom/pan, "Liens" slider (0.4–3.5x), "Sous-termes" toggle; used in SettingsPanel and cross-flux report |
 | `FluxBarChart.jsx` | Horizontal SVG bar chart for top RSS flux by article count; props: `{ items }` array of `{name, count, letter}`; letters from Python alphabetical assignment; used in cross-flux report |
 
@@ -394,6 +416,10 @@ data/
 │   └── all_articles.txt       # Raw extracted HTML text
 ├── alertes.json               # Generated by trend_detector.py
 ├── entity_timeline.json       # Generated by entity_timeline.py
+├── article_index.json         # Lightweight article metadata index (url, source, date, flags, file path)
+├── entity_index.json          # Inverted entity → articles index (TYPE:value → [{file, idx, date}])
+├── synthesis_cache.json       # Cached AI entity syntheses (TTL 24h, keyed by MD5)
+├── entity_reports_index.json  # Index of entity reports imported from Obsidian
 ├── quota_state.json           # Quota counters (auto-reset at midnight)
 └── web_watcher_state.json     # Processed URL tracking for web_watcher.py
 
@@ -466,6 +492,11 @@ Test files:
 - `tests/test_date_utils.py` — Date parsing edge cases (184 lines)
 - `tests/test_multi_flux.py` — Multi-flux cache isolation (49 lines)
 - `tests/test_new_features.py` — Deduplication, source credibility, reading time (50 tests)
+- `tests/test_indexes.py` — `article_index` and `entity_index` build, update, and lookup
+- `tests/test_optimisations.py` — Async enricher, article merger, synthesis cache
+- `tests/test_rolling_window.py` — Rolling window incremental update and full rebuild
+- `tests/test_source_credibility_v2.py` — Source enricher v2 signals (WHOIS, MBFC, transparency)
+- `tests/test_web_watcher_dates.py` — Date normalization for web_watcher articles
 
 Coverage targets: `utils/` ≥ 80%, `scripts/` ≥ 60%, critical functions 100%.
 
