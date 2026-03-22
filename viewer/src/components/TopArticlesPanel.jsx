@@ -4,6 +4,9 @@
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, Eye, Pencil, Check, FileText, Radio } from 'lucide-react'
+import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, useMap } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
 import ArticleFullReportDialog from './ArticleFullReportDialog'
@@ -530,6 +533,107 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
   )
 }
 
+// ── DirectMapOverlay — carte monde avec vignettes d'entités ───────────────────
+
+function MapInvalidator({ containerRef }) {
+  const map = useMap()
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const obs = new ResizeObserver(() => setTimeout(() => map.invalidateSize(), 0))
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [map, containerRef])
+  return null
+}
+
+function makeThumbIcon(images, zIndexBase, thumbSize) {
+  const n = images.length
+  const offset = 5
+  const totalW = thumbSize + (n - 1) * offset
+  const totalH = thumbSize + (n - 1) * offset
+  // Les premières images (index 0) sont les plus importantes → au-dessus
+  const html = images.map((img, i) => {
+    const depth = n - 1 - i // i=0 → sur le dessus (z élevé)
+    return `<img src="${img.url.replace(/"/g, '%22')}"
+      title="${img.name.replace(/"/g, '')}"
+      onerror="this.style.display='none'"
+      style="position:absolute;top:${depth * offset}px;left:${depth * offset}px;
+        width:${thumbSize}px;height:${thumbSize}px;object-fit:cover;
+        border-radius:6px;border:2px solid rgba(255,255,255,0.75);
+        box-shadow:0 2px 10px rgba(0,0,0,0.7);z-index:${n - depth}"/>`
+  }).join('')
+  return L.divIcon({
+    html: `<div style="position:relative;width:${totalW}px;height:${totalH}px;">${html}</div>`,
+    className: '',
+    iconSize:   [totalW, totalH],
+    iconAnchor: [totalW / 2, totalH / 2],
+  })
+}
+
+function DirectMapOverlay({ markers }) {
+  const containerRef = useRef(null)
+  const [thumbSize, setThumbSize] = useState(44)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const obs = new ResizeObserver(() => {
+      setThumbSize(Math.max(32, Math.min(64, el.clientHeight * 0.1)))
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  return (
+    <div ref={containerRef} className="relative w-full h-full">
+      <MapContainer
+        center={[20, 10]} zoom={2} minZoom={1} maxZoom={6}
+        scrollWheelZoom={true} zoomControl={false}
+        style={{ height: '100%', width: '100%' }}
+      >
+        <MapInvalidator containerRef={containerRef} />
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        {markers.map((m) => {
+          const imgs = m.images.slice(0, 3)
+          if (!imgs.length) return null
+          const icon = makeThumbIcon(imgs, m.zIndex, thumbSize)
+          return (
+            <Marker key={m.articleId} position={[m.lat, m.lon]}
+              icon={icon} zIndexOffset={m.zIndex * 100}>
+              <LeafletTooltip direction="top" opacity={0.97}>
+                <div style={{ maxWidth: 280 }}>
+                  <div className="font-semibold text-xs leading-snug">{m.title}</div>
+                  {m.description && (
+                    <div className="text-[10px] mt-1 leading-snug" style={{ color: '#c9d1d9', whiteSpace: 'normal' }}>
+                      {m.description.length > 180 ? m.description.slice(0, 180) + '…' : m.description}
+                    </div>
+                  )}
+                  <div className="text-[10px] text-gray-400 mt-1 truncate">
+                    {imgs.map(i => i.name).join(' · ')}
+                  </div>
+                </div>
+              </LeafletTooltip>
+            </Marker>
+          )
+        })}
+      </MapContainer>
+      {/* Indicateur de progression NER */}
+      <div className="absolute top-2 right-2 z-[1000] pointer-events-none">
+        {markers.length === 0 && (
+          <span className="text-[9px] font-mono px-2 py-0.5 rounded"
+            style={{ background: 'rgba(13,17,23,0.8)', color: '#3fb950' }}>
+            Analyse NER…
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Mode Direct ───────────────────────────────────────────────────────────────
 
 const DIRECT_INTERVALS = [
@@ -562,6 +666,12 @@ function DirectMode({ onReport }) {
   const [loadingArticle, setLoadingArticle] = useState(false)
   const [keywords,       setKeywords]       = useState([])
   const [filterText,     setFilterText]     = useState('')
+  // ── Carte desktop ──
+  const [mapVisible,      setMapVisible]     = useState(() => window.innerWidth >= 1024)
+  const [articleEntities, setArticleEntities] = useState({}) // {_id: {entities, coords, images}}
+  const nerQueueRef      = useRef([])   // [{_id, title, description}]
+  const nerProcessingRef = useRef(false)
+  const nerTimerRef      = useRef(null)
   const esRef         = useRef(null)
   const logRef = useRef(null)
   const endRef = useRef(null)
@@ -633,6 +743,102 @@ function DirectMode({ onReport }) {
     }
   }, [logEntries])
 
+  // Détection changement de taille de fenêtre pour mapVisible
+  useEffect(() => {
+    const handler = () => setMapVisible(window.innerWidth >= 1024)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
+  // ── NER queue processing ──────────────────────────────────────────────────
+  const processNerQueue = useCallback(async () => {
+    if (nerQueueRef.current.length === 0) {
+      nerProcessingRef.current = false
+      return
+    }
+    nerProcessingRef.current = true
+    const item = nerQueueRef.current.shift()
+    try {
+      const r1 = await fetch('/api/rss/direct/ner', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: item.title, description: item.description }),
+      })
+      const entities = await r1.json()
+      if (entities.error) throw new Error(entities.error)
+
+      const gpeNames = [...(entities.GPE || []), ...(entities.LOC || [])]
+      let coords = {}
+      if (gpeNames.length) {
+        const r2 = await fetch('/api/entities/geocode', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(gpeNames),
+        })
+        coords = await r2.json()
+      }
+
+      const imgEntities = [
+        ...(entities.PERSON  || []).map(n => ({ name: n, type: 'PERSON'  })),
+        ...(entities.ORG     || []).map(n => ({ name: n, type: 'ORG'     })),
+        ...(entities.PRODUCT || []).map(n => ({ name: n, type: 'PRODUCT' })),
+      ]
+      let images = {}
+      if (imgEntities.length) {
+        const r3 = await fetch('/api/entities/images', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(imgEntities),
+        })
+        images = await r3.json()
+      }
+      setArticleEntities(prev => ({ ...prev, [item._id]: { entities, coords, images } }))
+    } catch { /* silencieux */ }
+    nerTimerRef.current = setTimeout(processNerQueue, 2000)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Quand de nouveaux articles arrivent → les enqueue (plus récent en premier)
+  useEffect(() => {
+    if (!mapVisible) return
+    const processed = new Set(Object.keys(articleEntities))
+    const queued    = new Set(nerQueueRef.current.map(q => q._id))
+    const toAdd = [...sortedEntries]
+      .reverse() // plus récent en tête
+      .filter(e => !processed.has(e._id) && !queued.has(e._id))
+      .map(e => ({ _id: e._id, title: e.title || '', description: e.description || '' }))
+    if (toAdd.length) {
+      nerQueueRef.current.unshift(...toAdd)
+      if (!nerProcessingRef.current) processNerQueue()
+    }
+  }, [sortedEntries, mapVisible]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Nettoyage timer NER à l'unmount
+  useEffect(() => () => { clearTimeout(nerTimerRef.current) }, [])
+
+  // Marqueurs carte : une entrée par position géocodée, images des entités liées
+  const mapMarkers = useMemo(() => {
+    const markers = []
+    sortedEntries.forEach((entry, idx) => {
+      const data = articleEntities[entry._id]
+      if (!data) return
+      const gpeNames = [...(data.entities.GPE || []), ...(data.entities.LOC || [])]
+      const pos = gpeNames.map(n => data.coords[n]).find(c => c?.lat != null)
+      if (!pos) return
+      const imgs = [
+        ...(data.entities.PERSON  || []).map(n => ({ name: n, type: 'PERSON',  img: data.images[n] })),
+        ...(data.entities.ORG     || []).map(n => ({ name: n, type: 'ORG',     img: data.images[n] })),
+        ...(data.entities.PRODUCT || []).map(n => ({ name: n, type: 'PRODUCT', img: data.images[n] })),
+      ].filter(e => e.img?.url).map(e => ({ name: e.name, url: e.img.url }))
+      if (!imgs.length) return
+      markers.push({
+        articleId:   entry._id,
+        lat: pos.lat, lon: pos.lon,
+        zIndex:      idx,
+        images:      imgs.slice(0, 3),
+        title:       entry.title       || '',
+        description: entry.description || '',
+      })
+    })
+    return markers
+  }, [articleEntities, sortedEntries])
+
   const openArticle = async () => {
     if (!selectedEntry || loadingArticle) return
     setLoadingArticle(true)
@@ -660,7 +866,7 @@ function DirectMode({ onReport }) {
       const d = new Date(iso)
       if (isNaN(d.getTime()) || d.getFullYear() < 2000) return '--:--'
       return d.toLocaleString('fr-FR', {
-        day:    '2-digit', month: '2-digit',
+        day:    '2-digit', month: '2-digit', year: '2-digit',
         hour:   '2-digit', minute: '2-digit',
       })
     } catch { return '--:--' }
@@ -710,6 +916,13 @@ function DirectMode({ onReport }) {
           </button>
         </div>
       </div>
+
+      {/* ── Carte monde (desktop uniquement — 45% de la hauteur disponible) ── */}
+      {mapVisible && (
+        <div className="shrink-0" style={{ height: '45%', minHeight: 180, borderBottom: '1px solid #30363d' }}>
+          <DirectMapOverlay markers={mapMarkers} />
+        </div>
+      )}
 
       {/* ── Filtre texte ── */}
       <div className="px-3 py-1.5 shrink-0" style={{ borderBottom: '1px solid #21262d' }}>
