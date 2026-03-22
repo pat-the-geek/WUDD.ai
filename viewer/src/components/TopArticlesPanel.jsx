@@ -562,9 +562,8 @@ function DirectMode({ onReport }) {
   const [loadingArticle, setLoadingArticle] = useState(false)
   const [keywords,       setKeywords]       = useState([])
   const esRef         = useRef(null)
-  const logRef        = useRef(null)
-  const endRef        = useRef(null)
-  const autoScrollRef = useRef(true)
+  const logRef = useRef(null)
+  const endRef = useRef(null)
 
   // Chargement des mots-clés une seule fois
   useEffect(() => {
@@ -617,18 +616,12 @@ function DirectMode({ onReport }) {
     return () => es.close()
   }, [interval, paused]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll fluide vers le dernier élément à chaque nouvel article
+  // Scroll toujours forcé vers la sentinelle de fin à chaque nouvel article
   useEffect(() => {
-    if (autoScrollRef.current && endRef.current) {
+    if (endRef.current) {
       endRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
     }
   }, [logEntries])
-
-  const handleLogScroll = () => {
-    if (!logRef.current) return
-    const { scrollTop, scrollHeight, clientHeight } = logRef.current
-    autoScrollRef.current = scrollTop + clientHeight >= scrollHeight - 40
-  }
 
   const openArticle = async () => {
     if (!selectedEntry || loadingArticle) return
@@ -709,7 +702,7 @@ function DirectMode({ onReport }) {
       </div>
 
       {/* ── Log ── */}
-      <div ref={logRef} onScroll={handleLogScroll}
+      <div ref={logRef}
         className="flex-1 overflow-y-scroll p-3 pb-2"
         style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '12px', WebkitOverflowScrolling: 'touch' }}>
         {logEntries.length === 0 && !scanning && (
@@ -717,11 +710,10 @@ function DirectMode({ onReport }) {
             Initialisation du Direct — les nouveaux articles apparaîtront ici
           </div>
         )}
-        {sortedEntries.map((entry, i) => {
+        {sortedEntries.map((entry) => {
           const isKw = matchesKeywords(entry.title, keywords)
           return (
-          <div key={entry._id ?? i}
-            ref={i === sortedEntries.length - 1 ? endRef : null}
+          <div key={entry._id}
             onClick={() => setSelectedEntry(e => e?._id === entry._id ? null : entry)}
             className="flex items-start gap-2 px-2 py-[3px] rounded cursor-pointer select-none"
             style={{
@@ -742,6 +734,8 @@ function DirectMode({ onReport }) {
           </div>
           )
         })}
+        {/* Sentinelle : cible du scroll automatique après chaque nouvel article */}
+        <div ref={endRef} />
       </div>
 
       {/* ── Barre inférieure : article sélectionné + bouton ── */}
