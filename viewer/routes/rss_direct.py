@@ -46,6 +46,36 @@ def _parse_opml_feeds() -> list[dict]:
         return []
 
 
+def _parse_sites_actualite_feeds() -> list[dict]:
+    """Lit config/sites_actualite.json et retourne les flux RSS."""
+    path = PROJECT_ROOT / "config" / "sites_actualite.json"
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        feeds = []
+        for entry in data:
+            title   = (entry.get("Titre") or "").strip()
+            xml_url = (entry.get("URL")   or "").strip()
+            if xml_url:
+                feeds.append({"title": title, "xmlUrl": xml_url})
+        return feeds
+    except Exception:
+        return []
+
+
+def _all_feeds() -> list[dict]:
+    """Fusionne les flux OPML et sites_actualite.json, dédupliqués par URL."""
+    seen_urls: set[str] = set()
+    result: list[dict] = []
+    for feed in _parse_opml_feeds() + _parse_sites_actualite_feeds():
+        url = feed["xmlUrl"]
+        if url not in seen_urls:
+            seen_urls.add(url)
+            result.append(feed)
+    return result
+
+
 def _parse_rss_date(date_str: str) -> datetime:
     """Parse une date RSS (RFC 2822 ou ISO 8601) → datetime UTC naive."""
     if not date_str:
@@ -134,11 +164,11 @@ def api_rss_direct_stream():
     interval = max(5, min(300, int(request.args.get("interval", 30))))
 
     def generate():
-        feeds = _parse_opml_feeds()
+        feeds = _all_feeds()
         if not feeds:
             yield "data: " + json.dumps({
                 "type":    "error",
-                "message": "Aucun flux OPML trouvé"
+                "message": "Aucun flux RSS trouvé (OPML + sites_actualite.json)"
             }) + "\n\n"
             return
 
