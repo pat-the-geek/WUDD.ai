@@ -700,6 +700,8 @@ function DirectMode({ onReport }) {
   const [filterText,     setFilterText]     = useState('')
   // ── Carte desktop ──
   const [mapVisible,          setMapVisible]         = useState(() => window.innerWidth >= 1024)
+  const [mapHeightPct,        setMapHeightPct]       = useState(45)
+  const directContainerRef = useRef(null)
   const [selectedEntityFromMap, setSelectedEntityFromMap] = useState(null)
   const [articleEntities, setArticleEntities] = useState({}) // {_id: {entities, coords, images}}
   const nerQueueRef      = useRef([])   // [{_id, title, description}]
@@ -905,8 +907,31 @@ function DirectMode({ onReport }) {
     } catch { return '--:--' }
   }
 
+  function startMapDrag(startClientY) {
+    const container = directContainerRef.current
+    if (!container) return
+    const startH = container.querySelector('[data-map-pane]')?.getBoundingClientRect().height ?? 0
+    const totalH = container.getBoundingClientRect().height
+    function onMove(e) {
+      const clientY = e.clientY ?? e.touches?.[0]?.clientY
+      if (clientY == null) return
+      const newH = Math.max(80, Math.min(totalH - 120, startH + (clientY - startClientY)))
+      setMapHeightPct(newH / totalH * 100)
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup',   onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend',  onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup',   onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend',  onUp)
+  }
+
   return (
-    <div className="flex flex-col flex-1 min-h-0" style={{ background: '#0d1117' }}>
+    <div ref={directContainerRef} className="flex flex-col flex-1 min-h-0" style={{ background: '#0d1117' }}>
 
       {/* ── En-tête : statut + sélecteur vitesse + pause ── */}
       <div className="flex items-center gap-2 px-4 py-2 shrink-0" style={{ borderBottom: '1px solid #30363d' }}>
@@ -950,11 +975,28 @@ function DirectMode({ onReport }) {
         </div>
       </div>
 
-      {/* ── Carte monde (desktop uniquement — 45% de la hauteur disponible) ── */}
+      {/* ── Carte monde (desktop uniquement) ── */}
       {mapVisible && (
-        <div className="shrink-0" style={{ height: '45%', minHeight: 180, borderBottom: '1px solid #30363d', isolation: 'isolate' }}>
-          <DirectMapOverlay markers={mapMarkers} onEntityClick={(type, name) => setSelectedEntityFromMap({ type, value: name })} />
-        </div>
+        <>
+          <div data-map-pane className="shrink-0" style={{ height: `${mapHeightPct}%`, minHeight: 80, isolation: 'isolate' }}>
+            <DirectMapOverlay markers={mapMarkers} onEntityClick={(type, name) => setSelectedEntityFromMap({ type, value: name })} />
+          </div>
+          {/* Séparateur redimensionnable */}
+          <div
+            onMouseDown={e => { e.preventDefault(); startMapDrag(e.clientY) }}
+            onTouchStart={e => { startMapDrag(e.touches[0].clientY) }}
+            title="Glisser pour redimensionner"
+            style={{
+              height: 8, flexShrink: 0, cursor: 'row-resize',
+              background: '#161b22',
+              borderTop: '1px solid #30363d', borderBottom: '1px solid #30363d',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              userSelect: 'none',
+            }}
+          >
+            <div style={{ width: 36, height: 3, borderRadius: 99, background: '#444c56' }} />
+          </div>
+        </>
       )}
       {selectedEntityFromMap && (
         <EntityArticlePanel
