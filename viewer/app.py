@@ -3,27 +3,45 @@ WUDD.ai Viewer — Flask backend
 Sert l'API de navigation de fichiers et le frontend React compilé.
 """
 
+import subprocess
 import threading
 from pathlib import Path
 
-# Charge les variables d'environnement depuis .env (si disponible)
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
-except ImportError:
-    pass
 
-# La racine du projet est le dossier parent de viewer/
-# resolve() AVANT parent.parent : __file__ peut être un chemin relatif
-# ('app.py') quand Flask est lancé via `python3 app.py` depuis viewer/,
-# auquel que (Path('app.py').parent.parent).resolve() → cwd au lieu de la racine.
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+def _resolve_project_root() -> Path:
+    """Résout la racine du dépôt principal, même depuis un worktree git."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            capture_output=True, text=True,
+            cwd=Path(__file__).parent,
+        )
+        if result.returncode == 0:
+            git_common = result.stdout.strip()
+            git_common_path = Path(git_common)
+            if not git_common_path.is_absolute():
+                git_common_path = (Path(__file__).parent / git_common_path).resolve()
+            return git_common_path.parent
+    except Exception:
+        pass
+    return Path(__file__).resolve().parent.parent
+
+
+# La racine du projet est toujours celle du dépôt principal (pas d'un worktree)
+PROJECT_ROOT = _resolve_project_root()
 
 # Ajouter la racine au sys.path pour que `from utils.X import Y` fonctionne
 # quel que soit le répertoire courant au démarrage (cron, Docker, CLI…)
 import sys as _sys
 if str(PROJECT_ROOT) not in _sys.path:
     _sys.path.insert(0, str(PROJECT_ROOT))
+
+# Charge les variables d'environnement depuis .env (si disponible)
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _load_dotenv(PROJECT_ROOT / ".env", override=False)
+except ImportError:
+    pass
 
 from flask import Flask, send_from_directory
 
