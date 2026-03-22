@@ -481,10 +481,21 @@ def api_env_post():
     if not found:
         entries.append({"key": key, "value": value, "masked": False, "comment": False})
 
-    # Sauvegarde atomique
-    tmp = _ENV_FILE.parent / (_ENV_FILE.name + ".tmp")
-    tmp.write_text(_serialize_env(entries), encoding="utf-8")
-    tmp.replace(_ENV_FILE)
+    # Écriture directe : l'écriture atomique (rename) échoue en Docker car
+    # .env est un bind mount et os.rename() lève OSError sur un mount point.
+    content = _serialize_env(entries)
+    try:
+        # Essai atomique d'abord (hors Docker / dev local)
+        tmp = _ENV_FILE.parent / (_ENV_FILE.name + ".tmp")
+        tmp.write_text(content, encoding="utf-8")
+        tmp.replace(_ENV_FILE)
+    except OSError:
+        # Fallback : écriture directe (compatible Docker bind mount)
+        _ENV_FILE.write_text(content, encoding="utf-8")
+        try:
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     # Recharger dans l'environnement courant du processus Flask
     os.environ[key] = value
@@ -518,9 +529,17 @@ def api_env_delete(key: str):
     entries = _parse_env_file(_ENV_FILE)
     entries = [e for e in entries if e.get("comment") or e.get("key") != key]
 
-    tmp = _ENV_FILE.parent / (_ENV_FILE.name + ".tmp")
-    tmp.write_text(_serialize_env(entries), encoding="utf-8")
-    tmp.replace(_ENV_FILE)
+    content = _serialize_env(entries)
+    try:
+        tmp = _ENV_FILE.parent / (_ENV_FILE.name + ".tmp")
+        tmp.write_text(content, encoding="utf-8")
+        tmp.replace(_ENV_FILE)
+    except OSError:
+        _ENV_FILE.write_text(content, encoding="utf-8")
+        try:
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     os.environ.pop(key, None)
     try:
