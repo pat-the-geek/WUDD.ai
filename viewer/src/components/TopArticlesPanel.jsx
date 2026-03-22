@@ -561,13 +561,31 @@ function makeThumbIcon(images, zIndexBase, thumbSize) {
   // Les premières images (index 0) sont les plus importantes → au-dessus
   const html = images.map((img, i) => {
     const depth = n - 1 - i // i=0 → sur le dessus (z élevé)
-    return `<img src="${img.url.replace(/"/g, '%22')}"
-      title="${img.name.replace(/"/g, '')}"
-      onerror="this.style.display='none'"
-      style="position:absolute;top:${depth * offset}px;left:${depth * offset}px;
-        width:${thumbSize}px;height:${thumbSize}px;object-fit:cover;
-        border-radius:6px;border:2px solid rgba(255,255,255,0.75);
-        box-shadow:0 2px 10px rgba(0,0,0,0.7);z-index:${n - depth}"/>`
+    if (img.url) {
+      // Fallback : si l'image ne charge pas, affiche les initiales de l'entité
+      const initials = (img.name || '?').slice(0, 2).toUpperCase()
+      return `<div style="position:absolute;top:${depth * offset}px;left:${depth * offset}px;
+        width:${thumbSize}px;height:${thumbSize}px;border-radius:6px;
+        border:2px solid rgba(255,255,255,0.75);box-shadow:0 2px 10px rgba(0,0,0,0.7);
+        background:#1c2128;z-index:${n - depth};overflow:hidden;">
+        <img src="${img.url.replace(/"/g, '%22')}"
+          title="${img.name.replace(/"/g, '')}"
+          style="width:100%;height:100%;object-fit:cover;display:block;"
+          onerror="this.style.display='none';this.nextSibling.style.display='flex'"/>
+        <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;
+          font-size:${Math.round(thumbSize * 0.35)}px;font-weight:700;color:#58a6ff;
+          font-family:monospace;">${initials}</div>
+      </div>`
+    }
+    // Pas d'URL : icône texte pure
+    const initials = (img.name || '?').slice(0, 2).toUpperCase()
+    return `<div style="position:absolute;top:${depth * offset}px;left:${depth * offset}px;
+      width:${thumbSize}px;height:${thumbSize}px;border-radius:6px;
+      border:2px solid rgba(255,255,255,0.75);box-shadow:0 2px 10px rgba(0,0,0,0.7);
+      background:#1c2128;z-index:${n - depth};
+      display:flex;align-items:center;justify-content:center;
+      font-size:${Math.round(thumbSize * 0.35)}px;font-weight:700;color:#58a6ff;
+      font-family:monospace;">${initials}</div>`
   }).join('')
   return L.divIcon({
     html: `<div style="position:relative;width:${totalW}px;height:${totalH}px;">${html}</div>`,
@@ -805,11 +823,13 @@ function DirectMode({ onReport }) {
       const gpeNames = [...(entities.GPE || []), ...(entities.LOC || [])]
       let coords = {}
       if (gpeNames.length) {
-        const r2 = await fetch('/api/entities/geocode', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(gpeNames),
-        })
-        coords = await r2.json()
+        try {
+          const r2 = await fetch('/api/entities/geocode', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(gpeNames),
+          })
+          coords = await r2.json()
+        } catch { /* géocodage optionnel */ }
       }
 
       const imgEntities = [
@@ -819,14 +839,21 @@ function DirectMode({ onReport }) {
       ]
       let images = {}
       if (imgEntities.length) {
-        const r3 = await fetch('/api/entities/images', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(imgEntities),
-        })
-        images = await r3.json()
+        try {
+          const r3 = await fetch('/api/entities/images', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(imgEntities),
+          })
+          images = await r3.json()
+        } catch { /* images optionnelles */ }
       }
       setArticleEntities(prev => ({ ...prev, [item._id]: { entities, coords, images } }))
-    } catch { /* silencieux */ }
+    } catch {
+      // NER échoué : remettre en fin de queue pour retry (si pas déjà retried)
+      if (!item._retried) {
+        nerQueueRef.current.push({ ...item, _retried: true })
+      }
+    }
     nerTimerRef.current = setTimeout(processNerQueue, 2000)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -848,7 +875,7 @@ function DirectMode({ onReport }) {
   // Nettoyage timer NER à l'unmount
   useEffect(() => () => { clearTimeout(nerTimerRef.current) }, [])
 
-  // Marqueurs carte : une entrée par position géocodée, images des entités liées
+  // Marqueurs carte : une entrée par position géocodée, image optionnelle de l'entité principale
   const mapMarkers = useMemo(() => {
     const markers = []
     sortedEntries.forEach((entry, idx) => {
@@ -857,17 +884,21 @@ function DirectMode({ onReport }) {
       const gpeNames = [...(data.entities.GPE || []), ...(data.entities.LOC || [])]
       const pos = gpeNames.map(n => data.coords[n]).find(c => c?.lat != null)
       if (!pos) return
-      const topEntity = [
+      // Priorité : entité avec image → entité sans image → titre de l'article
+      const allEntities = [
         ...(data.entities.PERSON  || []).map(n => ({ name: n, type: 'PERSON',  img: data.images[n] })),
         ...(data.entities.ORG     || []).map(n => ({ name: n, type: 'ORG',     img: data.images[n] })),
         ...(data.entities.PRODUCT || []).map(n => ({ name: n, type: 'PRODUCT', img: data.images[n] })),
-      ].filter(e => e.img?.url)[0]
-      if (!topEntity) return
+      ]
+      const topEntity = allEntities.find(e => e.img?.url) || allEntities[0]
+      const entityName = topEntity?.name || (entry.feedTitle || entry.title || '?').slice(0, 20)
+      const entityType = topEntity?.type || 'GPE'
+      const entityUrl  = topEntity?.img?.url || null
       markers.push({
         articleId:   entry._id,
         lat: pos.lat, lon: pos.lon,
         zIndex:      idx,
-        entity:      { name: topEntity.name, type: topEntity.type, url: topEntity.img.url },
+        entity:      { name: entityName, type: entityType, url: entityUrl },
         title:       entry.title       || '',
         description: entry.description || '',
       })
