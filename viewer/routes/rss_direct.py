@@ -1,14 +1,16 @@
 """
-viewer/routes/rss_direct.py — Mode Direct : lecture round-robin des flux RSS en SSE.
+viewer/routes/rss_direct.py — Mode Direct : lecture parallèle de tous les flux RSS en SSE.
 
 Routes :
-  GET  /api/rss/direct/stream?interval=30    Flux SSE round-robin OPML
+  GET  /api/rss/direct/stream?interval=30    Flux SSE — scan parallèle de tous les flux (OPML + sites_actualite.json)
   POST /api/rss/direct/article               Génère résumé + entités à la volée (sans save)
 """
 import json
+import random
 import sys
 import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -20,7 +22,14 @@ from viewer.helpers import PROJECT_ROOT
 
 rss_direct_bp = Blueprint("rss_direct", __name__)
 
-_HEADERS      = {"User-Agent": "WUDD.ai/2.4 Direct/1.0"}
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8",
+}
 _FEED_TIMEOUT = 10   # secondes pour fetcher un flux RSS
 _ART_TIMEOUT  = 15   # secondes pour fetcher le HTML d'un article
 
@@ -154,12 +163,31 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+_MAX_WORKERS = 12   # connexions HTTP parallèles pour le scan des flux
+
+
+def _emit_article(art: dict) -> str:
+    return "data: " + json.dumps({
+        "type":          "article",
+        "title":         art["title"],
+        "url":           art["url"],
+        "pubDate":       art["pubDate"],
+        "pubDateParsed": art["pubDateParsed"],
+        "feedTitle":     art["feedTitle"],
+        "description":   art["description"],
+    }) + "\n\n"
+
+
 @rss_direct_bp.route("/api/rss/direct/stream")
 def api_rss_direct_stream():
-    """Flux SSE round-robin sur les flux OPML.
+    """Flux SSE — scan parallèle de tous les flux à chaque cycle.
+
+    Tous les flux (OPML + sites_actualite.json) sont fetchés en parallèle
+    (_MAX_WORKERS connexions simultanées). Les articles arrivent au fil du scan,
+    puis le générateur attend `interval` secondes avant le cycle suivant.
 
     Query params :
-      interval : secondes d'attente entre chaque flux (défaut: 30, min: 5, max: 300)
+      interval : secondes d'attente entre chaque cycle complet (défaut: 30, min: 5, max: 300)
     """
     interval = max(5, min(300, int(request.args.get("interval", 30))))
 
@@ -172,59 +200,71 @@ def api_rss_direct_stream():
             }) + "\n\n"
             return
 
+        # Ordre aléatoire à chaque session pour varier la couverture initiale
+        random.shuffle(feeds)
+
         # last_seen[feed_url] = set des URLs d'articles déjà émis dans cette session
         last_seen: dict[str, set] = {}
-        feed_idx = 0
 
         while True:
-            feed       = feeds[feed_idx % len(feeds)]
-            feed_url   = feed["xmlUrl"]
-            feed_title = feed["title"]
+            # ── Scan parallèle de tous les flux ───────────────────────────────
+            cycle_success = 0
 
-            # Signaler le scan en cours
             yield "data: " + json.dumps({
-                "type":      "scanning",
-                "feedTitle": feed_title,
-                "feedUrl":   feed_url,
+                "type":  "cycle_start",
+                "total": len(feeds),
             }) + "\n\n"
 
-            articles = _fetch_feed_articles(feed_url)
+            with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+                future_to_feed = {
+                    executor.submit(_fetch_feed_articles, f["xmlUrl"]): f
+                    for f in feeds
+                }
+                for future in as_completed(future_to_feed):
+                    feed       = future_to_feed[future]
+                    feed_url   = feed["xmlUrl"]
+                    feed_title = feed["title"]
 
-            if feed_url not in last_seen:
-                # Premier passage : émettre les 3 articles les plus récents pour
-                # peupler immédiatement le log, puis mémoriser toutes les URLs.
-                last_seen[feed_url] = {a["url"] for a in articles}
-                recent = sorted(articles, key=lambda a: a.get("pubDateParsed", ""), reverse=True)[:3]
-                for art in reversed(recent):  # chronologique dans le log
+                    try:
+                        articles = future.result()
+                    except Exception:
+                        articles = []
+
+                    # Signaler le flux en cours de traitement
                     yield "data: " + json.dumps({
-                        "type":          "article",
-                        "title":         art["title"],
-                        "url":           art["url"],
-                        "pubDate":       art["pubDate"],
-                        "pubDateParsed": art["pubDateParsed"],
-                        "feedTitle":     art["feedTitle"],
-                        "description":   art["description"],
-                    }) + "\n\n"
-            else:
-                seen         = last_seen[feed_url]
-                new_articles = [a for a in articles if a["url"] not in seen]
-                # Trier chronologiquement (plus ancien → plus récent dans le log)
-                new_articles.sort(key=lambda a: a.get("pubDateParsed", ""))
-                for art in new_articles:
-                    seen.add(art["url"])
-                    yield "data: " + json.dumps({
-                        "type":         "article",
-                        "title":        art["title"],
-                        "url":          art["url"],
-                        "pubDate":      art["pubDate"],
-                        "pubDateParsed": art["pubDateParsed"],
-                        "feedTitle":    art["feedTitle"],
-                        "description":  art["description"],
+                        "type":      "scanning",
+                        "feedTitle": feed_title,
+                        "feedUrl":   feed_url,
                     }) + "\n\n"
 
-            feed_idx += 1
+                    if articles:
+                        cycle_success += 1
 
-            # Pause inter-flux avec keepalive SSE chaque seconde
+                    if feed_url not in last_seen:
+                        # Premier passage : émettre les 3 plus récents, mémoriser tout
+                        last_seen[feed_url] = {a["url"] for a in articles}
+                        recent = sorted(
+                            articles,
+                            key=lambda a: a.get("pubDateParsed") or "",
+                            reverse=True,
+                        )[:3]
+                        for art in reversed(recent):
+                            yield _emit_article(art)
+                    else:
+                        seen         = last_seen[feed_url]
+                        new_articles = [a for a in articles if a["url"] not in seen]
+                        new_articles.sort(key=lambda a: a.get("pubDateParsed") or "")
+                        for art in new_articles:
+                            seen.add(art["url"])
+                            yield _emit_article(art)
+
+            yield "data: " + json.dumps({
+                "type":    "cycle_end",
+                "total":   len(feeds),
+                "success": cycle_success,
+            }) + "\n\n"
+
+            # ── Pause inter-cycle avec keepalive SSE ──────────────────────────
             for _ in range(interval):
                 time.sleep(1)
                 yield ": keepalive\n\n"

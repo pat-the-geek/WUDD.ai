@@ -555,6 +555,7 @@ function matchesKeywords(title, keywords) {
 function DirectMode({ onReport }) {
   const [logEntries,     setLogEntries]     = useState([])
   const [scanning,       setScanning]       = useState(null)   // {feedTitle}
+  const [cycleStats,     setCycleStats]     = useState(null)   // {total, success}
   const [selectedEntry,  setSelectedEntry]  = useState(null)
   const [interval,       setIntervalVal]    = useState(30)
   const [paused,         setPaused]         = useState(false)
@@ -599,8 +600,14 @@ function DirectMode({ onReport }) {
           setLogEntries(prev => {
             const entry = { ...msg, _id: msg.url + '|' + msg.pubDateParsed }
             if (prev.some(e => e._id === entry._id)) return prev // dédupliquer
-            return [...prev, entry].slice(-200)
+            return [...prev, entry].slice(-500)
           })
+        } else if (msg.type === 'cycle_start') {
+          setCycleStats({ total: msg.total, success: null })
+          setScanning(null)
+        } else if (msg.type === 'cycle_end') {
+          setCycleStats({ total: msg.total, success: msg.success })
+          setScanning(null)
         }
       } catch { /* json parse silencieux */ }
     }
@@ -665,6 +672,15 @@ function DirectMode({ onReport }) {
           {paused ? 'EN PAUSE' : scanning ? `[${scanning.feedTitle}]` : 'Connexion…'}
           {!paused && <span className="animate-pulse ml-1">▋</span>}
         </span>
+        {cycleStats && (
+          <span className="text-[10px] font-mono ml-1 shrink-0" style={{
+            color: cycleStats.success === null ? '#8b949e' : cycleStats.success < cycleStats.total * 0.3 ? '#f85149' : '#3fb950'
+          }}>
+            {cycleStats.success === null
+              ? `⟳ ${cycleStats.total} flux…`
+              : `${cycleStats.success}/${cycleStats.total}`}
+          </span>
+        )}
 
         <div className="flex items-center gap-1 ml-auto flex-wrap">
           <span className="text-[10px] font-mono mr-0.5" style={{ color: '#8b949e' }}>Intervalle</span>
