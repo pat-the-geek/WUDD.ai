@@ -679,80 +679,61 @@ bash start-viewer.sh stop      # arrêter le conteneur Docker
 
 ### Captures d'écran
 
-**Vue JSON des articles avec images**
+**Explorateur d'articles**
 
-![Vue JSON avec images](docs/Screen-captures/WWUD.ai-Viewer-json-images.png)
+![Explorateur d'articles](docs/Screen-captures/Explorateur-articles.png)
 
-**Vue JSON avec coloration syntaxique**
+**Explorateur d'articles — vue d'ensemble**
 
-![Vue JSON](docs/Screen-captures/WWUD.ai-Viewer-json.png)
+![Explorateur d'articles vue d'ensemble](docs/Screen-captures/Explorateur-articles-big-picture.png)
 
-**Vue Markdown des rapports**
+**Rapport complet d'un article**
 
-![Vue Markdown](docs/Screen-captures/WWUD.ai-Viewer-markdown.png)
+![Rapport d'article](docs/Screen-captures/rapport-acticle.png)
 
-**Radar thématique — vue Markdown avec graphique Mermaid**
-![Radar thématique](docs/Screen-captures/WWUD.ai-Viewer-markdown-radar.png)
+**Rapport d'article avec diagramme Mermaid**
 
-**Recherche plein texte (⌘K)**
+![Rapport d'article avec Mermaid](docs/Screen-captures/rapport-article-mermaid.png)
 
-![Recherche plein texte](docs/Screen-captures/WWUD.ai-Viewer-full-search.png)
+**Actualités en direct avec carte géographique**
 
-**Panneau de réglages — Planification**
+![Direct News avec carte](docs/Screen-captures/Direct-News-avec-carte.png)
 
-![Réglages - Planification](docs/Screen-captures/WWUD.ai-Viewer-reglages-1.png)
+**Cartographie des articles**
 
-**Panneau de réglages — Gestion des flux**
+![Cartographie des articles](docs/Screen-captures/Cartographie-articles.png)
 
-![Réglages - Flux](docs/Screen-captures/WWUD.ai-Viewer-reglages-2.png)
+**Dashboard des entités nommées (NER)**
 
-**Panneau de réglages — Thématiques**
+![Dashboard entités](docs/Screen-captures/Dashboard-entit%C3%A9s.png)
 
-![Réglages - Thématiques](docs/Screen-captures/WWUD.ai-Viewer-reglages-3.png)
+**Articles d'une entité — liste filtrée avec export**
 
-**Dashboard entités nommées (NER)**
+![Entité articles](docs/Screen-captures/Entit%C3%A9-articles.png)
 
-![Dashboard entités](docs/Screen-captures/WWUD.ai-Viewer-entities.png)
+**Carte des relations d'une entité**
 
-**Détail d'une entité — articles filtrés avec export**
+![Entité map relations](docs/Screen-captures/Entit%C3%A9-map-relations.png)
 
-![Détail entité](docs/Screen-captures/WWUD.ai-Viewer-entity-detail.png)
+**Rapport RAG d'une entité**
 
-**Calendrier des entités — vue semaine**
+![Entité rapport RAG](docs/Screen-captures/Entit%C3%A9-rapport-RAG.png)
 
-![Calendrier entités](docs/Screen-captures/WWUD.ai-Viewer-entitiy-calendar.png)
+**Terminal IA avec contexte d'entité**
 
-**Carte géographique des entités — monde**
+![Entité terminal IA contexte](docs/Screen-captures/Entit%C3%A9-terminal-ia-contexte.png)
 
-![Carte entités monde](docs/Screen-captures/WWUD.ai-Viewer-entities-map-world.png)
+**Réglages — Flux RSS**
 
-**Carte géographique des entités — zoom**
+![Réglages RSS](docs/Screen-captures/R%C3%A9glages-RSS.png)
 
-![Carte entités zoom](docs/Screen-captures/WWUD.ai-Viewer-entities-map-zoom.png)
+**Réglages — Quotas journaliers**
 
-**Carte géographique — vue mobile**
+![Réglages quotas](docs/Screen-captures/R%C3%A9glages-quotas.png)
 
-![Carte entités mobile](docs/Screen-captures/WWUD.ai-Viewer-entities-map-mobile.png)
+**Intégration Obsidian**
 
-**Graphe de relations entre entités**
-
-![Relations entre entités](docs/Screen-captures/WWUD.ai-Viewer-entities-relations.png)
-
-**Galerie d'images des entités — desktop**
-
-![Galerie entités](docs/Screen-captures/WWUD.ai-Viewer-entities-galerie.png)
-
-**Galerie d'images des entités — mobile**
-
-![Galerie entités mobile](docs/Screen-captures/WWUD.ai-Viewer-entities-galerie-mobile.png)
-
-**Liste des fichiers — vue mobile**
-
-![Liste fichiers mobile](docs/Screen-captures/WWUD.ai-Viewer-files.mobile.png)
-
-**Articles — vue mobile**
-
-![Articles mobile](docs/Screen-captures/WWUD.ai-Viewer-articles-mobile.png)
+![Obsidian integration](docs/Screen-captures/Obsidian-integration.png)
 
 ### Prérequis
 
