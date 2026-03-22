@@ -7,6 +7,7 @@ Routes :
 """
 import json
 import random
+import re
 import sys
 import time
 import xml.etree.ElementTree as ET
@@ -85,20 +86,45 @@ def _all_feeds() -> list[dict]:
     return result
 
 
+_NS_DC      = "http://purl.org/dc/elements/1.1/"
+_NS_CONTENT = "http://purl.org/rss/1.0/modules/content/"
+
+
+def _strip_html(text: str) -> str:
+    """Supprime les balises HTML et normalise les espaces blancs."""
+    if not text:
+        return ""
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
 def _parse_rss_date(date_str: str) -> datetime:
     """Parse une date RSS (RFC 2822 ou ISO 8601) → datetime UTC naive."""
     if not date_str:
         return datetime.min
-    # RFC 2822 (format standard RSS)
+    # RFC 2822 (format standard RSS : "Sat, 22 Mar 2026 10:30:00 +0100")
     try:
         dt = parsedate_to_datetime(date_str)
         return dt.astimezone(timezone.utc).replace(tzinfo=None)
     except Exception:
         pass
-    # ISO 8601
-    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+    # ISO 8601 — normaliser Z et fractions de secondes, puis fromisoformat
+    s = date_str.strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    s = re.sub(r"(\.\d{6})\d+", r"\1", s)   # tronquer au-delà de 6 décimales
+    try:
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo:
+            return dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt
+    except Exception:
+        pass
+    # Date seule
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d %b %Y"):
         try:
-            return datetime.strptime(date_str[:len(fmt)], fmt)
+            return datetime.strptime(date_str.strip(), fmt)
         except Exception:
             pass
     return datetime.min
@@ -120,20 +146,32 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
     if channel is not None:
         feed_title = (channel.findtext("title") or "").strip()
         for item in channel.findall("item"):
-            title    = (item.findtext("title")       or "").strip()
-            url      = (item.findtext("link")         or "").strip()
-            pub_date = (item.findtext("pubDate")      or "").strip()
-            desc     = (item.findtext("description")  or "").strip()
-            if url:
-                dt = _parse_rss_date(pub_date)
-                articles.append({
-                    "title":          title,
-                    "url":            url,
-                    "pubDate":        pub_date,
-                    "pubDateParsed":  dt.isoformat() if dt != datetime.min else None,
-                    "description":    desc[:500] if desc else "",
-                    "feedTitle":      feed_title,
-                })
+            title    = (item.findtext("title") or "").strip()
+            url      = (item.findtext("link")  or "").strip()
+            if not url:
+                continue
+            # Date : pubDate → dc:date
+            pub_date = (
+                item.findtext("pubDate")
+                or item.findtext(f"{{{_NS_DC}}}date")
+                or ""
+            ).strip()
+            # Texte : content:encoded → description (les deux peuvent contenir du HTML)
+            raw = (
+                item.findtext(f"{{{_NS_CONTENT}}}encoded")
+                or item.findtext("description")
+                or ""
+            )
+            desc = _strip_html(raw)[:500] or title
+            dt = _parse_rss_date(pub_date)
+            articles.append({
+                "title":         title,
+                "url":           url,
+                "pubDate":       pub_date,
+                "pubDateParsed": dt.isoformat() if dt != datetime.min else None,
+                "description":   desc,
+                "feedTitle":     feed_title,
+            })
         return articles
 
     # ── Atom ─────────────────────────────────────────────────────────────────
@@ -148,6 +186,11 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
         pub_el   = (entry.find(f"{{{ATOM}}}published")
                     or entry.find(f"{{{ATOM}}}updated"))
         pub_date = (pub_el.text or "").strip() if pub_el is not None else ""
+        # Texte : summary → content (peuvent contenir du HTML ou du texte brut)
+        sum_el   = (entry.find(f"{{{ATOM}}}summary")
+                    or entry.find(f"{{{ATOM}}}content"))
+        raw      = (sum_el.text or "") if sum_el is not None else ""
+        desc     = _strip_html(raw)[:500] or title
         if url:
             dt = _parse_rss_date(pub_date)
             articles.append({
@@ -155,7 +198,7 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
                 "url":           url,
                 "pubDate":       pub_date,
                 "pubDateParsed": dt.isoformat() if dt != datetime.min else None,
-                "description":   "",
+                "description":   desc,
                 "feedTitle":     feed_title,
             })
     return articles
