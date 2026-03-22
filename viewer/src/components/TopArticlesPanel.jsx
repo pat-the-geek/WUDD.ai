@@ -577,8 +577,8 @@ function DirectMode({ onReport }) {
         } else if (msg.type === 'article') {
           setLogEntries(prev => {
             const entry = { ...msg, _id: msg.url + '|' + msg.pubDateParsed }
-            const next  = [...prev, entry]
-            return next.slice(-200) // garde les 200 dernières entrées
+            if (prev.some(e => e._id === entry._id)) return prev // dédupliquer
+            return [...prev, entry].slice(-200)
           })
         }
       } catch { /* json parse silencieux */ }
@@ -635,13 +635,14 @@ function DirectMode({ onReport }) {
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ background: '#0d1117' }}>
+    <div className="flex flex-col flex-1 min-h-0" style={{ background: '#0d1117' }}>
 
       {/* ── En-tête : statut + sélecteur vitesse + pause ── */}
       <div className="flex items-center gap-2 px-4 py-2 shrink-0" style={{ borderBottom: '1px solid #30363d' }}>
         <span className={`w-2 h-2 rounded-full shrink-0 ${paused ? 'bg-slate-500' : 'bg-emerald-400 animate-pulse'}`} />
         <span className="text-xs font-mono truncate max-w-[160px]" style={{ color: '#3fb950' }}>
           {paused ? 'EN PAUSE' : scanning ? `[${scanning.feedTitle}]` : 'Connexion…'}
+          {!paused && <span className="animate-pulse ml-1">▋</span>}
         </span>
 
         <div className="flex items-center gap-1 ml-auto flex-wrap">
@@ -680,11 +681,11 @@ function DirectMode({ onReport }) {
         )}
         {sortedEntries.map((entry, i) => (
           <div key={entry._id ?? i}
-            onClick={() => setSelectedEntry(e => e?.url === entry.url ? null : entry)}
+            onClick={() => setSelectedEntry(e => e?._id === entry._id ? null : entry)}
             className="flex items-start gap-2 px-2 py-[3px] rounded cursor-pointer select-none"
             style={{
-              background: selectedEntry?.url === entry.url ? 'rgba(63,185,80,0.12)' : 'transparent',
-              border:     selectedEntry?.url === entry.url ? '1px solid rgba(63,185,80,0.35)' : '1px solid transparent',
+              background: selectedEntry?._id === entry._id ? 'rgba(63,185,80,0.12)' : 'transparent',
+              border:     selectedEntry?._id === entry._id ? '1px solid rgba(63,185,80,0.35)' : '1px solid transparent',
               marginBottom: '1px',
             }}>
             <span className="shrink-0 tabular-nums w-28 text-right" style={{ color: '#8b949e' }}>
@@ -693,18 +694,11 @@ function DirectMode({ onReport }) {
             <span className="shrink-0 w-28 truncate" title={entry.feedTitle} style={{ color: '#58a6ff' }}>
               {entry.feedTitle}
             </span>
-            <span className="flex-1 leading-snug" style={{ color: selectedEntry?.url === entry.url ? '#e6edf3' : '#c9d1d9' }}>
+            <span className="flex-1 leading-snug" style={{ color: selectedEntry?._id === entry._id ? '#e6edf3' : '#c9d1d9' }}>
               {entry.title}
             </span>
           </div>
         ))}
-        {/* Curseur clignotant */}
-        {!paused && (
-          <div className="flex items-center gap-2 px-2 py-[3px]" style={{ color: '#3fb950', opacity: 0.5 }}>
-            <span className="w-28" />
-            <span className="animate-pulse">▋</span>
-          </div>
-        )}
       </div>
 
       {/* ── Barre inférieure : article sélectionné + bouton ── */}
@@ -900,7 +894,7 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
             )}
           </div>
         ) : (
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 flex flex-col">
             <DirectMode onReport={a => setReportArticle(a)} />
           </div>
         )}
@@ -954,10 +948,9 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
         className="hig-sheet-enter md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-700/60 px-4 pt-2 flex flex-col gap-2"
         style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
       >
-        {/* Ligne 1 : filtres + rafraîchir + fermer */}
+        {/* Ligne 1 : filtres + rafraîchir + direct + fermer */}
         <div className="flex items-center gap-2">
-          <label className="text-slate-500 dark:text-slate-400 text-xs shrink-0">Fenêtre</label>
-          <select value={hours} onChange={e => setHours(Number(e.target.value))}
+          <select aria-label="Fenêtre temporelle" value={hours} onChange={e => setHours(Number(e.target.value))}
             className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
             <option value="6">6h</option>
             <option value="24">24h</option>
@@ -965,13 +958,12 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
             <option value="168">7j</option>
             <option value="0">Tout</option>
           </select>
-          <label className="text-slate-500 dark:text-slate-400 text-xs shrink-0">Top</label>
-          <select value={topN} onChange={e => setTopN(Number(e.target.value))}
+          <select aria-label="Nombre d'articles" value={topN} onChange={e => setTopN(Number(e.target.value))}
             className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
-            <option value="5">5</option>
-            <option value="10">10</option>
-            <option value="20">20</option>
-            <option value="50">50</option>
+            <option value="5">Top 5</option>
+            <option value="10">Top 10</option>
+            <option value="20">Top 20</option>
+            <option value="50">Top 50</option>
           </select>
           <button onClick={load} title="Actualiser"
             className="w-9 h-9 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-colors">
