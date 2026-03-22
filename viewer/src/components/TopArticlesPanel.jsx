@@ -629,16 +629,16 @@ function DirectMapOverlay({ markers, onEntityClick }) {
               icon={icon} zIndexOffset={m.zIndex * 100}
               eventHandlers={{ click: () => onEntityClick?.(entity.type, entity.name) }}>
               <LeafletTooltip direction="top" opacity={0.97}>
-                <div style={{ maxWidth: 300 }}>
-                  <div className="font-semibold text-sm leading-snug" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{m.title}</div>
+                <div style={{ minWidth: 260, maxWidth: 420 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'nowrap' }}>
+                    <span style={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', color: '#58a6ff', flexShrink: 0 }}>{m.entity.name}</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 1, minWidth: 0 }}>{m.title}</span>
+                  </div>
                   {m.description && (
-                    <div className="text-xs mt-1 leading-snug" style={{ color: '#c9d1d9', whiteSpace: 'normal' }}>
-                      {m.description.length > 200 ? m.description.slice(0, 200) + '…' : m.description}
+                    <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m.description.length > 120 ? m.description.slice(0, 120) + '…' : m.description}
                     </div>
                   )}
-                  <div className="text-xs text-gray-400 mt-1">
-                    {m.entity.name}
-                  </div>
                 </div>
               </LeafletTooltip>
             </Marker>
