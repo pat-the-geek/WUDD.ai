@@ -455,17 +455,33 @@ def api_rss_direct_article():
     try:
         from utils.rolling_window import update_rolling_window
         from utils.article_index import get_article_index
+        from utils.entity_index import get_entity_index
 
-        wudd_dir     = PROJECT_ROOT / "data" / "articles-from-rss" / "_WUDD.AI_"
-        direct_path  = wudd_dir / "direct.json"
+        wudd_dir      = PROJECT_ROOT / "data" / "articles-from-rss" / "_WUDD.AI_"
+        direct_path   = wudd_dir / "direct.json"
         heures48_path = wudd_dir / "48-heures.json"
+
+        wudd_dir.mkdir(parents=True, exist_ok=True)
 
         update_rolling_window([article], direct_path,   hours=48)
         update_rolling_window([article], heures48_path, hours=48)
 
+        # Recharger direct.json complet pour les index (update() remplace toutes
+        # les refs du fichier source — il faut donc lui passer TOUS les articles)
+        try:
+            all_direct = json.loads(direct_path.read_text(encoding="utf-8"))
+            if not isinstance(all_direct, list):
+                all_direct = [article]
+        except Exception:
+            all_direct = [article]
+
         # Mise à jour de l'index article
         aidx = get_article_index(PROJECT_ROOT)
-        aidx.update([article], str(direct_path))
+        aidx.update(all_direct, str(direct_path))
+
+        # Mise à jour de l'index entités — indispensable pour EntityArticlePanel
+        eidx = get_entity_index(PROJECT_ROOT)
+        eidx.update(all_direct, str(direct_path))
     except Exception:
         pass  # Non bloquant : l'affichage fonctionne même si la sauvegarde échoue
 
