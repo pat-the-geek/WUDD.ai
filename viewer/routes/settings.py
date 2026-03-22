@@ -489,6 +489,15 @@ def api_env_post():
     # Recharger dans l'environnement courant du processus Flask
     os.environ[key] = value
 
+    # Recharger TOUT le .env avec override=True pour que les variables modifiées
+    # via l'UI (ex. ANTHROPIC_API_KEY) soient visibles immédiatement dans os.environ,
+    # même si elles étaient absentes ou vides au démarrage du conteneur Docker.
+    try:
+        from dotenv import load_dotenv as _load_dotenv
+        _load_dotenv(_ENV_FILE, override=True)
+    except Exception:
+        pass
+
     # Invalider le singleton Config pour que les prochains appels get_config()
     # voient les nouvelles valeurs (ANTHROPIC_API_KEY, CLAUDE_MODEL_*, etc.)
     try:
@@ -514,6 +523,11 @@ def api_env_delete(key: str):
     tmp.replace(_ENV_FILE)
 
     os.environ.pop(key, None)
+    try:
+        from dotenv import load_dotenv as _load_dotenv
+        _load_dotenv(_ENV_FILE, override=True)
+    except Exception:
+        pass
     try:
         from utils.config import get_config as _get_config
         _get_config(force_reload=True)
