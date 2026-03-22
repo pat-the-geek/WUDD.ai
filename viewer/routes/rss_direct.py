@@ -164,6 +164,13 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
     except Exception:
         return []
 
+    # Heure actuelle UTC comme fallback si la date de l'article est manquante/illisible
+    now_iso = datetime.utcnow().isoformat()
+
+    def _resolved_date(pub_date: str) -> str:
+        dt = _parse_rss_date(pub_date)
+        return dt.isoformat() if dt != datetime.min else now_iso
+
     articles = []
 
     # ── RSS 2.0 ───────────────────────────────────────────────────────────────
@@ -190,12 +197,11 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
             desc = _strip_html(raw)[:500] or title
             if not title and not desc:
                 continue   # article sans titre ni texte → ignoré
-            dt = _parse_rss_date(pub_date)
             articles.append({
                 "title":         title or desc[:80],
                 "url":           url,
                 "pubDate":       pub_date,
-                "pubDateParsed": dt.isoformat() if dt != datetime.min else None,
+                "pubDateParsed": _resolved_date(pub_date),
                 "description":   desc,
                 "feedTitle":     feed_title,
             })
@@ -220,12 +226,11 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
         desc  = _strip_html(raw)[:500] or title
         if not url or (not title and not desc):
             continue   # article sans URL ou sans titre ni texte → ignoré
-        dt = _parse_rss_date(pub_date)
         articles.append({
             "title":         title or desc[:80],
             "url":           url,
             "pubDate":       pub_date,
-            "pubDateParsed": dt.isoformat() if dt != datetime.min else None,
+            "pubDateParsed": _resolved_date(pub_date),
             "description":   desc,
             "feedTitle":     feed_title,
         })
