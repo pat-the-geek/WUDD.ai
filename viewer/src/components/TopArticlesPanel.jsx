@@ -547,6 +547,12 @@ function MapInvalidator({ containerRef }) {
   return null
 }
 
+function MapRefGetter({ mapRef }) {
+  const map = useMap()
+  useEffect(() => { mapRef.current = map }, [map, mapRef])
+  return null
+}
+
 function makeThumbIcon(images, zIndexBase, thumbSize) {
   const n = images.length
   const offset = 5
@@ -571,8 +577,25 @@ function makeThumbIcon(images, zIndexBase, thumbSize) {
   })
 }
 
+const MAP_CENTER = [20, 10]
+const MAP_ZOOM   = 2
+
+const mapBtnStyle = {
+  background: 'rgba(22,27,34,0.92)',
+  border:     '1px solid #30363d',
+  color:      '#c9d1d9',
+  borderRadius: 6,
+  width: 28, height: 28,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  cursor: 'pointer',
+  fontSize: 16,
+  lineHeight: 1,
+  userSelect: 'none',
+}
+
 function DirectMapOverlay({ markers, onEntityClick }) {
   const containerRef = useRef(null)
+  const mapRef       = useRef(null)
   const [thumbSize, setThumbSize] = useState(44)
 
   useEffect(() => {
@@ -588,11 +611,12 @@ function DirectMapOverlay({ markers, onEntityClick }) {
   return (
     <div ref={containerRef} className="relative w-full h-full">
       <MapContainer
-        center={[20, 10]} zoom={2} minZoom={1} maxZoom={6}
+        center={MAP_CENTER} zoom={MAP_ZOOM} minZoom={1} maxZoom={6}
         scrollWheelZoom={true} zoomControl={false}
         style={{ height: '100%', width: '100%' }}
       >
         <MapInvalidator containerRef={containerRef} />
+        <MapRefGetter mapRef={mapRef} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -621,6 +645,14 @@ function DirectMapOverlay({ markers, onEntityClick }) {
           )
         })}
       </MapContainer>
+
+      {/* Boutons zoom + recentrage */}
+      <div className="absolute bottom-3 right-3 z-[1000] flex flex-col gap-1">
+        <button title="Zoom +" style={mapBtnStyle} onClick={() => mapRef.current?.zoomIn()}>+</button>
+        <button title="Zoom −" style={mapBtnStyle} onClick={() => mapRef.current?.zoomOut()}>−</button>
+        <button title="Recentrer" style={{ ...mapBtnStyle, fontSize: 13 }} onClick={() => mapRef.current?.setView(MAP_CENTER, MAP_ZOOM)}>⌖</button>
+      </div>
+
       {/* Indicateur de progression NER */}
       <div className="absolute top-2 right-2 z-[1000] pointer-events-none">
         {markers.length === 0 && (
