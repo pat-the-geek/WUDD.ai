@@ -337,6 +337,16 @@ html:not(.dark) .json-number { color: #1d4ed8; }
 /* Dropdown — glisse depuis le haut */
 .hig-dropdown-enter { animation: hig-slide-down var(--dur-fast)   var(--ease-out-expo) both; }
 
+@keyframes marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.marquee-scroll {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee-scroll 14s linear infinite;
+}
+
 /* ── Scrollbar fine — style terminal ── */
 .custom-scrollbar::-webkit-scrollbar        { width: 4px; height: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track  { background: transparent; }

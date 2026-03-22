@@ -547,6 +547,12 @@ function MapInvalidator({ containerRef }) {
   return null
 }
 
+function MapRefGetter({ mapRef }) {
+  const map = useMap()
+  useEffect(() => { mapRef.current = map }, [map, mapRef])
+  return null
+}
+
 function makeThumbIcon(images, zIndexBase, thumbSize) {
   const n = images.length
   const offset = 5
@@ -571,8 +577,25 @@ function makeThumbIcon(images, zIndexBase, thumbSize) {
   })
 }
 
-function DirectMapOverlay({ markers }) {
+const MAP_CENTER = [20, 10]
+const MAP_ZOOM   = 2
+
+const mapBtnStyle = {
+  background: 'rgba(22,27,34,0.92)',
+  border:     '1px solid #30363d',
+  color:      '#c9d1d9',
+  borderRadius: 6,
+  width: 28, height: 28,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  cursor: 'pointer',
+  fontSize: 16,
+  lineHeight: 1,
+  userSelect: 'none',
+}
+
+function DirectMapOverlay({ markers, onEntityClick }) {
   const containerRef = useRef(null)
+  const mapRef       = useRef(null)
   const [thumbSize, setThumbSize] = useState(44)
 
   useEffect(() => {
@@ -588,32 +611,33 @@ function DirectMapOverlay({ markers }) {
   return (
     <div ref={containerRef} className="relative w-full h-full">
       <MapContainer
-        center={[20, 10]} zoom={2} minZoom={1} maxZoom={6}
+        center={MAP_CENTER} zoom={MAP_ZOOM} minZoom={1} maxZoom={6}
         scrollWheelZoom={true} zoomControl={false}
         style={{ height: '100%', width: '100%' }}
       >
         <MapInvalidator containerRef={containerRef} />
+        <MapRefGetter mapRef={mapRef} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {markers.map((m) => {
-          const imgs = m.images.slice(0, 3)
-          if (!imgs.length) return null
-          const icon = makeThumbIcon(imgs, m.zIndex, thumbSize)
+          const { entity } = m
+          const icon = makeThumbIcon([{ url: entity.url, name: entity.name }], m.zIndex, thumbSize)
           return (
             <Marker key={m.articleId} position={[m.lat, m.lon]}
-              icon={icon} zIndexOffset={m.zIndex * 100}>
+              icon={icon} zIndexOffset={m.zIndex * 100}
+              eventHandlers={{ click: () => onEntityClick?.(entity.type, entity.name) }}>
               <LeafletTooltip direction="top" opacity={0.97}>
-                <div style={{ maxWidth: 280 }}>
-                  <div className="font-semibold text-xs leading-snug">{m.title}</div>
+                <div style={{ maxWidth: 300 }}>
+                  <div className="font-semibold text-sm leading-snug" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{m.title}</div>
                   {m.description && (
-                    <div className="text-[10px] mt-1 leading-snug" style={{ color: '#c9d1d9', whiteSpace: 'normal' }}>
-                      {m.description.length > 180 ? m.description.slice(0, 180) + '…' : m.description}
+                    <div className="text-xs mt-1 leading-snug" style={{ color: '#c9d1d9', whiteSpace: 'normal' }}>
+                      {m.description.length > 200 ? m.description.slice(0, 200) + '…' : m.description}
                     </div>
                   )}
-                  <div className="text-[10px] text-gray-400 mt-1 truncate">
-                    {imgs.map(i => i.name).join(' · ')}
+                  <div className="text-xs text-gray-400 mt-1">
+                    {m.entity.name}
                   </div>
                 </div>
               </LeafletTooltip>
@@ -621,6 +645,14 @@ function DirectMapOverlay({ markers }) {
           )
         })}
       </MapContainer>
+
+      {/* Boutons zoom + recentrage */}
+      <div className="absolute bottom-3 right-3 z-[1000] flex flex-col gap-1">
+        <button title="Zoom +" style={mapBtnStyle} onClick={() => mapRef.current?.zoomIn()}>+</button>
+        <button title="Zoom −" style={mapBtnStyle} onClick={() => mapRef.current?.zoomOut()}>−</button>
+        <button title="Recentrer" style={{ ...mapBtnStyle, fontSize: 13 }} onClick={() => mapRef.current?.setView(MAP_CENTER, MAP_ZOOM)}>⌖</button>
+      </div>
+
       {/* Indicateur de progression NER */}
       <div className="absolute top-2 right-2 z-[1000] pointer-events-none">
         {markers.length === 0 && (
@@ -667,7 +699,8 @@ function DirectMode({ onReport }) {
   const [keywords,       setKeywords]       = useState([])
   const [filterText,     setFilterText]     = useState('')
   // ── Carte desktop ──
-  const [mapVisible,      setMapVisible]     = useState(() => window.innerWidth >= 1024)
+  const [mapVisible,          setMapVisible]         = useState(() => window.innerWidth >= 1024)
+  const [selectedEntityFromMap, setSelectedEntityFromMap] = useState(null)
   const [articleEntities, setArticleEntities] = useState({}) // {_id: {entities, coords, images}}
   const nerQueueRef      = useRef([])   // [{_id, title, description}]
   const nerProcessingRef = useRef(false)
@@ -821,17 +854,17 @@ function DirectMode({ onReport }) {
       const gpeNames = [...(data.entities.GPE || []), ...(data.entities.LOC || [])]
       const pos = gpeNames.map(n => data.coords[n]).find(c => c?.lat != null)
       if (!pos) return
-      const imgs = [
+      const topEntity = [
         ...(data.entities.PERSON  || []).map(n => ({ name: n, type: 'PERSON',  img: data.images[n] })),
         ...(data.entities.ORG     || []).map(n => ({ name: n, type: 'ORG',     img: data.images[n] })),
         ...(data.entities.PRODUCT || []).map(n => ({ name: n, type: 'PRODUCT', img: data.images[n] })),
-      ].filter(e => e.img?.url).map(e => ({ name: e.name, url: e.img.url }))
-      if (!imgs.length) return
+      ].filter(e => e.img?.url)[0]
+      if (!topEntity) return
       markers.push({
         articleId:   entry._id,
         lat: pos.lat, lon: pos.lon,
         zIndex:      idx,
-        images:      imgs.slice(0, 3),
+        entity:      { name: topEntity.name, type: topEntity.type, url: topEntity.img.url },
         title:       entry.title       || '',
         description: entry.description || '',
       })
@@ -920,8 +953,15 @@ function DirectMode({ onReport }) {
       {/* ── Carte monde (desktop uniquement — 45% de la hauteur disponible) ── */}
       {mapVisible && (
         <div className="shrink-0" style={{ height: '45%', minHeight: 180, borderBottom: '1px solid #30363d' }}>
-          <DirectMapOverlay markers={mapMarkers} />
+          <DirectMapOverlay markers={mapMarkers} onEntityClick={(type, name) => setSelectedEntityFromMap({ type, value: name })} />
         </div>
+      )}
+      {selectedEntityFromMap && (
+        <EntityArticlePanel
+          entityType={selectedEntityFromMap.type}
+          entityValue={selectedEntityFromMap.value}
+          onClose={() => setSelectedEntityFromMap(null)}
+        />
       )}
 
       {/* ── Filtre texte ── */}
@@ -989,7 +1029,11 @@ function DirectMode({ onReport }) {
           {selectedEntry ? (
             <>
               <p className="text-[10px] truncate font-mono" style={{ color: '#8b949e' }}>{selectedEntry.feedTitle}</p>
-              <p className="text-xs truncate font-mono" style={{ color: '#c9d1d9' }}>{selectedEntry.title}</p>
+              <div className="overflow-hidden w-full">
+                <span className="marquee-scroll text-xs font-mono" style={{ color: '#c9d1d9' }}>
+                  {selectedEntry.title}&nbsp;&nbsp;&nbsp;&nbsp;{selectedEntry.title}
+                </span>
+              </div>
             </>
           ) : (
             <p className="text-[10px] font-mono" style={{ color: '#8b949e' }}>Cliquer sur une ligne pour sélectionner</p>
