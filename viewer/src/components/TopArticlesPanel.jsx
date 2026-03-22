@@ -561,6 +561,7 @@ function DirectMode({ onReport }) {
   const [paused,         setPaused]         = useState(false)
   const [loadingArticle, setLoadingArticle] = useState(false)
   const [keywords,       setKeywords]       = useState([])
+  const [filterText,     setFilterText]     = useState('')
   const esRef         = useRef(null)
   const logRef = useRef(null)
   const endRef = useRef(null)
@@ -582,6 +583,15 @@ function DirectMode({ onReport }) {
       return a.pubDateParsed.localeCompare(b.pubDateParsed)
     }),
   [logEntries])
+
+  // Filtrage par texte libre (titre ou source)
+  const filteredEntries = useMemo(() => {
+    if (!filterText.trim()) return sortedEntries
+    const q = filterText.toLowerCase()
+    return sortedEntries.filter(e =>
+      e.title?.toLowerCase().includes(q) || e.feedTitle?.toLowerCase().includes(q)
+    )
+  }, [sortedEntries, filterText])
 
   // Démarrer / arrêter le flux SSE
   useEffect(() => {
@@ -701,6 +711,23 @@ function DirectMode({ onReport }) {
         </div>
       </div>
 
+      {/* ── Filtre texte ── */}
+      <div className="px-3 py-1.5 shrink-0" style={{ borderBottom: '1px solid #21262d' }}>
+        <input
+          type="text"
+          value={filterText}
+          onChange={e => setFilterText(e.target.value)}
+          placeholder="Filtrer les lignes…"
+          className="w-full rounded px-2 py-1 text-xs font-mono outline-none"
+          style={{
+            background:   '#161b22',
+            border:       '1px solid #30363d',
+            color:        '#c9d1d9',
+            caretColor:   '#3fb950',
+          }}
+        />
+      </div>
+
       {/* ── Log ── */}
       <div ref={logRef}
         className="flex-1 overflow-y-scroll p-3 pb-2"
@@ -710,7 +737,12 @@ function DirectMode({ onReport }) {
             Initialisation du Direct — les nouveaux articles apparaîtront ici
           </div>
         )}
-        {sortedEntries.map((entry) => {
+        {filteredEntries.length === 0 && logEntries.length > 0 && (
+          <div className="py-4 text-center text-xs" style={{ color: '#8b949e' }}>
+            Aucune ligne ne correspond à « {filterText} »
+          </div>
+        )}
+        {filteredEntries.map((entry) => {
           const isKw = matchesKeywords(entry.title, keywords)
           return (
           <div key={entry._id}
