@@ -482,7 +482,7 @@ def api_env_post():
         entries.append({"key": key, "value": value, "masked": False, "comment": False})
 
     # Sauvegarde atomique
-    tmp = _ENV_FILE.with_suffix(".env.tmp")
+    tmp = _ENV_FILE.parent / (_ENV_FILE.name + ".tmp")
     tmp.write_text(_serialize_env(entries), encoding="utf-8")
     tmp.replace(_ENV_FILE)
 
@@ -509,7 +509,7 @@ def api_env_delete(key: str):
     entries = _parse_env_file(_ENV_FILE)
     entries = [e for e in entries if e.get("comment") or e.get("key") != key]
 
-    tmp = _ENV_FILE.with_suffix(".env.tmp")
+    tmp = _ENV_FILE.parent / (_ENV_FILE.name + ".tmp")
     tmp.write_text(_serialize_env(entries), encoding="utf-8")
     tmp.replace(_ENV_FILE)
 
