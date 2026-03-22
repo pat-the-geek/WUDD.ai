@@ -369,20 +369,24 @@ def api_rss_direct_article():
     """Génère résumé + entités pour un article RSS et le sauvegarde dans direct.json et 48-heures.json.
 
     Body JSON :
-      url         : URL de l'article (obligatoire)
-      title       : Titre issu du flux RSS
-      source      : Nom de la source (feedTitle)
-      pub_date    : Date brute du flux RSS
-      description : Extrait/description RSS (optionnel, fallback si fetch échoue)
+      url          : URL de l'article (obligatoire)
+      title        : Titre issu du flux RSS
+      source       : Nom de la source (feedTitle)
+      pub_date     : Date brute du flux RSS
+      description  : Extrait/description RSS (optionnel, fallback si fetch échoue)
+      entity_type  : Type NER de l'entité cliquée (ex. "PERSON") — optionnel
+      entity_value : Nom de l'entité cliquée (ex. "Elon Musk") — optionnel
     """
     sys.path.insert(0, str(PROJECT_ROOT))
 
-    data        = request.get_json(force=True) or {}
-    url         = data.get("url",         "").strip()
-    title       = data.get("title",       "").strip()
-    source      = data.get("source",      "").strip()
-    pub_date    = data.get("pub_date",    "").strip()
-    description = data.get("description", "").strip()
+    data         = request.get_json(force=True) or {}
+    url          = data.get("url",          "").strip()
+    title        = data.get("title",        "").strip()
+    source       = data.get("source",       "").strip()
+    pub_date     = data.get("pub_date",     "").strip()
+    description  = data.get("description",  "").strip()
+    entity_type  = data.get("entity_type",  "").strip()
+    entity_value = data.get("entity_value", "").strip()
 
     if not url:
         return jsonify({"error": "URL manquante"}), 400
@@ -429,6 +433,13 @@ def api_rss_direct_article():
             entities = client.generate_entities(resume) or {}
         except Exception:
             pass
+
+    # Garantir que l'entité cliquée (depuis la carte) est présente dans les entités,
+    # même si le NER complet l'a manquée ou retourné un nom légèrement différent.
+    if entity_type and entity_value:
+        bucket = entities.setdefault(entity_type, [])
+        if not any(isinstance(v, str) and v.lower() == entity_value.lower() for v in bucket):
+            bucket.append(entity_value)
 
     # ── 4. Normaliser la date en DD/MM/YYYY ───────────────────────────────────
     date_fr = ""
