@@ -642,6 +642,7 @@ function DirectMode({ onReport }) {
         <span className={`w-2 h-2 rounded-full shrink-0 ${paused ? 'bg-slate-500' : 'bg-emerald-400 animate-pulse'}`} />
         <span className="text-xs font-mono truncate max-w-[160px]" style={{ color: '#3fb950' }}>
           {paused ? 'EN PAUSE' : scanning ? `[${scanning.feedTitle}]` : 'Connexion…'}
+          {!paused && <span className="animate-pulse ml-1">▋</span>}
         </span>
 
         <div className="flex items-center gap-1 ml-auto flex-wrap">
@@ -698,13 +699,6 @@ function DirectMode({ onReport }) {
             </span>
           </div>
         ))}
-        {/* Curseur clignotant */}
-        {!paused && (
-          <div className="flex items-center gap-2 px-2 py-[3px]" style={{ color: '#3fb950', opacity: 0.5 }}>
-            <span className="w-28" />
-            <span className="animate-pulse">▋</span>
-          </div>
-        )}
       </div>
 
       {/* ── Barre inférieure : article sélectionné + bouton ── */}
