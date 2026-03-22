@@ -42,6 +42,7 @@ from viewer.routes.settings        import settings_bp
 from viewer.routes.scheduler       import scheduler_bp
 from viewer.routes.contradictions  import contradictions_bp
 from viewer.routes.merge           import merge_bp
+from viewer.routes.rss_direct      import rss_direct_bp
 
 app.register_blueprint(files_bp)
 app.register_blueprint(entities_bp)
@@ -52,6 +53,7 @@ app.register_blueprint(settings_bp)
 app.register_blueprint(scheduler_bp)
 app.register_blueprint(contradictions_bp)
 app.register_blueprint(merge_bp)
+app.register_blueprint(rss_direct_bp)
 
 
 # ── Rebuild des indexes au démarrage ─────────────────────────────────────────

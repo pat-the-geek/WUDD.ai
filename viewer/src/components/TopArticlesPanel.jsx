@@ -3,7 +3,7 @@
  * Style : cartes article identiques à la vue JSON, grille 2 colonnes, modal large.
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, Eye, Pencil, Check, FileText } from 'lucide-react'
+import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, Eye, Pencil, Check, FileText, Radio } from 'lucide-react'
 import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
 import ArticleFullReportDialog from './ArticleFullReportDialog'
@@ -530,9 +530,203 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
   )
 }
 
+// ── Mode Direct ───────────────────────────────────────────────────────────────
+
+const DIRECT_INTERVALS = [
+  { label: '5s',  value: 5   },
+  { label: '15s', value: 15  },
+  { label: '30s', value: 30  },
+  { label: '1m',  value: 60  },
+  { label: '5m',  value: 300 },
+]
+
+function DirectMode({ onReport }) {
+  const [logEntries,     setLogEntries]     = useState([])
+  const [scanning,       setScanning]       = useState(null)   // {feedTitle}
+  const [selectedEntry,  setSelectedEntry]  = useState(null)
+  const [interval,       setIntervalVal]    = useState(30)
+  const [paused,         setPaused]         = useState(false)
+  const [loadingArticle, setLoadingArticle] = useState(false)
+  const esRef         = useRef(null)
+  const logRef        = useRef(null)
+  const autoScrollRef = useRef(true)
+
+  // Démarrer / arrêter le flux SSE
+  useEffect(() => {
+    esRef.current?.close()
+    if (paused) return
+
+    const es = new EventSource(`/api/rss/direct/stream?interval=${interval}`)
+    esRef.current = es
+
+    es.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data)
+        if (msg.type === 'scanning') {
+          setScanning({ feedTitle: msg.feedTitle, feedUrl: msg.feedUrl })
+        } else if (msg.type === 'article') {
+          setLogEntries(prev => {
+            const entry = { ...msg, _id: msg.url + '|' + msg.pubDateParsed }
+            const next  = [...prev, entry]
+            return next.slice(-200) // garde les 200 dernières entrées
+          })
+        }
+      } catch { /* json parse silencieux */ }
+    }
+    // EventSource gère la reconnexion automatiquement — pas de handler onerror
+
+    return () => es.close()
+  }, [interval, paused]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-scroll vers le bas
+  useEffect(() => {
+    if (autoScrollRef.current && logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight
+    }
+  }, [logEntries, scanning])
+
+  const handleLogScroll = () => {
+    if (!logRef.current) return
+    const { scrollTop, scrollHeight, clientHeight } = logRef.current
+    autoScrollRef.current = scrollTop + clientHeight >= scrollHeight - 20
+  }
+
+  const openArticle = async () => {
+    if (!selectedEntry || loadingArticle) return
+    setLoadingArticle(true)
+    try {
+      const r = await fetch('/api/rss/direct/article', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          url:         selectedEntry.url,
+          title:       selectedEntry.title,
+          source:      selectedEntry.feedTitle,
+          pub_date:    selectedEntry.pubDate,
+          description: selectedEntry.description ?? '',
+        }),
+      })
+      const article = await r.json()
+      if (!article.error) onReport(article)
+    } catch { /* erreur réseau silencieuse */ }
+    setLoadingArticle(false)
+  }
+
+  const fmtTime = (iso) => {
+    if (!iso) return '--:--'
+    try {
+      const d = new Date(iso)
+      return d.toLocaleString('fr-FR', {
+        day:    '2-digit', month: '2-digit',
+        hour:   '2-digit', minute: '2-digit',
+      })
+    } catch { return '' }
+  }
+
+  return (
+    <div className="flex flex-col h-full" style={{ background: '#0d1117' }}>
+
+      {/* ── En-tête : statut + sélecteur vitesse + pause ── */}
+      <div className="flex items-center gap-2 px-4 py-2 shrink-0" style={{ borderBottom: '1px solid #30363d' }}>
+        <span className={`w-2 h-2 rounded-full shrink-0 ${paused ? 'bg-slate-500' : 'bg-emerald-400 animate-pulse'}`} />
+        <span className="text-xs font-mono truncate max-w-[160px]" style={{ color: '#3fb950' }}>
+          {paused ? 'EN PAUSE' : scanning ? `[${scanning.feedTitle}]` : 'Connexion…'}
+        </span>
+
+        <div className="flex items-center gap-1 ml-auto flex-wrap">
+          <span className="text-[10px] font-mono mr-0.5" style={{ color: '#8b949e' }}>Intervalle</span>
+          {DIRECT_INTERVALS.map(({ label, value }) => (
+            <button key={value} onClick={() => setIntervalVal(value)}
+              className="px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors"
+              style={{
+                background: interval === value ? '#1a4731' : '#161b22',
+                color:      interval === value ? '#3fb950' : '#8b949e',
+                border:     interval === value ? '1px solid #3fb950' : '1px solid #30363d',
+              }}>
+              {label}
+            </button>
+          ))}
+          <button onClick={() => setPaused(p => !p)}
+            className="ml-1 px-2 py-0.5 rounded text-[10px] font-mono transition-colors"
+            style={{
+              background: paused ? '#1a4731' : '#161b22',
+              color:      paused ? '#3fb950' : '#8b949e',
+              border:     '1px solid #30363d',
+            }}>
+            {paused ? '▶ Reprendre' : '⏸ Pause'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Log ── */}
+      <div ref={logRef} onScroll={handleLogScroll}
+        className="flex-1 overflow-y-auto p-3 pb-2"
+        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '12px' }}>
+        {logEntries.length === 0 && !scanning && (
+          <div className="py-6 text-center text-xs" style={{ color: '#8b949e' }}>
+            Initialisation du Direct — les nouveaux articles apparaîtront ici
+          </div>
+        )}
+        {logEntries.map((entry, i) => (
+          <div key={entry._id ?? i}
+            onClick={() => setSelectedEntry(e => e?.url === entry.url ? null : entry)}
+            className="flex items-start gap-2 px-2 py-[3px] rounded cursor-pointer select-none"
+            style={{
+              background: selectedEntry?.url === entry.url ? 'rgba(63,185,80,0.12)' : 'transparent',
+              border:     selectedEntry?.url === entry.url ? '1px solid rgba(63,185,80,0.35)' : '1px solid transparent',
+              marginBottom: '1px',
+            }}>
+            <span className="shrink-0 tabular-nums w-28 text-right" style={{ color: '#8b949e' }}>
+              {fmtTime(entry.pubDateParsed)}
+            </span>
+            <span className="shrink-0 w-28 truncate" title={entry.feedTitle} style={{ color: '#58a6ff' }}>
+              {entry.feedTitle}
+            </span>
+            <span className="flex-1 leading-snug" style={{ color: selectedEntry?.url === entry.url ? '#e6edf3' : '#c9d1d9' }}>
+              {entry.title}
+            </span>
+          </div>
+        ))}
+        {/* Curseur clignotant */}
+        {!paused && (
+          <div className="flex items-center gap-2 px-2 py-[3px]" style={{ color: '#3fb950', opacity: 0.5 }}>
+            <span className="w-28" />
+            <span className="animate-pulse">▋</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Barre inférieure : article sélectionné + bouton ── */}
+      <div className="shrink-0 flex items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid #30363d' }}>
+        <div className="flex-1 min-w-0">
+          {selectedEntry ? (
+            <>
+              <p className="text-[10px] truncate font-mono" style={{ color: '#8b949e' }}>{selectedEntry.feedTitle}</p>
+              <p className="text-xs truncate font-mono" style={{ color: '#c9d1d9' }}>{selectedEntry.title}</p>
+            </>
+          ) : (
+            <p className="text-[10px] font-mono" style={{ color: '#8b949e' }}>Cliquer sur une ligne pour sélectionner</p>
+          )}
+        </div>
+        <button onClick={openArticle}
+          disabled={!selectedEntry || loadingArticle}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-mono font-medium transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ background: '#1a4731', color: '#3fb950', border: '1px solid #3fb950' }}>
+          {loadingArticle
+            ? <><RefreshCw size={11} className="animate-spin" /> Génération IA…</>
+            : <>◆ Article</>
+          }
+        </button>
+      </div>
+    </div>
+  )
+}
+
+
 // ── Panel principal ───────────────────────────────────────────────────────────
 
 export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate, availableProviders = [] }) {
+  const [activeTab, setActiveTab] = useState('top') // 'top' | 'direct'
   const [articles, setArticles] = useState([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
@@ -572,103 +766,156 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
 
         {/* ── En-tête ── */}
         <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl shrink-0">
-          <Star size={18} className="text-amber-500 shrink-0" />
-          <span className="font-semibold text-slate-900 dark:text-slate-100">Top articles</span>
-          {!loading && articles.length > 0 && (
+          {activeTab === 'top'
+            ? <Star size={18} className="text-amber-500 shrink-0" />
+            : <Radio size={18} className="text-emerald-500 shrink-0" />
+          }
+          <span className="font-semibold text-slate-900 dark:text-slate-100">
+            {activeTab === 'top' ? 'Top articles' : 'Direct'}
+          </span>
+          {activeTab === 'top' && !loading && articles.length > 0 && (
             <span className="text-xs text-slate-400 dark:text-slate-500">— {articles.length} article{articles.length > 1 ? 's' : ''}</span>
           )}
 
-          {/* Contrôles desktop */}
-          <div className="hidden md:flex flex-wrap items-center gap-3 ml-auto">
-            <PodcastBtn
-              playing={playing}
-              currentIdx={currentIdx}
-              total={articles.length}
-              onStart={podcastStart}
-              onStop={podcastStop}
-              disabled={loading || articles.length === 0}
-            />
-            <div className="flex items-center gap-2 text-sm">
-              <label className="text-slate-500 dark:text-slate-400 text-xs">Fenêtre :</label>
-              <select value={hours} onChange={e => setHours(Number(e.target.value))}
-                className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
-                <option value="6">6h</option>
-                <option value="24">24h</option>
-                <option value="48">48h</option>
-                <option value="168">7j</option>
-                <option value="0">Tout</option>
-              </select>
+          {/* Contrôles desktop — visibles uniquement en mode Top */}
+          {activeTab === 'top' && (
+            <div className="hidden md:flex flex-wrap items-center gap-3 ml-auto">
+              <PodcastBtn
+                playing={playing}
+                currentIdx={currentIdx}
+                total={articles.length}
+                onStart={podcastStart}
+                onStop={podcastStop}
+                disabled={loading || articles.length === 0}
+              />
+              <div className="flex items-center gap-2 text-sm">
+                <label className="text-slate-500 dark:text-slate-400 text-xs">Fenêtre :</label>
+                <select value={hours} onChange={e => setHours(Number(e.target.value))}
+                  className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
+                  <option value="6">6h</option>
+                  <option value="24">24h</option>
+                  <option value="48">48h</option>
+                  <option value="168">7j</option>
+                  <option value="0">Tout</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <label className="text-slate-500 dark:text-slate-400 text-xs">Top :</label>
+                <select value={topN} onChange={e => setTopN(Number(e.target.value))}
+                  className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                </select>
+              </div>
+              <button onClick={load} title="Actualiser"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs rounded-lg transition-colors">
+                <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+                Actualiser
+              </button>
+              <button onClick={() => setIsMaximized(m => !m)} title={isMaximized ? 'Réduire' : 'Plein écran'}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors">
+                <Maximize2 size={14} />
+              </button>
+              <button onClick={onClose}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors">
+                <X size={14} />
+              </button>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <label className="text-slate-500 dark:text-slate-400 text-xs">Top :</label>
-              <select value={topN} onChange={e => setTopN(Number(e.target.value))}
-                className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
-                <option value="5">5</option>
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-              </select>
-            </div>
-            <button onClick={load} title="Actualiser"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs rounded-lg transition-colors">
-              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-              Actualiser
-            </button>
-            <button onClick={() => setIsMaximized(m => !m)} title={isMaximized ? 'Réduire' : 'Plein écran'}
-              className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors">
-              <Maximize2 size={14} />
-            </button>
-            <button onClick={onClose}
-              className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors">
-              <X size={14} />
-            </button>
-          </div>
+          )}
 
-          {/* Mobile en-tête */}
-          <div className="flex md:hidden items-center gap-2 ml-auto">
-            <button onClick={() => setIsMaximized(m => !m)}
-              className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400">
-              <Maximize2 size={14} />
-            </button>
-          </div>
+          {/* Boutons plein écran + fermer (toujours visibles à droite) */}
+          {activeTab === 'direct' && (
+            <div className="flex items-center gap-2 ml-auto">
+              <button onClick={() => setIsMaximized(m => !m)} title={isMaximized ? 'Réduire' : 'Plein écran'}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors">
+                <Maximize2 size={14} />
+              </button>
+              <button onClick={onClose}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* Mobile : plein écran uniquement (en mode Top sans contrôles desktop) */}
+          {activeTab === 'top' && (
+            <div className="flex md:hidden items-center gap-2 ml-auto">
+              <button onClick={() => setIsMaximized(m => !m)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400">
+                <Maximize2 size={14} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Corps ── */}
-        <div className="flex-1 overflow-y-auto p-5 pb-36 md:pb-5">
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg text-sm">{error}</div>
-          )}
+        {activeTab === 'top' ? (
+          <div className="flex-1 overflow-y-auto p-5 pb-36 md:pb-5">
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg text-sm">{error}</div>
+            )}
 
-          {loading ? (
-            <div className="flex items-center justify-center py-20 gap-2 text-slate-400 dark:text-slate-500">
-              <RefreshCw size={20} className="animate-spin" />
-              <span className="text-sm">Chargement…</span>
-            </div>
-          ) : articles.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500 gap-3">
-              <Star size={36} className="opacity-30" />
-              <p className="text-sm">Aucun article trouvé dans cette fenêtre</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {articles.map((article, i) => {
-                const artUrl = article['URL'] ?? article['url'] ?? ''
-                return (
-                  <ArticleCard
-                    key={artUrl || i}
-                    article={article}
-                    rank={i + 1}
-                    isCurrentPodcast={playing && currentIdx === i}
-                    onEntityClick={(type, value) => setSelectedEntity({ type, value })}
-                    annotation={artUrl ? annotations?.[artUrl] : undefined}
-                    onAnnotate={onAnnotate}
-                    availableProviders={availableProviders}
-                    onReport={a => setReportArticle(a)}
-                  />
-                )
-              })}
-            </div>
-          )}
+            {loading ? (
+              <div className="flex items-center justify-center py-20 gap-2 text-slate-400 dark:text-slate-500">
+                <RefreshCw size={20} className="animate-spin" />
+                <span className="text-sm">Chargement…</span>
+              </div>
+            ) : articles.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500 gap-3">
+                <Star size={36} className="opacity-30" />
+                <p className="text-sm">Aucun article trouvé dans cette fenêtre</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {articles.map((article, i) => {
+                  const artUrl = article['URL'] ?? article['url'] ?? ''
+                  return (
+                    <ArticleCard
+                      key={artUrl || i}
+                      article={article}
+                      rank={i + 1}
+                      isCurrentPodcast={playing && currentIdx === i}
+                      onEntityClick={(type, value) => setSelectedEntity({ type, value })}
+                      annotation={artUrl ? annotations?.[artUrl] : undefined}
+                      onAnnotate={onAnnotate}
+                      availableProviders={availableProviders}
+                      onReport={a => setReportArticle(a)}
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0">
+            <DirectMode onReport={a => setReportArticle(a)} />
+          </div>
+        )}
+
+        {/* ── Tab-bar ── */}
+        <div className="shrink-0 flex border-t border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl overflow-hidden rounded-b-2xl">
+          <button
+            onClick={() => setActiveTab('top')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
+              activeTab === 'top'
+                ? 'text-amber-600 dark:text-amber-400 bg-amber-50/60 dark:bg-amber-900/20 border-t-2 border-amber-500'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 border-t-2 border-transparent'
+            }`}>
+            <Star size={13} />
+            Top articles
+          </button>
+          <button
+            onClick={() => setActiveTab('direct')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
+              activeTab === 'direct'
+                ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50/60 dark:bg-emerald-900/20 border-t-2 border-emerald-500'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 border-t-2 border-transparent'
+            }`}>
+            <Radio size={13} />
+            Direct
+          </button>
         </div>
       </div>
     </div>
@@ -689,50 +936,52 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
       />
     )}
 
-    {/* ── Toolbar mobile ── */}
-    <div
-      className="hig-sheet-enter md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-700/60 px-4 pt-2 flex flex-col gap-2"
-      style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
-    >
-      {/* Ligne 1 : filtres + rafraîchir + fermer */}
-      <div className="flex items-center gap-2">
-        <label className="text-slate-500 dark:text-slate-400 text-xs shrink-0">Fenêtre</label>
-        <select value={hours} onChange={e => setHours(Number(e.target.value))}
-          className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
-          <option value="6">6h</option>
-          <option value="24">24h</option>
-          <option value="48">48h</option>
-          <option value="168">7j</option>
-          <option value="0">Tout</option>
-        </select>
-        <label className="text-slate-500 dark:text-slate-400 text-xs shrink-0">Top</label>
-        <select value={topN} onChange={e => setTopN(Number(e.target.value))}
-          className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
-          <option value="5">5</option>
-          <option value="10">10</option>
-          <option value="20">20</option>
-          <option value="50">50</option>
-        </select>
-        <button onClick={load} title="Actualiser"
-          className="w-9 h-9 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-colors">
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-        </button>
-        <button onClick={onClose} title="Fermer"
-          className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0 transition-colors">
-          <X size={16} />
-        </button>
+    {/* ── Toolbar mobile (Top uniquement) ── */}
+    {activeTab === 'top' && (
+      <div
+        className="hig-sheet-enter md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-700/60 px-4 pt-2 flex flex-col gap-2"
+        style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
+      >
+        {/* Ligne 1 : filtres + rafraîchir + fermer */}
+        <div className="flex items-center gap-2">
+          <label className="text-slate-500 dark:text-slate-400 text-xs shrink-0">Fenêtre</label>
+          <select value={hours} onChange={e => setHours(Number(e.target.value))}
+            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
+            <option value="6">6h</option>
+            <option value="24">24h</option>
+            <option value="48">48h</option>
+            <option value="168">7j</option>
+            <option value="0">Tout</option>
+          </select>
+          <label className="text-slate-500 dark:text-slate-400 text-xs shrink-0">Top</label>
+          <select value={topN} onChange={e => setTopN(Number(e.target.value))}
+            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+          </select>
+          <button onClick={load} title="Actualiser"
+            className="w-9 h-9 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-colors">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button onClick={onClose} title="Fermer"
+            className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+        {/* Ligne 2 : podcast */}
+        <PodcastBtn
+          playing={playing}
+          currentIdx={currentIdx}
+          total={articles.length}
+          onStart={podcastStart}
+          onStop={podcastStop}
+          disabled={loading || articles.length === 0}
+          mobile
+        />
       </div>
-      {/* Ligne 2 : podcast */}
-      <PodcastBtn
-        playing={playing}
-        currentIdx={currentIdx}
-        total={articles.length}
-        onStart={podcastStart}
-        onStop={podcastStop}
-        disabled={loading || articles.length === 0}
-        mobile
-      />
-    </div>
+    )}
   </>
   )
 }
