@@ -627,7 +627,7 @@ function DirectMapOverlay({ markers, onEntityClick }) {
           return (
             <Marker key={m.articleId} position={[m.lat, m.lon]}
               icon={icon} zIndexOffset={m.zIndex * 100}
-              eventHandlers={{ click: () => onEntityClick?.(entity.type, entity.name) }}>
+              eventHandlers={{ click: () => onEntityClick?.(entity.type, entity.name, m.articleId) }}>
               <LeafletTooltip direction="top" opacity={0.97}>
                 <div style={{ minWidth: 260, maxWidth: 420 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'nowrap' }}>
@@ -699,10 +699,11 @@ function DirectMode({ onReport }) {
   const [keywords,       setKeywords]       = useState([])
   const [filterText,     setFilterText]     = useState('')
   // ── Carte desktop ──
-  const [mapVisible,          setMapVisible]         = useState(() => window.innerWidth >= 1024)
-  const [mapHeightPct,        setMapHeightPct]       = useState(45)
+  const [mapVisible,            setMapVisible]           = useState(() => window.innerWidth >= 1024)
+  const [mapHeightPct,          setMapHeightPct]         = useState(45)
   const directContainerRef = useRef(null)
   const [selectedEntityFromMap, setSelectedEntityFromMap] = useState(null)
+  const [enrichingFromMap,      setEnrichingFromMap]     = useState(false) // enrichissement en cours
   const [articleEntities, setArticleEntities] = useState({}) // {_id: {entities, coords, images}}
   const nerQueueRef      = useRef([])   // [{_id, title, description}]
   const nerProcessingRef = useRef(false)
@@ -895,6 +896,34 @@ function DirectMode({ onReport }) {
     setLoadingArticle(false)
   }
 
+  // Enrichissement complet au clic sur un marqueur de la carte
+  const handleEntityClickFromMap = async (type, name, articleId) => {
+    if (enrichingFromMap) return
+    // Retrouver l'entry complète dans le log
+    const entry = sortedEntries.find(e => e._id === articleId)
+    if (!entry) {
+      // Fallback : ouvrir directement sans enrichissement
+      setSelectedEntityFromMap({ type, value: name })
+      return
+    }
+    setEnrichingFromMap(true)
+    try {
+      await fetch('/api/rss/direct/article', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url:         entry.url,
+          title:       entry.title,
+          source:      entry.feedTitle,
+          pub_date:    entry.pubDate,
+          description: entry.description ?? '',
+        }),
+      })
+    } catch { /* non bloquant */ }
+    setEnrichingFromMap(false)
+    setSelectedEntityFromMap({ type, value: name })
+  }
+
   const fmtTime = (iso) => {
     if (!iso) return '--:--'
     try {
@@ -978,8 +1007,22 @@ function DirectMode({ onReport }) {
       {/* ── Carte monde (desktop uniquement) ── */}
       {mapVisible && (
         <>
-          <div data-map-pane className="shrink-0" style={{ height: `${mapHeightPct}%`, minHeight: 80, isolation: 'isolate' }}>
-            <DirectMapOverlay markers={mapMarkers} onEntityClick={(type, name) => setSelectedEntityFromMap({ type, value: name })} />
+          <div data-map-pane className="shrink-0" style={{ height: `${mapHeightPct}%`, minHeight: 80, isolation: 'isolate', position: 'relative' }}>
+            <DirectMapOverlay markers={mapMarkers} onEntityClick={handleEntityClickFromMap} />
+            {/* Overlay spinner pendant l'enrichissement */}
+            {enrichingFromMap && (
+              <div style={{
+                position: 'absolute', inset: 0, zIndex: 2000,
+                background: 'rgba(13,17,23,0.65)', backdropFilter: 'blur(2px)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
+              }}>
+                <div className="animate-spin" style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  border: '3px solid #30363d', borderTopColor: '#3fb950',
+                }} />
+                <span style={{ fontSize: 11, color: '#8b949e', fontFamily: 'monospace' }}>Enrichissement en cours…</span>
+              </div>
+            )}
           </div>
           {/* Séparateur redimensionnable */}
           <div
