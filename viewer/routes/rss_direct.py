@@ -165,11 +165,11 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
         return []
 
     # Heure actuelle UTC comme fallback si la date de l'article est manquante/illisible
-    now_iso = datetime.utcnow().isoformat()
+    now_iso = datetime.utcnow().isoformat() + 'Z'
 
     def _resolved_date(pub_date: str) -> str:
         dt = _parse_rss_date(pub_date)
-        return dt.isoformat() if dt != datetime.min else now_iso
+        return (dt.isoformat() + 'Z') if dt != datetime.min else now_iso
 
     articles = []
 
