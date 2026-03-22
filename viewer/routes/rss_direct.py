@@ -470,3 +470,29 @@ def api_rss_direct_article():
         pass  # Non bloquant : l'affichage fonctionne même si la sauvegarde échoue
 
     return jsonify(article)
+
+
+@rss_direct_bp.route("/api/rss/direct/ner", methods=["POST"])
+def api_rss_direct_ner():
+    """Extrait les entités NER d'un titre + description d'article RSS (léger, sans fetch HTML).
+
+    Body JSON :
+      title       : Titre de l'article
+      description : Description/extrait RSS (optionnel)
+
+    Retourne un dict {TYPE: [noms]} identique au format WUDD.ai entities.
+    """
+    sys.path.insert(0, str(PROJECT_ROOT))
+    body = request.get_json(force=True) or {}
+    title       = (body.get("title")       or "").strip()
+    description = (body.get("description") or "").strip()
+    text = (title + "\n" + description).strip()[:2000]
+    if not text:
+        return jsonify({})
+    try:
+        from utils.api_client import get_ai_client
+        client   = get_ai_client()
+        entities = client.generate_entities(text) or {}
+        return jsonify(entities)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
