@@ -1704,12 +1704,17 @@ function EnvTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key, value }),
       })
-      const d = await r.json()
+      const text = await r.text()
+      let d
+      try { d = JSON.parse(text) } catch {
+        setError(`Erreur serveur (HTTP ${r.status}) — le backend Flask est-il démarré ? Réponse : ${text.substring(0, 120)}`)
+        return
+      }
       if (!d.ok) { setError(d.error || 'Erreur inconnue'); return }
       setEditKey(null)
       load()
     } catch (e) {
-      setError(String(e))
+      setError(`Impossible de joindre le backend Flask (/api/env) : ${String(e)}`)
     } finally {
       setSaving(false)
     }
