@@ -5,12 +5,40 @@ WUDD.ai Viewer — fonctions utilitaires partagées entre les blueprints Flask.
 import datetime
 import json
 import os
+import subprocess
 from pathlib import Path
 
 from flask import abort
 
-# La racine du projet est le dossier parent de viewer/
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+def _resolve_project_root() -> Path:
+    """Résout la racine du dépôt principal, même depuis un worktree git.
+
+    En worktree, Path(__file__).parent.parent pointe vers le répertoire du
+    worktree (ex. .claude/worktrees/foo/), pas vers la racine du dépôt.
+    git rev-parse --git-common-dir retourne toujours le .git du dépôt
+    principal, dont le parent est la vraie racine.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            capture_output=True, text=True,
+            cwd=Path(__file__).parent,
+        )
+        if result.returncode == 0:
+            git_common = result.stdout.strip()
+            git_common_path = Path(git_common)
+            if not git_common_path.is_absolute():
+                git_common_path = (Path(__file__).parent / git_common_path).resolve()
+            return git_common_path.parent
+    except Exception:
+        pass
+    # Fallback : deux niveaux au-dessus de viewer/helpers.py
+    return Path(__file__).resolve().parent.parent
+
+
+# La racine du projet est toujours celle du dépôt principal (pas d'un worktree)
+PROJECT_ROOT = _resolve_project_root()
 
 
 def safe_path(relative: str) -> Path:
