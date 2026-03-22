@@ -605,9 +605,14 @@ function DirectMapOverlay({ markers }) {
             <Marker key={m.articleId} position={[m.lat, m.lon]}
               icon={icon} zIndexOffset={m.zIndex * 100}>
               <LeafletTooltip direction="top" opacity={0.97}>
-                <div style={{ maxWidth: 220 }}>
+                <div style={{ maxWidth: 280 }}>
                   <div className="font-semibold text-xs leading-snug">{m.title}</div>
-                  <div className="text-[10px] text-gray-400 mt-0.5 truncate">
+                  {m.description && (
+                    <div className="text-[10px] mt-1 leading-snug" style={{ color: '#c9d1d9', whiteSpace: 'normal' }}>
+                      {m.description.length > 180 ? m.description.slice(0, 180) + '…' : m.description}
+                    </div>
+                  )}
+                  <div className="text-[10px] text-gray-400 mt-1 truncate">
                     {imgs.map(i => i.name).join(' · ')}
                   </div>
                 </div>
@@ -823,11 +828,12 @@ function DirectMode({ onReport }) {
       ].filter(e => e.img?.url).map(e => ({ name: e.name, url: e.img.url }))
       if (!imgs.length) return
       markers.push({
-        articleId: entry._id,
+        articleId:   entry._id,
         lat: pos.lat, lon: pos.lon,
-        zIndex: idx, // plus récent = index plus élevé = z-index plus haut
-        images: imgs.slice(0, 3),
-        title:  entry.title || '',
+        zIndex:      idx,
+        images:      imgs.slice(0, 3),
+        title:       entry.title       || '',
+        description: entry.description || '',
       })
     })
     return markers
