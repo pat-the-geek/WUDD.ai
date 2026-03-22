@@ -159,8 +159,20 @@ def api_rss_direct_stream():
             articles = _fetch_feed_articles(feed_url)
 
             if feed_url not in last_seen:
-                # Premier passage : mémoriser les URLs existantes sans les émettre
+                # Premier passage : émettre les 3 articles les plus récents pour
+                # peupler immédiatement le log, puis mémoriser toutes les URLs.
                 last_seen[feed_url] = {a["url"] for a in articles}
+                recent = sorted(articles, key=lambda a: a.get("pubDateParsed", ""), reverse=True)[:3]
+                for art in reversed(recent):  # chronologique dans le log
+                    yield "data: " + json.dumps({
+                        "type":          "article",
+                        "title":         art["title"],
+                        "url":           art["url"],
+                        "pubDate":       art["pubDate"],
+                        "pubDateParsed": art["pubDateParsed"],
+                        "feedTitle":     art["feedTitle"],
+                        "description":   art["description"],
+                    }) + "\n\n"
             else:
                 seen         = last_seen[feed_url]
                 new_articles = [a for a in articles if a["url"] not in seen]
