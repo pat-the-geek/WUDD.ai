@@ -551,6 +551,16 @@ function DirectMode({ onReport }) {
   const logRef        = useRef(null)
   const autoScrollRef = useRef(true)
 
+  // Tri chronologique des entrées (null pubDateParsed → fin de liste)
+  const sortedEntries = useMemo(() =>
+    [...logEntries].sort((a, b) => {
+      if (!a.pubDateParsed && !b.pubDateParsed) return 0
+      if (!a.pubDateParsed) return 1
+      if (!b.pubDateParsed) return -1
+      return a.pubDateParsed.localeCompare(b.pubDateParsed)
+    }),
+  [logEntries])
+
   // Démarrer / arrêter le flux SSE
   useEffect(() => {
     esRef.current?.close()
@@ -616,11 +626,12 @@ function DirectMode({ onReport }) {
     if (!iso) return '--:--'
     try {
       const d = new Date(iso)
+      if (isNaN(d.getTime()) || d.getFullYear() < 2000) return '--:--'
       return d.toLocaleString('fr-FR', {
         day:    '2-digit', month: '2-digit',
         hour:   '2-digit', minute: '2-digit',
       })
-    } catch { return '' }
+    } catch { return '--:--' }
   }
 
   return (
@@ -660,14 +671,14 @@ function DirectMode({ onReport }) {
 
       {/* ── Log ── */}
       <div ref={logRef} onScroll={handleLogScroll}
-        className="flex-1 overflow-y-auto p-3 pb-2"
-        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '12px' }}>
+        className="flex-1 overflow-y-scroll p-3 pb-2"
+        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '12px', WebkitOverflowScrolling: 'touch' }}>
         {logEntries.length === 0 && !scanning && (
           <div className="py-6 text-center text-xs" style={{ color: '#8b949e' }}>
             Initialisation du Direct — les nouveaux articles apparaîtront ici
           </div>
         )}
-        {logEntries.map((entry, i) => (
+        {sortedEntries.map((entry, i) => (
           <div key={entry._id ?? i}
             onClick={() => setSelectedEntry(e => e?.url === entry.url ? null : entry)}
             className="flex items-start gap-2 px-2 py-[3px] rounded cursor-pointer select-none"
@@ -965,6 +976,10 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
           <button onClick={load} title="Actualiser"
             className="w-9 h-9 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-colors">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button onClick={() => setActiveTab('direct')} title="Direct"
+            className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 hover:bg-emerald-200 dark:hover:bg-emerald-800/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 transition-colors">
+            <Radio size={16} />
           </button>
           <button onClick={onClose} title="Fermer"
             className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0 transition-colors">

@@ -86,11 +86,12 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
             pub_date = (item.findtext("pubDate")      or "").strip()
             desc     = (item.findtext("description")  or "").strip()
             if url:
+                dt = _parse_rss_date(pub_date)
                 articles.append({
                     "title":          title,
                     "url":            url,
                     "pubDate":        pub_date,
-                    "pubDateParsed":  _parse_rss_date(pub_date).isoformat(),
+                    "pubDateParsed":  dt.isoformat() if dt != datetime.min else None,
                     "description":    desc[:500] if desc else "",
                     "feedTitle":      feed_title,
                 })
@@ -109,11 +110,12 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
                     or entry.find(f"{{{ATOM}}}updated"))
         pub_date = (pub_el.text or "").strip() if pub_el is not None else ""
         if url:
+            dt = _parse_rss_date(pub_date)
             articles.append({
                 "title":         title,
                 "url":           url,
                 "pubDate":       pub_date,
-                "pubDateParsed": _parse_rss_date(pub_date).isoformat(),
+                "pubDateParsed": dt.isoformat() if dt != datetime.min else None,
                 "description":   "",
                 "feedTitle":     feed_title,
             })
