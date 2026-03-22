@@ -75,15 +75,8 @@ def _parse_sites_actualite_feeds() -> list[dict]:
 
 
 def _all_feeds() -> list[dict]:
-    """Fusionne les flux OPML et sites_actualite.json, dédupliqués par URL."""
-    seen_urls: set[str] = set()
-    result: list[dict] = []
-    for feed in _parse_opml_feeds() + _parse_sites_actualite_feeds():
-        url = feed["xmlUrl"]
-        if url not in seen_urls:
-            seen_urls.add(url)
-            result.append(feed)
-    return result
+    """Retourne uniquement les flux de data/WUDD.opml (identiques aux Réglages)."""
+    return _parse_opml_feeds()
 
 
 _NS_DC      = "http://purl.org/dc/elements/1.1/"
@@ -163,9 +156,11 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
                 or ""
             )
             desc = _strip_html(raw)[:500] or title
+            if not title and not desc:
+                continue   # article sans titre ni texte → ignoré
             dt = _parse_rss_date(pub_date)
             articles.append({
-                "title":         title,
+                "title":         title or desc[:80],
                 "url":           url,
                 "pubDate":       pub_date,
                 "pubDateParsed": dt.isoformat() if dt != datetime.min else None,
@@ -190,17 +185,18 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
         sum_el   = (entry.find(f"{{{ATOM}}}summary")
                     or entry.find(f"{{{ATOM}}}content"))
         raw      = (sum_el.text or "") if sum_el is not None else ""
-        desc     = _strip_html(raw)[:500] or title
-        if url:
-            dt = _parse_rss_date(pub_date)
-            articles.append({
-                "title":         title,
-                "url":           url,
-                "pubDate":       pub_date,
-                "pubDateParsed": dt.isoformat() if dt != datetime.min else None,
-                "description":   desc,
-                "feedTitle":     feed_title,
-            })
+        desc  = _strip_html(raw)[:500] or title
+        if not url or (not title and not desc):
+            continue   # article sans URL ou sans titre ni texte → ignoré
+        dt = _parse_rss_date(pub_date)
+        articles.append({
+            "title":         title or desc[:80],
+            "url":           url,
+            "pubDate":       pub_date,
+            "pubDateParsed": dt.isoformat() if dt != datetime.min else None,
+            "description":   desc,
+            "feedTitle":     feed_title,
+        })
     return articles
 
 
@@ -235,21 +231,24 @@ def api_rss_direct_stream():
     interval = max(5, min(300, int(request.args.get("interval", 30))))
 
     def generate():
-        feeds = _all_feeds()
-        if not feeds:
-            yield "data: " + json.dumps({
-                "type":    "error",
-                "message": "Aucun flux RSS trouvé (OPML + sites_actualite.json)"
-            }) + "\n\n"
-            return
-
-        # Ordre aléatoire à chaque session pour varier la couverture initiale
-        random.shuffle(feeds)
-
         # last_seen[feed_url] = set des URLs d'articles déjà émis dans cette session
         last_seen: dict[str, set] = {}
 
         while True:
+            # ── Rechargement de l'OPML à chaque cycle (reflète les modifs Réglages)
+            feeds = _all_feeds()
+            if not feeds:
+                yield "data: " + json.dumps({
+                    "type":    "error",
+                    "message": "Aucun flux RSS trouvé dans data/WUDD.opml",
+                }) + "\n\n"
+                for _ in range(interval):
+                    time.sleep(1)
+                    yield ": keepalive\n\n"
+                continue
+
+            random.shuffle(feeds)
+
             # ── Scan parallèle de tous les flux ───────────────────────────────
             cycle_success = 0
 
