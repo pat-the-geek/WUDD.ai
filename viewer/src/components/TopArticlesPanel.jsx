@@ -540,6 +540,18 @@ const DIRECT_INTERVALS = [
   { label: '5m',  value: 300 },
 ]
 
+function matchesKeywords(title, keywords) {
+  if (!title || !keywords?.length) return false
+  const t = title.toLowerCase()
+  return keywords.some(({ keyword, or: orTerms = [], and: andTerms = [] }) => {
+    const primary = keyword ? t.includes(keyword.toLowerCase()) : false
+    const orMatch = orTerms.some(w => t.includes(w.toLowerCase()))
+    if (!primary && !orMatch) return false
+    if (andTerms.length === 0) return true
+    return andTerms.every(w => t.includes(w.toLowerCase()))
+  })
+}
+
 function DirectMode({ onReport }) {
   const [logEntries,     setLogEntries]     = useState([])
   const [scanning,       setScanning]       = useState(null)   // {feedTitle}
@@ -547,9 +559,18 @@ function DirectMode({ onReport }) {
   const [interval,       setIntervalVal]    = useState(30)
   const [paused,         setPaused]         = useState(false)
   const [loadingArticle, setLoadingArticle] = useState(false)
+  const [keywords,       setKeywords]       = useState([])
   const esRef         = useRef(null)
   const logRef        = useRef(null)
   const autoScrollRef = useRef(true)
+
+  // Chargement des mots-clés une seule fois
+  useEffect(() => {
+    fetch('/api/keywords')
+      .then(r => r.json())
+      .then(data => Array.isArray(data) ? setKeywords(data) : null)
+      .catch(() => null)
+  }, [])
 
   // Tri chronologique des entrées (null pubDateParsed → fin de liste)
   const sortedEntries = useMemo(() =>
@@ -679,7 +700,9 @@ function DirectMode({ onReport }) {
             Initialisation du Direct — les nouveaux articles apparaîtront ici
           </div>
         )}
-        {sortedEntries.map((entry, i) => (
+        {sortedEntries.map((entry, i) => {
+          const isKw = matchesKeywords(entry.title, keywords)
+          return (
           <div key={entry._id ?? i}
             onClick={() => setSelectedEntry(e => e?._id === entry._id ? null : entry)}
             className="flex items-start gap-2 px-2 py-[3px] rounded cursor-pointer select-none"
@@ -687,18 +710,20 @@ function DirectMode({ onReport }) {
               background: selectedEntry?._id === entry._id ? 'rgba(63,185,80,0.12)' : 'transparent',
               border:     selectedEntry?._id === entry._id ? '1px solid rgba(63,185,80,0.35)' : '1px solid transparent',
               marginBottom: '1px',
+              fontWeight:   isKw ? '600' : undefined,
             }}>
             <span className="shrink-0 tabular-nums w-28 text-right" style={{ color: '#8b949e' }}>
               {fmtTime(entry.pubDateParsed)}
             </span>
-            <span className="shrink-0 w-28 truncate" title={entry.feedTitle} style={{ color: '#58a6ff' }}>
+            <span className="shrink-0 w-28 truncate" title={entry.feedTitle} style={{ color: isKw ? '#3fb950' : '#58a6ff' }}>
               {entry.feedTitle}
             </span>
-            <span className="flex-1 leading-snug" style={{ color: selectedEntry?._id === entry._id ? '#e6edf3' : '#c9d1d9' }}>
+            <span className="flex-1 leading-snug" style={{ color: selectedEntry?._id === entry._id ? '#e6edf3' : isKw ? '#e6edf3' : '#c9d1d9' }}>
               {entry.title}
             </span>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* ── Barre inférieure : article sélectionné + bouton ── */}
