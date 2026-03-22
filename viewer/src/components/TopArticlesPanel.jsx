@@ -952,7 +952,7 @@ function DirectMode({ onReport }) {
 
       {/* ── Carte monde (desktop uniquement — 45% de la hauteur disponible) ── */}
       {mapVisible && (
-        <div className="shrink-0" style={{ height: '45%', minHeight: 180, borderBottom: '1px solid #30363d' }}>
+        <div className="shrink-0" style={{ height: '45%', minHeight: 180, borderBottom: '1px solid #30363d', isolation: 'isolate' }}>
           <DirectMapOverlay markers={mapMarkers} onEntityClick={(type, name) => setSelectedEntityFromMap({ type, value: name })} />
         </div>
       )}
