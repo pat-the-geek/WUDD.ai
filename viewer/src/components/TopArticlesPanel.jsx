@@ -577,8 +577,8 @@ function DirectMode({ onReport }) {
         } else if (msg.type === 'article') {
           setLogEntries(prev => {
             const entry = { ...msg, _id: msg.url + '|' + msg.pubDateParsed }
-            const next  = [...prev, entry]
-            return next.slice(-200) // garde les 200 dernières entrées
+            if (prev.some(e => e._id === entry._id)) return prev // dédupliquer
+            return [...prev, entry].slice(-200)
           })
         }
       } catch { /* json parse silencieux */ }
@@ -635,7 +635,7 @@ function DirectMode({ onReport }) {
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ background: '#0d1117' }}>
+    <div className="flex flex-col flex-1 min-h-0" style={{ background: '#0d1117' }}>
 
       {/* ── En-tête : statut + sélecteur vitesse + pause ── */}
       <div className="flex items-center gap-2 px-4 py-2 shrink-0" style={{ borderBottom: '1px solid #30363d' }}>
@@ -680,11 +680,11 @@ function DirectMode({ onReport }) {
         )}
         {sortedEntries.map((entry, i) => (
           <div key={entry._id ?? i}
-            onClick={() => setSelectedEntry(e => e?.url === entry.url ? null : entry)}
+            onClick={() => setSelectedEntry(e => e?._id === entry._id ? null : entry)}
             className="flex items-start gap-2 px-2 py-[3px] rounded cursor-pointer select-none"
             style={{
-              background: selectedEntry?.url === entry.url ? 'rgba(63,185,80,0.12)' : 'transparent',
-              border:     selectedEntry?.url === entry.url ? '1px solid rgba(63,185,80,0.35)' : '1px solid transparent',
+              background: selectedEntry?._id === entry._id ? 'rgba(63,185,80,0.12)' : 'transparent',
+              border:     selectedEntry?._id === entry._id ? '1px solid rgba(63,185,80,0.35)' : '1px solid transparent',
               marginBottom: '1px',
             }}>
             <span className="shrink-0 tabular-nums w-28 text-right" style={{ color: '#8b949e' }}>
@@ -693,7 +693,7 @@ function DirectMode({ onReport }) {
             <span className="shrink-0 w-28 truncate" title={entry.feedTitle} style={{ color: '#58a6ff' }}>
               {entry.feedTitle}
             </span>
-            <span className="flex-1 leading-snug" style={{ color: selectedEntry?.url === entry.url ? '#e6edf3' : '#c9d1d9' }}>
+            <span className="flex-1 leading-snug" style={{ color: selectedEntry?._id === entry._id ? '#e6edf3' : '#c9d1d9' }}>
               {entry.title}
             </span>
           </div>
@@ -900,7 +900,7 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
             )}
           </div>
         ) : (
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 flex flex-col">
             <DirectMode onReport={a => setReportArticle(a)} />
           </div>
         )}
