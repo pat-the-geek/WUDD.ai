@@ -954,10 +954,9 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
         className="hig-sheet-enter md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-700/60 px-4 pt-2 flex flex-col gap-2"
         style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
       >
-        {/* Ligne 1 : filtres + rafraîchir + fermer */}
+        {/* Ligne 1 : filtres + rafraîchir + direct + fermer */}
         <div className="flex items-center gap-2">
-          <label className="text-slate-500 dark:text-slate-400 text-xs shrink-0">Fenêtre</label>
-          <select value={hours} onChange={e => setHours(Number(e.target.value))}
+          <select aria-label="Fenêtre temporelle" value={hours} onChange={e => setHours(Number(e.target.value))}
             className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
             <option value="6">6h</option>
             <option value="24">24h</option>
@@ -965,13 +964,12 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
             <option value="168">7j</option>
             <option value="0">Tout</option>
           </select>
-          <label className="text-slate-500 dark:text-slate-400 text-xs shrink-0">Top</label>
-          <select value={topN} onChange={e => setTopN(Number(e.target.value))}
+          <select aria-label="Nombre d'articles" value={topN} onChange={e => setTopN(Number(e.target.value))}
             className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
-            <option value="5">5</option>
-            <option value="10">10</option>
-            <option value="20">20</option>
-            <option value="50">50</option>
+            <option value="5">Top 5</option>
+            <option value="10">Top 10</option>
+            <option value="20">Top 20</option>
+            <option value="50">Top 50</option>
           </select>
           <button onClick={load} title="Actualiser"
             className="w-9 h-9 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-colors">
