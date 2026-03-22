@@ -563,6 +563,7 @@ function DirectMode({ onReport }) {
   const [keywords,       setKeywords]       = useState([])
   const esRef         = useRef(null)
   const logRef        = useRef(null)
+  const endRef        = useRef(null)
   const autoScrollRef = useRef(true)
 
   // Chargement des mots-clés une seule fois
@@ -616,17 +617,17 @@ function DirectMode({ onReport }) {
     return () => es.close()
   }, [interval, paused]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll vers le bas
+  // Auto-scroll fluide vers le dernier élément à chaque nouvel article
   useEffect(() => {
-    if (autoScrollRef.current && logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight
+    if (autoScrollRef.current && endRef.current) {
+      endRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
     }
-  }, [logEntries, scanning])
+  }, [logEntries])
 
   const handleLogScroll = () => {
     if (!logRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = logRef.current
-    autoScrollRef.current = scrollTop + clientHeight >= scrollHeight - 20
+    autoScrollRef.current = scrollTop + clientHeight >= scrollHeight - 40
   }
 
   const openArticle = async () => {
@@ -720,6 +721,7 @@ function DirectMode({ onReport }) {
           const isKw = matchesKeywords(entry.title, keywords)
           return (
           <div key={entry._id ?? i}
+            ref={i === sortedEntries.length - 1 ? endRef : null}
             onClick={() => setSelectedEntry(e => e?._id === entry._id ? null : entry)}
             className="flex items-start gap-2 px-2 py-[3px] rounded cursor-pointer select-none"
             style={{

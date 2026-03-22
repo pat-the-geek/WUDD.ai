@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests as _req
 from flask import Blueprint, Response, jsonify, request, stream_with_context
@@ -82,6 +83,26 @@ def _all_feeds() -> list[dict]:
 _NS_DC      = "http://purl.org/dc/elements/1.1/"
 _NS_CONTENT = "http://purl.org/rss/1.0/modules/content/"
 
+# Fuseaux horaires abréviés non couverts par email.utils (ex: CNN utilise "EST")
+_TZ_OFFSETS = {
+    "EST": -5, "EDT": -4, "CST": -6, "CDT": -5,
+    "MST": -7, "MDT": -6, "PST": -8, "PDT": -7,
+    "GMT": 0,  "UTC": 0,  "BST": 1,  "CET": 1, "CEST": 2,
+}
+
+
+def _domain_label(xml_url: str) -> str:
+    """Extrait le domaine lisible d'une URL de flux (ex: 'edition.cnn.com' → 'cnn.com')."""
+    try:
+        host = urlparse(xml_url).hostname or ""
+        parts = host.split(".")
+        # Supprimer les sous-domaines courants : feeds., rss., feed., www.
+        if len(parts) >= 2 and parts[0] in ("www", "rss", "feeds", "feed"):
+            parts = parts[1:]
+        return ".".join(parts) if parts else xml_url
+    except Exception:
+        return xml_url
+
 
 def _strip_html(text: str) -> str:
     """Supprime les balises HTML et normalise les espaces blancs."""
@@ -93,20 +114,31 @@ def _strip_html(text: str) -> str:
 
 
 def _parse_rss_date(date_str: str) -> datetime:
-    """Parse une date RSS (RFC 2822 ou ISO 8601) → datetime UTC naive."""
+    """Parse une date RSS (RFC 2822, ISO 8601, abbrev TZ) → datetime UTC naive."""
     if not date_str:
         return datetime.min
-    # RFC 2822 (format standard RSS : "Sat, 22 Mar 2026 10:30:00 +0100")
+    s = date_str.strip()
+    # RFC 2822 standard ("Sat, 22 Mar 2026 10:30:00 +0100")
     try:
-        dt = parsedate_to_datetime(date_str)
+        dt = parsedate_to_datetime(s)
         return dt.astimezone(timezone.utc).replace(tzinfo=None)
     except Exception:
         pass
-    # ISO 8601 — normaliser Z et fractions de secondes, puis fromisoformat
-    s = date_str.strip()
+    # RFC 2822 avec timezone abrégée non reconnue (ex CNN: "Mon, 22 Mar 2026 10:30:00 EST")
+    m = re.match(
+        r"(\w+,\s+\d+\s+\w+\s+\d{4}\s+\d{2}:\d{2}:\d{2})\s+([A-Z]{2,5})$", s
+    )
+    if m:
+        offset = _TZ_OFFSETS.get(m.group(2), 0)
+        try:
+            dt = datetime.strptime(m.group(1), "%a, %d %b %Y %H:%M:%S")
+            return dt.replace(tzinfo=timezone.utc) - __import__("datetime").timedelta(hours=offset)
+        except Exception:
+            pass
+    # ISO 8601 — normaliser Z et fractions de secondes
     if s.endswith("Z"):
         s = s[:-1] + "+00:00"
-    s = re.sub(r"(\.\d{6})\d+", r"\1", s)   # tronquer au-delà de 6 décimales
+    s = re.sub(r"(\.\d{6})\d+", r"\1", s)
     try:
         dt = datetime.fromisoformat(s)
         if dt.tzinfo:
@@ -114,8 +146,8 @@ def _parse_rss_date(date_str: str) -> datetime:
         return dt
     except Exception:
         pass
-    # Date seule
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d %b %Y"):
+    # Formats date seule ou datetime sans T
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y", "%d %b %Y"):
         try:
             return datetime.strptime(date_str.strip(), fmt)
         except Exception:
@@ -271,6 +303,12 @@ def api_rss_direct_stream():
                         articles = future.result()
                     except Exception:
                         articles = []
+
+                    # Normaliser le feedTitle : canal RSS → titre OPML → domaine
+                    label = feed_title or _domain_label(feed_url)
+                    for art in articles:
+                        if not art.get("feedTitle"):
+                            art["feedTitle"] = label
 
                     # Signaler le flux en cours de traitement
                     yield "data: " + json.dumps({
