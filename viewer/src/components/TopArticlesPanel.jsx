@@ -627,18 +627,18 @@ function DirectMapOverlay({ markers, onEntityClick }) {
           return (
             <Marker key={m.articleId} position={[m.lat, m.lon]}
               icon={icon} zIndexOffset={m.zIndex * 100}
-              eventHandlers={{ click: () => onEntityClick?.(entity.type, entity.name) }}>
+              eventHandlers={{ click: () => onEntityClick?.(entity.type, entity.name, m.articleId) }}>
               <LeafletTooltip direction="top" opacity={0.97}>
-                <div style={{ maxWidth: 300 }}>
-                  <div className="font-semibold text-sm leading-snug" style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{m.title}</div>
+                <div style={{ minWidth: 260, maxWidth: 420 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'nowrap' }}>
+                    <span style={{ fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', color: '#58a6ff', flexShrink: 0 }}>{m.entity.name}</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 1, minWidth: 0 }}>{m.title}</span>
+                  </div>
                   {m.description && (
-                    <div className="text-xs mt-1 leading-snug" style={{ color: '#c9d1d9', whiteSpace: 'normal' }}>
-                      {m.description.length > 200 ? m.description.slice(0, 200) + '…' : m.description}
+                    <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m.description.length > 120 ? m.description.slice(0, 120) + '…' : m.description}
                     </div>
                   )}
-                  <div className="text-xs text-gray-400 mt-1">
-                    {m.entity.name}
-                  </div>
                 </div>
               </LeafletTooltip>
             </Marker>
@@ -699,8 +699,11 @@ function DirectMode({ onReport }) {
   const [keywords,       setKeywords]       = useState([])
   const [filterText,     setFilterText]     = useState('')
   // ── Carte desktop ──
-  const [mapVisible,          setMapVisible]         = useState(() => window.innerWidth >= 1024)
+  const [mapVisible,            setMapVisible]           = useState(() => window.innerWidth >= 1024)
+  const [mapHeightPct,          setMapHeightPct]         = useState(45)
+  const directContainerRef = useRef(null)
   const [selectedEntityFromMap, setSelectedEntityFromMap] = useState(null)
+  const [enrichingFromMap,      setEnrichingFromMap]     = useState(false) // enrichissement en cours
   const [articleEntities, setArticleEntities] = useState({}) // {_id: {entities, coords, images}}
   const nerQueueRef      = useRef([])   // [{_id, title, description}]
   const nerProcessingRef = useRef(false)
@@ -893,6 +896,34 @@ function DirectMode({ onReport }) {
     setLoadingArticle(false)
   }
 
+  // Enrichissement complet au clic sur un marqueur de la carte
+  const handleEntityClickFromMap = async (type, name, articleId) => {
+    if (enrichingFromMap) return
+    // Retrouver l'entry complète dans le log
+    const entry = sortedEntries.find(e => e._id === articleId)
+    if (!entry) {
+      // Fallback : ouvrir directement sans enrichissement
+      setSelectedEntityFromMap({ type, value: name })
+      return
+    }
+    setEnrichingFromMap(true)
+    try {
+      await fetch('/api/rss/direct/article', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url:         entry.url,
+          title:       entry.title,
+          source:      entry.feedTitle,
+          pub_date:    entry.pubDate,
+          description: entry.description ?? '',
+        }),
+      })
+    } catch { /* non bloquant */ }
+    setEnrichingFromMap(false)
+    setSelectedEntityFromMap({ type, value: name })
+  }
+
   const fmtTime = (iso) => {
     if (!iso) return '--:--'
     try {
@@ -905,8 +936,31 @@ function DirectMode({ onReport }) {
     } catch { return '--:--' }
   }
 
+  function startMapDrag(startClientY) {
+    const container = directContainerRef.current
+    if (!container) return
+    const startH = container.querySelector('[data-map-pane]')?.getBoundingClientRect().height ?? 0
+    const totalH = container.getBoundingClientRect().height
+    function onMove(e) {
+      const clientY = e.clientY ?? e.touches?.[0]?.clientY
+      if (clientY == null) return
+      const newH = Math.max(80, Math.min(totalH - 120, startH + (clientY - startClientY)))
+      setMapHeightPct(newH / totalH * 100)
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup',   onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend',  onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup',   onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend',  onUp)
+  }
+
   return (
-    <div className="flex flex-col flex-1 min-h-0" style={{ background: '#0d1117' }}>
+    <div ref={directContainerRef} className="flex flex-col flex-1 min-h-0" style={{ background: '#0d1117' }}>
 
       {/* ── En-tête : statut + sélecteur vitesse + pause ── */}
       <div className="flex items-center gap-2 px-4 py-2 shrink-0" style={{ borderBottom: '1px solid #30363d' }}>
@@ -950,11 +1004,42 @@ function DirectMode({ onReport }) {
         </div>
       </div>
 
-      {/* ── Carte monde (desktop uniquement — 45% de la hauteur disponible) ── */}
+      {/* ── Carte monde (desktop uniquement) ── */}
       {mapVisible && (
-        <div className="shrink-0" style={{ height: '45%', minHeight: 180, borderBottom: '1px solid #30363d', isolation: 'isolate' }}>
-          <DirectMapOverlay markers={mapMarkers} onEntityClick={(type, name) => setSelectedEntityFromMap({ type, value: name })} />
-        </div>
+        <>
+          <div data-map-pane className="shrink-0" style={{ height: `${mapHeightPct}%`, minHeight: 80, isolation: 'isolate', position: 'relative' }}>
+            <DirectMapOverlay markers={mapMarkers} onEntityClick={handleEntityClickFromMap} />
+            {/* Overlay spinner pendant l'enrichissement */}
+            {enrichingFromMap && (
+              <div style={{
+                position: 'absolute', inset: 0, zIndex: 2000,
+                background: 'rgba(13,17,23,0.65)', backdropFilter: 'blur(2px)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
+              }}>
+                <div className="animate-spin" style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  border: '3px solid #30363d', borderTopColor: '#3fb950',
+                }} />
+                <span style={{ fontSize: 11, color: '#8b949e', fontFamily: 'monospace' }}>Enrichissement en cours…</span>
+              </div>
+            )}
+          </div>
+          {/* Séparateur redimensionnable */}
+          <div
+            onMouseDown={e => { e.preventDefault(); startMapDrag(e.clientY) }}
+            onTouchStart={e => { startMapDrag(e.touches[0].clientY) }}
+            title="Glisser pour redimensionner"
+            style={{
+              height: 8, flexShrink: 0, cursor: 'row-resize',
+              background: '#161b22',
+              borderTop: '1px solid #30363d', borderBottom: '1px solid #30363d',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              userSelect: 'none',
+            }}
+          >
+            <div style={{ width: 36, height: 3, borderRadius: 99, background: '#444c56' }} />
+          </div>
+        </>
       )}
       {selectedEntityFromMap && (
         <EntityArticlePanel
