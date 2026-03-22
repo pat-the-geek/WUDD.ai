@@ -22,7 +22,14 @@ from viewer.helpers import PROJECT_ROOT
 
 rss_direct_bp = Blueprint("rss_direct", __name__)
 
-_HEADERS      = {"User-Agent": "WUDD.ai/2.4 Direct/1.0"}
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8",
+}
 _FEED_TIMEOUT = 10   # secondes pour fetcher un flux RSS
 _ART_TIMEOUT  = 15   # secondes pour fetcher le HTML d'un article
 
@@ -201,6 +208,13 @@ def api_rss_direct_stream():
 
         while True:
             # ── Scan parallèle de tous les flux ───────────────────────────────
+            cycle_success = 0
+
+            yield "data: " + json.dumps({
+                "type":  "cycle_start",
+                "total": len(feeds),
+            }) + "\n\n"
+
             with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
                 future_to_feed = {
                     executor.submit(_fetch_feed_articles, f["xmlUrl"]): f
@@ -223,6 +237,9 @@ def api_rss_direct_stream():
                         "feedUrl":   feed_url,
                     }) + "\n\n"
 
+                    if articles:
+                        cycle_success += 1
+
                     if feed_url not in last_seen:
                         # Premier passage : émettre les 3 plus récents, mémoriser tout
                         last_seen[feed_url] = {a["url"] for a in articles}
@@ -240,6 +257,12 @@ def api_rss_direct_stream():
                         for art in new_articles:
                             seen.add(art["url"])
                             yield _emit_article(art)
+
+            yield "data: " + json.dumps({
+                "type":    "cycle_end",
+                "total":   len(feeds),
+                "success": cycle_success,
+            }) + "\n\n"
 
             # ── Pause inter-cycle avec keepalive SSE ──────────────────────────
             for _ in range(interval):
