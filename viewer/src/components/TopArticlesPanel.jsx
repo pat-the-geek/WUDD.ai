@@ -697,7 +697,7 @@ function DirectMode({ onReport }) {
       </div>
 
       {/* ── Barre inférieure : article sélectionné + bouton ── */}
-      <div className="shrink-0 flex items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid #30363d' }}>
+      <div className="shrink-0 flex items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid #30363d', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
         <div className="flex-1 min-w-0">
           {selectedEntry ? (
             <>
@@ -732,7 +732,7 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
   const [error, setError]       = useState(null)
   const [hours, setHours]       = useState(48)
   const [topN, setTopN]         = useState(10)
-  const [isMaximized, setIsMaximized] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(() => window.innerWidth < 768)
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [reportArticle, setReportArticle] = useState(null)
 
@@ -895,7 +895,8 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
         )}
 
         {/* ── Tab-bar ── */}
-        <div className="shrink-0 flex border-t border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl overflow-hidden rounded-b-2xl">
+        <div className="shrink-0 flex border-t border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl overflow-hidden rounded-b-2xl"
+          style={isMaximized ? { paddingBottom: 'env(safe-area-inset-bottom)' } : {}}>
           <button
             onClick={() => setActiveTab('top')}
             className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
