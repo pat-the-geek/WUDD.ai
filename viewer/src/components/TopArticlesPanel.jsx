@@ -912,11 +912,13 @@ function DirectMode({ onReport }) {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url:         entry.url,
-          title:       entry.title,
-          source:      entry.feedTitle,
-          pub_date:    entry.pubDate,
-          description: entry.description ?? '',
+          url:          entry.url,
+          title:        entry.title,
+          source:       entry.feedTitle,
+          pub_date:     entry.pubDate,
+          description:  entry.description ?? '',
+          entity_type:  type,
+          entity_value: name,
         }),
       })
     } catch { /* non bloquant */ }
