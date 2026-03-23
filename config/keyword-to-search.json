@@ -204,6 +204,16 @@
   },
   {
     "and": [],
+    "keyword": "Planète",
+    "or": [
+      "Planet",
+      "moon",
+      "lune",
+      "mars"
+    ]
+  },
+  {
+    "and": [],
     "keyword": "Quantique",
     "or": []
   },
@@ -293,13 +303,8 @@
     ]
   },
   {
-    "keyword": "Planète",
-    "or": [
-      "Planet",
-      "moon",
-      "lune",
-      "mars"
-    ],
+    "keyword": "Palantir",
+    "or": [],
     "and": []
   }
 ]
