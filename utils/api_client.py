@@ -629,7 +629,7 @@ class EurIAClient:
 
         prompt = _PROMPT_ENTITIES.format(resume=resume.strip())
         try:
-            raw = self.ask(prompt, max_attempts=3, timeout=timeout, max_tokens=800)
+            raw = self.ask(prompt, max_attempts=3, timeout=timeout, max_tokens=500)
             return _parse_entities_response(raw)  # None = echec_parse, {} = no entities
         except Exception as e:
             default_logger.warning(f"Extraction NER échouée : {e}")
@@ -1080,7 +1080,7 @@ class ClaudeClient:
                 user_text=f"Texte à analyser :\n{resume.strip()}",
                 max_attempts=3,
                 timeout=timeout,
-                max_tokens=800,
+                max_tokens=500,
             )
             return _parse_entities_response(raw)  # None = echec_parse
         except Exception as e:
@@ -1229,7 +1229,7 @@ class ClaudeClient:
                 "custom_id": str(i),
                 "params": {
                     "model": self.model_batch,
-                    "max_tokens": 800,
+                    "max_tokens": 500,
                     "system": _NER_SYSTEM_INSTRUCTIONS,
                     "messages": [
                         {"role": "user", "content": f"Texte à analyser :\n{resume.strip()}"}
