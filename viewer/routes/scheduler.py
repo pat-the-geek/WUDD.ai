@@ -235,6 +235,63 @@ def api_scheduler():
             "data_dir": None,
             "log_file": PROJECT_ROOT / "rapports" / "cron_keyword_reports.log",
         },
+        # ── Système auto-apprenant ───────────────────────────────────────────────
+        {
+            "name": "Archivage historique quotas",
+            "script": "archive_quota_state.py",
+            "cron": "5 0 * * *",
+            "category": "Système auto-apprenant",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_archive_quota.log",
+        },
+        {
+            "name": "Calibration seuils alertes",
+            "script": "calibrate_alerts.py",
+            "cron": "15 7 * * *",
+            "category": "Système auto-apprenant",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_calibrate_alerts.log",
+        },
+        {
+            "name": "Scores de qualité articles",
+            "script": "update_quality_scores.py",
+            "cron": "0 4 * * *",
+            "category": "Système auto-apprenant",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_quality_scores.log",
+        },
+        {
+            "name": "Optimisation poids de scoring (hebdo)",
+            "script": "optimize_scoring_weights.py",
+            "cron": "30 5 * * 1",
+            "category": "Système auto-apprenant",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_scoring_weights.log",
+        },
+        {
+            "name": "Optimisation quotas (hebdo)",
+            "script": "optimize_quota.py",
+            "cron": "45 5 * * 1",
+            "category": "Système auto-apprenant",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_optimize_quota.log",
+        },
+        {
+            "name": "Détection dérive mots-clés (mensuel)",
+            "script": "keyword_drift_detector.py",
+            "cron": "0 5 28-31 * *",
+            "category": "Système auto-apprenant",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_keyword_drift.log",
+        },
+        {
+            "name": "Performance empirique sources (mensuel)",
+            "script": "update_source_performance.py",
+            "cron": "30 4 1 * *",
+            "category": "Système auto-apprenant",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_source_performance.log",
+        },
     ]
     for t in fixed:
         if t.get("extra_last_run"):
