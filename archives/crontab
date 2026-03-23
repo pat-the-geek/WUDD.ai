@@ -55,6 +55,24 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Enrichissement crédibilité sources (WHOIS + transparence + MBFC) : mensuel, 1er du mois à 4h30
 # --sync : synchronise d'abord le registre, puis enrichit les sources manquantes de données v2
 30 4 1 * * root cd /app && python3 scripts/enrich_source_credibility.py --sync 2>&1 | tee -a /app/rapports/cron_enrich_credibility.log
+
+# ─── Système auto-apprenant ────────────────────────────────────────────────────
+# Archive l'état des quotas du jour précédent dans data/quota_history/YYYY-MM-DD.json
+# (doit s'exécuter après le reset à 00h01, avant le prochain enregistrement)
+5 0 * * * root cd /app && python3 scripts/archive_quota_state.py 2>&1 | tee -a /app/rapports/cron_archive_quota.log
+# Mise à jour des scores de qualité des articles dans article_index.json
+# Exécuté à 4h00 (après backup à 1h, NER à 2h, images à 2h30, sentiment à 3h)
+0 4 * * * root cd /app && python3 scripts/update_quality_scores.py 2>&1 | tee -a /app/rapports/cron_quality_scores.log
+# Calibration automatique des seuils d'alerte (après trend_detector à 7h00)
+15 7 * * * root cd /app && python3 scripts/calibrate_alerts.py 2>&1 | tee -a /app/rapports/cron_calibrate_alerts.log
+# Optimisation hebdomadaire des poids de scoring (chaque lundi à 5h30)
+30 5 * * 1 root cd /app && python3 scripts/optimize_scoring_weights.py 2>&1 | tee -a /app/rapports/cron_scoring_weights.log
+# Optimisation hebdomadaire des quotas journaliers (chaque lundi à 5h45)
+45 5 * * 1 root cd /app && python3 scripts/optimize_quota.py 2>&1 | tee -a /app/rapports/cron_optimize_quota.log
+# Détection de dérive des mots-clés : dernier jour du mois à 5h15 (avant radar_wudd à 5h00)
+15 5 28-31 * * root [ "$(date -d tomorrow +\%d)" = "01" ] && cd /app && python3 scripts/keyword_drift_detector.py 2>&1 | tee -a /app/rapports/cron_keyword_drift.log
+# Performance empirique des sources : mensuel, 1er du mois à 4h45
+45 4 1 * * root cd /app && python3 scripts/update_source_performance.py 2>&1 | tee -a /app/rapports/cron_source_performance.log
 # Briefing exécutif hebdomadaire : chaque lundi à 6h30 (après trend_detector du lundi matin)
 # Synthèse IA : top entités, articles scorés, tendances — rapports/markdown/_BRIEFING_/
 30 6 * * 1 root cd /app && python3 scripts/generate_briefing.py --period weekly 2>&1 | tee -a /app/rapports/cron_briefing.log
