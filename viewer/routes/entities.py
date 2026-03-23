@@ -35,6 +35,10 @@ _DASHBOARD_CACHE_TTL = 300  # secondes
 _dashboard_cache: dict = {}           # {"result": ..., "ts": float}
 _dashboard_cache_lock = threading.Lock()
 
+# ── Cache mémoire pour images Wikimedia (chargé une seule fois depuis le disque) ─
+_images_cache_mem: dict | None = None   # None = pas encore chargé
+_images_cache_mem_lock = threading.Lock()
+
 # ── Annotations manuelles ─────────────────────────────────────────────────────
 # Stockées dans data/annotations.json (dict keyed par URL d'article)
 # Jamais dans les fichiers articles — données sources préservées.
@@ -1023,12 +1027,20 @@ def api_entities_images():
     BATCH = 50
 
     cache_path = PROJECT_ROOT / "data" / "images_cache.json"
-    cache: dict = {}
-    if cache_path.exists():
-        try:
-            cache = json.loads(cache_path.read_text(encoding="utf-8"))
-        except Exception:
-            cache = {}
+
+    # Chargement unique en mémoire — évite de lire/parser 400 KB à chaque requête
+    global _images_cache_mem
+    with _images_cache_mem_lock:
+        if _images_cache_mem is None:
+            _tmp: dict = {}
+            if cache_path.exists():
+                try:
+                    _tmp = json.loads(cache_path.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+            _images_cache_mem = _tmp
+        # Snapshot thread-safe pour cette requête
+        cache: dict = dict(_images_cache_mem)
 
     to_fetch = [e for e in entities if e["name"] not in cache]
     if not to_fetch:
@@ -1323,8 +1335,15 @@ def api_entities_images():
                 except Exception:
                     pass
 
+    # Stocker None pour les entités sans image — évite de les retenter à chaque requête
+    for e in to_fetch:
+        if e["name"] not in cache:
+            cache[e["name"]] = None
+
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+    with _images_cache_mem_lock:
+        _images_cache_mem.update(cache)
+        cache_path.write_text(json.dumps(_images_cache_mem, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return jsonify({e["name"]: cache.get(e["name"]) for e in entities})
 
