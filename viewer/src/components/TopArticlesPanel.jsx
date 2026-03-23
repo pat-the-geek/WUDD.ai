@@ -878,7 +878,12 @@ function DirectMode({ onReport }) {
   // Marqueurs carte : une entrée par position géocodée, image optionnelle de l'entité principale
   const mapMarkers = useMemo(() => {
     const markers = []
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000 // 7 jours
     sortedEntries.forEach((entry, idx) => {
+      // Filtrer les articles sans date détectable ou de plus de 7 jours
+      const pubTs = entry.pubDateParsed ? new Date(entry.pubDateParsed).getTime() : NaN
+      if (isNaN(pubTs) || pubTs < cutoff) return
+
       const data = articleEntities[entry._id]
       if (!data) return
       const gpeNames = [...(data.entities.GPE || []), ...(data.entities.LOC || [])]
