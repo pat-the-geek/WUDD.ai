@@ -442,19 +442,21 @@ class EurIAClient:
         max_attempts: int = 3,
         timeout: int = 60,
         backoff_factor: float = 2.0,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        enable_web_search: Optional[bool] = None,
     ) -> str:
         """Envoie un prompt à l'API EurIA et retourne la réponse.
-        
+
         Cette fonction interroge l'API EurIA avec retry automatique en cas d'échec.
         Un backoff exponentiel est appliqué entre les tentatives.
-        
+
         Args:
             prompt: Le texte du prompt à envoyer à l'API
             max_attempts: Nombre maximal de tentatives en cas d'échec (défaut: 3)
             timeout: Délai d'attente maximal en secondes pour chaque requête (défaut: 60)
             backoff_factor: Facteur multiplicateur pour le backoff entre tentatives (défaut: 2.0)
             max_tokens: Nombre maximal de tokens en sortie (None = valeur par défaut de l'API)
+            enable_web_search: Surcharge l'activation de la recherche web (None = valeur de l'instance)
         
         Returns:
             La réponse textuelle de l'API, nettoyée des espaces superflus.
@@ -472,7 +474,7 @@ class EurIAClient:
         data = {
             "messages": [{"content": prompt, "role": "user"}],
             "model": self.model,
-            "enable_web_search": self.enable_web_search
+            "enable_web_search": self.enable_web_search if enable_web_search is None else enable_web_search,
         }
         if max_tokens is not None:
             data["max_tokens"] = max_tokens
@@ -510,6 +512,13 @@ class EurIAClient:
                 if not content:
                     raise ValueError("Réponse API vide")
 
+                usage = json_data.get("usage", {})
+                if usage:
+                    default_logger.info(
+                        f"[EurIA] Usage — prompt: {usage.get('prompt_tokens', '?')} tokens, "
+                        f"completion: {usage.get('completion_tokens', '?')} tokens, "
+                        f"total: {usage.get('total_tokens', '?')} tokens"
+                    )
                 default_logger.info(f"Réponse reçue de l'API: {len(content)} caractères")
                 _euria_breaker.record_success()
                 return content.strip()
@@ -603,11 +612,11 @@ class EurIAClient:
             f"Faire un résumé de ce texte sur maximum {max_lines} lignes en {language}, "
             f"ne donne que le résumé, sans commentaire ni remarque : {text_truncated}"
         )
-        result = self.ask(prompt, timeout=timeout)
+        result = self.ask(prompt, timeout=timeout, max_tokens=600)
         # Supprimer le préfixe de titre Markdown que certains modèles ajoutent (ex: "# Résumé\n")
         result = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', result).strip()
         return result
-    
+
     def generate_entities(
         self,
         resume: str,
@@ -629,7 +638,7 @@ class EurIAClient:
 
         prompt = _PROMPT_ENTITIES.format(resume=resume.strip())
         try:
-            raw = self.ask(prompt, max_attempts=3, timeout=timeout, max_tokens=500)
+            raw = self.ask(prompt, max_attempts=3, timeout=timeout, max_tokens=500, enable_web_search=False)
             return _parse_entities_response(raw)  # None = echec_parse, {} = no entities
         except Exception as e:
             default_logger.warning(f"Extraction NER échouée : {e}")
@@ -656,7 +665,7 @@ class EurIAClient:
 
         prompt = _PROMPT_SENTIMENT_TEMPLATE.format(resume=resume.strip()[:3000])
         try:
-            raw = self.ask(prompt, max_attempts=2, timeout=timeout, max_tokens=150)
+            raw = self.ask(prompt, max_attempts=2, timeout=timeout, max_tokens=150, enable_web_search=False)
             return _parse_sentiment_response(raw)  # None = echec_parse
         except Exception as e:
             default_logger.warning(f"Analyse sentiment échouée : {e}")
@@ -751,7 +760,7 @@ class EurIAClient:
             "Cite les sources (nom + date) à chaque point. Sois concis et factuel.\n\n"
             f"Articles :\n{sources_block}"
         )
-        return self.ask(prompt, max_attempts=2, timeout=timeout)
+        return self.ask(prompt, max_attempts=2, timeout=timeout, max_tokens=2048)
 
     def generate_report(
         self,
@@ -783,7 +792,7 @@ File contents:
 {json_content}
 ----- END FILE CONTENTS -----
 """
-        return self.ask(prompt, max_attempts=3, timeout=timeout)
+        return self.ask(prompt, max_attempts=3, timeout=timeout, max_tokens=4096)
 
 
 # ── Client Anthropic Claude ───────────────────────────────────────────────────
@@ -891,6 +900,12 @@ class ClaudeClient:
                 if not content:
                     raise ValueError("Texte Claude vide")
 
+                usage = json_data.get("usage", {})
+                if usage:
+                    default_logger.info(
+                        f"[Claude/{active_model}] Usage — input: {usage.get('input_tokens', '?')} tokens, "
+                        f"output: {usage.get('output_tokens', '?')} tokens"
+                    )
                 default_logger.info(f"[Claude] Réponse reçue : {len(content)} caractères")
                 _claude_breaker.record_success()
                 return content.strip()
@@ -1002,6 +1017,13 @@ class ClaudeClient:
                 content = content_blocks[0].get("text", "")
                 if not content:
                     raise ValueError("Texte Claude vide")
+                usage = json_data.get("usage", {})
+                if usage:
+                    default_logger.info(
+                        f"[Claude/{active_model}] Usage (cached) — input: {usage.get('input_tokens', '?')} tokens, "
+                        f"output: {usage.get('output_tokens', '?')} tokens, "
+                        f"cache_read: {usage.get('cache_read_input_tokens', 0)} tokens"
+                    )
                 default_logger.info(f"[Claude] Réponse reçue : {len(content)} caractères")
                 _claude_breaker.record_success()
                 return content.strip()
@@ -1060,7 +1082,7 @@ class ClaudeClient:
             f"Faire un résumé de ce texte sur maximum {max_lines} lignes en {language}, "
             f"ne donne que le résumé, sans commentaire ni remarque : {text_truncated}"
         )
-        result = self.ask(prompt, model=self.model_batch, timeout=timeout, max_tokens=512)
+        result = self.ask(prompt, model=self.model_batch, timeout=timeout, max_tokens=600)
         # Supprimer le préfixe de titre Markdown que certains modèles ajoutent (ex: "# Résumé\n")
         result = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', result).strip()
         return result
