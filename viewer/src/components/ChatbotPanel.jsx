@@ -2,12 +2,99 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { X, Send, Save, Trash2, FileText, FileJson, Folder, ChevronRight, Loader2, Terminal, RefreshCw, Check, BookOpen, Maximize2, Minimize2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import mermaid from 'mermaid'
+
+mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'antiscript' })
 
 /**
  * ChatbotPanel — Chatbot IA style terminal
  * Permet d'interroger les données data/ et rapports/ par IA.
- * Répond en Markdown, supporte les tableaux, et peut sauvegarder les réponses.
+ * Répond en Markdown, supporte les tableaux, les diagrammes Mermaid,
+ * et peut sauvegarder les réponses.
  */
+
+/** Rend le SVG Mermaid responsive (extrait depuis MarkdownViewer). */
+function makeResponsiveSvg(svg) {
+  return svg.replace(/<svg([^>]*)>/i, (_, attrs) => {
+    const vbMatch    = attrs.match(/viewBox="([^"]*)"/i)
+    const wMatch     = attrs.match(/\bwidth="([^"]*)"/i)
+    const hMatch     = attrs.match(/\bheight="([^"]*)"/i)
+    const styleMatch = attrs.match(/\bstyle="([^"]*)"/i)
+
+    let extraViewBox = ''
+    let arStyle = 'min-height:200px;'
+
+    let vb = vbMatch ? vbMatch[1] : null
+
+    if (!vb) {
+      let w = wMatch ? parseFloat(wMatch[1]) : NaN
+      let h = hMatch ? parseFloat(hMatch[1]) : NaN
+      if ((isNaN(w) || isNaN(h)) && styleMatch) {
+        const s = styleMatch[1]
+        if (isNaN(w)) { const m = s.match(/(?:max-width|width)\s*:\s*([\d.]+)px/i); if (m) w = parseFloat(m[1]) }
+        if (isNaN(h)) { const m = s.match(/height\s*:\s*([\d.]+)px/i);             if (m) h = parseFloat(m[1]) }
+      }
+      if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
+        vb = `0 0 ${w} ${h}`
+        extraViewBox = ` viewBox="${vb}"`
+      }
+    }
+
+    if (vb) {
+      const parts = vb.trim().split(/\s+/)
+      if (parts.length === 4) {
+        const vbW = parseFloat(parts[2]) - parseFloat(parts[0])
+        const vbH = parseFloat(parts[3]) - parseFloat(parts[1])
+        if (vbW > 0 && vbH > 0) arStyle = `aspect-ratio:${vbW}/${vbH};`
+      }
+    }
+
+    const cleaned = attrs
+      .replace(/\s+width="[^"]*"/gi, '')
+      .replace(/\s+height="[^"]*"/gi, '')
+      .replace(/\s+style="[^"]*"/gi, '')
+    return `<svg${cleaned}${extraViewBox} width="100%" style="width:100%;${arStyle}max-width:100%;display:block;">`
+  })
+}
+
+/** Composant de rendu d'un bloc Mermaid dans le terminal IA (thème sombre). */
+function MermaidBlock({ code }) {
+  const ref = useRef(null)
+  const id  = useRef(`mermaid-chat-${Math.random().toString(36).slice(2)}`)
+  const [errMsg, setErrMsg] = useState(null)
+
+  // Supprimer les accents avant le rendu pour éviter les erreurs Mermaid
+  const clean = (code ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+  useEffect(() => {
+    if (!ref.current || !clean) return
+    setErrMsg(null)
+    let cancelled = false
+    mermaid.parse(clean)
+      .then(() => mermaid.render(id.current, clean))
+      .then(({ svg }) => {
+        if (!cancelled && ref.current) {
+          ref.current.innerHTML = makeResponsiveSvg(svg)
+        }
+      })
+      .catch(err => {
+        if (cancelled) return
+        const msg = (err?.message ?? 'Erreur Mermaid').split('\n').find(l => l.trim()) ?? 'Erreur Mermaid'
+        setErrMsg(msg.length > 120 ? msg.slice(0, 120) + '…' : msg)
+      })
+    return () => { cancelled = true }
+  }, [clean])
+
+  if (errMsg) {
+    return (
+      <div className="my-4 rounded-lg border border-amber-800/60 bg-amber-900/20 p-3">
+        <p className="text-xs text-amber-400 font-mono">⚠ Diagramme non rendu : {errMsg}</p>
+      </div>
+    )
+  }
+  return <div ref={ref} className="my-4 w-full flex justify-center overflow-x-auto bg-slate-900/40 rounded-lg p-2" />
+}
 
 // Suggestions de commandes rapides affichées dans l'interface
 const QUICK_COMMANDS = [
@@ -21,6 +108,7 @@ const QUICK_COMMANDS = [
   { label: 'Top 10 thématiques',             text: 'Identifie et classe les 10 principales thématiques abordées dans les articles de contexte. Présente le résultat sous forme de tableau avec le nombre d\'articles par thème.' },
   { label: 'Fiche d\'entité principale',     text: 'Génère une fiche structurée sur l\'entité (personne, organisation ou pays) la plus mentionnée dans les articles de contexte : qui est-elle, quel rôle joue-t-elle, quels sont les faits clés ?' },
   { label: 'FAQ sur les données',            text: 'À partir des articles de contexte, génère 5 questions fréquentes (FAQ) avec leurs réponses sur les principaux sujets abordés.' },
+  { label: 'Diagramme Mermaid',             text: 'Génère un diagramme Mermaid (sequenceDiagram ou graph TD) illustrant les relations entre les principales entités mentionnées dans les articles de contexte. Entoure le code avec ```mermaid ... ```.' },
 ]
 
 // Commandes rapides spécifiques aux notes personnelles
@@ -553,7 +641,28 @@ Voici ce que je peux faire pour vous :
                   <span className="text-red-400 font-mono text-sm">{msg.content}</span>
                 ) : (
                   <div className="prose prose-invert prose-sm max-w-none text-green-300 chat-markdown">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        pre: ({ children }) => {
+                          const child = Array.isArray(children) ? children[0] : children
+                          if (child?.props?.className === 'language-mermaid') {
+                            return <>{children}</>
+                          }
+                          return <pre>{children}</pre>
+                        },
+                        code: ({ className, children }) => {
+                          if (className === 'language-mermaid') {
+                            return <MermaidBlock code={String(children).trim()} />
+                          }
+                          return (
+                            <code className={className}>
+                              {children}
+                            </code>
+                          )
+                        },
+                      }}
+                    >
                       {msg.content + (isStreaming ? '▌' : '')}
                     </ReactMarkdown>
                   </div>
