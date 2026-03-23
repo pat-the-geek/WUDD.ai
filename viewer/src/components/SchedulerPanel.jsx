@@ -2,10 +2,11 @@ import { useEffect, useState, useCallback } from 'react'
 import { X, Clock, Calendar, RefreshCw, CheckCircle2, HelpCircle } from 'lucide-react'
 
 const CRON_CATEGORIES = [
-  { id: "Surveillance en continu", label: "Surveillance en continu",   desc: "Tâches fréquentes : chaque 5 min, 10 min ou toutes les 2h" },
-  { id: "Enrichissement nocturne", label: "Enrichissement nocturne",   desc: "Pipeline 01h–04h30 : backup, NER, images, sentiment, réparation, crédibilité sources" },
-  { id: "Rapports & digests",      label: "Rapports & digests",        desc: "Digests quotidiens, briefing hebdomadaire et collecte multi-flux" },
-  { id: "Pipeline mensuel",        label: "Pipeline mensuel",          desc: "Radar, Markdown et rapports générés le dernier jour du mois" },
+  { id: "Surveillance en continu",   label: "Surveillance en continu",   desc: "Tâches fréquentes : chaque 5 min, 10 min ou toutes les 2h" },
+  { id: "Enrichissement nocturne",   label: "Enrichissement nocturne",   desc: "Pipeline 01h–04h30 : backup, NER, images, sentiment, réparation, crédibilité sources" },
+  { id: "Rapports & digests",        label: "Rapports & digests",        desc: "Digests quotidiens, briefing hebdomadaire et collecte multi-flux" },
+  { id: "Pipeline mensuel",          label: "Pipeline mensuel",          desc: "Radar, Markdown et rapports générés le dernier jour du mois" },
+  { id: "Système auto-apprenant",    label: "Système auto-apprenant",    desc: "Optimisation des poids, calibration alertes, qualité articles, dérive mots-clés" },
 ]
 
 function formatDateTime(isoStr) {
