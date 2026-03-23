@@ -716,8 +716,8 @@ function DirectMode({ onReport }) {
   const [loadingArticle, setLoadingArticle] = useState(false)
   const [keywords,       setKeywords]       = useState([])
   const [filterText,     setFilterText]     = useState('')
-  // ── Carte desktop ──
-  const [mapVisible,            setMapVisible]           = useState(() => window.innerWidth >= 1024)
+  // ── Carte (mobile + desktop) ──
+  const [mapVisible,            setMapVisible]           = useState(true)
   const [mapHeightPct,          setMapHeightPct]         = useState(45)
   const directContainerRef = useRef(null)
   const [selectedEntityFromMap, setSelectedEntityFromMap] = useState(null)
@@ -797,12 +797,6 @@ function DirectMode({ onReport }) {
     }
   }, [logEntries])
 
-  // Détection changement de taille de fenêtre pour mapVisible
-  useEffect(() => {
-    const handler = () => setMapVisible(window.innerWidth >= 1024)
-    window.addEventListener('resize', handler)
-    return () => window.removeEventListener('resize', handler)
-  }, [])
 
   // ── NER queue processing ──────────────────────────────────────────────────
   const processNerQueue = useCallback(async () => {
@@ -1042,7 +1036,7 @@ function DirectMode({ onReport }) {
         </div>
       </div>
 
-      {/* ── Carte monde (desktop uniquement) ── */}
+      {/* ── Carte monde (mobile + desktop) ── */}
       {mapVisible && (
         <>
           <div data-map-pane className="shrink-0" style={{ height: `${mapHeightPct}%`, minHeight: 80, isolation: 'isolate', position: 'relative' }}>
