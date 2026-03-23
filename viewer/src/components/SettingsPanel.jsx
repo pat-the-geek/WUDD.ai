@@ -151,6 +151,7 @@ const CRON_CATEGORIES = [
   { id: "Enrichissement nocturne", label: "Enrichissement nocturne",   desc: "Pipeline 01h–04h30 : backup, NER, images, sentiment, réparation, crédibilité sources" },
   { id: "Rapports & digests",      label: "Rapports & digests",        desc: "Digests quotidiens, briefing hebdomadaire et collecte multi-flux" },
   { id: "Pipeline mensuel",        label: "Pipeline mensuel",          desc: "Radar, Markdown et rapports générés le dernier jour du mois" },
+  { id: "Système auto-apprenant",  label: "Système auto-apprenant",   desc: "Optimisation des poids, calibration alertes, qualité articles, dérive mots-clés" },
 ]
 
 function SchedulerTab() {
