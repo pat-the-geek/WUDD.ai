@@ -27,9 +27,10 @@ from utils.scoring import get_scoring_engine
 export_bp = Blueprint("export", __name__)
 
 # Paramètres du chatbot
-_CHAT_MAX_CONTEXT_FILES  = 10     # Nombre maximum de fichiers de contexte par requête
-_CHAT_MAX_CONTEXT_CHARS  = 100000 # Taille maximale (caractères) par fichier de contexte (brut)
-_CHAT_MAX_ARTICLES_JSON  = 100    # Nombre max d'articles inclus depuis un fichier JSON d'articles
+_CHAT_MAX_CONTEXT_FILES   = 10     # Nombre maximum de fichiers de contexte par requête
+_CHAT_MAX_CONTEXT_CHARS   = 100000 # Taille maximale (caractères) par fichier de contexte (brut)
+_CHAT_MAX_ARTICLES_JSON   = 100    # Nombre max d'articles inclus depuis un fichier JSON d'articles
+_CHAT_MAX_ENTITIES_TYPE   = 5      # Nombre max d'entités par type dans le contexte article compact
 
 
 def _load_annotations_for_chat() -> dict:
@@ -166,7 +167,7 @@ def _format_articles_for_context(articles: list, max_articles: int = 100) -> str
 
     Au lieu d'inclure le JSON brut (verbeux), cette fonction génère un texte
     structuré Markdown qui inclut tous les articles sans troncature arbitraire.
-    Chaque article occupe ~400-800 caractères, soit 5 à 10 fois moins que le
+    Chaque article occupe ~500-800 caractères, soit 5 à 10 fois moins que le
     JSON brut équivalent.
 
     Args:
@@ -201,7 +202,7 @@ def _format_articles_for_context(articles: list, max_articles: int = 100) -> str
             for etype in ("PERSON", "ORG", "GPE"):
                 vals = entities.get(etype, [])
                 if isinstance(vals, list) and vals:
-                    ent_parts.append(f"{etype}: {', '.join(vals[:5])}")
+                    ent_parts.append(f"{etype}: {', '.join(vals[:_CHAT_MAX_ENTITIES_TYPE])}")
             if ent_parts:
                 lines.append("Entités : " + " | ".join(ent_parts))
         if resume:
