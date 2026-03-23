@@ -61,12 +61,16 @@ function MermaidBlock({ code }) {
   const id  = useRef(`mermaid-${Math.random().toString(36).slice(2)}`)
   const [errMsg, setErrMsg] = useState(null)
 
+  // Supprimer les accents du code avant le rendu pour éviter les erreurs Mermaid
+  const clean = (code ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
   useEffect(() => {
-    if (!ref.current || !code) return
+    if (!ref.current || !clean) return
     setErrMsg(null)
     let cancelled = false
-    mermaid.parse(code)
-      .then(() => mermaid.render(id.current, code))
+    mermaid.parse(clean)
+      .then(() => mermaid.render(id.current, clean))
       .then(({ svg }) => {
         if (!cancelled && ref.current) {
           ref.current.innerHTML = makeResponsiveSvg(svg)
@@ -78,7 +82,7 @@ function MermaidBlock({ code }) {
         setErrMsg(msg.length > 120 ? msg.slice(0, 120) + '…' : msg)
       })
     return () => { cancelled = true }
-  }, [code])
+  }, [clean])
 
   if (errMsg) {
     return (

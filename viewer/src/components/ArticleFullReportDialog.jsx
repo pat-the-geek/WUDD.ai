@@ -35,6 +35,7 @@ function sanitizeMermaidCode(raw) {
     .replace(/&lt;/g,           '<')
     .replace(/&gt;/g,           '>')
     .replace(/\r\n/g,           '\n') // CRLF → LF
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // suppression des accents
     .trim()
 }
 
