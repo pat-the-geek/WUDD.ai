@@ -339,6 +339,73 @@ class ArticleDB:
         """
         return self._exec(sql)
 
+    def top_entities_by_type(
+        self,
+        top_n: int = 100,
+        entity_types: Optional[list[str]] = None,
+    ) -> dict[str, list[dict]]:
+        """Calcule les entités les plus fréquentes par type depuis les fichiers JSON.
+
+        Plus rapide que le fallback rglob Python car DuckDB lit les fichiers
+        en parallèle avec des I/O natives. Utilisé comme chemin de secours
+        dans api_entities_dashboard() quand entity_index est vide/indisponible.
+
+        Args:
+            top_n         : Nombre d'entités retournées par type (défaut 100).
+            entity_types  : Liste de types à extraire (défaut : tous les types
+                            indexés par entity_index).
+
+        Returns:
+            Dict ``{type_ner: [{value, count}, …]}`` trié par count décroissant.
+        """
+        if not self.available:
+            return {}
+
+        types_to_extract = entity_types or [
+            "PERSON", "ORG", "GPE", "LOC", "PRODUCT", "EVENT",
+            "DATE", "MONEY", "PERCENT", "NORP", "FAC", "WORK_OF_ART",
+            "LAW", "LANGUAGE", "QUANTITY", "ORDINAL", "CARDINAL", "MISC",
+        ]
+
+        glob_art = str(self.project_root / "data" / "articles" / "*" / "*.json")
+        glob_rss = str(self.project_root / "data" / "articles-from-rss" / "*.json")
+
+        result: dict[str, list[dict]] = {}
+        for etype in types_to_extract:
+            safe_type = etype.replace("'", "''")
+            sql = f"""
+                WITH unnested AS (
+                    SELECT
+                        UNNEST(
+                            TRY_CAST(
+                                json_extract(entities, '$.{safe_type}') AS VARCHAR[]
+                            )
+                        ) AS entity_value
+                    FROM (
+                        SELECT entities
+                        FROM read_json_auto('{glob_art}', ignore_errors=true)
+                        WHERE entities IS NOT NULL
+                        UNION ALL
+                        SELECT entities
+                        FROM read_json_auto('{glob_rss}', ignore_errors=true)
+                        WHERE entities IS NOT NULL
+                    )
+                )
+                SELECT
+                    LOWER(entity_value) AS value_lower,
+                    MAX(entity_value)   AS value,
+                    COUNT(*)            AS count
+                FROM unnested
+                WHERE entity_value IS NOT NULL AND TRIM(entity_value) <> ''
+                GROUP BY LOWER(entity_value)
+                ORDER BY count DESC
+                LIMIT {int(top_n)}
+            """
+            rows = self._exec(sql)
+            if rows:
+                result[etype] = [{"value": r["value"], "count": r["count"]} for r in rows]
+        return result
+
     def full_text_search(self, query: str, days: int = 7, limit: int = 20) -> list[dict]:
         """Recherche plein texte dans les résumés via LIKE (insensible à la casse).
 

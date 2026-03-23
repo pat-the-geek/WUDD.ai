@@ -37,6 +37,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Enrichissement NER Round-Robin : 1 fichier/source par jour à 2h00
 # Ajoute le champ "entities" aux articles qui n'en ont pas encore (tous les répertoires data/)
 0 2 * * * root cd /app && python3 scripts/enrich_entities.py 2>&1 | tee -a /app/rapports/cron_enrich_entities.log
+# Pré-calcul des stats d'entités (entity_stats.json) à 2h45 — après enrich_entities
+# Alimente le cache chaud de api_entities_dashboard() pour le viewer
+45 2 * * * root cd /app && python3 scripts/precompute_entity_stats.py 2>&1 | tee -a /app/rapports/cron_precompute_entity_stats.log
 # Enrichissement images : fetch og:image pour les articles sans images à 2h30
 # Parcourt data/articles/ et data/articles-from-rss/ — aucun appel IA, fetch HTTP uniquement
 30 2 * * * root cd /app && python3 scripts/enrich_images.py 2>&1 | tee -a /app/rapports/cron_enrich_images.log

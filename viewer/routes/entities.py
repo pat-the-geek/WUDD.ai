@@ -18,6 +18,7 @@ import datetime
 import json
 import os
 import threading
+import time
 
 from flask import Blueprint, jsonify, request, Response, stream_with_context
 from pathlib import Path
@@ -28,6 +29,11 @@ from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
 
 entities_bp = Blueprint("entities", __name__)
+
+# ── Cache TTL pour le dashboard (stats globales — rafraîchi toutes les 5 min) ─
+_DASHBOARD_CACHE_TTL = 300  # secondes
+_dashboard_cache: dict = {}           # {"result": ..., "ts": float}
+_dashboard_cache_lock = threading.Lock()
 
 # ── Annotations manuelles ─────────────────────────────────────────────────────
 # Stockées dans data/annotations.json (dict keyed par URL d'article)
@@ -214,7 +220,61 @@ def api_search_entity():
 
 @entities_bp.route("/api/entities/dashboard")
 def api_entities_dashboard():
-    """Agrège les entités de tous les fichiers JSON et retourne des stats globales (via entity_index)."""
+    """Agrège les entités de tous les fichiers JSON et retourne des stats globales (via entity_index).
+
+    Ordre de priorité du cache :
+      1. Cache TTL mémoire (5 min) — le plus rapide
+      2. entity_stats.json pré-calculé nightly par precompute_entity_stats.py
+      3. Calcul live via entity_index (O(index_keys), pas de I/O fichier)
+      4. Fallback rglob Python si entity_index indisponible
+    """
+    # ── 1. Cache TTL mémoire ──────────────────────────────────────────────────
+    with _dashboard_cache_lock:
+        cached = _dashboard_cache.get("result")
+        cached_ts = _dashboard_cache.get("ts", 0.0)
+        if cached is not None and (time.monotonic() - cached_ts) < _DASHBOARD_CACHE_TTL:
+            return jsonify(cached)
+
+    # ── 2. Fichier entity_stats.json pré-calculé (cache chaud nightly) ────────
+    _stats_file = PROJECT_ROOT / "data" / "entity_stats.json"
+    if _stats_file.exists():
+        try:
+            precomp = json.loads(_stats_file.read_text(encoding="utf-8"))
+            # Valide si le fichier a moins de 25 heures (laisser passer la 1re nuit)
+            from datetime import timezone as _tz
+            from datetime import datetime as _dt
+            gen_at = precomp.get("generated_at", "")
+            if gen_at:
+                age_h = (_dt.now(_tz.utc) - _dt.fromisoformat(gen_at)).total_seconds() / 3600
+                if age_h < 25:
+                    # Enrichir avec DuckDB temps-réel (rapide) puis mettre en cache
+                    duckdb_stats = {}
+                    try:
+                        from utils.db import get_db as _gdb
+                        _db = _gdb(PROJECT_ROOT)
+                        if _db.available:
+                            duckdb_stats = {
+                                "reading_time_7j":  _db.reading_time_stats(days=7),
+                                "sentiment_7j":     _db.sentiment_distribution(days=7),
+                                "source_count_30j": len(_db.article_stats_by_source(days=30)),
+                            }
+                    except Exception:
+                        pass
+                    result_payload = {
+                        "total_files":          precomp.get("total_files", 0),
+                        "total_articles":       precomp.get("total_articles", 0),
+                        "total_with_entities":  precomp.get("total_with_entities", 0),
+                        "by_type":              precomp.get("by_type", []),
+                        "duckdb_stats":         duckdb_stats,
+                        "_source":              "precomputed",
+                    }
+                    with _dashboard_cache_lock:
+                        _dashboard_cache["result"] = result_payload
+                        _dashboard_cache["ts"] = time.monotonic()
+                    return jsonify(result_payload)
+        except Exception:
+            pass  # Continuer vers le calcul live
+
     by_type: dict[str, dict[str, int]] = {}
     total_with_entities = 0
 
@@ -324,13 +384,18 @@ def api_entities_dashboard():
     except Exception:
         pass
 
-    return jsonify({
+    result_payload = {
         "total_files": total_files,
         "total_articles": total_articles,
         "total_with_entities": total_with_entities,
         "by_type": result_types,
         "duckdb_stats": duckdb_stats,
-    })
+    }
+    # Stocker dans le cache TTL
+    with _dashboard_cache_lock:
+        _dashboard_cache["result"] = result_payload
+        _dashboard_cache["ts"] = time.monotonic()
+    return jsonify(result_payload)
 
 
 @entities_bp.route("/api/entities/articles")
@@ -685,6 +750,10 @@ def api_entity_context():
 def api_entities_cooccurrences():
     """Retourne les entités co-occurrentes d'une entité donnée (via articles partagés).
 
+    Utilise entity_index.load_articles() pour ne charger que les articles
+    pertinents au lieu de scanner la totalité de data/.
+    Fallback rglob si l'index est indisponible.
+
     Paramètres :
       type, value  — entité centrale
       limit        — max d'entités niveau 1 (défaut 40)
@@ -706,33 +775,50 @@ def api_entities_cooccurrences():
     def node_id(t, v):
         return f"{t}:{v}"
 
-    # ── Chargement unique de tous les articles ────────────────────────────────
-    all_articles: list[dict] = []
-    for data_dir in [PROJECT_ROOT / "data" / "articles", PROJECT_ROOT / "data" / "articles-from-rss"]:
-        if not data_dir.exists():
-            continue
-        for json_file in sorted(data_dir.rglob("*.json")):
-            if "cache" in json_file.relative_to(data_dir).parts:
-                continue
-            try:
-                arts = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
-                if isinstance(arts, list):
-                    all_articles.extend(arts)
-            except (json.JSONDecodeError, OSError):
-                continue
+    # ── Chargement via entity_index (O(articles de l'entité) au lieu de O(tous les articles)) ──
+    index_available = False
+    eidx = None
+    central_articles: list[dict] = []
+    try:
+        eidx = get_entity_index(PROJECT_ROOT)
+        central_articles = eidx.load_articles(entity_type, entity_value)
+        index_available = True
+    except Exception:
+        pass
 
-    # ── Passe 1 : co-occurrences L1 ──────────────────────────────────────────
+    if not index_available:
+        # ── Fallback rglob si l'index est indisponible ────────────────────────
+        entity_value_lower = entity_value.lower()
+        for data_dir in [PROJECT_ROOT / "data" / "articles",
+                         PROJECT_ROOT / "data" / "articles-from-rss"]:
+            if not data_dir.exists():
+                continue
+            for json_file in sorted(data_dir.rglob("*.json")):
+                if "cache" in json_file.relative_to(data_dir).parts:
+                    continue
+                try:
+                    arts = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
+                    if not isinstance(arts, list):
+                        continue
+                    for art in arts:
+                        ents = art.get("entities", {})
+                        if not isinstance(ents, dict):
+                            continue
+                        vals = ents.get(entity_type, [])
+                        if isinstance(vals, list) and any(
+                            isinstance(v, str) and v.lower() == entity_value_lower
+                            for v in vals
+                        ):
+                            central_articles.append(art)
+                except (json.JSONDecodeError, OSError):
+                    continue
+
+    # ── Passe 1 : co-occurrences L1 depuis les articles de l'entité centrale ──
     entity_value_lower = entity_value.lower()
     cooc_l1: dict[tuple[str, str], int] = {}
-    for article in all_articles:
+    for article in central_articles:
         entities = article.get("entities", {})
         if not isinstance(entities, dict):
-            continue
-        values = entities.get(entity_type, [])
-        # Comparaison insensible à la casse pour robustesse vis-à-vis de la normalisation
-        if not isinstance(values, list) or not any(
-            v.lower() == entity_value_lower for v in values if isinstance(v, str)
-        ):
             continue
         for etype, evals in entities.items():
             if not isinstance(evals, list):
@@ -757,52 +843,52 @@ def api_entities_cooccurrences():
         edges.append({"source": node_id(entity_type, entity_value),
                        "target": node_id(etype, ev), "weight": count})
 
-    # ── Passe 2 : co-occurrences L2 (optionnel) ──────────────────────────────
+    # ── Passe 2 : co-occurrences L2 via entity_index ─────────────────────────
     if depth >= 2 and top_l1_set:
-        # Pour chaque article, identifie les entités L1 présentes, puis
-        # accumule leurs co-occurrences (→ candidats L2).
-        cooc_l2: dict[tuple[tuple, tuple], int] = {}
-        for article in all_articles:
-            entities = article.get("entities", {})
-            if not isinstance(entities, dict):
-                continue
-            # Entités L1 présentes dans cet article
-            l1_here = set()
-            for etype, evals in entities.items():
-                if not isinstance(evals, list):
+        existing: set[tuple[str, str]] = {(entity_type, entity_value)} | top_l1_set
+        added_l2: set[tuple[str, str]] = set()
+
+        for (l1_etype, l1_ev), _ in sorted_l1:
+            # Charger uniquement les articles du nœud L1 (pas tous les articles)
+            if index_available and eidx is not None:
+                try:
+                    l1_articles = eidx.load_articles(l1_etype, l1_ev)
+                except Exception:
+                    l1_articles = []
+            else:
+                # Fallback : réutiliser les articles déjà chargés (sous-ensemble)
+                l1_ev_lower = l1_ev.lower()
+                l1_articles = [
+                    a for a in central_articles
+                    if isinstance(a.get("entities", {}).get(l1_etype, []), list)
+                    and any(
+                        isinstance(v, str) and v.lower() == l1_ev_lower
+                        for v in a["entities"].get(l1_etype, [])
+                    )
+                ]
+
+            cooc_l2_for_l1: dict[tuple[str, str], int] = {}
+            for article in l1_articles:
+                entities = article.get("entities", {})
+                if not isinstance(entities, dict):
                     continue
-                for ev in evals:
-                    if (etype, ev) in top_l1_set:
-                        l1_here.add((etype, ev))
-            if not l1_here:
-                continue
-            # Co-occurrences entre chaque nœud L1 et les autres entités
-            for l1_key in l1_here:
                 for etype, evals in entities.items():
                     if not isinstance(evals, list):
                         continue
                     for ev in evals:
                         co_key = (etype, ev)
-                        if co_key == l1_key:
+                        if co_key == (l1_etype, l1_ev):
                             continue
                         if etype == entity_type and ev.lower() == entity_value_lower:
                             continue  # évite l'arête de retour vers le centre
-                        cooc_l2[(l1_key, co_key)] = cooc_l2.get((l1_key, co_key), 0) + 1
+                        cooc_l2_for_l1[co_key] = cooc_l2_for_l1.get(co_key, 0) + 1
 
-        # Regroupe par nœud L1
-        l1_coocs: dict[tuple, list] = {}
-        for (l1_key, co_key), count in cooc_l2.items():
-            l1_coocs.setdefault(l1_key, []).append((co_key, count))
-
-        existing: set[tuple[str, str]] = {(entity_type, entity_value)} | top_l1_set
-        added_l2: set[tuple[str, str]] = set()
-
-        for l1_key, coocs in l1_coocs.items():
             top_for_l1 = sorted(
-                [x for x in coocs if x[0] not in existing],
+                [(k, c) for k, c in cooc_l2_for_l1.items() if k not in existing],
                 key=lambda x: x[1],
                 reverse=True,
             )[:limit_l2]
+
             for (etype, ev), count in top_for_l1:
                 l2_key = (etype, ev)
                 if l2_key not in added_l2:
@@ -810,11 +896,19 @@ def api_entities_cooccurrences():
                                    "central": False, "level": 2})
                     added_l2.add(l2_key)
                     existing.add(l2_key)
-                edges.append({"source": node_id(*l1_key),
+                edges.append({"source": node_id(l1_etype, l1_ev),
                                "target": node_id(etype, ev),
                                "weight": count})
 
     return jsonify({"nodes": nodes, "edges": edges, "total_cooc": len(cooc_l1)})
+
+
+@entities_bp.route("/api/entities/dashboard/invalidate", methods=["POST"])
+def api_entities_dashboard_invalidate():
+    """Invalide le cache TTL du dashboard (à appeler après enrich ou import d'articles)."""
+    with _dashboard_cache_lock:
+        _dashboard_cache.clear()
+    return jsonify({"status": "ok", "message": "Cache dashboard invalidé"})
 
 
 @entities_bp.route("/api/entities/geocode", methods=["POST"])
