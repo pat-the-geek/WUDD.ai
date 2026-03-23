@@ -182,15 +182,23 @@ def collect_entity_mentions(
     cutoff = now - timedelta(days=window_days)
 
     # ── Tentative via l'index (C) ─────────────────────────────────────────────
+    # NOTE : l'index n'est PAS utilisé comme retour anticipé ici.
+    # Raison : l'index ne contient que les articles batch-enrichis (nuit précédente).
+    # Les articles collectés dans les dernières 24h (flux_watcher, get-keyword-from-rss)
+    # ne sont pas encore indexés. Si l'on retourne l'index pour la fenêtre 7j (non vide
+    # grâce à d'autres entités), les entités nouvellement apparues (absentes de l'index
+    # pour les 7j) auraient count_7j=0 alors que count_24h>0, ce qui génère des ratios
+    # infinis (×999.9) incorrects.
+    # On passe toujours par rglob pour garantir la cohérence des deux fenêtres.
     try:
-        counts = _collect_from_index(
+        counts_idx = _collect_from_index(
             project_root, cutoff, monitored_types, exclude_entities, len_min, len_max
         )
-        if counts:
+        if counts_idx:
             default_logger.debug(
-                f"collect_entity_mentions: {len(counts)} entités via index (window={window_days}j)"
+                f"collect_entity_mentions: index disponible ({len(counts_idx)} entités) "
+                f"mais on continue via rglob pour inclure les articles non-indexés (window={window_days}j)"
             )
-            return dict(counts)
     except Exception as _e:
         default_logger.warning(f"collect_entity_mentions: index indisponible ({_e}), fallback rglob")
 
