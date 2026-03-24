@@ -559,15 +559,53 @@ def api_env_delete(key: str):
 def api_ai_providers():
     """Retourne la liste des fournisseurs IA dont les credentials sont configurés.
 
-    Retourne : { providers: ["euria"|"claude", ...], active: str }
+    Retourne :
+      providers  (list)  — fournisseurs disponibles : "euria" et/ou "claude"
+      active     (str)   — fournisseur actif selon AI_PROVIDER
+      models     (dict)  — modèles disponibles par fournisseur, chacun avec
+                           { id, label, web_search } (web_search : bool)
     """
+
+    # Construit un label lisible à partir d'un model_id Claude
+    def _claude_label(model_id: str) -> str:
+        known = {
+            "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
+            "claude-haiku-4-5":          "Claude Haiku 4.5",
+            "claude-sonnet-4-6":         "Claude Sonnet 4.6",
+            "claude-sonnet-4-5":         "Claude Sonnet 4.5",
+            "claude-opus-4-5":           "Claude Opus 4.5",
+            "claude-3-5-sonnet-20241022":"Claude 3.5 Sonnet",
+            "claude-3-5-haiku-20241022": "Claude 3.5 Haiku",
+        }
+        return known.get(model_id, model_id)
+
     available = []
+    models_by_provider = {}
+
     if os.environ.get("URL", "").strip() and os.environ.get("bearer", "").strip():
         available.append("euria")
+        models_by_provider["euria"] = [
+            {"id": "qwen3",        "label": "Qwen3",        "web_search": True},
+            {"id": "qwen3-fast",   "label": "Qwen3 Fast",   "web_search": True},
+        ]
+
     if os.environ.get("ANTHROPIC_API_KEY", "").strip():
         available.append("claude")
+        batch_id     = os.environ.get("CLAUDE_MODEL_BATCH",     "claude-haiku-4-5-20251001")
+        synthesis_id = os.environ.get("CLAUDE_MODEL_SYNTHESIS", "claude-sonnet-4-6")
+        claude_models = [
+            {"id": batch_id,     "label": _claude_label(batch_id),     "web_search": False},
+            {"id": synthesis_id, "label": _claude_label(synthesis_id), "web_search": False},
+        ]
+        # Dédupliquer si CLAUDE_MODEL_BATCH == CLAUDE_MODEL_SYNTHESIS
+        seen_ids = set()
+        models_by_provider["claude"] = [
+            m for m in claude_models
+            if m["id"] not in seen_ids and not seen_ids.add(m["id"])
+        ]
+
     active = os.environ.get("AI_PROVIDER", "euria").strip().lower()
-    return jsonify({"providers": available, "active": active})
+    return jsonify({"providers": available, "active": active, "models": models_by_provider})
 
 
 @settings_bp.route("/api/ai-check", methods=["POST"])

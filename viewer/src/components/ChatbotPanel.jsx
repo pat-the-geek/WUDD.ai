@@ -187,6 +187,9 @@ Voici ce que je peux faire pour vous :
   const [fullscreen, setFullscreen]     = useState(false)
   const [aiProviders, setAiProviders]   = useState([])          // providers disponibles
   const [selectedProvider, setSelectedProvider] = useState(null) // null = env default
+  const [availableModels, setAvailableModels]   = useState({})  // { euria: [{id,label,web_search}], claude: [...] }
+  const [selectedModel, setSelectedModel]       = useState(null) // id du modèle sélectionné
+  const [enableWebSearch, setEnableWebSearch]   = useState(false) // recherche web (EurIA uniquement)
 
   const ctrlRef       = useRef(null)
   const endRef        = useRef(null)
@@ -202,6 +205,58 @@ Voici ce que je peux faire pour vous :
            d.getMonth()    === now.getMonth()    &&
            d.getDate()     === now.getDate()
   }
+
+  // Construit un message d'information de configuration injecté dans le chat
+  const buildOptionsMessage = useCallback((provider, model, webSearch, modelsMap) => {
+    const models = (modelsMap || availableModels)[provider] || []
+    const modelInfo = models.find(m => m.id === model)
+    const canWebSearch = modelInfo?.web_search === true
+    const provLabel = provider === 'claude' ? 'Claude (Anthropic)' : 'EurIA (Infomaniak)'
+    const modelLabel = modelInfo?.label || model || '—'
+    const lines = [
+      `**Configuration du Terminal IA ⚙️**`,
+      ``,
+      `- 🤖 **Fournisseur :** ${provLabel}`,
+      `- 🧠 **Modèle :** \`${modelLabel}\``,
+    ]
+    if (canWebSearch) {
+      lines.push(webSearch
+        ? '- 🌐 **Recherche web :** activée'
+        : '- 🔒 **Recherche web :** désactivée (par défaut)')
+    }
+    lines.push(``, `Posez vos questions, je suis prêt.`)
+    return { role: 'assistant', content: lines.join('\n'), welcome: true }
+  }, [availableModels])
+
+  // Gère le changement de fournisseur (mise à jour atomique + message dans le chat)
+  const handleProviderChange = useCallback((p) => {
+    const models = availableModels[p] || []
+    const newModel = models.length > 0 ? models[0].id : null
+    // Préserver la préférence web search uniquement si le nouveau modèle la supporte
+    const newWebSearch = !!(models[0]?.web_search && enableWebSearch)
+    setSelectedProvider(p)
+    setSelectedModel(newModel)
+    setEnableWebSearch(newWebSearch)
+    setMessages(prev => [...prev, buildOptionsMessage(p, newModel, newWebSearch, availableModels)])
+  }, [availableModels, enableWebSearch, buildOptionsMessage])
+
+  // Gère le changement de modèle (mise à jour + message dans le chat)
+  const handleModelChange = useCallback((modelId) => {
+    const models = availableModels[selectedProvider] || []
+    const modelInfo = models.find(m => m.id === modelId)
+    // Préserver la préférence web search si le modèle la supporte ; réinitialiser sinon
+    const newWebSearch = modelInfo?.web_search ? enableWebSearch : false
+    setSelectedModel(modelId)
+    setEnableWebSearch(newWebSearch)
+    setMessages(prev => [...prev, buildOptionsMessage(selectedProvider, modelId, newWebSearch, availableModels)])
+  }, [availableModels, selectedProvider, enableWebSearch, buildOptionsMessage])
+
+  // Gère le toggle de la recherche web (mise à jour + message dans le chat)
+  const handleWebSearchToggle = useCallback(() => {
+    const newVal = !enableWebSearch
+    setEnableWebSearch(newVal)
+    setMessages(prev => [...prev, buildOptionsMessage(selectedProvider, selectedModel, newVal, availableModels)])
+  }, [enableWebSearch, selectedProvider, selectedModel, availableModels, buildOptionsMessage])
 
   // Auto-scroll vers le bas à chaque nouveau message
   useEffect(() => {
@@ -225,15 +280,28 @@ Voici ce que je peux faire pour vous :
     return () => clearTimeout(t)
   }, [savedMsg])
 
-  // Charger les providers IA disponibles (EurIA / Claude)
+  // Charger les providers IA disponibles (EurIA / Claude) avec leurs modèles
   useEffect(() => {
     fetch('/api/ai-providers')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (d?.providers) {
           setAiProviders(d.providers)
-          // Pré-sélectionner le provider actif seulement si les deux sont disponibles
-          if (d.providers.length >= 2) setSelectedProvider(d.active || d.providers[0])
+          const modelsMap = d.models || {}
+          setAvailableModels(modelsMap)
+          // Pré-sélectionner le provider actif et son premier modèle (sans message dans le chat)
+          const active = d.active || d.providers[0]
+          let prov = null
+          if (d.providers.length >= 2) {
+            setSelectedProvider(active)
+            prov = active
+          } else if (d.providers.length === 1) {
+            setSelectedProvider(d.providers[0])
+            prov = d.providers[0]
+          }
+          if (prov && modelsMap[prov]?.length > 0) {
+            setSelectedModel(modelsMap[prov][0].id)
+          }
         }
       })
       .catch(() => {})
@@ -359,6 +427,8 @@ Voici ce que je peux faire pour vous :
           notes_period: overrideNotesPeriod || notesPeriod || undefined,
           ...(articleContextText ? { entity_context: articleContextText } : entityContextText ? { entity_context: entityContextText } : {}),
           ...(selectedProvider ? { provider: selectedProvider } : {}),
+          ...(selectedModel ? { model: selectedModel } : {}),
+          enable_web_search: enableWebSearch,
         }),
         signal: ctrl.signal,
       })
@@ -429,7 +499,7 @@ Voici ce que je peux faire pour vous :
     } finally {
       setStreaming(false)
     }
-  }, [input, messages, streaming, contextFiles, notesPeriod, selectedProvider])
+  }, [input, messages, streaming, contextFiles, notesPeriod, selectedProvider, selectedModel, enableWebSearch])
 
   // ── Sauvegarde en Markdown ────────────────────────────────────────────────
 
@@ -657,7 +727,7 @@ Voici ce que je peux faire pour vous :
                 {aiProviders.map(p => (
                   <button
                     key={p}
-                    onClick={() => setSelectedProvider(p)}
+                    onClick={() => handleProviderChange(p)}
                     className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold uppercase tracking-wide transition-colors ${
                       selectedProvider === p
                         ? p === 'claude'
@@ -670,6 +740,34 @@ Voici ce que je peux faire pour vous :
                   </button>
                 ))}
               </div>
+            )}
+            {/* Sélecteur de modèle — visible si le provider a plusieurs modèles */}
+            {selectedProvider && (availableModels[selectedProvider] || []).length > 1 && (
+              <select
+                value={selectedModel || ''}
+                onChange={e => handleModelChange(e.target.value)}
+                title="Choisir le modèle IA"
+                className="font-mono text-[11px] bg-slate-800 border border-slate-700 text-slate-200 rounded-lg px-2 py-0.5 focus:outline-none focus:border-green-600 cursor-pointer"
+              >
+                {(availableModels[selectedProvider] || []).map(m => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            )}
+            {/* Toggle recherche web — visible uniquement si le modèle le supporte */}
+            {selectedModel && (availableModels[selectedProvider] || []).find(m => m.id === selectedModel)?.web_search && (
+              <button
+                onClick={handleWebSearchToggle}
+                title={enableWebSearch ? 'Désactiver la recherche web' : 'Activer la recherche web'}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold transition-colors border ${
+                  enableWebSearch
+                    ? 'bg-blue-900/50 border-blue-700/60 text-blue-300 hover:bg-blue-900/70'
+                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                🌐
+                <span className="hidden sm:inline">{enableWebSearch ? 'Web ON' : 'Web'}</span>
+              </button>
             )}
             {/* Bouton plein écran */}
             <button

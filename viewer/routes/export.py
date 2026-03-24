@@ -482,13 +482,17 @@ def api_chat_stream():
     import requests as req
 
     body = request.get_json(force=True, silent=True) or {}
-    messages        = body.get("messages", [])
-    context_files   = body.get("context_files", [])
-    notes_period    = body.get("notes_period", None)
+    messages          = body.get("messages", [])
+    context_files     = body.get("context_files", [])
+    notes_period      = body.get("notes_period", None)
     # Contexte entité pré-formaté (texte brut) fourni par Terminal IA depuis EntityArticlePanel
-    entity_context  = body.get("entity_context", "").strip()
+    entity_context    = body.get("entity_context", "").strip()
     # Permet au frontend de choisir le provider pour cette requête.
     provider_override = body.get("provider", "").strip().lower()
+    # Modèle IA explicitement choisi par l'utilisateur (optionnel)
+    model_override    = body.get("model", "").strip()
+    # Recherche web (EurIA uniquement, désactivée par défaut)
+    enable_web_search = bool(body.get("enable_web_search", False))
 
     if not messages:
         return jsonify({"error": "messages est requis"}), 400
@@ -571,12 +575,16 @@ def api_chat_stream():
         api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         if not api_key:
             return jsonify({"error": "ANTHROPIC_API_KEY manquante dans .env (AI_PROVIDER=claude)"}), 503
-        # Routage Haiku/Sonnet selon la taille du contexte
-        total_context_chars = sum(len(m.get("content", "")) for m in clean_messages)
-        if total_context_chars < 3000:
-            model = os.environ.get("CLAUDE_MODEL_BATCH", "claude-haiku-4-5-20251001")
+        # Utiliser le modèle explicitement choisi par l'utilisateur ;
+        # sinon routage Haiku/Sonnet selon la taille du contexte (comportement historique).
+        if model_override:
+            model = model_override
         else:
-            model = os.environ.get("CLAUDE_MODEL_SYNTHESIS", "claude-sonnet-4-6")
+            total_context_chars = sum(len(m.get("content", "")) for m in clean_messages)
+            if total_context_chars < 3000:
+                model = os.environ.get("CLAUDE_MODEL_BATCH", "claude-haiku-4-5-20251001")
+            else:
+                model = os.environ.get("CLAUDE_MODEL_SYNTHESIS", "claude-sonnet-4-6")
         # Claude ne supporte pas role=system dans messages[], on extrait le system
         claude_messages = [m for m in full_messages if m["role"] != "system"]
         from utils.api_client import ClaudeClient as _ClaudeClient
@@ -599,9 +607,9 @@ def api_chat_stream():
             return jsonify({"error": "URL ou bearer manquant dans .env (AI_PROVIDER=euria)"}), 503
         payload = {
             "messages": full_messages,
-            "model": "qwen3",
+            "model": model_override or "qwen3",
             "stream": True,
-            "enable_web_search": True,
+            "enable_web_search": enable_web_search,
         }
         api_headers = {
             "Authorization": f"Bearer {bearer}",
