@@ -13,6 +13,62 @@ from bs4 import BeautifulSoup
 from typing import Optional, Tuple
 from .logging import default_logger
 
+# Headers standard pour la récupération de flux RSS.
+# Certains sites (ex. laliberte.ch, france24.com) retournent un 403 si User-Agent est absent
+# ou si les headers ressemblent trop à un robot.
+RSS_FEED_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8",
+    "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "DNT": "1",
+}
+
+# Headers pour la visite de la page d'accueil (récupération de cookies)
+_HOMEPAGE_HEADERS = {
+    **RSS_FEED_HEADERS,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Upgrade-Insecure-Requests": "1",
+}
+
+
+def fetch_rss_feed(url: str, timeout: int = 15) -> requests.Response:
+    """Récupère un flux RSS avec stratégie anti-403.
+
+    1. Tentative rapide avec RSS_FEED_HEADERS.
+    2. Si 403, fallback : session + visite de la page d'accueil pour obtenir
+       les cookies du WAF/CDN, puis nouvelle tentative.
+
+    Raises:
+        requests.exceptions.HTTPError: si le flux reste inaccessible après les deux tentatives.
+    """
+    # Tentative directe
+    try:
+        r = requests.get(url, timeout=timeout, headers=RSS_FEED_HEADERS)
+        if r.status_code != 403:
+            r.raise_for_status()
+            return r
+    except requests.exceptions.HTTPError:
+        if r.status_code != 403:
+            raise
+
+    # Fallback : session avec cookies de la page d'accueil
+    default_logger.info(f"[RSS] 403 sur {url} — fallback session+cookies")
+    session = requests.Session()
+    domain = "/".join(url.split("/")[:3])
+    try:
+        session.get(domain, timeout=20, headers=_HOMEPAGE_HEADERS)
+    except Exception:
+        pass  # On continue même si la homepage échoue
+    r = session.get(url, timeout=timeout, headers=RSS_FEED_HEADERS)
+    r.raise_for_status()
+    return r
+
 
 class HTTPError(Exception):
     """Exception levée lors d'erreurs HTTP."""

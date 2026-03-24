@@ -31,7 +31,12 @@ _HEADERS = {
         "Chrome/124.0.0.0 Safari/537.36"
     ),
     "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8",
+    "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "DNT": "1",
 }
+_HOMEPAGE_HEADERS = {**_HEADERS, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 _FEED_TIMEOUT = 10   # secondes pour fetcher un flux RSS
 _ART_TIMEOUT  = 15   # secondes pour fetcher le HTML d'un article
 
@@ -156,11 +161,28 @@ def _parse_rss_date(date_str: str) -> datetime:
 
 
 def _fetch_feed_articles(feed_url: str) -> list[dict]:
-    """Fetche un flux RSS/Atom et retourne les articles sous forme de dicts."""
+    """Fetche un flux RSS/Atom et retourne les articles sous forme de dicts.
+    Stratégie anti-403 : fallback session+cookies si la requête directe échoue."""
     try:
         r = _req.get(feed_url, timeout=_FEED_TIMEOUT, headers=_HEADERS)
+        if r.status_code == 403:
+            raise _req.exceptions.HTTPError(response=r)
         r.raise_for_status()
         root = ET.fromstring(r.content)
+    except _req.exceptions.HTTPError as _e:
+        if _e.response is not None and _e.response.status_code == 403:
+            # Fallback : session + visite homepage pour cookies WAF/CDN
+            try:
+                _s = _req.Session()
+                _domain = "/".join(feed_url.split("/")[:3])
+                _s.get(_domain, timeout=20, headers=_HOMEPAGE_HEADERS)
+                r = _s.get(feed_url, timeout=_FEED_TIMEOUT, headers=_HEADERS)
+                r.raise_for_status()
+                root = ET.fromstring(r.content)
+            except Exception:
+                return []
+        else:
+            return []
     except Exception:
         return []
 

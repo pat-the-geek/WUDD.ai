@@ -32,7 +32,7 @@ from utils.api_client import get_ai_client
 from utils.article_index import get_article_index
 from utils.deduplication import Deduplicator
 from utils.entity_index import get_entity_index
-from utils.http_utils import fetch_and_extract_text, extract_top_n_largest_images
+from utils.http_utils import fetch_and_extract_text, extract_top_n_largest_images, RSS_FEED_HEADERS, fetch_rss_feed
 from utils.logging import print_console
 from utils.quota import get_quota_manager
 from utils.rolling_window import update_rolling_window
@@ -201,8 +201,7 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
     _write_progress(_progress)
     print_console(f"Lecture du flux {feed_idx} sur {total_feeds} : {feed_title} ({feed_url})")
     try:
-        resp = requests.get(feed_url, timeout=15)
-        resp.raise_for_status()
+        resp = fetch_rss_feed(feed_url, timeout=15)
         print_console(f"  ✓ Flux chargé avec succès.")
         rss = ET.fromstring(resp.content)
         parsed_items = _parse_feed_items(rss)
