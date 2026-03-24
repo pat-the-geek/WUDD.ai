@@ -28,15 +28,39 @@ mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose
 
 /** Nettoie le code Mermaid avant rendu (artifacts markdown fréquents) */
 function sanitizeMermaidCode(raw) {
-  return raw
+  let s = (raw ?? '')
     .replace(/^```mermaid\s*/i, '')   // backticks résiduels (début)
     .replace(/```\s*$/,         '')   // backticks résiduels (fin)
     .replace(/&amp;/g,          '&')  // entités HTML
     .replace(/&lt;/g,           '<')
     .replace(/&gt;/g,           '>')
     .replace(/\r\n/g,           '\n') // CRLF → LF
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // suppression des accents
-    .trim()
+    // 1. Supprimer les accents
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    // 2. Tirets Unicode → tiret ASCII
+    .replace(/[\u2013\u2014\u2012\u2015]/g, '-')
+    // 3. Guillemets français et typographiques → guillemet droit
+    .replace(/[\u00AB\u00BB\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F]/g, "'")
+    // 4. Points de suspension → trois points
+    .replace(/\u2026/g, '...')
+    // 5. Puces et caractères de liste → tiret
+    .replace(/[\u2022\u2023\u25AA\u25AB\u25B6\u25CF\u2043]/g, '-')
+    // 6. Espaces insécables et autres espaces Unicode → espace normal
+    .replace(/[\u00A0\u202F\u2009\u200A\u2007]/g, ' ')
+    // 7. Supprimer les caractères de contrôle sauf newline/tab
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+  // 8. Auto-quoter les labels [bracket] non quotés contenant des caractères spéciaux
+  //    Ex: A[OpenAI (US)] → A["OpenAI (US)"]  |  B[x: valeur] → B["x: valeur"]
+  s = s.replace(/\[([^\]"\[]*[():#&<>/\\][^\]"\[]*)\]/g,
+    (_, inner) => `["${inner.replace(/"/g, "'")}"]`)
+  // 9. Idem pour les labels (paren) ronds non quotés avec caractères spéciaux
+  s = s.replace(/(?<=[A-Za-z0-9_])\(([^)"(]*[:#&<>/\\][^)"(]*)\)/g,
+    (_, inner) => `("${inner.replace(/"/g, "'")}")`)
+  // 10. Supprimer les blocs <think>...</think> que certains modèles IA insèrent
+  s = s.replace(/<think>[\s\S]*?<\/think>/gi, '')
+  // 11. Retirer les préfixes parasites avant la déclaration du type de diagramme
+  s = s.replace(/^[^\n]*\n(?=\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|mindmap|gitGraph|erDiagram|journey|quadrantChart|xychart|block|packet|architecture|timeline|sankey|zenuml))/i, '')
+  return s.trim()
 }
 
 function MermaidBlock({ code, isStreaming }) {
