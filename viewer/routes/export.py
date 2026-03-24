@@ -534,6 +534,7 @@ def api_chat_stream():
       messages      (list)   — historique de conversation [{ role, content }, ...]
       context_files (list)   — chemins relatifs des fichiers à inclure comme contexte (optionnel)
       notes_period  (string) — période des notes personnelles à inclure : "week", "month" ou "all" (optionnel)
+      web_search    (bool)   — active la recherche web EurIA (défaut: false, ignoré avec Claude)
 
     Retourne un flux SSE au format OpenAI : data: {"choices":[{"delta":{"content":"..."},...}]}
     """
@@ -547,6 +548,8 @@ def api_chat_stream():
     entity_context  = body.get("entity_context", "").strip()
     # Permet au frontend de choisir le provider pour cette requête.
     provider_override = body.get("provider", "").strip().lower()
+    # Option Web Search (EurIA uniquement) — désactivée par défaut
+    web_search      = body.get("web_search", False)
 
     if not messages:
         return jsonify({"error": "messages est requis"}), 400
@@ -681,7 +684,7 @@ def api_chat_stream():
             "messages": full_messages,
             "model": "qwen3",
             "stream": True,
-            "enable_web_search": True,
+            "enable_web_search": web_search,
         }
         api_headers = {
             "Authorization": f"Bearer {bearer}",
