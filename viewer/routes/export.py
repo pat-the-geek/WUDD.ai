@@ -27,8 +27,10 @@ from utils.scoring import get_scoring_engine
 export_bp = Blueprint("export", __name__)
 
 # Paramètres du chatbot
-_CHAT_MAX_CONTEXT_FILES  = 10    # Nombre maximum de fichiers de contexte par requête
-_CHAT_MAX_CONTEXT_CHARS  = 12000 # Taille maximale (caractères) par fichier de contexte
+_CHAT_MAX_CONTEXT_FILES   = 10     # Nombre maximum de fichiers de contexte par requête
+_CHAT_MAX_CONTEXT_CHARS   = 100000 # Taille maximale (caractères) par fichier de contexte (brut)
+_CHAT_MAX_ARTICLES_JSON   = 100    # Nombre max d'articles inclus depuis un fichier JSON d'articles
+_CHAT_MAX_ENTITIES_TYPE   = 5      # Nombre max d'entités par type dans le contexte article compact
 
 
 def _load_annotations_for_chat() -> dict:
@@ -156,6 +158,62 @@ def _build_notes_context(period: str = "week") -> str:
         if notes:
             lines.append(f"\n> {notes}")
         lines.append("")
+
+    return "\n".join(lines)
+
+
+def _format_articles_for_context(articles: list, max_articles: int = 100) -> str:
+    """Formate une liste d'articles de manière compacte pour le contexte du chatbot.
+
+    Au lieu d'inclure le JSON brut (verbeux), cette fonction génère un texte
+    structuré Markdown qui inclut tous les articles sans troncature arbitraire.
+    Chaque article occupe ~500-800 caractères, soit 5 à 10 fois moins que le
+    JSON brut équivalent.
+
+    Args:
+        articles:     Liste de dicts article (format WUDD.ai).
+        max_articles: Nombre maximum d'articles à inclure.
+
+    Returns:
+        Texte Markdown prêt à être inséré dans le contexte système.
+    """
+    total = len(articles)
+    shown = min(total, max_articles)
+    lines: list[str] = [
+        f"*{total} article(s) au total — {shown} inclus dans le contexte.*",
+        "",
+    ]
+    for i, art in enumerate(articles[:max_articles], 1):
+        date    = art.get("Date de publication", "?")
+        src     = art.get("Sources", "?")
+        url     = art.get("URL", "")
+        resume  = (art.get("Résumé") or "").strip()
+        sentiment = art.get("sentiment", "")
+        entities  = art.get("entities", {})
+
+        lines.append(f"**Article {i}** — {date} | {src}")
+        if url:
+            lines.append(f"URL : {url}")
+        if sentiment:
+            lines.append(f"Sentiment : {sentiment}")
+        # Entités clés (PERSON, ORG, GPE uniquement pour rester compact)
+        if isinstance(entities, dict):
+            ent_parts = []
+            for etype in ("PERSON", "ORG", "GPE"):
+                vals = entities.get(etype, [])
+                if isinstance(vals, list) and vals:
+                    ent_parts.append(f"{etype}: {', '.join(vals[:_CHAT_MAX_ENTITIES_TYPE])}")
+            if ent_parts:
+                lines.append("Entités : " + " | ".join(ent_parts))
+        if resume:
+            lines.append(resume)
+        lines.append("")
+
+    if total > max_articles:
+        lines.append(
+            f"*…{total - max_articles} article(s) supplémentaire(s) non inclus "
+            f"(limite fixée à {max_articles}).*"
+        )
 
     return "\n".join(lines)
 
@@ -509,11 +567,32 @@ def api_chat_stream():
             continue
         try:
             raw = target.read_text(encoding="utf-8")
-            # Tronquer les fichiers volumineux
-            if len(raw) > _CHAT_MAX_CONTEXT_CHARS:
-                raw = raw[:_CHAT_MAX_CONTEXT_CHARS] + "\n…[tronqué]"
             ext = target.suffix.lower()
             lang = "json" if ext == ".json" else "markdown"
+
+            # Extraction intelligente pour les fichiers JSON d'articles :
+            # au lieu de tronquer le JSON brut (ce qui limite le contexte à ~5
+            # articles), on parse le tableau et on formate chaque article de
+            # manière compacte, ce qui inclut jusqu'à _CHAT_MAX_ARTICLES_JSON
+            # articles dans un espace ~5× plus petit.
+            if ext == ".json":
+                try:
+                    data = json.loads(raw)
+                    if (
+                        isinstance(data, list)
+                        and data
+                        and isinstance(data[0], dict)
+                        and "Résumé" in data[0]
+                    ):
+                        formatted = _format_articles_for_context(data, _CHAT_MAX_ARTICLES_JSON)
+                        context_blocks.append(f"### Fichier : {rel}\n{formatted}")
+                        continue
+                except (json.JSONDecodeError, IndexError, KeyError):
+                    pass  # Fallback : traitement générique ci-dessous
+
+            # Fallback générique : tronquer les fichiers trop volumineux
+            if len(raw) > _CHAT_MAX_CONTEXT_CHARS:
+                raw = raw[:_CHAT_MAX_CONTEXT_CHARS] + "\n…[tronqué]"
             context_blocks.append(f"### Fichier : {rel}\n```{lang}\n{raw}\n```")
         except OSError:
             continue
@@ -571,8 +650,9 @@ def api_chat_stream():
         api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         if not api_key:
             return jsonify({"error": "ANTHROPIC_API_KEY manquante dans .env (AI_PROVIDER=claude)"}), 503
-        # Routage Haiku/Sonnet selon la taille du contexte
-        total_context_chars = sum(len(m.get("content", "")) for m in clean_messages)
+        # Routage Haiku/Sonnet selon la taille totale du contexte (système + historique).
+        # On inclut le system_prompt car il peut contenir des fichiers d'articles volumineux.
+        total_context_chars = len(system_prompt) + sum(len(m.get("content", "")) for m in clean_messages)
         if total_context_chars < 3000:
             model = os.environ.get("CLAUDE_MODEL_BATCH", "claude-haiku-4-5-20251001")
         else:
