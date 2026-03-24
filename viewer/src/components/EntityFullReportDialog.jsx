@@ -25,15 +25,42 @@ mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose
 // ── Mermaid block ──────────────────────────────────────────────────────────────
 
 function sanitizeMermaidCode(raw) {
-  return raw
+  let s = (raw ?? '')
+    // Backticks résiduels
     .replace(/^```mermaid\s*/i, '')
     .replace(/```\s*$/, '')
+    // Entités HTML
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
+    // CRLF → LF
     .replace(/\r\n/g, '\n')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // suppression des accents
-    .trim()
+    // 1. Supprimer les accents
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    // 2. Tirets Unicode → tiret ASCII
+    .replace(/[\u2013\u2014\u2012\u2015]/g, '-')
+    // 3. Guillemets français et typographiques → guillemet droit
+    .replace(/[\u00AB\u00BB\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F]/g, "'")
+    // 4. Points de suspension → trois points
+    .replace(/\u2026/g, '...')
+    // 5. Puces et caractères de liste → tiret
+    .replace(/[\u2022\u2023\u25AA\u25AB\u25B6\u25CF\u2043]/g, '-')
+    // 6. Espaces insécables et autres espaces Unicode → espace normal
+    .replace(/[\u00A0\u202F\u2009\u200A\u2007]/g, ' ')
+    // 7. Supprimer les caractères de contrôle sauf newline/tab
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+  // 8. Auto-quoter les labels [bracket] non quotés contenant des caractères spéciaux
+  //    Ex: A[OpenAI (US)] → A["OpenAI (US)"]  |  B[x: valeur] → B["x: valeur"]
+  s = s.replace(/\[([^\]"\[]*[():#&<>/\\][^\]"\[]*)\]/g,
+    (_, inner) => `["${inner.replace(/"/g, "'")}"]`)
+  // 9. Idem pour les labels (paren) ronds non quotés avec caractères spéciaux
+  s = s.replace(/(?<=[A-Za-z0-9_])\(([^)"(]*[:#&<>/\\][^)"(]*)\)/g,
+    (_, inner) => `("${inner.replace(/"/g, "'")}")`)
+  // 10. Supprimer les blocs <think>...</think> que certains modèles IA insèrent
+  s = s.replace(/<think>[\s\S]*?<\/think>/gi, '')
+  // 11. Retirer les préfixes parasites avant la déclaration du type de diagramme
+  s = s.replace(/^[^\n]*\n(?=\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|mindmap|gitGraph|erDiagram|journey|quadrantChart|xychart|block|packet|architecture|timeline|sankey|zenuml))/i, '')
+  return s.trim()
 }
 
 function MermaidBlock({ code, isStreaming }) {
@@ -204,9 +231,14 @@ function buildMindmapMd(entityValue, l1Nodes) {
   const types = CARTO_TYPES.filter(t => byType[t]?.length > 0)
   if (types.length === 0) return ''
 
-  // Nettoyer les valeurs pour Mermaid : sans accents, sans guillemets/parenthèses
-  const esc = v => removeAccents(v)
-    .replace(/[()[\]"']/g, ' ')
+  // Nettoyer les valeurs pour Mermaid : sans accents, sans caractères spéciaux
+  const esc = v => removeAccents(String(v ?? ''))
+    .replace(/[\u2013\u2014\u2012\u2015]/g, '-')  // tirets Unicode → ASCII
+    .replace(/[\u00AB\u00BB\u2018\u2019\u201C\u201D]/g, "'")  // guillemets typographiques
+    .replace(/[\u00A0\u202F\u2009\u200A]/g, ' ')  // espaces insécables → espace normal
+    .replace(/::/g, '-')     // :: est la syntaxe CSS de Mermaid
+    .replace(/:/g, '-')      // : seul peut aussi perturber le parser
+    .replace(/[()[\]{}"'#;,]/g, ' ')  // caractères à syntaxe Mermaid spéciale
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 30)   // 30 chars max pour éviter les chevauchements
@@ -231,8 +263,12 @@ function buildPieMd(articles) {
   }
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8)
   if (entries.length < 2) return ''
-  // Sans accents, sans guillemets doubles — labels courts pour éviter la superposition
-  const esc = v => removeAccents(v).replace(/"/g, "'").replace(/\s+/g, ' ').trim().slice(0, 28)
+  // Sans accents, sans guillemets doubles, sans tirets Unicode — labels courts pour éviter la superposition
+  const esc = v => removeAccents(String(v ?? ''))
+    .replace(/[\u2013\u2014\u2012\u2015]/g, '-')   // tirets Unicode → ASCII
+    .replace(/[\u00AB\u00BB\u2018\u2019\u201C\u201D]/g, "'")  // guillemets typographiques
+    .replace(/[\u00A0\u202F\u2009\u200A]/g, ' ')   // espaces insécables
+    .replace(/"/g, "'").replace(/\s+/g, ' ').trim().slice(0, 28)
   let diagram = `pie title Distribution sources (${articles.length} articles)\n`
   for (const [src, count] of entries) {
     diagram += `    "${esc(src)}" : ${count}\n`
