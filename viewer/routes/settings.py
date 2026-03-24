@@ -123,15 +123,30 @@ def api_get_rss_feeds():
 
 @settings_bp.route("/api/rss-feeds/check", methods=["POST"])
 def api_check_rss_feed():
-    """Vérifie si une URL RSS répond. Body JSON: {"url": "..."}"""
+    """Vérifie si une URL RSS répond. Body JSON: {"url": "..."}
+
+    Stratégie : essaie HEAD en premier (rapide), puis GET en fallback si
+    HEAD retourne 405 ou 403 — certains CDN/WAF refusent les requêtes HEAD.
+    Utilise un Chrome User-Agent pour passer les filtres bot basiques.
+    """
     import requests as req
     data = request.get_json(force=True) or {}
     url = data.get("url", "").strip()
     if not url:
         return jsonify({"ok": False, "error": "URL manquante"}), 400
+    _headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8",
+    }
     try:
-        r = req.head(url, timeout=8, allow_redirects=True,
-                     headers={"User-Agent": "WUDD.ai/1.0"})
+        r = req.head(url, timeout=8, allow_redirects=True, headers=_headers)
+        # Fallback GET si le serveur refuse HEAD (405) ou renvoie un faux 403 anti-bot
+        if r.status_code in (403, 405):
+            r = req.get(url, timeout=10, allow_redirects=True, headers=_headers)
         ok = r.status_code < 400
         return jsonify({"ok": ok, "status": r.status_code})
     except Exception as e:
@@ -148,9 +163,17 @@ def api_resolve_rss_feed():
     url = data.get("url", "").strip()
     if not url or not url.startswith("http"):
         return jsonify({"ok": False, "error": "URL invalide"}), 400
+    _headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+    }
     try:
-        r = req.get(url, timeout=10, allow_redirects=True,
-                    headers={"User-Agent": "WUDD.ai/1.0"})
+        r = req.get(url, timeout=10, allow_redirects=True, headers=_headers)
         if r.status_code >= 400:
             return jsonify({"ok": False, "error": f"HTTP {r.status_code}"})
         title = ""

@@ -1906,9 +1906,12 @@ function EnvTab() {
         </div>
       </div>
 
+      {/* Contenu scrollable — alertes, variables, backup, obsidian, footer */}
+      <div className="flex-1 overflow-auto">
+
       {/* Alerte configuration incomplète */}
       {!loading && missingConfig && (
-        <div className="px-5 py-2.5 border-b border-orange-200 dark:border-orange-800/50 bg-orange-50/70 dark:bg-orange-900/10 shrink-0">
+        <div className="px-5 py-2.5 border-b border-orange-200 dark:border-orange-800/50 bg-orange-50/70 dark:bg-orange-900/10">
           <p className="text-xs text-orange-700 dark:text-orange-400 flex items-start gap-1.5">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
             {currentProvider === 'claude'
@@ -1918,14 +1921,14 @@ function EnvTab() {
         </div>
       )}
 
-      <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-700 bg-amber-50/50 dark:bg-amber-900/10 shrink-0">
+      <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-700 bg-amber-50/50 dark:bg-amber-900/10">
         <p className="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
           <Lock size={12} className="mt-0.5 shrink-0" />
           Variables sensibles (clés d'API, mots de passe) sont masquées. Les modifications sont écrites dans le fichier <code>.env</code> à la racine du projet.
         </p>
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div>
         {loading ? <Spinner /> : (
           <table className="w-full text-sm">
             <thead>
@@ -2025,7 +2028,7 @@ function EnvTab() {
       </div>
 
       {/* ── Section Backup ───────────────────────────────────────────────── */}
-      <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 shrink-0 bg-slate-50/50 dark:bg-slate-800/20">
+      <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/20">
         <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
           <Database size={11} /> Backup des données
         </p>
@@ -2084,7 +2087,7 @@ function EnvTab() {
       </div>
 
       {/* ── Section Obsidian ─────────────────────────────────────────────── */}
-      <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 shrink-0 bg-violet-50/30 dark:bg-violet-900/10">
+      <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 bg-violet-50/30 dark:bg-violet-900/10">
         <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
           <BookOpen size={11} /> Export Obsidian
         </p>
@@ -2163,11 +2166,13 @@ function EnvTab() {
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-2 border-t border-slate-200 dark:border-slate-700 shrink-0 flex justify-end">
+      <div className="px-5 py-2 border-t border-slate-200 dark:border-slate-700 flex justify-end">
         <button onClick={load} className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
           <RefreshCw size={11} /> Actualiser
         </button>
       </div>
+
+      </div>{/* fin contenu scrollable */}
     </div>
   )
 }

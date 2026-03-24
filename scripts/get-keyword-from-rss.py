@@ -61,22 +61,32 @@ def _write_progress(data: dict) -> None:
 def _parse_feed_items(xml_root) -> list:
     """Extrait et normalise les articles d'un flux RSS 2.0 ou Atom.
 
-    Retourne une liste de tuples (title, link, pub_date_str, pub_dt) où
-    pub_date_str est toujours au format RFC 822 pour cohérence avec le pipeline.
+    Retourne une liste de tuples (title, link, pub_date_str, pub_dt, description)
+    où pub_date_str est toujours au format RFC 822 et description est le texte
+    brut extrait de <description> (RSS) ou <summary>/<content> (Atom).
+    Ce texte sert de fallback quand le fetch HTML de l'article échoue (ex. 403 Cloudflare).
     """
+    import html as _html
     ATOM_NS = "http://www.w3.org/2005/Atom"
     normalized = []
+
+    def _strip_html(raw: str) -> str:
+        """Décode les entités HTML et supprime les balises."""
+        raw = _html.unescape(raw or "")
+        raw = re.sub(r'<[^>]+>', ' ', raw)
+        return re.sub(r'\s+', ' ', raw).strip()
 
     # ── RSS 2.0 : balises <item> ──────────────────────────────────────────────
     for item in xml_root.findall(".//item"):
         title     = item.findtext("title") or ""
         link      = item.findtext("link") or ""
         pub_date  = item.findtext("pubDate") or ""
+        desc      = _strip_html(item.findtext("description") or "")
         try:
             pub_dt = datetime.strptime(pub_date[:25], "%a, %d %b %Y %H:%M:%S")
         except Exception:
             continue
-        normalized.append((title, link, pub_date, pub_dt))
+        normalized.append((title, link, pub_date, pub_dt, desc))
 
     # ── Atom : balises <entry> ────────────────────────────────────────────────
     for entry in xml_root.findall(f".//{{{ATOM_NS}}}entry"):
@@ -111,7 +121,12 @@ def _parse_feed_items(xml_root) -> list:
             pub_date_rfc = pub_dt.strftime("%a, %d %b %Y %H:%M:%S")
         except Exception:
             continue
-        normalized.append((title, link, pub_date_rfc, pub_dt))
+        # Atom : description dans <summary> ou <content>
+        desc = _strip_html(
+            entry.findtext(f"{{{ATOM_NS}}}summary") or
+            entry.findtext(f"{{{ATOM_NS}}}content") or ""
+        )
+        normalized.append((title, link, pub_date_rfc, pub_dt, desc))
 
     return normalized
 
@@ -168,6 +183,11 @@ else:
 # Index par mot-clé
 results = {kw_obj["keyword"]: {} for kw_obj in keywords}
 
+# Cache transversal : évite de refaire fetch HTML + appels IA pour un même URL
+# qui correspondrait à plusieurs mots-clés différents dans le même run.
+# Structure : url → {combined, entities, images, error}
+_processed_in_run: dict[str, dict] = {}
+
 # Charger les URLs masquées (annotations avec is_hidden=true) — ces articles ne seront pas réimportés
 _annotations_path = PROJECT_ROOT / "data" / "annotations.json"
 _hidden_urls: set[str] = set()
@@ -205,10 +225,11 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
         print_console(f"  ✓ Flux chargé avec succès.")
         rss = ET.fromstring(resp.content)
         parsed_items = _parse_feed_items(rss)
-        print_console(f"  {len(parsed_items)} articles trouvés dans le flux.")
+        recent_count = sum(1 for _, _, _, d, _ in parsed_items if d >= one_week_ago)
+        print_console(f"  {len(parsed_items)} articles dans le flux ({recent_count} récents ≤ 7j).")
         if bypass_quota:
             print_console(f"  ⚡ Quota ignoré pour ce flux (bypassQuota activé).", level="info")
-        for idx, (title, link, pub_date, pub_dt) in enumerate(parsed_items, 1):
+        for idx, (title, link, pub_date, pub_dt, rss_desc) in enumerate(parsed_items, 1):
             if pub_dt < one_week_ago:
                 continue
             # Arrêt global si le plafond journalier est atteint (sauf pour les flux avec bypassQuota activé)
@@ -260,31 +281,55 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                     print_console(f"    [Article {idx}] Quota atteint pour '{kw}' / '{feed_title}', ignoré.", level="debug")
                     continue
                 print_console(f"    [Article {idx}] Mot-clé '{kw}' trouvé dans le titre.")
-                print_console(f"      Extraction du texte de l'article...")
-                text = fetch_and_extract_text(link)
-                if text.startswith("Erreur"):
-                    print_console(f"      Article inaccessible ignoré ('{text[:70]}').", level="warning")
-                    continue
-                print_console(f"      Génération du résumé + analyse sentiment IA...")
-                combined = {}
-                try:
-                    combined = api_client.generate_summary_with_sentiment(text, max_lines=20)
-                    resume = combined.get("resume", "")
-                    if not resume:
-                        raise RuntimeError("Résumé vide dans la réponse combinée")
-                except RuntimeError as e:
-                    print_console(f"      Résumé impossible pour '{link}', article ignoré : {e}", level="warning")
-                    continue
-                print_console(f"      Extraction des entités nommées...")
-                entities = api_client.generate_entities(resume)
+
+                # ── Cache transversal : réutiliser les résultats d'un précédent traitement
+                # du même URL dans ce run (autre mot-clé correspondant)
+                if link in _processed_in_run:
+                    cached = _processed_in_run[link]
+                    if cached.get("error"):
+                        print_console(f"      Article inaccessible (cache), ignoré.", level="warning")
+                        continue
+                    print_console(f"      Réutilisation du cache run (résumé + entités déjà calculés).")
+                    combined = cached["combined"]
+                    entities = cached["entities"]
+                    images   = cached["images"]
+                    resume   = combined.get("resume", "")
+                else:
+                    # ── Premier traitement de cet URL : fetch + IA
+                    print_console(f"      Extraction du texte de l'article...")
+                    text = fetch_and_extract_text(link)
+                    if text.startswith("Erreur"):
+                        if rss_desc:
+                            print_console(f"      Article inaccessible ({text[:50]}) — fallback description RSS ({len(rss_desc)} chars).", level="warning")
+                            text = rss_desc
+                        else:
+                            print_console(f"      Article inaccessible ignoré ('{text[:70]}').", level="warning")
+                            _processed_in_run[link] = {"error": text}
+                            continue
+                    print_console(f"      Génération du résumé + analyse sentiment IA...")
+                    combined = {}
+                    try:
+                        combined = api_client.generate_summary_with_sentiment(text, max_lines=20)
+                        resume = combined.get("resume", "")
+                        if not resume:
+                            raise RuntimeError("Résumé vide dans la réponse combinée")
+                    except RuntimeError as e:
+                        print_console(f"      Résumé impossible pour '{link}', article ignoré : {e}", level="warning")
+                        _processed_in_run[link] = {"error": str(e)}
+                        continue
+                    print_console(f"      Extraction des entités nommées...")
+                    entities = api_client.generate_entities(resume)
+                    print_console(f"      Extraction de l'image principale...")
+                    images = extract_top_n_largest_images(link, n=1, min_width=500)
+                    # Mémoriser pour les mots-clés suivants dans ce run
+                    _processed_in_run[link] = {"combined": combined, "entities": entities, "images": images}
+
                 # Vérifier le quota par entité (après détection, avant ajout) — sauf si bypassQuota activé
                 if entities and not bypass_quota:
                     ok, saturated = quota.can_process_entities(entities)
                     if not ok:
                         print_console(f"      Quota entité atteint pour '{saturated}', article ignoré.", level="debug")
                         continue
-                print_console(f"      Extraction de l'image principale...")
-                images = extract_top_n_largest_images(link, n=1, min_width=500)
                 article = {
                     "Titre": title,
                     "Date de publication": pub_dt.strftime("%d/%m/%Y"),

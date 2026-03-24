@@ -81,19 +81,32 @@ def _save_state(idx: int, total: int, feed_title: str, articles_added: int) -> N
 
 
 def _parse_feed_items(xml_root) -> list:
-    """Extrait et normalise les articles d'un flux RSS 2.0 ou Atom."""
+    """Extrait et normalise les articles d'un flux RSS 2.0 ou Atom.
+
+    Retourne une liste de tuples (title, link, pub_date_str, pub_dt, description)
+    où description est le texte brut extrait de <description> (RSS) ou <summary> (Atom).
+    Ce texte sert de fallback quand le fetch HTML de l'article échoue (ex. 403 Cloudflare).
+    """
+    import html as _html
     ATOM_NS = "http://www.w3.org/2005/Atom"
     normalized = []
+
+    def _strip_html(raw: str) -> str:
+        """Décode les entités HTML et supprime les balises."""
+        raw = _html.unescape(raw or "")
+        raw = re.sub(r'<[^>]+>', ' ', raw)
+        return re.sub(r'\s+', ' ', raw).strip()
 
     for item in xml_root.findall(".//item"):
         title    = item.findtext("title") or ""
         link     = item.findtext("link") or ""
         pub_date = item.findtext("pubDate") or ""
+        desc     = _strip_html(item.findtext("description") or "")
         try:
             pub_dt = datetime.strptime(pub_date[:25], DATE_FORMAT_RSS)
         except Exception:
             continue
-        normalized.append((title, link, pub_date, pub_dt))
+        normalized.append((title, link, pub_date, pub_dt, desc))
 
     for entry in xml_root.findall(f".//{{{ATOM_NS}}}entry"):
         title = entry.findtext(f"{{{ATOM_NS}}}title") or ""
@@ -118,7 +131,12 @@ def _parse_feed_items(xml_root) -> list:
             pub_date_rfc = pub_dt.strftime(DATE_FORMAT_RSS)
         except Exception:
             continue
-        normalized.append((title, link, pub_date_rfc, pub_dt))
+        # Atom : description dans <summary> ou <content>
+        desc = _strip_html(
+            entry.findtext(f"{{{ATOM_NS}}}summary") or
+            entry.findtext(f"{{{ATOM_NS}}}content") or ""
+        )
+        normalized.append((title, link, pub_date_rfc, pub_dt, desc))
 
     return normalized
 
@@ -199,7 +217,7 @@ def main(dry_run: bool = False) -> None:
         _save_state(next_idx, total, feed_title, 0)
         return
 
-    for title, link, pub_date, pub_dt in parsed_items:
+    for title, link, pub_date, pub_dt, rss_desc in parsed_items:
         if pub_dt < one_week_ago:
             continue
 
@@ -261,8 +279,12 @@ def main(dry_run: bool = False) -> None:
             print_console(f"  Mot-clé '{kw}' — {link[:70]}...")
             text = fetch_and_extract_text(link)
             if text.startswith("Erreur"):
-                print_console(f"  Article inaccessible ignoré ('{text[:70]}').", level="warning")
-                continue
+                if rss_desc:
+                    print_console(f"  Article inaccessible ({text[:50]}) — fallback description RSS ({len(rss_desc)} chars).", level="warning")
+                    text = rss_desc
+                else:
+                    print_console(f"  Article inaccessible ignoré ('{text[:70]}').", level="warning")
+                    continue
             try:
                 resume = api_client.generate_summary(text, max_lines=20)
             except RuntimeError as e:

@@ -3,7 +3,7 @@
  * Style : cartes article identiques à la vue JSON, grille 2 colonnes, modal large.
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut } from 'lucide-react'
+import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, VolumeX, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -653,8 +653,9 @@ function DirectMapOverlay({ markers, onEntityClick, thumbSize = 44 }) {
         })}
       </MapContainer>
 
-      {/* Boutons zoom + recentrage */}
-      <div className="absolute bottom-3 right-3 z-[1000] flex flex-col gap-1">
+      {/* Boutons zoom + recentrage — ancrés en haut-gauche pour éviter l'overflow
+           vers le header du panel (close button en haut-droite) */}
+      <div className="absolute top-2 left-3 z-[1000] flex flex-col gap-1">
         <button title="Zoom +" style={mapBtnStyle} onClick={() => mapRef.current?.zoomIn()}>+</button>
         <button title="Zoom −" style={mapBtnStyle} onClick={() => mapRef.current?.zoomOut()}>−</button>
         <button title="Recentrer" style={{ ...mapBtnStyle, fontSize: 13 }} onClick={() => mapRef.current?.setView(MAP_CENTER, MAP_ZOOM)}>⌖</button>
@@ -706,9 +707,12 @@ function DirectMode({ onReport }) {
   const [keywords,       setKeywords]       = useState([])
   const [filterText,     setFilterText]     = useState('')
   const [thumbSize,      setThumbSize]      = useState(44)
+  const [soundEnabled,   setSoundEnabled]   = useState(() => {
+    try { return localStorage.getItem('direct_sound') !== 'off' } catch { return true }
+  })
   // ── Carte (mobile + desktop) ──
   const [mapVisible,            setMapVisible]           = useState(true)
-  const [mapHeightPct,          setMapHeightPct]         = useState(45)
+  const [mapHeightPct,          setMapHeightPct]         = useState(50)
   const directContainerRef = useRef(null)
   const [selectedEntityFromMap, setSelectedEntityFromMap] = useState(null)
   const [enrichingFromMap,      setEnrichingFromMap]     = useState(false) // enrichissement en cours
@@ -719,6 +723,71 @@ function DirectMode({ onReport }) {
   const esRef         = useRef(null)
   const logRef = useRef(null)
   const endRef = useRef(null)
+  const prevCountRef      = useRef(0)     // suivi du nombre d'articles pour détecter les nouveaux
+  const audioCtxRef       = useRef(null)
+  const audioUnlockedRef  = useRef(false) // true après déverrouillage iOS (geste utilisateur requis)
+  const firstCycleDoneRef = useRef(false) // vrai après le 1er cycle_end (évite 100 dings au chargement)
+  const enrichedArticlesRef = useRef(new Set()) // IDs articles déjà préparés côté backend — évite double fetch
+
+  // ── Déverrouillage iOS : l'AudioContext doit être créé + unpausé lors d'un
+  // geste utilisateur, sinon Safari mobile bloque silencieusement tous les sons.
+  // On écoute le premier click/touchstart sur le document (one-shot).
+  useEffect(() => {
+    function unlock() {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext
+        if (!AC) return
+        if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+          audioCtxRef.current = new AC()
+        }
+        const ctx = audioCtxRef.current
+        // Jouer un buffer silencieux (1 sample) pour "débloquer" iOS
+        const buf = ctx.createBuffer(1, 1, ctx.sampleRate)
+        const src = ctx.createBufferSource()
+        src.buffer = buf
+        src.connect(ctx.destination)
+        src.start(0)
+        ctx.resume().then(() => { audioUnlockedRef.current = true })
+      } catch { /* pas d'AudioContext disponible */ }
+    }
+    document.addEventListener('click',      unlock, { once: true, passive: true })
+    document.addEventListener('touchstart', unlock, { once: true, passive: true })
+    return () => {
+      document.removeEventListener('click',      unlock)
+      document.removeEventListener('touchstart', unlock)
+    }
+  }, [])
+
+  // Son de notification — ding synthétisé via Web Audio API
+  const playNotification = useCallback(() => {
+    // Sur iOS, l'AudioContext doit avoir été déverrouillé par un geste utilisateur
+    if (!audioUnlockedRef.current) return
+    try {
+      const ctx = audioCtxRef.current
+      if (!ctx || ctx.state === 'closed') return
+      if (ctx.state === 'suspended') return // pas encore déverrouillé, ignorer
+      const osc  = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(880, ctx.currentTime)           // La5
+      osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.12) // descend
+      gain.gain.setValueAtTime(0.18, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35)
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + 0.35)
+    } catch { /* AudioContext non disponible — silencieux */ }
+  }, [])
+
+  // Persistance de la préférence son
+  const toggleSound = useCallback(() => {
+    setSoundEnabled(prev => {
+      const next = !prev
+      try { localStorage.setItem('direct_sound', next ? 'on' : 'off') } catch { /* */ }
+      return next
+    })
+  }, [])
 
   // Chargement des mots-clés une seule fois
   useEffect(() => {
@@ -764,12 +833,14 @@ function DirectMode({ onReport }) {
           setLogEntries(prev => {
             const entry = { ...msg, _id: msg.url + '|' + msg.pubDateParsed }
             if (prev.some(e => e._id === entry._id)) return prev // dédupliquer
-            return [...prev, entry].slice(-500)
+            const next = [...prev, entry].slice(-500)
+            return next
           })
         } else if (msg.type === 'cycle_start') {
           setCycleStats({ total: msg.total, success: null })
           setScanning(null)
         } else if (msg.type === 'cycle_end') {
+          firstCycleDoneRef.current = true
           setCycleStats({ total: msg.total, success: msg.success })
           setScanning(null)
         }
@@ -779,6 +850,14 @@ function DirectMode({ onReport }) {
 
     return () => es.close()
   }, [interval, paused]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Son : déclencher un ding quand un nouvel article arrive APRÈS le 1er cycle
+  useEffect(() => {
+    if (soundEnabled && !paused && firstCycleDoneRef.current && logEntries.length > prevCountRef.current) {
+      playNotification()
+    }
+    prevCountRef.current = logEntries.length
+  }, [logEntries.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll toujours forcé vers la sentinelle de fin à chaque nouvel article
   useEffect(() => {
@@ -926,6 +1005,13 @@ function DirectMode({ onReport }) {
       setSelectedEntityFromMap({ type, value: name })
       return
     }
+
+    // Cache : si cet article a déjà été préparé côté backend, ne pas rappeler l'API
+    if (enrichedArticlesRef.current.has(entry._id)) {
+      setSelectedEntityFromMap({ type, value: name })
+      return
+    }
+
     setEnrichingFromMap(true)
     try {
       await fetch('/api/rss/direct/article', {
@@ -941,6 +1027,7 @@ function DirectMode({ onReport }) {
           entity_value: name,
         }),
       })
+      enrichedArticlesRef.current.add(entry._id)
     } catch { /* non bloquant */ }
     setEnrichingFromMap(false)
     setSelectedEntityFromMap({ type, value: name })
@@ -1001,23 +1088,35 @@ function DirectMode({ onReport }) {
           </span>
         )}
 
-        {/* ── Slider taille vignettes — desktop uniquement ── */}
-        <div className="hidden md:flex flex-1 items-center justify-center gap-2 px-4">
-          <ZoomOut size={13} style={{ color: '#8b949e', flexShrink: 0 }} />
-          <input
-            type="range"
-            min="20"
-            max="90"
-            value={thumbSize}
-            onChange={e => setThumbSize(Number(e.target.value))}
-            title={`Taille des vignettes : ${thumbSize}px`}
-            className="w-32 accent-emerald-500"
-            style={{ cursor: 'pointer' }}
-          />
-          <ZoomIn size={13} style={{ color: '#8b949e', flexShrink: 0 }} />
-        </div>
-
-        <div className="flex items-center gap-1 md:ml-0 ml-auto flex-wrap">
+        <div className="flex items-center gap-1 ml-auto flex-wrap">
+          {/* ── Slider taille vignettes — desktop uniquement ── */}
+          <div className="hidden md:flex items-center gap-2 mr-2" style={{ minWidth: 140 }}>
+            <ZoomOut size={13} style={{ color: '#8b949e', flexShrink: 0 }} />
+            <input
+              type="range"
+              min="20"
+              max="135"
+              value={thumbSize}
+              onChange={e => setThumbSize(Number(e.target.value))}
+              title={`Taille des vignettes : ${thumbSize}px`}
+              className="w-24 accent-emerald-500"
+              style={{ cursor: 'pointer' }}
+            />
+            <ZoomIn size={13} style={{ color: '#8b949e', flexShrink: 0 }} />
+          </div>
+          {/* Bouton son */}
+          <button
+            onClick={toggleSound}
+            title={soundEnabled ? 'Désactiver le son' : 'Activer le son'}
+            className="flex items-center justify-center w-6 h-6 rounded transition-colors mr-1"
+            style={{
+              background: soundEnabled ? '#1a4731' : '#161b22',
+              border:     soundEnabled ? '1px solid #3fb950' : '1px solid #30363d',
+              color:      soundEnabled ? '#3fb950' : '#8b949e',
+            }}
+          >
+            {soundEnabled ? <Volume2 size={11} /> : <VolumeX size={11} />}
+          </button>
           <span className="text-[10px] font-mono mr-0.5" style={{ color: '#8b949e' }}>Intervalle</span>
           {DIRECT_INTERVALS.map(({ label, value }) => (
             <button key={value} onClick={() => setIntervalVal(value)}

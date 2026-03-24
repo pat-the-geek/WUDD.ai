@@ -141,7 +141,9 @@ def fetch_and_extract_text(
     
     for attempt in range(max_retries):
         try:
-            response = requests.get(url, timeout=timeout)
+            # Utiliser RSS_FEED_HEADERS (Chrome user-agent) pour éviter les 403
+            # sur les sites protégés par WAF/CDN (laliberte.ch, etc.)
+            response = requests.get(url, timeout=timeout, headers=RSS_FEED_HEADERS)
             response.raise_for_status()
             
             # Parser le HTML et extraire le texte
@@ -207,7 +209,8 @@ def extract_top_n_largest_images(
         En cas d'erreur, retourne un dictionnaire avec une clé 'error'.
     """
     try:
-        response = requests.get(url, timeout=timeout)
+        # Utiliser RSS_FEED_HEADERS pour éviter les 403 (laliberte.ch, etc.)
+        response = requests.get(url, timeout=timeout, headers=RSS_FEED_HEADERS)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.content, 'html.parser')
