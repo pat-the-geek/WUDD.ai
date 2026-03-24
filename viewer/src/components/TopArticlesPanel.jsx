@@ -3,7 +3,7 @@
  * Style : cartes article identiques à la vue JSON, grille 2 colonnes, modal large.
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, VolumeX, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut } from 'lucide-react'
+import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, VolumeX, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut, Terminal } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -1137,6 +1137,32 @@ function DirectMode({ onReport }) {
               border:     '1px solid #30363d',
             }}>
             {paused ? '▶ Reprendre' : '⏸ Pause'}
+          </button>
+          {/* Bouton Terminal IA */}
+          <button
+            onClick={() => {
+              if (!logEntries.length) return
+              const articles = logEntries.map(e => ({
+                'Date de publication': e.pubDateParsed || '',
+                'Sources': e.feedTitle || '',
+                'URL': e.url || '',
+                'Résumé': e.description || e.title || '',
+                ...(articleEntities[e._id]?.entities ? { entities: articleEntities[e._id].entities } : {}),
+              }))
+              window.dispatchEvent(new CustomEvent('wudd:openFluxChatbot', {
+                detail: { articles, filePath: 'Direct RSS', count: articles.length }
+              }))
+            }}
+            disabled={!logEntries.length}
+            title={`Terminal IA — analyser les ${logEntries.length} articles en direct`}
+            className="ml-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              background: '#1a3a2a',
+              color:      '#3fb950',
+              border:     '1px solid #2ea043',
+            }}>
+            <Terminal size={10} />
+            Terminal IA
           </button>
         </div>
       </div>

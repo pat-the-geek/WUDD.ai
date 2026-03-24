@@ -242,6 +242,7 @@ export default function App() {
   const [chatOpen, setChatOpen]           = useState(false)
   const [chatEntityContext, setChatEntityContext]   = useState(null) // { type, value } | null
   const [chatArticleContext, setChatArticleContext] = useState(null) // { titre, sources, date, url, entities, resume, reportMd } | null
+  const [chatFluxContext, setChatFluxContext]       = useState(null) // { articles, filePath, count } | null
   const [outilsOpen, setOutilsOpen]       = useState(false)
   const outilsMenuRef                     = useRef(null)
   const [sidebarOpen, setSidebarOpen]     = useState(() => window.innerWidth >= 768)
@@ -382,10 +383,25 @@ export default function App() {
       if (!ctx.reportMd) return
       setChatArticleContext(ctx)
       setChatEntityContext(null)
+      setChatFluxContext(null)
       setChatOpen(true)
     }
     window.addEventListener('wudd:openArticleChatbot', handler)
     return () => window.removeEventListener('wudd:openArticleChatbot', handler)
+  }, [])
+
+  // ── Terminal IA depuis la liste de flux (ArticleListViewer) ───────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      const ctx = e.detail || {}
+      if (!ctx.articles?.length) return
+      setChatFluxContext(ctx)
+      setChatEntityContext(null)
+      setChatArticleContext(null)
+      setChatOpen(true)
+    }
+    window.addEventListener('wudd:openFluxChatbot', handler)
+    return () => window.removeEventListener('wudd:openFluxChatbot', handler)
   }, [])
 
   // Callback : crée ou met à jour l'annotation d'un article (optimistic update)
@@ -1149,11 +1165,12 @@ export default function App() {
       )}
       {chatOpen && (
         <ChatbotPanel
-          onClose={() => { setChatOpen(false); setChatEntityContext(null); setChatArticleContext(null) }}
+          onClose={() => { setChatOpen(false); setChatEntityContext(null); setChatArticleContext(null); setChatFluxContext(null) }}
           onFileSaved={refreshFiles}
-          initialFile={(chatEntityContext || chatArticleContext) ? null : selectedFile}
+          initialFile={(chatEntityContext || chatArticleContext || chatFluxContext) ? null : selectedFile}
           entityContext={chatEntityContext}
           articleContext={chatArticleContext}
+          fluxContext={chatFluxContext}
         />
       )}
       {entitySearch && (

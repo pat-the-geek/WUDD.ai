@@ -1078,7 +1078,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           </span>
         ) : (
           <span className="italic text-slate-400 dark:text-slate-500">
-            Aucune entité — lancez <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">enrich_entities.py</code> pour enrichir
+            Aucune entité — <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">enrich_entities.py</code>
           </span>
         )}
         {hasActiveFilters && (

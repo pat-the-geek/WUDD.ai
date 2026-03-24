@@ -316,13 +316,65 @@ const NER_LABELS = {
   LOC: 'Lieu', PRODUCT: 'Produit', EVENT: 'Événement',
 }
 
-export default function ChatbotPanel({ onClose, onFileSaved, initialFile, entityContext, articleContext }) {
+export default function ChatbotPanel({ onClose, onFileSaved, initialFile, entityContext, articleContext, fluxContext }) {
   // entityContext  : { type, value } | null — contexte entité pré-chargé depuis EntityArticlePanel
   // articleContext : { titre, sources, date, url, entities, resume, reportMd } | null — rapport complet
+  // fluxContext    : { articles, filePath, count } | null — liste d'articles depuis ArticleListViewer
 
   const entityLabel = entityContext
     ? `${entityContext.value} (${NER_LABELS[entityContext.type] ?? entityContext.type})`
     : null
+
+  // Texte de contexte flux injecté directement depuis la liste d'articles affichés
+  const fluxContextText = fluxContext ? (() => {
+    const articles = fluxContext.articles || []
+    const fileName = fluxContext.filePath ? fluxContext.filePath.split('/').pop() : 'flux'
+
+    // Trier par date décroissante — les plus récents en priorité
+    const parseDateForSort = (d) => {
+      if (!d) return 0
+      if (/^\d{4}-\d{2}-\d{2}/.test(d)) return new Date(d).getTime() || 0
+      const m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+      if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}`).getTime() || 0
+      return new Date(d).getTime() || 0
+    }
+    const sorted = [...articles].sort((a, b) =>
+      parseDateForSort(b['Date de publication']) - parseDateForSort(a['Date de publication'])
+    )
+
+    const header = `# Flux d'actualités : ${articles.length} article${articles.length > 1 ? 's' : ''} (${fileName})\n\n`
+
+    // Budget caractères ~150 000 — maximise le nombre d'articles inclus
+    const CHAR_BUDGET = 150_000
+    let usedChars = header.length
+    const blocks = []
+
+    for (const a of sorted) {
+      const parts = [`## Article ${blocks.length + 1}`]
+      if (a['Date de publication']) parts.push(`- **Date** : ${a['Date de publication']}`)
+      if (a['Sources']) parts.push(`- **Source** : ${a['Sources']}`)
+      if (a['URL']) parts.push(`- **URL** : ${a['URL']}`)
+      if (a['Résumé']) parts.push(`- **Résumé** : ${a['Résumé']}`)
+      if (a.entities && Object.keys(a.entities).length) {
+        const ents = Object.entries(a.entities)
+          .filter(([, v]) => Array.isArray(v) && v.length)
+          .map(([t, v]) => `${t}: ${v.slice(0, 5).join(', ')}`)
+          .join(' | ')
+        if (ents) parts.push(`- **Entités** : ${ents}`)
+      }
+      parts.push('')
+      const block = parts.join('\n')
+      if (usedChars + block.length > CHAR_BUDGET) break
+      usedChars += block.length
+      blocks.push(block)
+    }
+
+    let result = header + blocks.join('\n')
+    if (blocks.length < articles.length) {
+      result += `\n_(${articles.length - blocks.length} articles supplémentaires non inclus — budget dépassé)_`
+    }
+    return result
+  })() : ''
 
   // Texte de contexte article injecté directement (pas de SSE serveur nécessaire)
   const articleContextText = articleContext ? (() => {
@@ -348,7 +400,24 @@ export default function ChatbotPanel({ onClose, onFileSaved, initialFile, entity
     return lines.filter(l => l !== undefined).join('\n')
   })() : ''
 
-  const WELCOME_MSG = articleContext ? {
+  const WELCOME_MSG = fluxContext ? {
+    role: 'assistant',
+    content: `**Terminal IA — Flux d'actualités**
+
+Le contexte de **${fluxContext.count ?? fluxContext.articles?.length ?? 0} articles** est chargé. Je peux vous aider à :
+- 📰 **Synthétiser** les grandes tendances et thématiques
+- 🔍 **Identifier** les acteurs, événements et lieux clés
+- 📊 **Comparer** les points de vue entre sources
+- 🏆 **Classer** les articles par importance ou pertinence
+- 📝 **Générer** un rapport structuré par catégories
+
+Exemples de questions :
+- _Quelles sont les 5 grandes tendances de ce flux ?_
+- _Quels acteurs reviennent le plus souvent ?_
+- _Génère un rapport synthèse groupé par thématique._
+- _Y a-t-il des contradictions entre les sources ?_`,
+    welcome: true,
+  } : articleContext ? {
     role: 'assistant',
     content: `**Terminal IA — Rapport article**
 
@@ -601,7 +670,7 @@ Voici ce que je peux faire pour vous :
           messages: newMessages.filter(m => !m.welcome),
           context_files: contextFiles,
           notes_period: overrideNotesPeriod || notesPeriod || undefined,
-          ...(articleContextText ? { entity_context: articleContextText } : entityContextText ? { entity_context: entityContextText } : {}),
+          ...(articleContextText ? { entity_context: articleContextText } : fluxContextText ? { entity_context: fluxContextText } : entityContextText ? { entity_context: entityContextText } : {}),
           ...(selectedProvider ? { provider: selectedProvider } : {}),
           web_search: webSearch,
         }),
@@ -1082,9 +1151,9 @@ Voici ce que je peux faire pour vous :
           {/* ── Corps : sidebar contexte + zone chat ────────────────── */}
           <div className="flex flex-1 min-h-0 overflow-hidden">
 
-            {/* Sidebar sélection de fichiers (desktop) — masquée si contexte entité ou article */}
+            {/* Sidebar sélection de fichiers (desktop) — masquée si contexte entité, article ou flux */}
             <div
-              className={`${entityContext || articleContext ? 'hidden' : 'hidden lg:flex'} flex-col w-64 shrink-0 border-r border-green-900/30 overflow-hidden`}
+              className={`${entityContext || articleContext || fluxContext ? 'hidden' : 'hidden lg:flex'} flex-col w-64 shrink-0 border-r border-green-900/30 overflow-hidden`}
               style={{ background: theme.bg }}
             >
               <div className="px-3 py-2 border-b border-green-900/30">
