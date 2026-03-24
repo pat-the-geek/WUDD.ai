@@ -5,7 +5,7 @@ import {
   Maximize2, Minimize2, ExternalLink, Database, Clipboard, BarChart2,
   ToggleLeft, ToggleRight, RotateCcw, ShieldOff,
   Sun, Moon, Monitor, Terminal, TrendingUp, Eye, Lock, EyeOff, Pencil,
-  BookOpen, Network,
+  BookOpen, Network, Layers,
 } from 'lucide-react'
 import KeywordForceGraph from './KeywordForceGraph'
 
@@ -2717,6 +2717,21 @@ const TABS = [
   { id: 'env',        label: 'Environnement',  short: 'Env',      Icon: Lock      },
 ]
 
+// Mobile : sous-onglets du groupe Sources
+const SOURCE_TABS = [
+  { id: 'rss',  label: 'RSS',  Icon: Rss      },
+  { id: 'web',  label: 'Web',  Icon: Globe    },
+  { id: 'flux', label: 'Flux', Icon: Database },
+]
+
+// Mobile : onglets principaux hors Sources (affiché dans la tab bar du bas)
+const MOBILE_BOTTOM_TABS = [
+  { id: 'keywords',  short: 'Mots-cl.', Icon: Tag       },
+  { id: 'scheduler', short: 'Cron',     Icon: Clock     },
+  { id: 'quota',     short: 'Quota',    Icon: BarChart2 },
+  { id: 'env',       short: 'Env',      Icon: Lock      },
+]
+
 const THEME_OPTIONS_SETTINGS = [
   { key: 'jour', Icon: Sun,     label: 'Jour' },
   { key: 'auto', Icon: Monitor, label: 'Auto' },
@@ -2726,6 +2741,11 @@ const THEME_OPTIONS_SETTINGS = [
 export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus, onOpenConsole, onOpenTendances, onOpenBiais }) {
   const [activeTab, setActiveTab] = useState('rss')
   const [isMaximized, setIsMaximized] = useState(false)
+  const [sourcesMenuOpen, setSourcesMenuOpen] = useState(false)
+
+  const isSourceTab = SOURCE_TABS.some(tab => tab.id === activeTab)
+
+  const handleTabSelect = (id) => { setActiveTab(id); setSourcesMenuOpen(false) }
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
@@ -2782,31 +2802,65 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
             </button>
           </div>
 
-          {/* Mobile : tab bar identique à la nav principale (icon + label + h-[49px]) */}
-          <div className="md:hidden flex items-stretch h-[49px]">
-            {TABS.map(({ id, short, Icon }) => (
+          {/* Mobile : tab bar reorganisée — Sources (RSS/Web/Flux), Mots-cl., Cron, Quota, Env + Fermer */}
+          <div className="md:hidden flex flex-col">
+            {/* Sous-menu Sources — apparaît au-dessus de la tab bar */}
+            {sourcesMenuOpen && (
+              <div className="flex items-stretch border-b border-slate-200/60 dark:border-slate-700/50 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm">
+                {SOURCE_TABS.map(({ id, label, Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => handleTabSelect(id)}
+                    className={`flex flex-1 flex-col items-center justify-center gap-[2px] h-10 transition-colors active:opacity-60 ${
+                      activeTab === id
+                        ? 'text-[#007AFF] dark:text-[#0A84FF]'
+                        : 'text-slate-400 dark:text-slate-500'
+                    }`}
+                  >
+                    <Icon size={18} strokeWidth={activeTab === id ? 2.2 : 1.8} />
+                    <span className="text-[11px] font-medium leading-none">{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* Barre principale */}
+            <div className="flex items-stretch h-[49px]">
+              {/* Bouton Sources avec sous-menu */}
               <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                title={short}
+                onClick={() => setSourcesMenuOpen(o => !o)}
                 className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
-                  activeTab === id
+                  isSourceTab || sourcesMenuOpen
                     ? 'text-[#007AFF] dark:text-[#0A84FF]'
                     : 'text-slate-400 dark:text-slate-500'
                 }`}
               >
-                <Icon size={22} strokeWidth={activeTab === id ? 2.2 : 1.8} />
-                <span className="text-[11px] font-medium leading-none">{short}</span>
+                <Layers size={22} strokeWidth={(isSourceTab || sourcesMenuOpen) ? 2.2 : 1.8} />
+                <span className="text-[11px] font-medium leading-none">Sources</span>
               </button>
-            ))}
-            {/* Bouton fermer — bord droit, séparé des onglets */}
-            <button
-              onClick={onClose}
-              aria-label="Fermer"
-              className="flex items-center justify-center px-4 text-slate-400 dark:text-slate-500 border-l border-slate-200/60 dark:border-slate-700/50 active:opacity-60 transition-colors"
-            >
-              <X size={20} />
-            </button>
+              {/* Onglets principaux */}
+              {MOBILE_BOTTOM_TABS.map(({ id, short, Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => handleTabSelect(id)}
+                  className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+                    activeTab === id
+                      ? 'text-[#007AFF] dark:text-[#0A84FF]'
+                      : 'text-slate-400 dark:text-slate-500'
+                  }`}
+                >
+                  <Icon size={22} strokeWidth={activeTab === id ? 2.2 : 1.8} />
+                  <span className="text-[11px] font-medium leading-none">{short}</span>
+                </button>
+              ))}
+              {/* Bouton fermer — bord droit, séparé des onglets */}
+              <button
+                onClick={onClose}
+                aria-label="Fermer"
+                className="flex items-center justify-center px-4 text-slate-400 dark:text-slate-500 border-l border-slate-200/60 dark:border-slate-700/50 active:opacity-60 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2850,6 +2904,20 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
                   <span className="text-[11px] font-medium leading-none">RSS</span>
                 </button>
               )}
+
+              {/* Fiabilité — raccourci vers l'onglet Fiabilité (avant Tendances) */}
+              <button
+                onClick={() => setActiveTab('fiabilite')}
+                title="Fiabilité des sources"
+                className={`flex flex-col items-center gap-[3px] px-3 py-2 rounded-xl bg-white/70 dark:bg-slate-700/50 backdrop-blur-sm border border-slate-200 dark:border-slate-600/70 active:opacity-60 transition-colors ${
+                  activeTab === 'fiabilite'
+                    ? 'text-[#007AFF] dark:text-[#0A84FF] border-blue-400/40 dark:border-blue-500/40'
+                    : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                <Eye size={18} />
+                <span className="text-[11px] font-medium leading-none">Fiab.</span>
+              </button>
 
               {/* Tendances */}
               {onOpenTendances && (
