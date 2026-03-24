@@ -3,7 +3,7 @@
  * Style : cartes article identiques à la vue JSON, grille 2 colonnes, modal large.
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, Eye, Pencil, Check, FileText, Radio } from 'lucide-react'
+import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -611,20 +611,9 @@ const mapBtnStyle = {
   userSelect: 'none',
 }
 
-function DirectMapOverlay({ markers, onEntityClick }) {
+function DirectMapOverlay({ markers, onEntityClick, thumbSize = 44 }) {
   const containerRef = useRef(null)
   const mapRef       = useRef(null)
-  const [thumbSize, setThumbSize] = useState(44)
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const obs = new ResizeObserver(() => {
-      setThumbSize(Math.max(32, Math.min(64, el.clientHeight * 0.1)))
-    })
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [])
 
   return (
     <div ref={containerRef} className="relative w-full h-full">
@@ -716,6 +705,7 @@ function DirectMode({ onReport }) {
   const [loadingArticle, setLoadingArticle] = useState(false)
   const [keywords,       setKeywords]       = useState([])
   const [filterText,     setFilterText]     = useState('')
+  const [thumbSize,      setThumbSize]      = useState(44)
   // ── Carte (mobile + desktop) ──
   const [mapVisible,            setMapVisible]           = useState(true)
   const [mapHeightPct,          setMapHeightPct]         = useState(45)
@@ -1011,7 +1001,23 @@ function DirectMode({ onReport }) {
           </span>
         )}
 
-        <div className="flex items-center gap-1 ml-auto flex-wrap">
+        {/* ── Slider taille vignettes — desktop uniquement ── */}
+        <div className="hidden md:flex flex-1 items-center justify-center gap-2 px-4">
+          <ZoomOut size={13} style={{ color: '#8b949e', flexShrink: 0 }} />
+          <input
+            type="range"
+            min="20"
+            max="90"
+            value={thumbSize}
+            onChange={e => setThumbSize(Number(e.target.value))}
+            title={`Taille des vignettes : ${thumbSize}px`}
+            className="w-32 accent-emerald-500"
+            style={{ cursor: 'pointer' }}
+          />
+          <ZoomIn size={13} style={{ color: '#8b949e', flexShrink: 0 }} />
+        </div>
+
+        <div className="flex items-center gap-1 md:ml-0 ml-auto flex-wrap">
           <span className="text-[10px] font-mono mr-0.5" style={{ color: '#8b949e' }}>Intervalle</span>
           {DIRECT_INTERVALS.map(({ label, value }) => (
             <button key={value} onClick={() => setIntervalVal(value)}
@@ -1040,7 +1046,7 @@ function DirectMode({ onReport }) {
       {mapVisible && (
         <>
           <div data-map-pane className="shrink-0" style={{ height: `${mapHeightPct}%`, minHeight: 80, isolation: 'isolate', position: 'relative' }}>
-            <DirectMapOverlay markers={mapMarkers} onEntityClick={handleEntityClickFromMap} />
+            <DirectMapOverlay markers={mapMarkers} onEntityClick={handleEntityClickFromMap} thumbSize={thumbSize} />
             {/* Overlay spinner pendant l'enrichissement */}
             {enrichingFromMap && (
               <div style={{
