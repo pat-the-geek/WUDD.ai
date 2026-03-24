@@ -275,6 +275,10 @@ Voici ce que je peux faire pour vous :
   const [fullscreen, setFullscreen]     = useState(false)
   const [aiProviders, setAiProviders]   = useState([])          // providers disponibles
   const [selectedProvider, setSelectedProvider] = useState(null) // null = env default
+  const [webSearch, setWebSearch]       = useState(false)        // Web Search EurIA (désactivé par défaut)
+
+  // Provider effectif : selectedProvider si défini, sinon le seul provider disponible, sinon 'euria' (défaut)
+  const effectiveProvider = selectedProvider || (aiProviders.length === 1 ? aiProviders[0] : 'euria')
 
   const ctrlRef       = useRef(null)
   const endRef        = useRef(null)
@@ -447,6 +451,7 @@ Voici ce que je peux faire pour vous :
           notes_period: overrideNotesPeriod || notesPeriod || undefined,
           ...(articleContextText ? { entity_context: articleContextText } : entityContextText ? { entity_context: entityContextText } : {}),
           ...(selectedProvider ? { provider: selectedProvider } : {}),
+          web_search: webSearch,
         }),
         signal: ctrl.signal,
       })
@@ -766,7 +771,10 @@ Voici ce que je peux faire pour vous :
                 {aiProviders.map(p => (
                   <button
                     key={p}
-                    onClick={() => setSelectedProvider(p)}
+                    onClick={() => {
+                      setSelectedProvider(p)
+                      if (p === 'claude') setWebSearch(false)
+                    }}
                     className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold uppercase tracking-wide transition-colors ${
                       selectedProvider === p
                         ? p === 'claude'
@@ -779,6 +787,20 @@ Voici ce que je peux faire pour vous :
                   </button>
                 ))}
               </div>
+            )}
+            {/* Toggle Web Search — visible uniquement avec EurIA */}
+            {effectiveProvider === 'euria' && (
+              <button
+                onClick={() => setWebSearch(v => !v)}
+                title={webSearch ? 'Recherche web activée (cliquez pour désactiver)' : 'Recherche web désactivée (cliquez pour activer)'}
+                className={`inline-flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                  webSearch
+                    ? 'bg-blue-900/50 border-blue-700/60 text-blue-300 hover:bg-blue-900/70'
+                    : 'bg-slate-800 border-slate-700/40 text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                🌐 Web
+              </button>
             )}
             {/* Bouton plein écran */}
             <button
