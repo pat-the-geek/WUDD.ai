@@ -57,43 +57,92 @@ function makeResponsiveSvg(svg) {
   })
 }
 
-/** Composant de rendu d'un bloc Mermaid dans le terminal IA (thème sombre). */
-function MermaidBlock({ code }) {
-  const ref = useRef(null)
-  const id  = useRef(`mermaid-chat-${Math.random().toString(36).slice(2)}`)
-  const [errMsg, setErrMsg] = useState(null)
-
-  // Supprimer les accents avant le rendu pour éviter les erreurs Mermaid
-  const clean = (code ?? '')
+/** Sanitise le code Mermaid généré par l'IA avant rendu. */
+function sanitizeMermaid(code) {
+  let s = (code ?? '')
+    // 1. Supprimer les accents
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    // 2. Tirets Unicode → tiret ASCII
+    .replace(/[\u2013\u2014\u2012\u2015]/g, '-')
+    // 3. Guillemets français et typographiques → guillemet droit
+    .replace(/[\u00AB\u00BB\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F]/g, "'")
+    // 4. Points de suspension → trois points
+    .replace(/\u2026/g, '...')
+    // 5. Puces et caractères de liste → tiret
+    .replace(/[\u2022\u2023\u25AA\u25AB\u25B6\u25CF\u2043]/g, '-')
+    // 6. Espaces insécables et autres espaces Unicode → espace normal
+    .replace(/[\u00A0\u202F\u2009\u200A\u2007]/g, ' ')
+    // 7. Supprimer les caractères de contrôle sauf newline/tab
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+  // 8. Auto-quoter les labels [bracket] non quotés contenant des caractères spéciaux
+  //    Ex: A[OpenAI (US)] → A["OpenAI (US)"]  |  B[x: valeur] → B["x: valeur"]
+  s = s.replace(/\[([^\]"\[]*[():#&<>/\\][^\]"\[]*)\]/g,
+    (_, inner) => `["${inner.replace(/"/g, "'")}"]`)
+  // 9. Idem pour les labels (paren) ronds non quotés avec caractères spéciaux
+  //    Ex: A(text: note) → A("text: note")    -- attention: ne pas toucher les subgraphs
+  s = s.replace(/(?<=[A-Za-z0-9_])\(([^)"(]*[:#&<>/\\][^)"(]*)\)/g,
+    (_, inner) => `("${inner.replace(/"/g, "'")}")`)
+  // 10. Supprimer les blocs <think>...</think> que certains modèles IA insèrent
+  s = s.replace(/<think>[\s\S]*?<\/think>/gi, '')
+  // 11. Retirer les préfixes/suffixes parasites hors du type de diagramme
+  //     (texte avant la 1ère ligne de type diagram)
+  s = s.replace(/^[^\n]*\n(?=\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|mindmap|gitGraph|erDiagram|journey|quadrantChart|xychart|block|packet|architecture|timeline|sankey|zenuml))/i, '')
+  return s.trim()
+}
+
+/** Composant de rendu d'un bloc Mermaid dans le terminal IA (thème sombre).
+ *  Le SVG est stocké dans le state React (dangerouslySetInnerHTML) et non écrit
+ *  directement dans le DOM — l'ancien diagramme reste affiché tant que le nouveau
+ *  n'est pas prêt, ce qui élimine tout flickering pendant le streaming. */
+function MermaidBlock({ code }) {
+  const id           = useRef(`mermaid-chat-${Math.random().toString(36).slice(2)}`)
+  const lastCode     = useRef(null)           // dernier code rendu avec succès
+  const [svgHtml, setSvgHtml] = useState(null) // SVG figé dans le state
+  const [errMsg,  setErrMsg ] = useState(null) // erreur finale (aucun rendu dispo)
+
+  const clean = sanitizeMermaid(code)
 
   useEffect(() => {
-    if (!ref.current || !clean) return
-    setErrMsg(null)
+    // Ignorer si le code n'a pas changé depuis le dernier rendu réussi
+    if (!clean || clean === lastCode.current) return
     let cancelled = false
-    mermaid.parse(clean)
-      .then(() => mermaid.render(id.current, clean))
-      .then(({ svg }) => {
-        if (!cancelled && ref.current) {
-          ref.current.innerHTML = makeResponsiveSvg(svg)
-        }
-      })
-      .catch(err => {
-        if (cancelled) return
-        const msg = (err?.message ?? 'Erreur Mermaid').split('\n').find(l => l.trim()) ?? 'Erreur Mermaid'
-        setErrMsg(msg.length > 120 ? msg.slice(0, 120) + '…' : msg)
-      })
-    return () => { cancelled = true }
+    // Debounce 300 ms : attend la fin du streaming avant de tenter un rendu
+    const timer = setTimeout(() => {
+      mermaid.parse(clean)
+        .then(() => mermaid.render(id.current, clean))
+        .then(({ svg }) => {
+          if (cancelled) return
+          lastCode.current = clean
+          setSvgHtml(makeResponsiveSvg(svg)) // fige le SVG dans le state
+          setErrMsg(null)
+        })
+        .catch(err => {
+          if (cancelled) return
+          // N'affiche l'erreur que si aucun rendu précédent n'est disponible
+          if (!lastCode.current) {
+            const msg = (err?.message ?? 'Erreur Mermaid').split('\n').find(l => l.trim()) ?? 'Erreur Mermaid'
+            setErrMsg(msg.length > 120 ? msg.slice(0, 120) + '…' : msg)
+          }
+        })
+    }, 300)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [clean])
 
-  if (errMsg) {
+  if (errMsg && !svgHtml) {
     return (
       <div className="my-4 rounded-lg border border-amber-800/60 bg-amber-900/20 p-3">
-        <p className="text-xs text-amber-400 font-mono">⚠ Diagramme non rendu : {errMsg}</p>
+        <p className="text-xs text-amber-400 font-mono mb-2">⚠ Diagramme non rendu : {errMsg}</p>
+        <pre className="text-xs text-slate-300 bg-slate-900/60 rounded p-2 overflow-x-auto whitespace-pre-wrap select-all">{clean}</pre>
       </div>
     )
   }
-  return <div ref={ref} className="my-4 w-full flex justify-center overflow-x-auto bg-slate-900/40 rounded-lg p-2" />
+  return (
+    <div
+      className="my-4 w-full flex justify-center overflow-x-auto bg-slate-900/40 rounded-lg p-2"
+      style={{ opacity: svgHtml ? 1 : 0, transition: 'opacity 0.3s ease' }}
+      dangerouslySetInnerHTML={svgHtml ? { __html: svgHtml } : undefined}
+    />
+  )
 }
 
 // Suggestions de commandes rapides affichées dans l'interface
@@ -147,6 +196,98 @@ const isDestructiveRequest = (text) => {
 
 // Labels pour les périodes de notes personnelles
 const PERIOD_LABELS = { week: 'semaine', month: 'mois', all: 'toutes' }
+
+// ── Thèmes de couleur du terminal ─────────────────────────────────────────────
+const TERMINAL_THEMES = {
+  // ── GitHub Dark — fond near-black, texte vert saturé (défaut)
+  // Inspiré du thème GitHub Dark, ratio de contraste ≥ 7:1 sur tous les éléments
+  matrix: {
+    label:           'Matrix',
+    bg:              '#0d1117',   // github: canvas.default
+    headerBg:        '#161b22',   // github: canvas.subtle
+    border:          'rgba(22,101,52,0.4)',
+    titleColor:      '#3fb950',   // github: success.fg
+    cursorColor:     '#238636',   // github: success.emphasis
+    promptColor:     '#d29922',   // github: attention.fg
+    inputColor:      '#e6edf3',   // github: fg.default — contraste 13:1
+    textColor:       '#aff5b4',   // github: success.muted — texte IA
+    userMsgColor:    '#ffa657',   // github: attention.muted — texte utilisateur
+    placeholderColor:'#484f58',   // github: fg.muted
+    lightBg:         false,
+    mermaid:         'dark',
+  },
+  // ── Nord — palette arctique (Arctic Ice Studio, 2016)
+  // 4 groupes : Polar Night (bg), Snow Storm (fg), Frost (blues), Aurora (accents)
+  // Rapport texte/fond ≥ 7:1 WCAG AAA sur snow storm / polar night
+  nord: {
+    label:           'Nord',
+    bg:              '#2e3440',   // nord0 — Polar Night
+    headerBg:        '#3b4252',   // nord1
+    border:          'rgba(94,129,172,0.4)',  // nord10 — Frost dark blue
+    titleColor:      '#88c0d0',   // nord8 — Frost teal
+    cursorColor:     '#81a1c1',   // nord9 — Frost blue
+    promptColor:     '#ebcb8b',   // nord13 — Aurora yellow
+    inputColor:      '#eceff4',   // nord6 — Snow Storm lightest — contraste 8.5:1
+    textColor:       '#d8dee9',   // nord4 — Snow Storm
+    userMsgColor:    '#ebcb8b',   // nord13 — Aurora yellow
+    placeholderColor:'#4c566a',   // nord3 — Polar Night light
+    lightBg:         false,
+    mermaid:         'dark',
+  },
+  // ── Solarized Dark — palette CIELAB précise (Ethan Schoonover, 2011)
+  // Conçue pour minimiser la fatigue oculaire ; contrastes précisément calculés
+  solarized: {
+    label:           'Solarized',
+    bg:              '#002b36',   // base03
+    headerBg:        '#073642',   // base02
+    border:          'rgba(42,161,152,0.45)',  // cyan
+    titleColor:      '#268bd2',   // blue — ratio 4.6:1
+    cursorColor:     '#2aa198',   // cyan
+    promptColor:     '#cb4b16',   // orange
+    inputColor:      '#eee8d5',   // base2 — ratio 16:1 sur base03
+    textColor:       '#93a1a1',   // base1 (emphasized text)
+    userMsgColor:    '#b58900',   // yellow
+    placeholderColor:'#586e75',   // base01
+    lightBg:         false,
+    mermaid:         'dark',
+  },
+  // ── Solarized Light — version claire de la même palette (fond crème chaud)
+  // bg #fdf6e3 (base3), texte #657b83 (base00) → ratio 4.6:1 WCAG AA garanti
+  paper: {
+    label:           'Papier',
+    bg:              '#fdf6e3',   // base3 — crème chaud (moins agressif que blanc pur)
+    headerBg:        '#eee8d5',   // base2
+    border:          'rgba(147,161,161,0.4)',  // base1
+    titleColor:      '#268bd2',   // blue — ratio 4.6:1 sur base3
+    cursorColor:     '#2aa198',   // cyan
+    promptColor:     '#cb4b16',   // orange — ratio 5.6:1
+    inputColor:      '#586e75',   // base01 — ratio 5.9:1
+    textColor:       '#657b83',   // base00 — ratio 4.6:1 WCAG AA
+    userMsgColor:    '#859900',   // green — ratio 4.5:1
+    placeholderColor:'#93a1a1',   // base1
+    lightBg:         true,
+    mermaid:         'default',
+  },
+  // ── Dracula — palette violette (Zeno Rocha, 2013 ; >2M installs VS Code)
+  // Fond #282a36, fg #f8f8f2 → ratio 10.5:1. Accents saturés bien différenciés.
+  dracula: {
+    label:           'Dracula',
+    bg:              '#282a36',   // background
+    headerBg:        '#44475a',   // current line / selection
+    border:          'rgba(189,147,249,0.4)',  // purple
+    titleColor:      '#bd93f9',   // purple
+    cursorColor:     '#ff79c6',   // pink
+    promptColor:     '#50fa7b',   // green
+    inputColor:      '#f8f8f2',   // foreground — ratio 10.5:1
+    textColor:       '#f8f8f2',   // foreground
+    userMsgColor:    '#8be9fd',   // cyan
+    placeholderColor:'#6272a4',   // comment
+    lightBg:         false,
+    mermaid:         'dark',
+  },
+}
+
+
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} o`
@@ -276,6 +417,10 @@ Voici ce que je peux faire pour vous :
   const [aiProviders, setAiProviders]   = useState([])          // providers disponibles
   const [selectedProvider, setSelectedProvider] = useState(null) // null = env default
   const [webSearch, setWebSearch]       = useState(false)        // Web Search EurIA (désactivé par défaut)
+  const [terminalTheme, setTerminalTheme] = useState(
+    () => localStorage.getItem('chatbot_theme') || 'matrix'
+  )
+  const theme = TERMINAL_THEMES[terminalTheme] || TERMINAL_THEMES.matrix
 
   // Provider effectif : selectedProvider si défini, sinon le seul provider disponible, sinon 'euria' (défaut)
   const effectiveProvider = selectedProvider || (aiProviders.length === 1 ? aiProviders[0] : 'euria')
@@ -316,6 +461,13 @@ Voici ce que je peux faire pour vous :
     const t = setTimeout(() => setSavedMsg(null), 3000)
     return () => clearTimeout(t)
   }, [savedMsg])
+
+  // Ré-initialiser Mermaid et persister le thème quand il change
+  useEffect(() => {
+    localStorage.setItem('chatbot_theme', terminalTheme)
+    mermaid.initialize({ startOnLoad: false, theme: theme.mermaid, securityLevel: 'antiscript' })
+  }, [terminalTheme, theme.mermaid])
+
 
   // Charger les providers IA disponibles (EurIA / Claude)
   useEffect(() => {
@@ -631,8 +783,8 @@ Voici ce que je peux faire pour vous :
         {isUser ? (
           /* Message utilisateur */
           <div className="flex items-start gap-2">
-            <span className="text-amber-400 font-mono text-xs mt-0.5 shrink-0 select-none">$&gt;</span>
-            <span className="text-amber-200 font-mono text-sm break-words leading-relaxed">{msg.content}</span>
+            <span className="font-mono text-xs mt-0.5 shrink-0 select-none" style={{ color: theme.promptColor }}>$&gt;</span>
+            <span className="font-mono text-sm break-words leading-relaxed" style={{ color: theme.userMsgColor }}>{msg.content}</span>
           </div>
         ) : (
           /* Réponse IA */
@@ -645,7 +797,10 @@ Voici ce que je peux faire pour vous :
                 {msg.error ? (
                   <span className="text-red-400 font-mono text-sm">{msg.content}</span>
                 ) : (
-                  <div className="prose prose-invert prose-sm max-w-none text-green-300 chat-markdown">
+                  <div
+                    className={`prose prose-sm max-w-none chat-markdown ${theme.lightBg ? '' : 'prose-invert'}`}
+                    style={{ color: theme.textColor }}
+                  >
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
@@ -703,27 +858,28 @@ Voici ce que je peux faire pour vous :
       {/* Panneau principal — z-[221] pour passer au-dessus de tous les modals (rapport z-[200]) */}
       <div className="fixed inset-0 z-[221] flex items-stretch md:items-center justify-center md:p-4 pointer-events-none" style={{ height: '100dvh' }}>
         <div
-          className={`hig-modal-enter pointer-events-auto w-full h-full md:h-auto md:max-h-[92vh] relative flex flex-col overflow-hidden shadow-2xl border border-green-900/40 ${
+          className={`hig-modal-enter pointer-events-auto w-full h-full md:h-auto md:max-h-[92vh] relative flex flex-col overflow-hidden shadow-2xl border ${
             fullscreen
               ? 'rounded-none'
               : 'md:max-w-5xl md:rounded-2xl'
           }`}
           style={{
+            borderColor: theme.border,
             maxHeight: fullscreen ? '100dvh' : undefined,
             height: fullscreen ? '100dvh' : undefined,
-            background: '#0d1117',
+            background: theme.bg,
           }}
         >
           {/* ── En-tête ─────────────────────────────────────────────── */}
           <div
             className="flex items-center gap-2 px-4 py-2.5 shrink-0 border-b border-green-900/40"
-            style={{ background: '#161b22' }}
+            style={{ background: theme.headerBg, borderColor: theme.border }}
           >
             <Terminal size={14} className="hidden md:block text-green-500 shrink-0" />
-            <span className="font-mono text-sm text-green-400 flex-1 tracking-wider">
+            <span className="font-mono text-sm flex-1 tracking-wider" style={{ color: theme.titleColor }}>
               <span className="hidden md:inline">WUDD.ai ▸ Terminal IA</span>
               <span className="md:hidden">&gt;_</span>
-              <span className="animate-pulse ml-1 text-green-500">█</span>
+              <span className="animate-pulse ml-1" style={{ color: theme.cursorColor }}>█</span>
             </span>
             {/* Badge entité — affiché quand un contexte entité est chargé */}
             {entityContext && (
@@ -802,6 +958,24 @@ Voici ce que je peux faire pour vous :
                 🌐 Web
               </button>
             )}
+            {/* Sélecteur de thème */}
+            <select
+              value={terminalTheme}
+              onChange={e => setTerminalTheme(e.target.value)}
+              title="Thème de couleur du terminal"
+              className="font-mono text-[11px] rounded-lg px-2 py-0.5 border border-slate-700 focus:outline-none cursor-pointer transition-colors"
+              style={{
+                background: theme.headerBg,
+                color: theme.titleColor,
+                borderColor: theme.border,
+              }}
+            >
+              {Object.entries(TERMINAL_THEMES).map(([key, t]) => (
+                <option key={key} value={key} style={{ background: '#1e1e1e', color: '#e2e8f0' }}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
             {/* Bouton plein écran */}
             <button
               onClick={() => setFullscreen(v => !v)}
@@ -821,9 +995,9 @@ Voici ce que je peux faire pour vous :
 
           {/* ── Picker plein écran sur mobile ───────────────────────── */}
           {pickerOpen && (
-            <div className="lg:hidden absolute inset-0 z-20 flex flex-col" style={{ background: '#0d1117' }}>
+            <div className="lg:hidden absolute inset-0 z-20 flex flex-col" style={{ background: theme.bg }}>
               {/* En-tête */}
-              <div className="flex items-center gap-2 px-3 py-2.5 shrink-0 border-b border-green-900/40" style={{ background: '#161b22' }}>
+              <div className="flex items-center gap-2 px-3 py-2.5 shrink-0 border-b border-green-900/40" style={{ background: theme.headerBg }}>
                 <FileText size={12} className="text-green-500 shrink-0" />
                 <span className="font-mono text-xs text-green-400 flex-1 uppercase tracking-widest">Contexte</span>
                 {contextFiles.length > 0 && (
@@ -852,7 +1026,7 @@ Voici ce que je peux faire pour vous :
               <div className="flex-1 overflow-y-auto">
                 {groupedFiles.map(([flux, fluxFiles]) => (
                   <div key={flux}>
-                    <div className="sticky top-0 z-10 flex items-center gap-1.5 px-3 py-2 border-b border-green-900/20" style={{ background: '#0d1117' }}>
+                    <div className="sticky top-0 z-10 flex items-center gap-1.5 px-3 py-2 border-b border-green-900/20" style={{ background: theme.bg }}>
                       <Folder size={10} className="text-green-800 shrink-0" />
                       <span className="font-mono text-[11px] text-green-700 uppercase tracking-widest truncate flex-1">{flux}</span>
                       <span className="font-mono text-[11px] text-green-900">{fluxFiles.length}</span>
@@ -889,7 +1063,7 @@ Voici ce que je peux faire pour vous :
               <div
                 className="shrink-0 px-3 py-3 border-t border-green-900/30"
                 style={{
-                  background: '#161b22',
+                  background: theme.headerBg,
                   paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
                 }}
               >
@@ -911,7 +1085,7 @@ Voici ce que je peux faire pour vous :
             {/* Sidebar sélection de fichiers (desktop) — masquée si contexte entité ou article */}
             <div
               className={`${entityContext || articleContext ? 'hidden' : 'hidden lg:flex'} flex-col w-64 shrink-0 border-r border-green-900/30 overflow-hidden`}
-              style={{ background: '#0d1117' }}
+              style={{ background: theme.bg }}
             >
               <div className="px-3 py-2 border-b border-green-900/30">
                 <div className="flex items-center gap-1.5 mb-2">
@@ -933,7 +1107,7 @@ Voici ce que je peux faire pour vous :
                   groupedFiles.map(([flux, fluxFiles]) => (
                     <div key={flux}>
                       {/* En-tête de groupe */}
-                      <div className="sticky top-0 z-10 flex items-center gap-1.5 px-3 py-1.5 border-b border-green-900/30" style={{background:'#0d1117'}}>
+                      <div className="sticky top-0 z-10 flex items-center gap-1.5 px-3 py-1.5 border-b border-green-900/30" style={{ background: theme.bg }}>
                         <Folder size={10} className="text-green-800 shrink-0" />
                         <span className="font-mono text-[11px] text-green-700 uppercase tracking-widest truncate flex-1">{flux}</span>
                         <span className="font-mono text-[11px] text-green-900">{fluxFiles.length}</span>
@@ -1038,7 +1212,7 @@ Voici ce que je peux faire pour vous :
               {/* ── Zone de chat ─────────────────────────────────────── */}
               <div
                 className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar"
-                style={{ background: '#0d1117' }}
+                style={{ background: theme.bg }}
               >
                 {/* Message de bienvenue */}
                 {messages.length === 0 && (
@@ -1228,7 +1402,7 @@ Voici ce que je peux faire pour vous :
               {/* ── Zone de saisie ───────────────────────────────────── */}
               {/* Toast sauvegarde — flotte au-dessus sans pousser le layout */}
               {savedMsg && (
-                <div className="shrink-0 px-3 pt-1.5 pb-0" style={{ background: '#161b22' }}>
+                <div className="shrink-0 px-3 pt-1.5 pb-0" style={{ background: theme.headerBg }}>
                   <div className="flex items-center gap-1.5 font-mono text-[11px] border border-green-900/40 rounded-lg px-2 py-1 bg-slate-900/80">
                     {savedMsg.startsWith('Erreur') ? (
                       <span className="text-red-400">{savedMsg}</span>
@@ -1244,14 +1418,15 @@ Voici ce que je peux faire pour vous :
               <div
                 className="shrink-0 border-t border-green-900/30 px-3 py-2"
                 style={{
-                  background: '#161b22',
+                  background: theme.headerBg,
                   paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
+                  '--placeholder-color': theme.placeholderColor,
                 }}
               >
                 {/* Saisie */}
                 <div className="flex items-end gap-2">
                   <div className="flex-1 flex items-start gap-2">
-                    <span className="font-mono text-sm text-amber-500 shrink-0 pt-0.5 select-none">▸</span>
+                    <span className="font-mono text-sm shrink-0 pt-0.5 select-none" style={{ color: theme.promptColor }}>▸</span>
                     <textarea
                       ref={inputRef}
                       value={input}
@@ -1305,8 +1480,8 @@ Voici ce que je peux faire pour vous :
                       rows={3}
                       placeholder="Posez votre question… (Shift+Entrée pour un saut de ligne)"
                       disabled={streaming}
-                      className="flex-1 bg-transparent border-none resize-none font-mono text-sm text-amber-200 placeholder:text-slate-400 focus:outline-none leading-relaxed"
-                      style={{ minHeight: '5.25rem', maxHeight: '10rem', overflow: 'auto' }}
+                      className="flex-1 bg-transparent border-none resize-none font-mono text-sm focus:outline-none leading-relaxed chatbot-input"
+                      style={{ color: theme.inputColor, minHeight: '5.25rem', maxHeight: '10rem', overflow: 'auto' }}
                     />
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0 pb-0.5">

@@ -56,42 +56,85 @@ function makeResponsiveSvg(svg) {
   })
 }
 
-function MermaidBlock({ code }) {
-  const ref = useRef(null)
-  const id  = useRef(`mermaid-${Math.random().toString(36).slice(2)}`)
-  const [errMsg, setErrMsg] = useState(null)
-
-  // Supprimer les accents du code avant le rendu pour éviter les erreurs Mermaid
-  const clean = (code ?? '')
+/** Sanitise le code Mermaid généré par l'IA avant rendu. */
+function sanitizeMermaid(code) {
+  let s = (code ?? '')
+    // 1. Supprimer les accents
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    // 2. Tirets Unicode → tiret ASCII
+    .replace(/[\u2013\u2014\u2012\u2015]/g, '-')
+    // 3. Guillemets français et typographiques → guillemet droit
+    .replace(/[\u00AB\u00BB\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F]/g, "'")
+    // 4. Points de suspension → trois points
+    .replace(/\u2026/g, '...')
+    // 5. Puces et caractères de liste → tiret
+    .replace(/[\u2022\u2023\u25AA\u25AB\u25B6\u25CF\u2043]/g, '-')
+    // 6. Espaces insécables et autres espaces Unicode → espace normal
+    .replace(/[\u00A0\u202F\u2009\u200A\u2007]/g, ' ')
+    // 7. Supprimer les caractères de contrôle sauf newline/tab
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+  // 8. Auto-quoter les labels [bracket] non quotés contenant des caractères spéciaux
+  //    Ex: A[OpenAI (US)] → A["OpenAI (US)"]  |  B[x: valeur] → B["x: valeur"]
+  s = s.replace(/\[([^\]"\[]*[():#&<>/\\][^\]"\[]*)\]/g,
+    (_, inner) => `["${inner.replace(/"/g, "'")}"]`)
+  // 9. Idem pour les labels (paren) ronds non quotés avec caractères spéciaux
+  //    Ex: A(text: note) → A("text: note")    -- attention: ne pas toucher les subgraphs
+  s = s.replace(/(?<=[A-Za-z0-9_])\(([^)"(]*[:#&<>/\\][^)"(]*)\)/g,
+    (_, inner) => `("${inner.replace(/"/g, "'")}")`)
+  // 10. Supprimer les blocs <think>...</think> que certains modèles IA insèrent
+  s = s.replace(/<think>[\s\S]*?<\/think>/gi, '')
+  // 11. Retirer les préfixes/suffixes parasites hors du type de diagramme
+  //     (texte avant la 1ère ligne de type diagram)
+  s = s.replace(/^[^\n]*\n(?=\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|mindmap|gitGraph|erDiagram|journey|quadrantChart|xychart|block|packet|architecture|timeline|sankey|zenuml))/i, '')
+  return s.trim()
+}
 
+function MermaidBlock({ code }) {
+  const id           = useRef(`mermaid-${Math.random().toString(36).slice(2)}`)
+  const lastCode     = useRef(null)
+  const [svgHtml, setSvgHtml] = useState(null)
+  const [errMsg,  setErrMsg ] = useState(null)
+
+  const clean = sanitizeMermaid(code)
   useEffect(() => {
-    if (!ref.current || !clean) return
-    setErrMsg(null)
+    if (!clean || clean === lastCode.current) return
     let cancelled = false
-    mermaid.parse(clean)
-      .then(() => mermaid.render(id.current, clean))
-      .then(({ svg }) => {
-        if (!cancelled && ref.current) {
-          ref.current.innerHTML = makeResponsiveSvg(svg)
-        }
-      })
-      .catch(err => {
-        if (cancelled) return
-        const msg = (err?.message ?? 'Erreur Mermaid').split('\n').find(l => l.trim()) ?? 'Erreur Mermaid'
-        setErrMsg(msg.length > 120 ? msg.slice(0, 120) + '…' : msg)
-      })
-    return () => { cancelled = true }
+    // Debounce 300 ms — le SVG précédent reste affiché, aucun flickering
+    const timer = setTimeout(() => {
+      mermaid.parse(clean)
+        .then(() => mermaid.render(id.current, clean))
+        .then(({ svg }) => {
+          if (cancelled) return
+          lastCode.current = clean
+          setSvgHtml(makeResponsiveSvg(svg))
+          setErrMsg(null)
+        })
+        .catch(err => {
+          if (cancelled) return
+          if (!lastCode.current) {
+            const msg = (err?.message ?? 'Erreur Mermaid').split('\n').find(l => l.trim()) ?? 'Erreur Mermaid'
+            setErrMsg(msg.length > 120 ? msg.slice(0, 120) + '…' : msg)
+          }
+        })
+    }, 300)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [clean])
 
-  if (errMsg) {
+  if (errMsg && !svgHtml) {
     return (
       <div className="my-6 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
-        <p className="text-xs text-amber-700 dark:text-amber-400">⚠ Diagramme non rendu : {errMsg}</p>
+        <p className="text-xs text-amber-700 dark:text-amber-400 mb-2">⚠ Diagramme non rendu : {errMsg}</p>
+        <pre className="text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/60 rounded p-2 overflow-x-auto whitespace-pre-wrap select-all">{clean}</pre>
       </div>
     )
   }
-  return <div ref={ref} className="my-6 w-full flex justify-center overflow-x-auto" />
+  return (
+    <div
+      className="my-6 w-full flex justify-center overflow-x-auto"
+      style={{ opacity: svgHtml ? 1 : 0, transition: 'opacity 0.3s ease' }}
+      dangerouslySetInnerHTML={svgHtml ? { __html: svgHtml } : undefined}
+    />
+  )
 }
 
 /** Parse le frontmatter YAML entre --- et retourne { meta, body } */
