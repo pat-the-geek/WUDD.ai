@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { X, Send, Save, Trash2, FileText, FileJson, Folder, ChevronRight, Loader2, Terminal, RefreshCw, Check, BookOpen, Maximize2, Minimize2 } from 'lucide-react'
+import { X, Send, Save, Trash2, FileText, FileJson, Folder, ChevronRight, Loader2, Terminal, RefreshCw, Check, BookOpen, Maximize2, Minimize2, SlidersHorizontal } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import mermaid from 'mermaid'
@@ -489,16 +489,30 @@ Voici ce que je peux faire pour vous :
   const [terminalTheme, setTerminalTheme] = useState(
     () => localStorage.getItem('chatbot_theme') || 'matrix'
   )
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const theme = TERMINAL_THEMES[terminalTheme] || TERMINAL_THEMES.matrix
 
   // Provider effectif : selectedProvider si défini, sinon le seul provider disponible, sinon 'euria' (défaut)
   const effectiveProvider = selectedProvider || (aiProviders.length === 1 ? aiProviders[0] : 'euria')
 
-  const ctrlRef       = useRef(null)
-  const endRef        = useRef(null)
-  const inputRef      = useRef(null)
-  const historyIdxRef = useRef(-1)   // -1 = pas en navigation historique
-  const historyDraft  = useRef('')   // sauvegarde du texte en cours avant navigation
+  const ctrlRef         = useRef(null)
+  const endRef          = useRef(null)
+  const inputRef        = useRef(null)
+  const mobileMenuRef   = useRef(null)
+  const historyIdxRef   = useRef(-1)   // -1 = pas en navigation historique
+  const historyDraft    = useRef('')   // sauvegarde du texte en cours avant navigation
+
+  // Ferme le menu mobile si on clique en dehors
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+    const handler = (e) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target)) {
+        setMobileMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [mobileMenuOpen])
 
   // Détecte si un fichier a été modifié aujourd'hui
   const isToday = (mtime) => {
@@ -507,6 +521,12 @@ Voici ce que je peux faire pour vous :
     return d.getFullYear() === now.getFullYear() &&
            d.getMonth()    === now.getMonth()    &&
            d.getDate()     === now.getDate()
+  }
+
+  // Sélection du provider IA (desktop et mobile)
+  const handleProviderSelect = (p) => {
+    setSelectedProvider(p)
+    if (p === 'claude') setWebSearch(false)
   }
 
   // Auto-scroll vers le bas à chaque nouveau message
@@ -945,15 +965,15 @@ Voici ce que je peux faire pour vous :
             style={{ background: theme.headerBg, borderColor: theme.border }}
           >
             <Terminal size={14} className="hidden md:block text-green-500 shrink-0" />
-            <span className="font-mono text-sm flex-1 tracking-wider" style={{ color: theme.titleColor }}>
+            <span className="font-mono text-sm flex-1 min-w-0 tracking-wider" style={{ color: theme.titleColor }}>
               <span className="hidden md:inline">WUDD.ai ▸ Terminal IA</span>
               <span className="md:hidden">&gt;_</span>
               <span className="animate-pulse ml-1" style={{ color: theme.cursorColor }}>█</span>
             </span>
-            {/* Badge entité — affiché quand un contexte entité est chargé */}
+            {/* Badge entité — masqué sur mobile pour préserver la place */}
             {entityContext && (
               <span
-                className={`font-mono text-[11px] px-2 py-0.5 rounded-full border max-w-[200px] truncate ${
+                className={`hidden md:inline font-mono text-[11px] px-2 py-0.5 rounded-full border max-w-[200px] truncate ${
                   entityContextLoading
                     ? 'text-amber-400 bg-amber-900/30 border-amber-800/50 animate-pulse'
                     : entityContextStep === 'done'
@@ -973,33 +993,30 @@ Voici ce que je peux faire pour vous :
                   : `◆ ${entityContext.value}`}
               </span>
             )}
-            {/* Indicateur de fichiers de contexte */}
+            {/* Indicateur de fichiers de contexte — masqué sur mobile */}
             {contextFiles.length > 0 && (
-              <span className="font-mono text-[11px] text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded-full">
+              <span className="hidden md:inline font-mono text-[11px] text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded-full">
                 {contextFiles.length} fichier{contextFiles.length > 1 ? 's' : ''} en contexte
               </span>
             )}
-            {/* Indicateur de notes personnelles actives */}
+            {/* Indicateur de notes personnelles actives — masqué sur mobile */}
             {notesPeriod && (
               <button
                 onClick={() => setNotesPeriod(null)}
-                className="inline-flex items-center gap-1 font-mono text-[11px] text-amber-400 bg-amber-900/30 border border-amber-800/50 px-2 py-0.5 rounded-full hover:bg-amber-900/50 transition-colors"
+                className="hidden md:inline-flex items-center gap-1 font-mono text-[11px] text-amber-400 bg-amber-900/30 border border-amber-800/50 px-2 py-0.5 rounded-full hover:bg-amber-900/50 transition-colors"
                 title="Cliquez pour désactiver les notes personnelles"
               >
                 <BookOpen size={9} />
                 Notes {PERIOD_LABELS[notesPeriod]}
               </button>
             )}
-            {/* Toggle EurIA / Claude — visible uniquement si les deux sont configurés */}
+            {/* Toggle EurIA / Claude — masqué sur mobile (accessible via menu ⚙) */}
             {aiProviders.length >= 2 && (
-              <div className="flex items-center gap-0.5 bg-slate-800 rounded-lg p-0.5" title="Choisir le moteur IA">
+              <div className="hidden md:flex items-center gap-0.5 bg-slate-800 rounded-lg p-0.5" title="Choisir le moteur IA">
                 {aiProviders.map(p => (
                   <button
                     key={p}
-                    onClick={() => {
-                      setSelectedProvider(p)
-                      if (p === 'claude') setWebSearch(false)
-                    }}
+                    onClick={() => handleProviderSelect(p)}
                     className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold uppercase tracking-wide transition-colors ${
                       selectedProvider === p
                         ? p === 'claude'
@@ -1013,12 +1030,12 @@ Voici ce que je peux faire pour vous :
                 ))}
               </div>
             )}
-            {/* Toggle Web Search — visible uniquement avec EurIA */}
+            {/* Toggle Web Search — masqué sur mobile (accessible via menu ⚙) */}
             {effectiveProvider === 'euria' && (
               <button
                 onClick={() => setWebSearch(v => !v)}
                 title={webSearch ? 'Recherche web activée (cliquez pour désactiver)' : 'Recherche web désactivée (cliquez pour activer)'}
-                className={`inline-flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                className={`hidden md:inline-flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
                   webSearch
                     ? 'bg-blue-900/50 border-blue-700/60 text-blue-300 hover:bg-blue-900/70'
                     : 'bg-slate-800 border-slate-700/40 text-slate-500 hover:text-slate-300'
@@ -1027,12 +1044,12 @@ Voici ce que je peux faire pour vous :
                 🌐 Web
               </button>
             )}
-            {/* Sélecteur de thème */}
+            {/* Sélecteur de thème — masqué sur mobile (accessible via menu ⚙) */}
             <select
               value={terminalTheme}
               onChange={e => setTerminalTheme(e.target.value)}
               title="Thème de couleur du terminal"
-              className="font-mono text-[11px] rounded-lg px-2 py-0.5 border border-slate-700 focus:outline-none cursor-pointer transition-colors"
+              className="hidden md:block font-mono text-[11px] rounded-lg px-2 py-0.5 border border-slate-700 focus:outline-none cursor-pointer transition-colors"
               style={{
                 background: theme.headerBg,
                 color: theme.titleColor,
@@ -1045,18 +1062,108 @@ Voici ce que je peux faire pour vous :
                 </option>
               ))}
             </select>
+
+            {/* Bouton menu mobile — visible uniquement sur mobile, donne accès aux options avancées */}
+            <div ref={mobileMenuRef} className="relative md:hidden shrink-0">
+              <button
+                onClick={() => setMobileMenuOpen(v => !v)}
+                className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                  mobileMenuOpen
+                    ? 'bg-green-800 text-green-200'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'
+                }`}
+                title="Options"
+              >
+                <SlidersHorizontal size={11} />
+              </button>
+              {mobileMenuOpen && (
+                <div
+                  className="absolute right-0 top-8 z-30 min-w-[200px] rounded-xl border border-green-900/40 shadow-lg flex flex-col gap-1 p-2"
+                  style={{ background: theme.headerBg, borderColor: theme.border }}
+                >
+                  {/* Notes actives */}
+                  {notesPeriod && (
+                    <button
+                      onClick={() => { setNotesPeriod(null); setMobileMenuOpen(false) }}
+                      className="flex items-center gap-2 w-full text-left font-mono text-[11px] text-amber-400 bg-amber-900/30 border border-amber-800/50 px-2 py-1.5 rounded-lg hover:bg-amber-900/50 transition-colors"
+                    >
+                      <BookOpen size={10} />
+                      Notes {PERIOD_LABELS[notesPeriod]} — désactiver
+                    </button>
+                  )}
+                  {/* Sélection du provider IA */}
+                  {aiProviders.length >= 2 && (
+                    <div>
+                      <p className="font-mono text-[10px] text-slate-500 px-1 mb-1">Moteur IA</p>
+                      <div className="flex items-center gap-0.5 bg-slate-800 rounded-lg p-0.5">
+                        {aiProviders.map(p => (
+                          <button
+                            key={p}
+                            onClick={() => handleProviderSelect(p)}
+                            className={`flex-1 px-2 py-1 rounded-full text-[11px] font-mono font-semibold uppercase tracking-wide transition-colors ${
+                              selectedProvider === p
+                                ? p === 'claude'
+                                  ? 'bg-purple-700 text-white'
+                                  : 'bg-green-800 text-green-200'
+                                : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            {p === 'claude' ? 'Claude' : 'EurIA'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Toggle Web Search */}
+                  {effectiveProvider === 'euria' && (
+                    <button
+                      onClick={() => setWebSearch(v => !v)}
+                      className={`flex items-center gap-2 w-full text-left font-mono text-[11px] px-2 py-1.5 rounded-lg border transition-colors ${
+                        webSearch
+                          ? 'bg-blue-900/50 border-blue-700/60 text-blue-300'
+                          : 'bg-slate-800 border-slate-700/40 text-slate-400'
+                      }`}
+                    >
+                      🌐 Recherche web {webSearch ? '— activée' : '— désactivée'}
+                    </button>
+                  )}
+                  {/* Sélecteur de thème */}
+                  <div>
+                    <p className="font-mono text-[10px] text-slate-500 px-1 mb-1">Thème</p>
+                    <select
+                      value={terminalTheme}
+                      onChange={e => { setTerminalTheme(e.target.value); setMobileMenuOpen(false) }}
+                      className="w-full font-mono text-[11px] rounded-lg px-2 py-1 border border-slate-700 focus:outline-none cursor-pointer transition-colors"
+                      style={{
+                        background: theme.bg,
+                        color: theme.titleColor,
+                        borderColor: theme.border,
+                      }}
+                    >
+                      {Object.entries(TERMINAL_THEMES).map(([key, t]) => (
+                        <option key={key} value={key} style={{ background: '#1e1e1e', color: '#e2e8f0' }}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Bouton plein écran */}
             <button
               onClick={() => setFullscreen(v => !v)}
-              className="w-6 h-6 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition-colors"
+              className="w-6 h-6 shrink-0 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition-colors"
               title={fullscreen ? 'Réduire' : 'Plein écran'}
             >
               {fullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
             </button>
-            {/* Bouton fermer */}
+            {/* Bouton fermer — toujours visible */}
             <button
               onClick={onClose}
-              className="w-6 h-6 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition-colors ml-1"
+              className="w-6 h-6 shrink-0 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition-colors ml-1"
+              title="Fermer"
             >
               <X size={12} />
             </button>
