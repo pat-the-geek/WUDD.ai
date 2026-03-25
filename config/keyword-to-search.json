@@ -199,6 +199,11 @@
   },
   {
     "and": [],
+    "keyword": "Palantir",
+    "or": []
+  },
+  {
+    "and": [],
     "keyword": "Perplexity",
     "or": []
   },
@@ -303,8 +308,14 @@
     ]
   },
   {
-    "keyword": "Palantir",
+    "keyword": "Apertus",
     "or": [],
-    "and": []
+    "and": [
+      "LLM",
+      "modèle",
+      "EPFZ",
+      "EPFL",
+      "Modèle de langage"
+    ]
   }
 ]

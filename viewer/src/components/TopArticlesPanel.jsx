@@ -729,6 +729,11 @@ function DirectMode({ onReport }) {
   const firstCycleDoneRef = useRef(false) // vrai après le 1er cycle_end (évite 100 dings au chargement)
   const enrichedArticlesRef = useRef(new Set()) // IDs articles déjà préparés côté backend — évite double fetch
 
+  // ── Ambient background (éclairé par l’image de la dernière news) ───────────────────
+  const [ambientImg, setAmbientImg] = useState(null)
+  const [ambientKey, setAmbientKey] = useState(0)
+  const lastAmbientRef = useRef(null)
+
   // ── Déverrouillage iOS : l'AudioContext doit être créé + unpausé lors d'un
   // geste utilisateur, sinon Safari mobile bloque silencieusement tous les sons.
   // On écoute le premier click/touchstart sur le document (one-shot).
@@ -836,6 +841,12 @@ function DirectMode({ onReport }) {
             const next = [...prev, entry].slice(-500)
             return next
           })
+          // Ambient background : mise à jour quand une image de qualité arrive
+          if (msg.image && msg.image !== lastAmbientRef.current) {
+            lastAmbientRef.current = msg.image
+            setAmbientImg(msg.image)
+            setAmbientKey(k => k + 1)
+          }
         } else if (msg.type === 'cycle_start') {
           setCycleStats({ total: msg.total, success: null })
           setScanning(null)
@@ -1230,9 +1241,47 @@ function DirectMode({ onReport }) {
       </div>
 
       {/* ── Log ── */}
-      <div ref={logRef}
-        className="flex-1 overflow-y-scroll p-3 pb-2"
-        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '12px', WebkitOverflowScrolling: 'touch' }}>
+      <style>{`@keyframes wuddAmbientIn{from{opacity:0}to{opacity:0.65}}`}</style>
+      <div className="flex-1 min-h-0 relative overflow-hidden">
+
+        {/* Ambient background — calque fixe derrière le scroll, couvre toute la zone visible */}
+        {ambientImg && (
+          <div key={ambientKey} style={{
+            position: 'absolute', inset: 0,
+            pointerEvents: 'none', zIndex: 0,
+            animation: 'wuddAmbientIn 3s ease forwards',
+          }}>
+            <img
+              src={ambientImg}
+              alt=""
+              style={{
+                width: '100%', height: '100%',
+                objectFit: 'cover', objectPosition: 'center',
+                filter: 'blur(18px) saturate(1.8)',
+                transform: 'scale(1.1)',
+                display: 'block',
+              }}
+              onError={e => { e.currentTarget.parentNode.style.display = 'none' }}
+            />
+            {/* Voile sombre pour préserver la lisibilité */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(to bottom, rgba(13,17,23,0.25) 0%, rgba(13,17,23,0.50) 100%)',
+            }} />
+          </div>
+        )}
+
+        {/* Scrollable log — au-dessus du fond ambient */}
+        <div ref={logRef}
+          className="overflow-y-scroll p-3 pb-2"
+          style={{
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            fontSize: '12px',
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative', zIndex: 1,
+            height: '100%',
+            background: 'transparent',
+          }}>
         {logEntries.length === 0 && !scanning && (
           <div className="py-6 text-center text-xs" style={{ color: '#8b949e' }}>
             Initialisation du Direct — les nouveaux articles apparaîtront ici
@@ -1269,7 +1318,8 @@ function DirectMode({ onReport }) {
         })}
         {/* Sentinelle : cible du scroll automatique après chaque nouvel article */}
         <div ref={endRef} />
-      </div>
+        </div>{/* fin scroll div */}
+      </div>{/* fin ambient wrapper */}
 
       {/* ── Barre inférieure : article sélectionné + bouton ── */}
       <div className="shrink-0 flex items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid #30363d', paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>

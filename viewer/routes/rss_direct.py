@@ -85,8 +85,6 @@ def _all_feeds() -> list[dict]:
     return _parse_opml_feeds()
 
 
-_NS_DC      = "http://purl.org/dc/elements/1.1/"
-_NS_CONTENT = "http://purl.org/rss/1.0/modules/content/"
 
 # Fuseaux horaires abréviés non couverts par email.utils (ex: CNN utilise "EST")
 _TZ_OFFSETS = {
@@ -94,6 +92,76 @@ _TZ_OFFSETS = {
     "MST": -7, "MDT": -6, "PST": -8, "PDT": -7,
     "GMT": 0,  "UTC": 0,  "BST": 1,  "CET": 1, "CEST": 2,
 }
+
+_NS_DC      = "http://purl.org/dc/elements/1.1/"
+_NS_CONTENT = "http://purl.org/rss/1.0/modules/content/"
+_NS_MEDIA   = "http://search.yahoo.com/mrss/"
+
+# Largeur minimale (px) pour accepter une image RSS déclarée
+_MIN_IMAGE_WIDTH = 600
+
+# Patterns d'URL indiquant une image de mauvaise qualité (icône, logo, tracking…)
+_BAD_IMAGE_RE = re.compile(
+    r"/(icon|logo|avatar|thumb(?:nail)?|tiny|small|pixel|tracking|badge|spinner|"
+    r"placeholder|default|blank|empty|1x1|ads?|banner)",
+    re.IGNORECASE,
+)
+
+
+def _filter_quality_image(url: str) -> "str | None":
+    """Retourne l'URL si elle désigne une image de bonne qualité, sinon None."""
+    if not url or not url.startswith("http"):
+        return None
+    if _BAD_IMAGE_RE.search(url):
+        return None
+    return url
+
+
+def _extract_rss_image(item) -> "str | None":
+    """Extrait la première image de qualité depuis un item RSS/Atom (aucune requête HTTP).
+
+    Priorité : media:content > enclosure > media:thumbnail.
+    Une image est acceptée si :
+      - son URL est absolue (http/https)
+      - sa largeur déclarée est ≥ _MIN_IMAGE_WIDTH (ou non déclarée)
+      - son URL ne correspond pas à _BAD_IMAGE_RE
+    """
+    candidates: list[tuple[str, int]] = []  # (url, width_score)
+
+    # media:content url="..." medium="image"
+    for el in item.findall(f"{{{_NS_MEDIA}}}content"):
+        url    = el.get("url", "").strip()
+        medium = el.get("medium", "").lower()
+        width  = int(el.get("width", 0) or 0)
+        if url and medium in ("image", ""):
+            if width == 0 or width >= _MIN_IMAGE_WIDTH:
+                filtered = _filter_quality_image(url)
+                if filtered:
+                    candidates.append((filtered, width or 9999))
+
+    # enclosure url="..." type="image/..."
+    enc = item.find("enclosure")
+    if enc is not None:
+        url  = enc.get("url", "").strip()
+        mime = enc.get("type", "").lower()
+        if url and mime.startswith("image/"):
+            filtered = _filter_quality_image(url)
+            if filtered:
+                candidates.append((filtered, 9998))
+
+    # media:thumbnail url="..."
+    for el in item.findall(f"{{{_NS_MEDIA}}}thumbnail"):
+        url   = el.get("url", "").strip()
+        width = int(el.get("width", 0) or 0)
+        if url and (width == 0 or width >= _MIN_IMAGE_WIDTH):
+            filtered = _filter_quality_image(url)
+            if filtered:
+                candidates.append((filtered, width or 9997))
+
+    if not candidates:
+        return None
+    # Retourner l'image avec la plus grande largeur déclarée
+    return max(candidates, key=lambda x: x[1])[0]
 
 
 def _domain_label(xml_url: str) -> str:
@@ -219,14 +287,18 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
             desc = _strip_html(raw)[:500] or title
             if not title and not desc:
                 continue   # article sans titre ni texte → ignoré
-            articles.append({
+            image = _extract_rss_image(item)
+            art = {
                 "title":         title or desc[:80],
                 "url":           url,
                 "pubDate":       pub_date,
                 "pubDateParsed": _resolved_date(pub_date),
                 "description":   desc,
                 "feedTitle":     feed_title,
-            })
+            }
+            if image:
+                art["image"] = image
+            articles.append(art)
         return articles
 
     # ── Atom ─────────────────────────────────────────────────────────────────
@@ -248,14 +320,29 @@ def _fetch_feed_articles(feed_url: str) -> list[dict]:
         desc  = _strip_html(raw)[:500] or title
         if not url or (not title and not desc):
             continue   # article sans URL ou sans titre ni texte → ignoré
-        articles.append({
+        # Images Atom : media:content, media:thumbnail, link rel=enclosure
+        image = _extract_rss_image(entry)
+        # Atom : lien enclosure via <link rel="enclosure">
+        if not image:
+            for link_el in entry.findall(f"{{{ATOM}}}link"):
+                if link_el.get("rel") == "enclosure":
+                    href = link_el.get("href", "").strip()
+                    mime = link_el.get("type", "").lower()
+                    if href and mime.startswith("image/"):
+                        image = _filter_quality_image(href)
+                        if image:
+                            break
+        art = {
             "title":         title or desc[:80],
             "url":           url,
             "pubDate":       pub_date,
             "pubDateParsed": _resolved_date(pub_date),
             "description":   desc,
             "feedTitle":     feed_title,
-        })
+        }
+        if image:
+            art["image"] = image
+        articles.append(art)
     return articles
 
 
@@ -265,7 +352,7 @@ _MAX_WORKERS = 12   # connexions HTTP parallèles pour le scan des flux
 
 
 def _emit_article(art: dict) -> str:
-    return "data: " + json.dumps({
+    payload = {
         "type":          "article",
         "title":         art["title"],
         "url":           art["url"],
@@ -273,7 +360,10 @@ def _emit_article(art: dict) -> str:
         "pubDateParsed": art["pubDateParsed"],
         "feedTitle":     art["feedTitle"],
         "description":   art["description"],
-    }) + "\n\n"
+    }
+    if art.get("image"):
+        payload["image"] = art["image"]
+    return "data: " + json.dumps(payload) + "\n\n"
 
 
 @rss_direct_bp.route("/api/rss/direct/stream")
