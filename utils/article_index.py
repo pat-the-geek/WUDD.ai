@@ -100,6 +100,8 @@ class ArticleIndex:
         self._lock = threading.Lock()
         self._data: dict = {"version": _INDEX_VERSION, "articles": []}
         self._loaded = False
+        # Carte URL normalisée → position dans self._data["articles"] pour get_by_url() O(1)
+        self._url_map: dict[str, int] = {}
 
     # ── Chargement / sauvegarde ─────────────────────────────────────────────
 
@@ -118,6 +120,11 @@ class ArticleIndex:
                     )
             except (json.JSONDecodeError, OSError) as e:
                 default_logger.warning(f"Impossible de charger article_index.json : {e}")
+        self._url_map = {
+            (e.get("url") or "").strip().rstrip("/").lower(): i
+            for i, e in enumerate(self._data["articles"])
+            if e.get("url")
+        }
         self._loaded = True
 
     def _save(self) -> None:
@@ -191,11 +198,15 @@ class ArticleIndex:
 
                 if url in existing:
                     # Mise à jour de l'entrée existante (les champs d'enrichissement peuvent avoir changé)
-                    self._data["articles"][existing[url]] = entry
+                    pos = existing[url]
+                    self._data["articles"][pos] = entry
                 else:
+                    pos = len(self._data["articles"])
                     self._data["articles"].append(entry)
-                    existing[url] = len(self._data["articles"]) - 1
+                    existing[url] = pos
                     added += 1
+                # Maintenir la carte URL → position pour get_by_url() O(1)
+                self._url_map[url.strip().rstrip("/").lower()] = pos
 
             self._save()
             return added
@@ -254,6 +265,11 @@ class ArticleIndex:
             self._data = {
                 "version": _INDEX_VERSION,
                 "articles": list(seen.values()),
+            }
+            self._url_map = {
+                (e.get("url") or "").strip().rstrip("/").lower(): i
+                for i, e in enumerate(self._data["articles"])
+                if e.get("url")
             }
             self._save()
             self._loaded = True
@@ -315,6 +331,60 @@ class ArticleIndex:
                 continue
 
         return [a for a in result if a is not None]
+
+    def get_articles(self) -> list[dict]:
+        """Retourne toutes les entrées de métadonnées indexées (référence directe).
+
+        Utilisé par quality_monitor.py et source_performance.py pour itérer
+        sur l'ensemble de l'index sans copie intermédiaire.
+
+        .. note::
+            Retourne une **référence directe** à la liste interne, hors verrou.
+            Les modifications de champs sur les dicts individuels (ex. ajout de
+            ``quality_score``) sont intentionnelles et permettent une mise à
+            jour en place suivie d'un appel à ``save()``.  En revanche, modifier
+            la structure de la liste (ajout/suppression d'éléments) doit être
+            évité sans synchronisation externe.
+
+        Returns:
+            Liste de dicts de métadonnées (url, source, date, has_entities, …).
+            Appeler ``save()`` pour persister les changements de champs.
+        """
+        with self._lock:
+            self._load()
+        return self._data["articles"]
+
+    def get_by_url(self, url: str) -> Optional[dict]:
+        """Retourne l'entrée de métadonnées correspondant à une URL — O(1).
+
+        Utilisé par scoring_optimizer.py pour retrouver rapidement un article
+        par son URL sans scanner l'ensemble de l'index.
+
+        Args:
+            url : URL complète de l'article (insensible au slash de fin).
+
+        Returns:
+            Dict de métadonnées ou None si l'URL est inconnue.
+        """
+        if not url:
+            return None
+        url_clean = url.strip().rstrip("/").lower()
+        with self._lock:
+            self._load()
+            pos = self._url_map.get(url_clean)
+        if pos is None:
+            return None
+        articles = self._data["articles"]
+        return articles[pos] if 0 <= pos < len(articles) else None
+
+    def save(self) -> None:
+        """Persiste l'index sur disque (écriture atomique).
+
+        Méthode publique appelée par quality_monitor.py après mise à jour
+        des champs quality_score / quality_level sur les entrées existantes.
+        """
+        with self._lock:
+            self._save()
 
     def count(self) -> int:
         """Retourne le nombre total d'articles indexés."""

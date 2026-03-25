@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from .date_utils import parse_article_date
+from .date_utils import parse_article_date, utc_now_naive
 from .logging import default_logger
 
 _lock = threading.Lock()
@@ -61,7 +61,7 @@ def update_rolling_window(
     Returns:
         Nombre d'articles dans la fenêtre après mise à jour.
     """
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    cutoff = utc_now_naive() - timedelta(hours=hours)
 
     with _lock:
         # ── Mode reconstruction depuis source_dir ─────────────────────────

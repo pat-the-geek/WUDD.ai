@@ -4,9 +4,22 @@ Fournit des fonctions pour parser, valider et comparer des dates
 dans différents formats.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 from .logging import default_logger
+
+
+def utc_now_naive() -> datetime:
+    """Retourne l'heure courante UTC sous forme de datetime naïf (sans tzinfo).
+
+    Utiliser cette fonction au lieu de ``datetime.utcnow()`` (déprécié depuis
+    Python 3.12).  Le résultat est naïf pour rester compatible avec les dates
+    retournées par ``parse_article_date()`` et permettre des comparaisons directes.
+
+    Returns:
+        datetime naïf représentant l'heure courante en UTC.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def parse_iso_date(date_str: str) -> Optional[datetime]:

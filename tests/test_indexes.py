@@ -156,6 +156,66 @@ class TestArticleIndex:
         assert s["with_sentiment"] == 2
         assert s["with_images"] == 1
 
+    def test_get_articles_retourne_toutes_entrees(self, tmp_root, sample_articles, articles_on_disk):
+        from utils.article_index import ArticleIndex
+        idx = ArticleIndex(tmp_root)
+        idx.update(sample_articles, articles_on_disk)
+        entries = idx.get_articles()
+        assert len(entries) == 3
+        # Les dicts sont les mêmes références (mutation directe possible)
+        assert all(isinstance(e, dict) for e in entries)
+
+    def test_get_articles_permet_ajout_champ(self, tmp_root, sample_articles, articles_on_disk):
+        from utils.article_index import ArticleIndex
+        idx = ArticleIndex(tmp_root)
+        idx.update(sample_articles, articles_on_disk)
+        for entry in idx.get_articles():
+            entry["quality_score"] = 99
+        idx.save()
+        # Relire depuis disque et vérifier toutes les entrées
+        idx2 = ArticleIndex(tmp_root)
+        assert all(e.get("quality_score") == 99 for e in idx2.get_articles())
+
+    def test_get_by_url_trouve_article(self, tmp_root, sample_articles, articles_on_disk):
+        from utils.article_index import ArticleIndex
+        idx = ArticleIndex(tmp_root)
+        idx.update(sample_articles, articles_on_disk)
+        entry = idx.get_by_url("http://test.com/1")
+        assert entry is not None
+        assert entry["source"] == "Le Monde"
+
+    def test_get_by_url_insensible_slash(self, tmp_root, sample_articles, articles_on_disk):
+        from utils.article_index import ArticleIndex
+        idx = ArticleIndex(tmp_root)
+        idx.update(sample_articles, articles_on_disk)
+        # Trailing slash ignoré
+        entry = idx.get_by_url("http://test.com/1/")
+        assert entry is not None
+
+    def test_get_by_url_inconnu_retourne_none(self, tmp_root, sample_articles, articles_on_disk):
+        from utils.article_index import ArticleIndex
+        idx = ArticleIndex(tmp_root)
+        idx.update(sample_articles, articles_on_disk)
+        entry = idx.get_by_url("http://unknown.com/xyz")
+        assert entry is None
+
+    def test_get_by_url_vide_retourne_none(self, tmp_root, sample_articles, articles_on_disk):
+        from utils.article_index import ArticleIndex
+        idx = ArticleIndex(tmp_root)
+        idx.update(sample_articles, articles_on_disk)
+        assert idx.get_by_url("") is None
+
+    def test_save_public_persiste_index(self, tmp_root, sample_articles, articles_on_disk):
+        from utils.article_index import ArticleIndex
+        idx = ArticleIndex(tmp_root)
+        idx.update(sample_articles, articles_on_disk)
+        # Modifier directement une entrée et appeler save()
+        idx.get_articles()[0]["quality_score"] = 42
+        idx.save()
+        idx2 = ArticleIndex(tmp_root)
+        first = idx2.get_articles()[0]
+        assert first.get("quality_score") == 42
+
 
 # ── Tests EntityIndex ─────────────────────────────────────────────────────────
 
