@@ -534,6 +534,115 @@ if db.available:
     rows = db.article_stats_by_source(days=30)
 ```
 
+#### `utils/rolling_window.py` — Fenêtre glissante 48h
+
+Maintient `data/articles-from-rss/_WUDD.AI_/48-heures.json` de manière incrémentale ou en reconstruction complète depuis un répertoire source.
+
+| Mode | Description |
+|---|---|
+| Incrémental | Ajoute de nouveaux articles à une fenêtre existante, purge les articles > 48h |
+| Reconstruction | Relit tous les JSON d'un répertoire et recrée la fenêtre |
+
+Utilisé par `flux_watcher.py`, `get-keyword-from-rss.py` et `web_watcher.py`.
+
+```python
+from utils.rolling_window import update_rolling_window
+update_rolling_window(new_articles, output_path, hours=48, source_dir=None)
+```
+
+#### `utils/article_merger.py` — Fusion d'articles similaires
+
+Recherche d'articles similaires et fusion. `find_similar()` retourne des articles classés par score de similarité ; `execute_merge()` archive les secondaires et insère l'article fusionné dans le fichier primaire.
+
+```python
+from utils.article_merger import find_similar, execute_merge
+similars = find_similar(article, project_root, days=7, threshold=0.7)
+execute_merge(primary, secondaries, project_root)
+```
+
+Utilisé par le panneau `SimilarArticlesPanel.jsx` du Viewer.
+
+#### `utils/async_enricher.py` — Enrichissement asynchrone
+
+Enrichissement NER et sentiment en batch via `asyncio` + `aiohttp` (dépendance optionnelle). Bascule sur le client synchrone si `aiohttp` est indisponible. Concurrence configurable (défaut : 15 requêtes simultanées).
+
+| Méthode | Description |
+|---|---|
+| `enrich_entities_batch(articles)` | NER sur N articles en parallèle |
+| `enrich_sentiment_batch(articles)` | Sentiment sur N articles en parallèle |
+
+#### `utils/engagement_tracker.py` — Signaux d'engagement implicites
+
+Enregistre les actions utilisateur dans le Viewer comme signaux d'intérêt sans notation explicite. Ces signaux alimentent `scoring_optimizer.py`, `source_performance.py` et `quota_optimizer.py`.
+
+| Signal | Poids |
+|---|---|
+| `article_opened` | +1.0 |
+| `article_full_report` | +2.0 |
+| `entity_synthesis` | +1.5 |
+| `article_exported` | +2.5 |
+| `article_merged` | +1.0 |
+| `article_deleted` | -2.0 |
+| `alert_dismissed` | -1.0 |
+
+État persistant : `data/engagement_state.json`. Singleton via `get_engagement_tracker()`.
+
+#### `utils/quality_monitor.py` — Score de qualité des articles
+
+Calcule un score de qualité (0–100) pour chaque article et met à jour le champ `quality_score` dans `data/article_index.json`.
+
+| Composante | Points |
+|---|---|
+| Résumé valide | 40 |
+| Entities présentes | 20 |
+| Sentiment présent | 15 |
+| Images présentes | 10 |
+| Temps de lecture | 5 |
+| Score source (bonus) | 10 max |
+
+Niveaux : critique (0–30), dégradé (31–60), bon (61–80), complet (81–100).
+
+#### `utils/quota_optimizer.py` — Optimisation automatique des quotas
+
+Analyse `data/quota_history/` (archivé par `archive_quota_state.py`) pour détecter les keywords saturés ou sous-utilisés, et ajuste `config/quota.json` en conséquence. Appelé par `scripts/optimize_quota.py` (cron hebdo lundi 05h45).
+
+#### `utils/scoring_optimizer.py` — Optimisation automatique des poids de scoring
+
+Ajuste hebdomadairement les poids de `config/scoring_weights.json` via gradient descent simplifié, en comparant scores prédits et signaux d'engagement réels. Appelé par `scripts/optimize_scoring_weights.py` (cron hebdo lundi 05h30).
+
+Poids pilotés : `freshness` (0.35), `entities` (0.25), `keywords` (0.25), `completeness` (0.15).
+
+#### `utils/source_performance.py` — Score empirique des sources
+
+Calcule mensuellement des métriques empiriques par source depuis le corpus réel :
+- Taux de duplication → malus si > 20 %
+- Taux d'enrichissement (entities + sentiment) → bonus
+- Engagement relatif → score engagement moyen vs médiane globale
+- Diversité des entités → entropie des types NER produits
+
+Formule : `score_final = base_score × 0.70 + empirical_score × 0.30`. Met à jour `config/sources_credibility.json`. Singleton via `get_source_performance()`.
+
+#### `utils/alert_calibrator.py` — Auto-calibration des seuils d'alerte
+
+Analyse la qualité des alertes de `trend_detector.py` en mesurant si elles ont été suivies de nouveaux articles dans les 48h. Ajuste les seuils dans `config/alert_rules.json` :
+- Taux d'alertes creuses > 30 % sur 7 jours → seuil +0.25
+- Aucune alerte sur entités qui ont ensuite explosé → seuil -0.15
+
+État persistant : `data/alert_feedback.json`. Appelé par `scripts/calibrate_alerts.py`.
+
+#### `utils/contradiction_feedback.py` — Feedback sur les contradictions
+
+Accumule les validations utilisateur (confirmer / rejeter) sur les contradictions détectées, et ajuste automatiquement les seuils de confiance par type de claim dans `config/contradiction_thresholds.json`. Singleton via `get_contradiction_feedback()`.
+
+#### `utils/source_registry.py` — Registre des sources surveillées
+
+Collecte l'ensemble des noms de sources actives depuis l'OPML, `config/web_sources.json` et les articles existants.
+
+```python
+from utils.source_registry import collect_sources
+sources = collect_sources(project_root)   # set[str]
+```
+
 ---
 
 ## 5. Modèle de données

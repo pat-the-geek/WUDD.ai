@@ -1,150 +1,115 @@
-### 6. get-keyword-from-rss.py
+# Guide d'utilisation des scripts — WUDD.ai
 
-**Description** : Extraction quotidienne des articles contenant un mot-clé (défini dans `config/keyword-to-search.json`) depuis tous les flux RSS de WUDD.opml.
-Pour chaque mot-clé, génère un fichier JSON dans `data/articles-from-rss/` (sans doublon), avec résumé IA et images principales.
+Ce guide décrit tous les scripts disponibles dans `scripts/`, leur rôle, leurs arguments CLI et leur comportement en production.
 
-La **déduplication avancée** (`utils/deduplication.py`) est appliquée automatiquement en cascade selon trois signaux complémentaires :
+> **Prérequis** : fichier `.env` à la racine du projet configuré avec `URL`, `bearer` et `REEDER_JSON_URL`. Voir `.env.example` pour la liste complète.
+> Les scripts peuvent être lancés **depuis n'importe quel répertoire** — ils utilisent des chemins absolus calculés à partir de `__file__`.
 
-| Signal | Cas détectés | Coût |
+---
+
+## 📋 Index des scripts
+
+| # | Script | Rôle | Cron |
+|---|--------|------|------|
+| 1 | [`Get_data_from_JSONFile_AskSummary_v2.py`](#1-get_data_from_jsonfile_asksummary_v2py) | Script ETL principal | Manuel / schedulé |
+| 2 | [`scheduler_articles.py`](#2-scheduler_articlespy) | Orchestration multi-flux | Lundi 06h00 |
+| 3 | [`flux_watcher.py`](#3-flux_watcherpy) | Surveillance RSS round-robin | Toutes les 5 min |
+| 4 | [`get-keyword-from-rss.py`](#4-get-keyword-from-rsspy) | Extraction RSS par mot-clé | Toutes les 2h |
+| 5 | [`web_watcher.py`](#5-web_watcherpy) | Surveillance sources web sans RSS | Toutes les 2h |
+| 6 | [`enrich_entities.py`](#6-enrich_entitiespy) | Enrichissement NER post-hoc | Nuit 02h00 |
+| 7 | [`enrich_sentiment.py`](#7-enrich_sentimentpy) | Enrichissement sentiment | Nuit 03h00 |
+| 8 | [`enrich_images.py`](#8-enrich_imagespy) | Enrichissement images (og:image) | Nuit 02h30 |
+| 9 | [`enrich_reading_time.py`](#9-enrich_reading_timepy) | Calcul temps de lecture | Enchaîné flux_watcher |
+| 10 | [`enrich_source_credibility.py`](#10-enrich_source_credibilitypy) | Crédibilité des sources | Hebdo dimanche |
+| 11 | [`trend_detector.py`](#11-trend_detectorpy) | Détection de tendances | 07h00 quotidien |
+| 12 | [`detect_contradictions.py`](#12-detect_contradictionspy) | Détection de contradictions | À la demande |
+| 13 | [`generate_48h_report.py`](#13-generate_48h_reportpy) | Rapport Top 10 entités 48h | 23h00 quotidien |
+| 14 | [`generate_morning_digest.py`](#14-generate_morning_digestpy) | Morning digest | 07h30 quotidien |
+| 15 | [`generate_briefing.py`](#15-generate_briefingpy) | Briefing exécutif | Lundi 06h30 |
+| 16 | [`generate_reading_notes.py`](#16-generate_reading_notespy) | Notes de lecture par tag | 08h00 quotidien |
+| 17 | [`generate_keyword_reports.py`](#17-generate_keyword_reportspy) | Rapports par mot-clé | Mensuel |
+| 18 | [`generate_data_quality_report.py`](#18-generate_data_quality_reportpy) | Rapport qualité données | À la demande |
+| 19 | [`generate_ai_consumption_report.py`](#19-generate_ai_consumption_reportpy) | Rapport consommation IA | À la demande |
+| 20 | [`radar_wudd.py`](#20-radar_wuddpy) | Radar thématique mensuel | Mensuel 05h00 |
+| 21 | [`cross_flux_analysis.py`](#21-cross_flux_analysispy) | Analyse croisée multi-flux | Enchaîné flux_watcher |
+| 22 | [`entity_timeline.py`](#22-entity_timelinepy) | Série temporelle des entités | Enchaîné flux_watcher |
+| 23 | [`cluster_articles.py`](#23-cluster_articlespy) | Clustering thématique | À la demande (UI) |
+| 24 | [`analyse_thematiques.py`](#24-analyse_thematiquespy) | Analyse thématique sociétale | À la demande |
+| 25 | [`repair_failed_summaries.py`](#25-repair_failed_summariespy) | Réparation résumés en erreur | Dimanche 04h00 |
+| 26 | [`repair_failed_enrichments.py`](#26-repair_failed_enrichmentspy) | Réparation enrichissements en erreur | 03h30 quotidien |
+| 27 | [`import_articles.py`](#27-import_articlespy) | Import d'articles externes | À la demande |
+| 28 | [`import_obsidian_reports.py`](#28-import_obsidian_reportspy) | Sync rapports Obsidian | À la demande |
+| 29 | [`backup_data.py`](#29-backup_datapy) | Sauvegarde incrémentale | 01h00 quotidien |
+| 30 | [`archive_quota_state.py`](#30-archive_quota_statepy) | Archivage état quotas | 00h05 quotidien |
+| 31 | [`optimize_quota.py`](#31-optimize_quotapy) | Optimisation des quotas | Lundi 05h45 |
+| 32 | [`optimize_scoring_weights.py`](#32-optimize_scoring_weightspy) | Optimisation poids de scoring | Lundi 05h30 |
+| 33 | [`calibrate_alerts.py`](#33-calibrate_alertspy) | Auto-calibration seuils d'alerte | Quotidien |
+| 34 | [`update_source_performance.py`](#34-update_source_performancepy) | Scores empiriques des sources | Mensuel |
+| 35 | [`update_quality_scores.py`](#35-update_quality_scorespy) | Scores de qualité articles | Hebdomadaire |
+| 36 | [`precompute_entity_stats.py`](#36-precompute_entity_statspy) | Pré-calcul stats entités | Enchaîné flux_watcher |
+| 37 | [`benchmark_indexes.py`](#37-benchmark_indexespy) | Benchmark des index | Développement |
+| 38 | [`articles_json_to_markdown.py`](#38-articles_json_to_markdownpy) | JSON → Markdown (flux) | À la demande |
+| 39 | [`articles_rss_to_markdown.py`](#39-articles_rss_to_markdownpy) | JSON → Markdown (RSS) | Mensuel 05h30 |
+| 40 | [`keyword_drift_detector.py`](#40-keyword_drift_detectorpy) | Dérive des mots-clés | À la demande |
+| 41 | [`check_cron_health.py`](#41-check_cron_healthpy) | Monitoring des jobs cron | Toutes les 10 min |
+| 42 | [`migrate_build_indexes.py`](#42-migrate_build_indexespy) | Migration : construction des index | Migration unique |
+| 43 | [`normalize_entity_index.py`](#43-normalize_entity_indexpy) | Migration : normalisation index | Migration unique |
+| 44 | [`rebuild_48h.py`](#44-rebuild_48hpy) | Reconstruction 48-heures.json | À la demande |
+| 45 | [`fix_article_dates.py`](#45-fix_article_datespy) | Migration : normalisation des dates | Migration unique |
+| 46 | [`Get_htmlText_From_JSONFile.py`](#46-get_htmltext_from_jsonfilepy) | Extraction texte brut (GUI) | À la demande |
+
+---
+
+## 📝 Référence détaillée
+
+### 1. Get_data_from_JSONFile_AskSummary_v2.py
+
+**Description** : Script ETL principal — récupère les articles d'un flux JSON distant, génère un résumé IA (EurIA ou Claude), extrait les entités NER et les images principales, sauvegarde le tout dans `data/articles/<flux>/` et génère un rapport Markdown.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
 |---|---|---|
-| **URL normalisée (MD5)** — sans fragment, sans trailing slash | Même article, paramètres tracking différents | O(1) — filtre de première passe |
-| **Empreinte MD5 du résumé** — 200 premiers caractères | Dépêches AFP/Reuters reprises par N sites (URL différentes, même texte source) | O(1) |
-| **Jaccard bigrammes des titres** — stopwords filtrés, seuil ≥ 0.85 | Titres reformulés, variantes de temps ou ponctuation | O(n) — appliqué en dernier |
-
-Ces trois signaux couvrent ~95 % des doublons réels d'un corpus RSS multilingue. Voir `utils/deduplication.py` pour la configuration du seuil.
-
-**Filtrage avancé (OR / AND)**
-
-Chaque entrée de `keyword-to-search.json` supporte deux collections optionnelles :
-
-| Champ | Comportement |
-|---|---|
-| `or` | Si le mot-clé principal est absent du titre, sélectionne l'article si **au moins un** mot de la liste est présent |
-| `and` | Après une présélection (mot-clé ou `or`), exige qu'**au moins un** mot de la liste soit présent dans le titre |
-
-Exemples :
-```json
-{ "keyword": "David Bowie", "or": ["Ziggy Stardust", "Thin White Duke"] }
-{ "keyword": "UBS", "and": ["banque", "bank"] }
-{ "keyword": "Intelligence artificielle", "or": ["AI", "IA"] }
-```
-
-> La correspondance des mots `or`/`and` utilise des frontières de mot (`\b` regex) pour éviter les faux positifs.
+| `--flux NOM` | Nom du flux (sous-dossier dans `data/articles/`) | Obligatoire |
+| `--date_debut` | Date de début au format `YYYY-MM-DD` | 1er du mois courant |
+| `--date_fin` | Date de fin au format `YYYY-MM-DD` | Aujourd'hui |
 
 **Utilisation** :
 ```bash
-python3 get-keyword-from-rss.py
+# Flux avec plage de dates explicite
+python3 scripts/Get_data_from_JSONFile_AskSummary_v2.py --flux Intelligence-artificielle --date_debut 2026-02-01 --date_fin 2026-02-28
+
+# Dates par défaut (1er du mois → aujourd'hui)
+python3 scripts/Get_data_from_JSONFile_AskSummary_v2.py --flux Economie-numerique
+```
+
+**Prérequis** : `.env` avec `REEDER_JSON_URL`, `URL`, `bearer`. Le flux doit être configuré dans `config/flux_json_sources.json`.
+
+**Sorties** :
+- `data/articles/<flux>/articles_generated_<date_debut>_<date_fin>.json`
+- `rapports/markdown/<flux>/rapport_sommaire_articles_generated_<date_debut>_<date_fin>.md`
+
+---
+
+### 2. scheduler_articles.py
+
+**Description** : Orchestrateur multi-flux. Lit `config/flux_json_sources.json` et exécute `Get_data_from_JSONFile_AskSummary_v2.py` sur chaque flux configuré, avec gestion adaptative de la fréquence.
+
+**Utilisation** :
+```bash
+python3 scripts/scheduler_articles.py
 ```
 
 **Automatisation (cron)** :
 ```
-0 1 * * * root cd /app && python3 scripts/get-keyword-from-rss.py 2>&1 | tee -a /app/rapports/cron_get_keyword.log
+0 6 * * 1 root cd /app && python3 scripts/scheduler_articles.py 2>&1 | tee -a /app/rapports/cron_scheduler.log
 ```
-
-**Sortie** :
-- `../data/articles-from-rss/<mot-clé>.json`
-
-### 7. repair_failed_summaries.py
-
-**Description** : Détecte et régénère les résumés d'articles contenant un message d'erreur (ex. `"Désolé, je n'ai pas pu obtenir de réponse…"`). Utile après une indisponibilité temporaire de l'API.
-
-**Arguments** :
-
-| Argument | Description | Défaut |
-| --- | --- | --- |
-| `--dir PATH` | Répertoire à scanner | `data/articles-from-rss/` |
-| `--dry-run` | Simulation sans appel API ni écriture | désactivé |
-| `--delay SECS` | Délai entre chaque appel API (secondes) | 1 |
-
-**Utilisation** :
-
-```bash
-# Réparer tous les fichiers dans data/articles-from-rss/
-python3 scripts/repair_failed_summaries.py
-
-# Cibler un répertoire spécifique
-python3 scripts/repair_failed_summaries.py --dir data/articles/Intelligence-artificielle
-
-# Simulation sans appel API
-python3 scripts/repair_failed_summaries.py --dry-run
-```
-
-**Sortie** : Sauvegarde atomique des fichiers JSON modifiés (écriture via `.tmp` puis remplacement).
 
 ---
 
-### 8. repair_failed_enrichments.py
+### 3. flux_watcher.py
 
-**Description** : Détecte et réessaie l'enrichissement (NER et/ou sentiment) des articles dont le champ `enrichissement_statut` vaut `echec_api` ou `echec_parse`. Met également à jour l'`entity_index` après chaque réparation NER réussie. Utile après une indisponibilité temporaire de l'API (EurIA ou Claude).
-
-**Arguments** :
-
-| Argument | Description | Défaut |
-| --- | --- | --- |
-| `--type entities\|sentiment\|all` | Type d'enrichissement à réparer | `all` |
-| `--dry-run` | Simulation sans appel API ni écriture | désactivé |
-| `--delay SECS` | Délai entre chaque appel API (secondes) | 1.0 |
-
-**Utilisation** :
-
-```bash
-# Réparer NER et sentiment pour tous les fichiers
-python3 scripts/repair_failed_enrichments.py
-
-# NER uniquement
-python3 scripts/repair_failed_enrichments.py --type entities
-
-# Sentiment uniquement
-python3 scripts/repair_failed_enrichments.py --type sentiment
-
-# Simulation sans appel API
-python3 scripts/repair_failed_enrichments.py --dry-run
-```
-
-**Automatisation (cron)** — planifiable après `enrich_entities.py` (ex. 03:30) pour traiter les échecs de la nuit.
-
-**Sortie** : Sauvegarde atomique des fichiers JSON modifiés + mise à jour de l'`entity_index`.
-
-**Description** : Génère chaque soir un rapport de veille analytique basé sur les **Top 10 entités nommées** des 48 dernières heures. Lit `data/articles-from-rss/_WUDD.AI_/48-heures.json` (produit par `get-keyword-from-rss.py`), pré-calcule les entités les plus citées (personnes, organisations, pays, produits, événements), sélectionne les 5 articles les plus récents par entité, et génère un rapport structuré via l'API IA (EurIA ou Claude).
-
-**Arguments** :
-
-| Argument | Description | Défaut |
-|---|---|---|
-| `--dry-run` | Affiche le prompt et le Top 10 entités sans appeler l'API | désactivé |
-
-**Utilisation** :
-
-```bash
-# Génération réelle du rapport
-python3 scripts/generate_48h_report.py
-
-# Simulation — affiche le Top 10 et le prompt (sans appel API)
-python3 scripts/generate_48h_report.py --dry-run
-```
-
-**Automatisation (cron)** — exécuté chaque jour à 23h00, après la dernière collecte RSS :
-```
-0 23 * * * root cd /app && python3 scripts/generate_48h_report.py 2>&1 | tee -a /app/rapports/cron_48h_report.log
-```
-
-**Sortie** :
-- `rapports/markdown/_WUDD.AI_/rapport_48h.md` — fichier unique, écrasé chaque jour
-
-**Structure du rapport généré** :
-1. Frontmatter YAML (titre, date, période, nombre d'articles analysés)
-2. **10 sections entité** : Contexte · Actualité des 48h (sources citées inline) · Analyse stratégique · Image `![](URL)`
-3. **Corrélations inter-entités** : liens significatifs entre les Top 10
-4. **Constatations générales** : dynamiques, ruptures, signaux faibles
-5. **Tableau de références** : tous les articles cités (date, source, URL)
-
-**Prérequis** : `data/articles-from-rss/_WUDD.AI_/48-heures.json` doit exister (généré par `get-keyword-from-rss.py`). Pour un rapport enrichi, les articles doivent avoir été traités par `enrich_entities.py`.
-
----
-
-### 9. flux_watcher.py
-
-**Description** : Surveillance round-robin des flux RSS listés dans `data/WUDD.opml`. Appelé toutes les **5 minutes** par cron, il traite un seul flux à la fois (rotation circulaire) : pour chaque article récent (≤ 7 jours) dont le titre correspond à un mot-clé de `config/keyword-to-search.json`, il génère un résumé IA + entités NER + image principale et l'ajoute sans doublon dans `data/articles-from-rss/<keyword>.json`. Met également à jour `data/articles-from-rss/_WUDD.AI_/48-heures.json` de façon incrémentale. L'état du round-robin est conservé dans `data/flux_watcher_state.json`.
+**Description** : Surveillance round-robin des flux RSS de `data/WUDD.opml`. Traite **un seul flux par exécution** (rotation circulaire). Pour chaque article récent (≤ 7 jours) dont le titre correspond à un mot-clé de `config/keyword-to-search.json`, génère un résumé IA + NER + image et l'ajoute sans doublon dans `data/articles-from-rss/<keyword>.json`. Met à jour `48-heures.json` de façon incrémentale.
 
 **Arguments** :
 
@@ -154,59 +119,236 @@ python3 scripts/generate_48h_report.py --dry-run
 
 **Utilisation** :
 ```bash
-# Exécution normale (traitement IA)
 python3 scripts/flux_watcher.py
-
-# Simulation — affiche le prochain flux sans appel API
 python3 scripts/flux_watcher.py --dry-run
 ```
 
-**Automatisation (cron)** — toutes les 5 minutes, enchaîné avec les scripts de calcul local :
+**Automatisation (cron)** — toutes les 5 minutes, enchaîné avec les calculs locaux :
 ```
 */5 * * * * root cd /app && { python3 scripts/flux_watcher.py 2>&1 | tee -a /app/rapports/cron_flux_watcher.log; python3 scripts/entity_timeline.py >> /app/rapports/cron_flux_watcher.log 2>&1; python3 scripts/cross_flux_analysis.py >> /app/rapports/cron_flux_watcher.log 2>&1; python3 scripts/enrich_reading_time.py >> /app/rapports/cron_flux_watcher.log 2>&1; }
 ```
 
-> `entity_timeline.py`, `cross_flux_analysis.py` et `enrich_reading_time.py` s'exécutent systématiquement après chaque passage du watcher (calculs 100 % locaux, < 1 s). Le Dashboard du Viewer dispose ainsi de données fraîches toutes les 5 minutes.
-
 **Sorties** :
-- `data/articles-from-rss/<keyword>.json` — mis à jour incrementalement
+- `data/articles-from-rss/<keyword>.json` — mis à jour incrémentiellement
 - `data/articles-from-rss/_WUDD.AI_/48-heures.json` — fenêtre glissante 48h
 - `data/flux_watcher_state.json` — état du round-robin
 
 ---
 
-### 10. articles_rss_to_markdown.py
+### 4. get-keyword-from-rss.py
 
-**Description** : Convertit les fichiers JSON de `data/articles-from-rss/` en rapports Markdown annotés (entités nommées en ligne). Génère un fichier Markdown par mot-clé dans `rapports/markdown/keyword/<mot-clé>/`. Destiné à être exécuté le dernier jour du mois après la collecte.
+**Description** : Extraction quotidienne des articles contenant un mot-clé (défini dans `config/keyword-to-search.json`) depuis tous les flux RSS de `data/WUDD.opml`. Pour chaque mot-clé, génère un fichier JSON dans `data/articles-from-rss/` (sans doublon), avec résumé IA et images principales.
+
+La **déduplication avancée** (`utils/deduplication.py`) est appliquée automatiquement en cascade selon trois signaux :
+
+| Signal | Cas détectés | Coût |
+|---|---|---|
+| **URL normalisée (MD5)** | Même article, paramètres tracking différents | O(1) |
+| **Empreinte MD5 du résumé** | Dépêches AFP/Reuters reprises par N sites | O(1) |
+| **Jaccard bigrammes des titres** ≥ 0.85 | Titres reformulés, variantes | O(n) |
+
+**Filtrage avancé (OR / AND)** via `keyword-to-search.json` :
+```json
+{ "keyword": "Intelligence artificielle", "or": ["AI", "IA"] }
+{ "keyword": "UBS", "and": ["banque", "bank"] }
+```
+
+**Utilisation** :
+```bash
+python3 scripts/get-keyword-from-rss.py
+```
+
+**Automatisation (cron)** — toutes les 2h de 06h00 à 22h00 :
+```
+0 6,8,10,12,14,16,18,20,22 * * * root cd /app && python3 scripts/get-keyword-from-rss.py 2>&1 | tee -a /app/rapports/cron_get_keyword.log
+```
+
+**Sortie** : `data/articles-from-rss/<mot-clé>.json`
+
+---
+
+### 5. web_watcher.py
+
+**Description** : Surveillance de sources web **sans flux RSS** via `sitemap.xml`. Pour chaque source définie dans `config/web_sources.json`, scanne le sitemap, extrait le texte HTML des nouvelles URLs (filtrées par `url_pattern`), génère un résumé IA et sauvegarde dans `data/articles-from-rss/`. Limite : max 5 articles par source par exécution.
 
 **Arguments** :
 
 | Argument | Description | Défaut |
 |---|---|---|
-| `--keyword MOT` | Traiter uniquement ce mot-clé | tous les mots-clés |
+| `--dry-run` | Simulation sans appel API ni écriture | désactivé |
+| `--source NOM` | Traiter uniquement cette source | toutes |
 
 **Utilisation** :
 ```bash
-# Convertir tous les fichiers RSS en Markdown
-python3 scripts/articles_rss_to_markdown.py
-
-# Un mot-clé spécifique uniquement
-python3 scripts/articles_rss_to_markdown.py --keyword anthropic
+python3 scripts/web_watcher.py
+python3 scripts/web_watcher.py --source "Tech Radar"
+python3 scripts/web_watcher.py --dry-run
 ```
 
-**Automatisation (cron)** — dernier jour du mois à 5h30 :
+**Automatisation (cron)** — toutes les 2h :
 ```
-30 5 28-31 * * root [ "$(date -d tomorrow +%d)" = "01" ] && cd /app && python3 scripts/articles_rss_to_markdown.py 2>&1 | tee -a /app/rapports/cron_rss_markdown.log
+0 */2 * * * root cd /app && python3 scripts/web_watcher.py 2>&1 | tee -a /app/rapports/cron_web_watcher.log
 ```
 
-**Sortie** :
-- `rapports/markdown/keyword/<keyword>/<keyword>_YYYY-MM-DD.md`
+**Fichiers d'état** :
+- `data/web_watcher_state.json` — URLs déjà traitées (déduplication inter-runs)
+
+---
+
+### 6. enrich_entities.py
+
+**Description** : Enrichit les fichiers JSON d'articles existants avec les **entités nommées (NER)** extraites via l'API IA. Ajoute le champ `entities` (18 types : PERSON, ORG, GPE, LOC, PRODUCT, EVENT, etc.) à chaque article disposant d'un `Résumé`.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--flux NOM` | Restreindre au sous-dossier `data/articles/<NOM>/` | tous |
+| `--keyword MOT` | Restreindre au fichier `data/articles-from-rss/<MOT>.json` | tous |
+| `--dry-run` | Simulation sans appel API ni écriture | désactivé |
+| `--delay SEC` | Pause entre chaque appel API (secondes) | 1.0 |
+| `--force` | Re-traiter les articles ayant déjà le champ `entities` | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/enrich_entities.py
+python3 scripts/enrich_entities.py --flux Intelligence-artificielle
+python3 scripts/enrich_entities.py --keyword anthropic --delay 2.0
+python3 scripts/enrich_entities.py --dry-run
+python3 scripts/enrich_entities.py --force
+```
+
+**Automatisation (cron)** — nuit à 02h00, round-robin 1 fichier/jour :
+```
+0 2 * * * root cd /app && python3 scripts/enrich_entities.py 2>&1 | tee -a /app/rapports/cron_enrich.log
+```
+
+---
+
+### 7. enrich_sentiment.py
+
+**Description** : Enrichit les articles avec l'**analyse de sentiment** et le **ton éditorial** via l'API IA. Ajoute 4 champs : `sentiment` (positif/neutre/négatif), `score_sentiment` (1–5), `ton_editorial` (factuel/engagé/polémique…), `score_ton` (1–5). Mode round-robin : 1 fichier par exécution.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--flux NOM` | Restreindre à un flux | tous |
+| `--keyword MOT` | Restreindre à un mot-clé | tous |
+| `--all` | Forcer le traitement de tous les fichiers en une passe | désactivé |
+| `--dry-run` | Simulation sans appel API ni écriture | désactivé |
+| `--force` | Ré-analyser les articles déjà enrichis | désactivé |
+| `--delay SEC` | Pause entre appels API | 0.5 |
+| `--status` | Affiche les statistiques sans traitement | désactivé |
+| `--max-articles N` | Limiter le nombre d'articles à enrichir | 100 |
+
+**Utilisation** :
+```bash
+python3 scripts/enrich_sentiment.py
+python3 scripts/enrich_sentiment.py --keyword ia --force
+python3 scripts/enrich_sentiment.py --status
+python3 scripts/enrich_sentiment.py --dry-run
+```
+
+**Automatisation (cron)** — nuit à 03h00 :
+```
+0 3 * * * root cd /app && python3 scripts/enrich_sentiment.py 2>&1 | tee -a /app/rapports/cron_sentiment.log
+```
+
+---
+
+### 8. enrich_images.py
+
+**Description** : Ajoute le champ `Images` aux articles qui n'en ont pas, en récupérant les métadonnées `og:image` / `twitter:image` depuis le HTML de la page source. Aucun appel à l'API IA — traitement 100 % HTTP local.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--flux NOM` | Restreindre à un flux | tous |
+| `--keyword MOT` | Restreindre à un mot-clé | tous |
+| `--dry-run` | Simulation sans écriture | désactivé |
+| `--delay SEC` | Pause entre requêtes HTTP | 0.5 |
+| `--force` | Re-fetch les articles ayant déjà des images | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/enrich_images.py
+python3 scripts/enrich_images.py --flux Economie-numerique --delay 1.0
+python3 scripts/enrich_images.py --dry-run
+```
+
+**Automatisation (cron)** — nuit à 02h30 :
+```
+30 2 * * * root cd /app && python3 scripts/enrich_images.py 2>&1 | tee -a /app/rapports/cron_images.log
+```
+
+---
+
+### 9. enrich_reading_time.py
+
+**Description** : Calcule et ajoute le **temps de lecture estimé** à chaque article. Basé sur 230 mots/minute (référence francophone). Traitement 100 % local, sans appel IA. Champs ajoutés : `temps_lecture_minutes` (float) et `temps_lecture_label` (ex. `"3 min"`).
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--flux NOM` | Restreindre à un flux | tous |
+| `--keyword MOT` | Restreindre à un mot-clé | tous |
+| `--dry-run` | Simulation sans écriture | désactivé |
+| `--force` | Re-calculer même les articles déjà enrichis | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/enrich_reading_time.py
+python3 scripts/enrich_reading_time.py --flux Intelligence-artificielle
+python3 scripts/enrich_reading_time.py --dry-run
+```
+
+**Automatisation (cron)** — enchaîné après `flux_watcher.py` toutes les 5 minutes (calcul < 1 s).
+
+---
+
+### 10. enrich_source_credibility.py
+
+**Description** : Enrichit automatiquement `config/sources_credibility.json` avec trois signaux : **âge du domaine** (WHOIS), **transparence éditoriale** (scraping HTTP), **rating MBFC**. Peut aussi synchroniser de nouvelles sources depuis l'OPML et `web_sources.json`.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--sync` | Synchroniser d'abord les nouvelles sources depuis OPML/web_sources.json | désactivé |
+| `--sync-only` | Synchronisation seule, sans appel HTTP externe | désactivé |
+| `--force` | Ré-enrichir toutes les sources (y compris déjà enrichies) | désactivé |
+| `--source NOM` | Enrichir uniquement cette source | toutes |
+| `--delay SEC` | Pause entre requêtes HTTP | 2.0 |
+| `--dry-run` | Simulation sans écriture | désactivé |
+
+**Utilisation** :
+```bash
+# Synchroniser les nouvelles sources puis enrichir les manquantes
+python3 scripts/enrich_source_credibility.py --sync
+
+# Synchronisation seule (rapide — aucun appel HTTP externe)
+python3 scripts/enrich_source_credibility.py --sync-only
+
+# Enrichir toutes les sources (re-calcul complet)
+python3 scripts/enrich_source_credibility.py --sync --force
+
+# Une source spécifique
+python3 scripts/enrich_source_credibility.py --source "Le Monde"
+
+# Simulation sans écriture
+python3 scripts/enrich_source_credibility.py --dry-run
+```
+
+**Automatisation (cron)** : synchronisation hebdomadaire (dimanche 03h30) + enrichissement mensuel (1er du mois 04h30).
 
 ---
 
 ### 11. trend_detector.py
 
-**Description** : Détecte les entités nommées en forte progression en comparant leurs mentions sur les **24 dernières heures** avec leur moyenne sur les **7 derniers jours**. Génère `data/alertes.json` consommé par le panneau **Tendances & alertes** du Viewer. Les seuils et types surveillés sont configurables dans `config/alert_rules.json`.
+**Description** : Détecte les entités nommées en forte progression en comparant les mentions des **24 dernières heures** à la moyenne des **7 derniers jours**. Génère `data/alertes.json` consommé par le panneau Tendances & alertes du Viewer. Envoie des notifications webhook si configuré.
 
 **Arguments** :
 
@@ -219,62 +361,270 @@ python3 scripts/articles_rss_to_markdown.py --keyword anthropic
 
 **Utilisation** :
 ```bash
-# Exécution normale — génère data/alertes.json
 python3 scripts/trend_detector.py
-
-# Simulation sans écriture
 python3 scripts/trend_detector.py --dry-run
-
-# Top 15 avec seuil rehaussé, sans notifications
 python3 scripts/trend_detector.py --top 15 --threshold 3.0 --no-notify
 ```
 
-**Automatisation (cron)** — chaque matin à 7h00 :
+**Automatisation (cron)** — chaque matin à 07h00 :
 ```
 0 7 * * * root cd /app && python3 scripts/trend_detector.py 2>&1 | tee -a /app/rapports/cron_trends.log
 ```
 
-**Configuration** : `config/alert_rules.json` — seuils par type d'entité, niveaux (modéré / élevé / critique), configuration webhooks Discord / Slack / Ntfy.
-
-**Sortie** :
-- `data/alertes.json` — liste des alertes avec ratio, niveau et entités concernées
+**Sortie** : `data/alertes.json`
 
 ---
 
-### 12. enrich_reading_time.py
+### 12. detect_contradictions.py
 
-**Description** : Calcule et ajoute le **temps de lecture estimé** (en minutes) à chaque article de `data/articles/` et `data/articles-from-rss/`. Basé sur 230 mots/minute (référence INSERM, adulte francophone). Traitement 100 % local, aucun appel EurIA ni Claude. Champs ajoutés : `temps_lecture_minutes` (float) et `temps_lecture_label` (chaîne lisible, ex. `"3 min"`).
+**Description** : Détecte les **contradictions factuelles** entre sources sur le même événement. Utilise deux passes : règles déterministes (chiffres, dates, antonymes) puis arbitrage LLM pour les cas ambigus. Peut analyser un article spécifique ou scanner tout le corpus.
 
 **Arguments** :
 
 | Argument | Description | Défaut |
 |---|---|---|
-| `--flux NOM` | Traiter uniquement ce flux | tous |
-| `--keyword MOT` | Traiter uniquement ce mot-clé | tous |
-| `--dry-run` | Simulation sans écriture | désactivé |
-| `--force` | Réenrichir les articles déjà enrichis | désactivé |
+| `--article URL` | URL de l'article de référence (mode viewer) | corpus complet |
+| `--days N` | Fenêtre temporelle en jours | 2 |
+| `--flux NOM` | Restreindre à un flux | tous |
+| `--dry-run` | Analyse sans sauvegarde | désactivé |
 
 **Utilisation** :
 ```bash
-# Enrichir tous les articles
-python3 scripts/enrich_reading_time.py
+# Analyser un article spécifique (depuis le Viewer)
+python3 scripts/detect_contradictions.py --article "https://example.com/article"
 
-# Un flux spécifique
-python3 scripts/enrich_reading_time.py --flux Intelligence-artificielle
+# Scanner le corpus des 7 derniers jours
+python3 scripts/detect_contradictions.py --days 7
 
 # Simulation
-python3 scripts/enrich_reading_time.py --dry-run
+python3 scripts/detect_contradictions.py --dry-run
 ```
 
-**Automatisation (cron)** — enchaîné après `flux_watcher.py` toutes les 5 minutes (voir §9). Ne possède plus d'entrée cron dédiée.
-
-**Sortie** : Sauvegarde atomique des fichiers JSON modifiés.
+**Sortie** : `data/contradictions/<MD5>.json` par article analysé.
 
 ---
 
-### 13. entity_timeline.py
+### 13. generate_48h_report.py
 
-**Description** : Construit la **série chronologique** des mentions d'entités nommées en scannant tous les articles de `data/articles/` et `data/articles-from-rss/`. Produit `data/entity_timeline.json` utilisé par le composant **Timeline des entités** dans le Dashboard du Viewer (sparklines SVG).
+**Description** : Génère chaque soir un **rapport de veille analytique** basé sur les Top 10 entités nommées des 48 dernières heures. Lit `data/articles-from-rss/_WUDD.AI_/48-heures.json`, pré-calcule les entités les plus citées, sélectionne les 5 articles les plus récents par entité, et génère un rapport structuré via l'API IA.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Affiche le Top 10 et le prompt sans appeler l'API | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/generate_48h_report.py
+python3 scripts/generate_48h_report.py --dry-run
+```
+
+**Automatisation (cron)** — chaque soir à 23h00 :
+```
+0 23 * * * root cd /app && python3 scripts/generate_48h_report.py 2>&1 | tee -a /app/rapports/cron_48h_report.log
+```
+
+**Sortie** : `rapports/markdown/_WUDD.AI_/rapport_48h.md` (fichier unique, écrasé chaque jour).
+
+---
+
+### 14. generate_morning_digest.py
+
+**Description** : Génère le **Morning Digest** quotidien : top stories des dernières 24h, alertes actives, synthèse IA narrative. Utilise `article_index` pour le scoring et `data/alertes.json` pour les alertes.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--ai` | Génère une synthèse narrative via l'API IA | désactivé |
+| `--dry-run` | Affiche le contenu sans sauvegarder | désactivé |
+| `--period {24h,48h}` | Fenêtre temporelle | 24h |
+| `--top N` | Nombre d'articles dans le digest | 10 |
+
+**Utilisation** :
+```bash
+python3 scripts/generate_morning_digest.py --ai
+python3 scripts/generate_morning_digest.py --dry-run
+```
+
+**Automatisation (cron)** — chaque matin à 07h30 :
+```
+30 7 * * * root cd /app && python3 scripts/generate_morning_digest.py --ai 2>&1 | tee -a /app/rapports/cron_digest.log
+```
+
+**Sortie** : `rapports/markdown/_WUDD.AI_/morning_digest_YYYY-MM-DD.md`
+
+---
+
+### 15. generate_briefing.py
+
+**Description** : Génère un **briefing exécutif** synthétisant les entités les plus importantes, les articles les mieux scorés et les tendances émergentes. Disponible en mode daily (24h) et weekly (7j). La synthèse narrative finale est générée via l'API IA.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--period {daily,weekly}` | Période du briefing | `daily` |
+| `--dry-run` | Affiche le briefing sans sauvegarder ni appeler l'API | désactivé |
+| `--no-ai` | Génère le briefing sans synthèse IA | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/generate_briefing.py --period daily --no-ai
+python3 scripts/generate_briefing.py --period weekly
+python3 scripts/generate_briefing.py --dry-run
+```
+
+**Automatisation (cron)** — chaque lundi à 06h30 (hebdomadaire) :
+```
+30 6 * * 1 root cd /app && python3 scripts/generate_briefing.py --period weekly 2>&1 | tee -a /app/rapports/cron_briefing.log
+```
+
+**Sortie** : `rapports/markdown/_WUDD.AI_/briefing_<period>_YYYY-MM-DD.md`
+
+---
+
+### 16. generate_reading_notes.py
+
+**Description** : Génère les **notes de lecture personnalisées** organisées par tag (mot-clé) à partir des articles enrichis. Format iA Writer-compatible, avec résumés, entités et images.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Affiche sans sauvegarder | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/generate_reading_notes.py
+python3 scripts/generate_reading_notes.py --dry-run
+```
+
+**Automatisation (cron)** — chaque matin à 08h00 :
+```
+0 8 * * * root cd /app && python3 scripts/generate_reading_notes.py 2>&1 | tee -a /app/rapports/cron_reading_notes.log
+```
+
+**Sortie** : `rapports/markdown/_WUDD.AI_/notes_lecture_YYYY-MM-DD.md`
+
+---
+
+### 17. generate_keyword_reports.py
+
+**Description** : Génère un **rapport Markdown par mot-clé** pour le mois courant. Pour chaque mot-clé actif dans `config/keyword-to-search.json`, produit une synthèse IA des articles collectés, avec entités, tendances et tableau de références.
+
+**Utilisation** :
+```bash
+python3 scripts/generate_keyword_reports.py
+```
+
+**Automatisation (cron)** — dernier jour du mois à 06h00 :
+```
+0 6 28-31 * * root [ "$(date -d tomorrow +%d)" = "01" ] && cd /app && python3 scripts/generate_keyword_reports.py 2>&1 | tee -a /app/rapports/cron_kw_reports.log
+```
+
+**Sortie** : `rapports/markdown/keyword/<keyword>/<keyword>_YYYY-MM.md`
+
+---
+
+### 18. generate_data_quality_report.py
+
+**Description** : Génère un **rapport Markdown de qualité des données** : champs manquants, résumés en erreur, score de qualité moyen par flux, sources problématiques.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dir {articles,rss,all}` | Sous-répertoire à analyser | `all` |
+| `--dry-run` | Affiche le rapport sur stdout sans sauvegarder | désactivé |
+| `--output CHEMIN` | Chemin de sortie du rapport Markdown | `rapports/markdown/_WUDD.AI_/` |
+
+**Utilisation** :
+```bash
+python3 scripts/generate_data_quality_report.py
+python3 scripts/generate_data_quality_report.py --dir articles --dry-run
+python3 scripts/generate_data_quality_report.py --output /tmp/quality.md
+```
+
+---
+
+### 19. generate_ai_consumption_report.py
+
+**Description** : Génère un **rapport de consommation de l'API IA** : appels par script, tokens estimés, taux d'erreur, coût approximatif.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Affiche les 3000 premiers caractères sans sauvegarder | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/generate_ai_consumption_report.py
+python3 scripts/generate_ai_consumption_report.py --dry-run
+```
+
+**Sortie** : `rapports/markdown/_WUDD.AI_/ai_consumption_YYYY-MM-DD.md`
+
+---
+
+### 20. radar_wudd.py
+
+**Description** : Génère le **radar thématique mensuel** WUDD.ai — graphique SVG à bulles positionnant les thématiques sur deux axes (volume × sentiment). Produit un fichier HTML interactif filtrable par quadrant.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--data DIR` | Répertoire des JSON WUDD.ai | `data/` |
+| `--output FICHIER` | Fichier HTML de sortie | `rapports/radar_wudd.html` |
+
+**Utilisation** :
+```bash
+python3 scripts/radar_wudd.py
+python3 scripts/radar_wudd.py --output /tmp/radar.html
+```
+
+**Automatisation (cron)** — dernier jour du mois à 05h00 :
+```
+0 5 28-31 * * root [ "$(date -d tomorrow +%d)" = "01" ] && cd /app && python3 scripts/radar_wudd.py 2>&1 | tee -a /app/rapports/cron_radar.log
+```
+
+**Sortie** : `rapports/radar_wudd.html`
+
+---
+
+### 21. cross_flux_analysis.py
+
+**Description** : Détecte les **entités transversales** présentes dans plusieurs flux distincts. Génère un rapport Markdown avec deux visualisations interactives (`keyword-graph` et `flux-chart`) rendues par `MarkdownViewer.jsx`.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--min-flux N` | Nombre minimum de flux pour inclure une entité | 2 |
+| `--top N` | Nombre d'entités à inclure | 20 |
+| `--dry-run` | Simulation sans écriture | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/cross_flux_analysis.py
+python3 scripts/cross_flux_analysis.py --min-flux 3 --top 30
+python3 scripts/cross_flux_analysis.py --dry-run
+```
+
+**Automatisation (cron)** — enchaîné après `flux_watcher.py` toutes les 5 minutes.
+
+**Sorties** :
+- `data/cross_flux_report.json`
+- `rapports/markdown/_CROSSFLUX_/cross_flux_YYYY-MM-DD.md`
+
+---
+
+### 22. entity_timeline.py
+
+**Description** : Construit la **série chronologique** des mentions d'entités nommées en scannant l'ensemble du corpus. Produit `data/entity_timeline.json` utilisé par le composant Timeline du Dashboard Viewer.
 
 **Arguments** :
 
@@ -284,359 +634,513 @@ python3 scripts/enrich_reading_time.py --dry-run
 | `--top N` | Nombre d'entités à inclure | 50 |
 | `--entity NOM` | Filtrer sur une entité précise | toutes |
 | `--type TYPE` | Filtrer par type NER (PERSON, ORG, GPE…) | tous |
-| `--dry-run` | Affiche le résultat sans écrire le fichier | désactivé |
+| `--dry-run` | Affiche sans écrire le fichier | désactivé |
 
 **Utilisation** :
 ```bash
-# Générer la timeline complète (30j, top 50 entités)
 python3 scripts/entity_timeline.py
-
-# Fenêtre 7 jours, top 20
 python3 scripts/entity_timeline.py --days 7 --top 20
-
-# Une entité spécifique
 python3 scripts/entity_timeline.py --entity "OpenAI" --type ORG
 ```
 
-**Automatisation (cron)** — enchaîné après `flux_watcher.py` toutes les 5 minutes (voir §9). Ne possède plus d'entrée cron dédiée.
+**Automatisation (cron)** — enchaîné après `flux_watcher.py` toutes les 5 minutes.
 
-**Sortie** :
-- `data/entity_timeline.json` — séries temporelles par entité, exposées via `GET /api/entities/timeline`
+**Sortie** : `data/entity_timeline.json`
 
 ---
 
-### 14. cross_flux_analysis.py
+### 23. cluster_articles.py
 
-**Description** : Détecte les **entités transversales** présentes dans plusieurs flux distincts. Identifie les sujets qui dépassent un seul fil de veille et créent des convergences thématiques. Génère un rapport JSON et un rapport Markdown structuré incluant deux visualisations interactives rendues par le Viewer.
+**Description** : Regroupe les articles en **clusters thématiques** basés sur le partage d'entités nommées (pas de dépendance ML). Utilisé à la demande depuis le Viewer (panneau ClusterView).
 
 **Arguments** :
 
 | Argument | Description | Défaut |
 |---|---|---|
-| `--min-flux N` | Nombre minimum de flux distincts pour inclure une entité | 2 |
-| `--top N` | Nombre d'entités à inclure | 20 |
+| `--days N` | Fenêtre temporelle en jours | 7 |
+| `--min-size N` | Taille minimale d'un cluster | 2 |
+| `--output FICHIER` | Fichier JSON de sortie | stdout |
+| `--dry-run` | Affiche sans sauvegarder | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/cluster_articles.py --days 14
+python3 scripts/cluster_articles.py --min-size 3 --output data/clusters.json
+python3 scripts/cluster_articles.py --dry-run
+```
+
+**Sortie** : JSON avec liste de clusters `{ entities, articles, size }`.
+
+---
+
+### 24. analyse_thematiques.py
+
+**Description** : Analyse les **thématiques sociétales** présentes dans tous les articles collectés et génère un rapport statistique détaillé (12 thèmes : IA, Économie, Santé, Politique…).
+
+**Utilisation** :
+```bash
+python3 scripts/analyse_thematiques.py
+```
+
+**Prérequis** :
+- Fichiers JSON dans `data/articles/`
+- `config/thematiques_societales.json`
+
+**Sortie** : Rapport console avec pourcentages et exemples par thème.
+
+---
+
+### 25. repair_failed_summaries.py
+
+**Description** : Détecte et régénère les résumés d'articles contenant un **message d'erreur** (ex. `"Désolé, je n'ai pas pu obtenir de réponse…"`). Utile après une indisponibilité temporaire de l'API.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dir PATH` | Répertoire à scanner | `data/articles-from-rss/` |
+| `--dry-run` | Simulation sans appel API ni écriture | désactivé |
+| `--delay SECS` | Délai entre chaque appel API (secondes) | 1 |
+
+**Utilisation** :
+```bash
+python3 scripts/repair_failed_summaries.py
+python3 scripts/repair_failed_summaries.py --dir data/articles/Intelligence-artificielle
+python3 scripts/repair_failed_summaries.py --dry-run
+```
+
+**Automatisation (cron)** — chaque dimanche à 04h00 :
+```
+0 4 * * 0 root cd /app && python3 scripts/repair_failed_summaries.py 2>&1 | tee -a /app/rapports/cron_repair.log
+```
+
+---
+
+### 26. repair_failed_enrichments.py
+
+**Description** : Détecte et réessaie l'enrichissement (NER et/ou sentiment) des articles dont le champ `enrichissement_statut` vaut `echec_api` ou `echec_parse`. Met à jour `entity_index` après chaque réparation NER réussie.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--type entities\|sentiment\|all` | Type d'enrichissement à réparer | `all` |
+| `--dry-run` | Simulation sans appel API ni écriture | désactivé |
+| `--delay SECS` | Délai entre chaque appel API (secondes) | 1.0 |
+
+**Utilisation** :
+```bash
+python3 scripts/repair_failed_enrichments.py
+python3 scripts/repair_failed_enrichments.py --type entities
+python3 scripts/repair_failed_enrichments.py --type sentiment
+python3 scripts/repair_failed_enrichments.py --dry-run
+```
+
+---
+
+### 27. import_articles.py
+
+**Description** : Injecte des articles depuis un fichier JSON externe dans la structure de données WUDD.ai. Valide les champs obligatoires, déduplique, met à jour les index.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--file CHEMIN` | Fichier JSON source à importer | obligatoire |
+| `--flux NOM` | Destination flux (`data/articles/<NOM>/`) | — |
+| `--keyword MOT` | Destination mot-clé (`data/articles-from-rss/<MOT>.json`) | — |
+| `--rss` | Écrire dans `data/articles-from-rss/` (avec `--keyword`) | désactivé |
+| `--dry-run` | Simulation sans écriture | désactivé |
+| `--force` | Importer même les doublons détectés | désactivé |
+| `--validate-only` | Valider le fichier sans importer | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/import_articles.py --file export.json --flux Intelligence-artificielle
+python3 scripts/import_articles.py --file export.json --keyword ia --rss
+python3 scripts/import_articles.py --file export.json --validate-only
+python3 scripts/import_articles.py --file export.json --flux Economie --dry-run
+```
+
+---
+
+### 28. import_obsidian_reports.py
+
+**Description** : Synchronise les **rapports WUDD.ai** générés dans Obsidian vers les fichiers JSON d'articles et `data/entity_reports_index.json`. Idempotent — peut être rejoué sans créer de doublons.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Simulation sans écriture | désactivé |
+| `--force` | Réimporter les rapports déjà indexés | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/import_obsidian_reports.py
+python3 scripts/import_obsidian_reports.py --dry-run
+python3 scripts/import_obsidian_reports.py --force
+```
+
+**Prérequis** : Variable `OBSIDIAN_VAULT_PATH` dans `.env` (chemin absolu vers le vault Obsidian). Voir aussi `docs/OBSIDIAN.md`.
+
+---
+
+### 29. backup_data.py
+
+**Description** : Sauvegarde incrémentale de `data/` vers `BACKUP_L1` puis optionnellement vers `BACKUP_L2` (variables `.env`). Copie uniquement les fichiers modifiés depuis le dernier backup (basé sur mtime).
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Simulation : affiche les actions sans les exécuter | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/backup_data.py
+python3 scripts/backup_data.py --dry-run
+```
+
+**Automatisation (cron)** — chaque nuit à 01h00 :
+```
+0 1 * * * root cd /app && python3 scripts/backup_data.py 2>&1 | tee -a /app/rapports/cron_backup.log
+```
+
+**Prérequis** : Variables `BACKUP_L1` (et optionnellement `BACKUP_L2`) définies dans `.env`.
+
+---
+
+### 30. archive_quota_state.py
+
+**Description** : Archive l'état des quotas du jour précédent (`data/quota_state.json`) dans `data/quota_history/YYYY-MM-DD.json`. Utilisé par `utils/quota_optimizer.py` pour analyser les tendances d'utilisation.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
 | `--dry-run` | Simulation sans écriture | désactivé |
 
 **Utilisation** :
 ```bash
-# Analyse complète (entités dans ≥ 2 flux)
-python3 scripts/cross_flux_analysis.py
-
-# Entités présentes dans ≥ 3 flux
-python3 scripts/cross_flux_analysis.py --min-flux 3
-
-# Simulation
-python3 scripts/cross_flux_analysis.py --dry-run
+python3 scripts/archive_quota_state.py
 ```
 
-**Automatisation (cron)** — enchaîné après `flux_watcher.py` toutes les 5 minutes (voir §9). Ne possède plus d'entrée cron dédiée.
-
-**Visualisations dans le rapport Markdown** :
-
-Le rapport utilise deux blocs de code personnalisés interprétés par `MarkdownViewer.jsx` :
-
-| Bloc | Composant | Description |
-|---|---|---|
-| ` ```keyword-graph ` | `KeywordForceGraph` | Graphe force-directed des mots-clés RSS — **filtré** aux seuls mots-clés ayant au moins 1 article sur la période |
-| ` ```flux-chart ` | `FluxBarChart` | Barres horizontales des top flux par volume — chaque barre porte une **lettre alphabétique** correspondant à la liste textuelle du rapport |
-
-La lettre de chaque flux est assignée par `_assign_flux_letters()` (ordre alphabétique A, B, C…) et transmise via le champ `letter` du JSON.
-
-**Fonctions internes clés** :
-
-| Fonction | Rôle |
-|---|---|
-| `_normalize_keyword_stem(kw)` | Normalise un mot-clé vers le stem du fichier RSS (`strip().lower().replace(' ', '-')`) |
-| `_build_keyword_graph_block(project_root, active_stems)` | Génère le bloc `keyword-graph` en ne gardant que les stems présents dans `data/articles-from-rss/` avec `v > 0` |
-| `_build_flux_chart_block(flux_article_counts, flux_letter_map, top_n=15)` | Génère le bloc `flux-chart` avec `{name, count, letter}` par item |
-| `_assign_flux_letters(sorted_flux_names)` | Attribue A–Z puis AA, AB… aux flux triés alphabétiquement |
-
-**Sortie** :
-- `data/cross_flux_report.json` — entités transversales avec comptages par flux
-- `rapports/markdown/_CROSSFLUX_/cross_flux_YYYY-MM-DD.md` — rapport Markdown avec tableau de convergence, graphe mots-clés et graphique flux
+**Automatisation (cron)** — chaque nuit à 00h05 :
+```
+5 0 * * * root cd /app && python3 scripts/archive_quota_state.py
+```
 
 ---
 
-### 15. benchmark_indexes.py
+### 31. optimize_quota.py
 
-**Description** : Mesure les gains de performance des index WUDD.ai en comparant les opérations clés **avant** (scan `rglob`) et **après** (lecture de l'index) :
-
-1. `ScoringEngine.get_top_articles()` vs `get_top_articles_from_index()`
-2. `EntityIndex.load_articles()` vs scan rglob complet
-3. `compute_top_entities()` O(n) vs simulation O(n²)
-4. État du cache de synthèse IA (`SynthesisCache.stats()`)
+**Description** : Analyse l'historique des quotas dans `data/quota_history/` et **ajuste automatiquement** les limites dans `config/quota.json` : augmente les plafonds des mots-clés saturés, réduit ceux qui sont sous-utilisés.
 
 **Arguments** :
 
 | Argument | Description | Défaut |
 |---|---|---|
-| `--iterations N` | Nombre de répétitions par benchmark (meilleur temps retenu) | 3 |
+| `--dry-run` | Simulation sans écriture | désactivé |
 
 **Utilisation** :
-
 ```bash
-# Benchmark par défaut (3 itérations)
-python3 scripts/benchmark_indexes.py
+python3 scripts/optimize_quota.py
+python3 scripts/optimize_quota.py --dry-run
+```
 
-# 5 itérations pour plus de précision
+**Automatisation (cron)** — chaque lundi à 05h45 :
+```
+45 5 * * 1 root cd /app && python3 scripts/optimize_quota.py
+```
+
+---
+
+### 32. optimize_scoring_weights.py
+
+**Description** : Ajuste hebdomadairement les **poids de scoring** (`config/scoring_weights.json`) en comparant les scores prédits aux signaux d'engagement réels (`utils/engagement_tracker.py`). Utilise un gradient descent simplifié avec contrainte `sum(weights) == 1.0`.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Simulation sans écriture | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/optimize_scoring_weights.py
+python3 scripts/optimize_scoring_weights.py --dry-run
+```
+
+**Automatisation (cron)** — chaque lundi à 05h30 :
+```
+30 5 * * 1 root cd /app && python3 scripts/optimize_scoring_weights.py
+```
+
+---
+
+### 33. calibrate_alerts.py
+
+**Description** : **Auto-calibration quotidienne** des seuils d'alerte dans `config/alert_rules.json`. Analyse si les alertes passées ont été suivies de nouveaux articles (signal de qualité) et ajuste les seuils pour réduire les faux positifs.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Simulation sans écriture | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/calibrate_alerts.py
+python3 scripts/calibrate_alerts.py --dry-run
+```
+
+**Automatisation (cron)** — quotidien après `trend_detector.py` (ex. 07h15).
+
+---
+
+### 34. update_source_performance.py
+
+**Description** : Calcule mensuellement des **métriques empiriques** par source (taux de duplication, taux d'enrichissement, diversité des entités, engagement relatif) et met à jour `config/sources_credibility.json` avec un champ `empirical_score`.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Simulation sans écriture | désactivé |
+| `--stats-only` | Affiche les métriques sans mettre à jour | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/update_source_performance.py
+python3 scripts/update_source_performance.py --stats-only
+python3 scripts/update_source_performance.py --dry-run
+```
+
+---
+
+### 35. update_quality_scores.py
+
+**Description** : Recalcule les **scores de qualité** (0–100) de tous les articles dans `data/article_index.json`. Basé sur la présence de `Résumé`, `entities`, `sentiment`, `Images`, `temps_lecture` et `score_source`.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Simulation sans écriture | désactivé |
+| `--stats-only` | Affiche les stats sans recalculer | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/update_quality_scores.py
+python3 scripts/update_quality_scores.py --stats-only
+```
+
+---
+
+### 36. precompute_entity_stats.py
+
+**Description** : Pré-calcule `data/entity_stats.json` depuis `data/entity_index.json` — agrégation des statistiques par entité (volume, types, distribution temporelle). Utilisé par le Viewer pour les performances d'affichage.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Calcule sans écrire le fichier de sortie | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/precompute_entity_stats.py
+python3 scripts/precompute_entity_stats.py --dry-run
+```
+
+**Automatisation** — enchaîné après `flux_watcher.py` si `entity_index` a été mis à jour.
+
+---
+
+### 37. benchmark_indexes.py
+
+**Description** : Mesure les **gains de performance** des index WUDD.ai en comparant les opérations clés avant (scan `rglob`) et après (lecture de l'index).
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--iterations N` | Nombre de répétitions par benchmark | 3 |
+
+**Utilisation** :
+```bash
+python3 scripts/benchmark_indexes.py
 python3 scripts/benchmark_indexes.py --iterations 5
 ```
 
-**Prérequis** : Les index doivent être construits. Lancer d'abord :
-```bash
-python3 scripts/migrate_build_indexes.py
-```
-
-**Sortie** : Rapport console avec temps avant/après et facteur d'accélération (ex. `×12 plus rapide`) pour chaque opération.
-
-## Générer le rapport Markdown d'un flux
-
-```bash
-python3 scripts/articles_json_to_markdown.py data/articles/Economie-numerique/articles_generated_2026-02-01_2026-02-17.json
-```
-
-## Lancer le scheduler sur tous les flux
-
-```bash
-python3 scripts/scheduler_articles.py
-```
-
-## Ajouter un nouveau flux
-
-Ajouter une entrée dans `config/flux_json_sources.json` avec le titre et l'URL du flux.
-# Guide d'utilisation des scripts
-
-Ce guide explique comment utiliser les différents scripts du projet AnalyseActualités.
-
-## 🚀 Lancement rapide
-
-Tous les scripts doivent être exécutés **depuis le dossier `scripts/`** pour que les chemins relatifs fonctionnent correctement.
-
-```bash
-cd scripts/
-```
+**Prérequis** : Les index doivent être construits (`migrate_build_indexes.py`).
 
 ---
 
-## 📝 Scripts disponibles
+### 38. articles_json_to_markdown.py
 
-### 1. Get_data_from_JSONFile_AskSummary.py
-
-**Description** : Script principal qui collecte des articles depuis un flux JSON, génère des résumés via l'API IA (EurIA ou Claude), et crée un rapport Markdown.
+**Description** : Convertit un fichier JSON d'articles de flux (`data/articles/<flux>/`) en rapport Markdown structuré. Accepte le chemin en argument CLI ou via dialogue GUI (`tkinter`).
 
 **Utilisation** :
 ```bash
-python3 Get_data_from_JSONFile_AskSummary.py [date_debut] [date_fin]
+python3 scripts/articles_json_to_markdown.py data/articles/Economie-numerique/articles_generated_2026-02-01_2026-02-28.json
+
+# Mode GUI (sélection interactive)
+python3 scripts/articles_json_to_markdown.py
 ```
 
-**Exemples** :
-```bash
-# Avec dates spécifiques
-python3 Get_data_from_JSONFile_AskSummary.py 2026-01-01 2026-01-31
-
-# Sans dates (demande interactive)
-python3 Get_data_from_JSONFile_AskSummary.py
-```
-
-**Prérequis** :
-- Fichier `.env` configuré avec `REEDER_JSON_URL`, `URL`, et `bearer`
-- Connexion internet active
-
-**Sorties** :
-- `../data/articles/articles_generated_<date_debut>_<date_fin>.json`
-- `../rapports/markdown/rapport_sommaire_articles_generated_<date_debut>_<date_fin>.md`
+**Sortie** : `rapports/markdown/<flux>/rapport_sommaire_<nom_fichier>.md`
 
 ---
 
-### 2. Get_htmlText_From_JSONFile.py
+### 39. articles_rss_to_markdown.py
 
-**Description** : Extrait le contenu texte brut de tous les articles d'un flux JSON.
-
-**Utilisation** :
-```bash
-python3 Get_htmlText_From_JSONFile.py
-```
-
-**Fonctionnement** :
-1. Une fenêtre s'ouvre pour sélectionner un fichier JSON (flux d'articles)
-2. Le script récupère le HTML de chaque URL
-3. Extrait le texte avec BeautifulSoup
-4. Génère un fichier consolidé
-
-**Sortie** :
-- `../data/raw/all_articles.txt`
-
----
-
-### 3. articles_json_to_markdown.py
-
-**Description** : Convertit un fichier JSON d'articles en rapport Markdown formaté.
-
-**Utilisation** :
-```bash
-python3 articles_json_to_markdown.py
-```
-
-**Fonctionnement** :
-1. Sélectionnez un fichier JSON d'articles (depuis `../data/articles/`)
-2. Choisissez le nom et l'emplacement du fichier Markdown de sortie
-3. Le script génère un rapport avec dates, sources, URLs et résumés
-
-**Format d'entrée attendu** :
-```json
-[
-  {
-    "Date de publication": "2026-01-23T10:00:00Z",
-    "Sources": "Nom de la source",
-    "URL": "https://...",
-    "Résumé": "Texte du résumé..."
-  }
-]
-```
-
----
-
-## ⚙️ Configuration requise
-
-### Fichier .env (racine du projet)
-
-```env
-# API Infomaniak EurIA
-URL=https://api.infomaniak.com/euria/v1/chat/completions
-bearer=VOTRE_TOKEN_API_ICI
-
-# URL du flux JSON à traiter
-REEDER_JSON_URL=https://votre-flux.com/feed.json
-
-# Paramètres optionnels
-max_attempts=5
-default_error_message=Aucune information disponible
-```
-
-### Dépendances Python
-
-Installez les dépendances depuis la racine du projet :
-```bash
-cd ..
-pip install -r requirements.txt
-cd scripts/
-```
-
-### 4. enrich_entities.py
-
-**Description** : Enrichit les fichiers JSON d'articles existants avec les **entités nommées (NER)** extraites via l'API IA (EurIA ou Claude). Parcourt `data/articles/` (flux) et `data/articles-from-rss/` (mots-clés) et ajoute le champ `entities` à chaque article qui dispose d'un `Résumé`.
-
-**Utilisation** :
-```bash
-# Tout traiter (flux + rss)
-python3 scripts/enrich_entities.py
-
-# Un flux spécifique uniquement
-python3 scripts/enrich_entities.py --flux Intelligence-artificielle
-
-# Un mot-clé spécifique uniquement
-python3 scripts/enrich_entities.py --keyword anthropic
-
-# Simulation (aucun appel API, aucune écriture)
-python3 scripts/enrich_entities.py --dry-run
-
-# Réduire la cadence (délai entre appels, défaut 1.0 s)
-python3 scripts/enrich_entities.py --delay 2.0
-
-# Ré-enrichir même les articles déjà traités
-python3 scripts/enrich_entities.py --force
-```
+**Description** : Convertit les fichiers JSON de `data/articles-from-rss/` en rapports Markdown annotés avec les **entités nommées en ligne**. Génère un fichier par mot-clé.
 
 **Arguments** :
 
 | Argument | Description | Défaut |
 |---|---|---|
-| `--flux NOM` | Restreindre au sous-dossier `data/articles/<NOM>/` | tous les flux |
-| `--keyword MOT` | Restreindre au fichier `data/articles-from-rss/<MOT>.json` | tous les mots-clés |
-| `--dry-run` | Mode simulation : aucun appel API, aucune sauvegarde | désactivé |
-| `--delay SEC` | Pause en secondes entre chaque appel API | 1.0 |
-| `--force` | Re-traiter les articles ayant déjà le champ `entities` | désactivé |
-
-**Catégories NER extraites** (18 types) :
-
-| Type | Contenu |
-|---|---|
-| `PERSON` | Personnes physiques nommées |
-| `ORG` | Organisations, entreprises, institutions |
-| `GPE` | Pays, villes, régions géopolitiques |
-| `LOC` | Lieux géographiques non géopolitiques |
-| `PRODUCT` | Produits, services, technologies |
-| `EVENT` | Événements nommés (conférences, crises…) |
-| `NORP` | Nationalités, groupes politiques/religieux |
-| `FAC` | Bâtiments, monuments nommés |
-| `WORK_OF_ART` | Titres d'œuvres (livres, films, rapports…) |
-| `LAW` | Lois, règlements nommés |
-| `DATE` / `TIME` | Dates et heures explicites |
-| `MONEY` / `PERCENT` | Montants et pourcentages |
-| `QUANTITY` / `CARDINAL` / `ORDINAL` | Mesures et nombres |
-
-**Format ajouté dans chaque article** :
-```json
-"entities": {
-  "PERSON": ["Emmanuel Macron", "Sam Altman"],
-  "ORG": ["OpenAI", "Infomaniak"],
-  "GPE": ["France", "États-Unis"],
-  "PRODUCT": ["ChatGPT", "Qwen3"]
-}
-```
-
-**Comportement** :
-- Sauvegarde atomique (écriture dans `.tmp` puis remplacement) pour éviter la corruption
-- Les articles sans champ `Résumé` sont ignorés
-- Les articles ayant déjà `entities` sont ignorés (sauf avec `--force`)
-- Rapport de stats en fin d'exécution : total / enrichis / déjà présents / erreurs / ignorés
-
-**Prérequis** :
-- Fichiers JSON dans `data/articles/` ou `data/articles-from-rss/`
-- Fichier `.env` avec `URL` et `bearer` configurés
-
----
-
-### 5. analyse_thematiques.py
-
-**Description** : Analyse les thématiques sociétales présentes dans tous les articles collectés et génère un rapport statistique détaillé.
+| `--keyword MOT` | Traiter uniquement ce mot-clé | tous |
 
 **Utilisation** :
 ```bash
-python3 analyse_thematiques.py
+python3 scripts/articles_rss_to_markdown.py
+python3 scripts/articles_rss_to_markdown.py --keyword anthropic
 ```
 
-**Prérequis** :
-- Fichiers JSON dans `../data/articles/`
-- Fichier `../config/thematiques_societales.json` (créé automatiquement si absent)
-
-**Sorties** :
-- Rapport console avec statistiques par thématique
-- 12 thématiques analysées : IA & Technologie, Économie, Santé, Politique, etc.
-- Pourcentages d'occurrence et exemples d'articles par thème
-
-**Exemple de sortie** :
+**Automatisation (cron)** — dernier jour du mois à 05h30 :
 ```
-═══════════════════════════════════════════════════════════════════════
-                    ANALYSE DES THÉMATIQUES SOCIÉTALES
-═══════════════════════════════════════════════════════════════════════
+30 5 28-31 * * root [ "$(date -d tomorrow +%d)" = "01" ] && cd /app && python3 scripts/articles_rss_to_markdown.py 2>&1 | tee -a /app/rapports/cron_rss_markdown.log
+```
 
-📊 Corpus analysé: 72 articles valides
-📅 Période: Décembre 2025 - Janvier 2026
+**Sortie** : `rapports/markdown/keyword/<keyword>/<keyword>_YYYY-MM-DD.md`
 
-1. INTELLIGENCE ARTIFICIELLE & TECHNOLOGIE (100.0%)
-   Mentions: 72
-   Exemples d'articles (3):
-   [1] Numerama - En 2025, ChatGPT perd du terrain...
+---
+
+### 40. keyword_drift_detector.py
+
+**Description** : Détecte la **dérive des mots-clés** (Axe 6 de l'auto-apprentissage) — identifie les mots-clés dont le volume d'articles a chuté significativement sur une période donnée, suggérant un changement de terminologie ou de couverture médiatique.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--days N` | Fenêtre d'analyse en jours | 30 |
+| `--dry-run` | Simulation sans écriture | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/keyword_drift_detector.py
+python3 scripts/keyword_drift_detector.py --days 60 --dry-run
 ```
 
 ---
 
-## � Système de quota adaptatif
+### 41. check_cron_health.py
+
+**Description** : **Sonde de santé** des jobs cron WUDD.ai. Vérifie la date de dernière exécution de chaque script et alerte (console / email optionnel) si un job est en retard.
+
+**Configuration** : Seuils d'alerte en minutes configurables directement dans le script (`MAX_DELAY_MINUTES` par job).
+
+**Utilisation** :
+```bash
+python3 scripts/check_cron_health.py
+```
+
+**Automatisation (cron)** — toutes les 10 minutes :
+```
+*/10 * * * * root cd /app && python3 scripts/check_cron_health.py 2>&1 | tee -a /app/rapports/cron_health.log
+```
+
+---
+
+### 42. migrate_build_indexes.py
+
+**Description** : **Migration unique** — construit `data/article_index.json` et `data/entity_index.json` en scannant tout le corpus `data/`. À exécuter une seule fois lors de la mise à niveau vers la v2.3+.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Simulation sans écriture | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/migrate_build_indexes.py
+python3 scripts/migrate_build_indexes.py --dry-run
+```
+
+---
+
+### 43. normalize_entity_index.py
+
+**Description** : **Migration v1 → v2** — normalise les clés de `data/entity_index.json` en minuscules et ajoute le champ `caps` (forme d'affichage canonique).
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Simulation sans écriture | désactivé |
+| `--backup` | Créer une copie de sauvegarde avant migration | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/normalize_entity_index.py --backup
+python3 scripts/normalize_entity_index.py --dry-run
+```
+
+---
+
+### 44. rebuild_48h.py
+
+**Description** : Reconstruit `data/articles-from-rss/_WUDD.AI_/48-heures.json` en agrégeant **tous les articles des 48 dernières heures** depuis les fichiers sources. À utiliser si `48-heures.json` est corrompu ou manquant.
+
+**Utilisation** :
+```bash
+python3 scripts/rebuild_48h.py
+```
+
+---
+
+### 45. fix_article_dates.py
+
+**Description** : **Migration unique** — normalise les dates au format RFC 2822 vers `DD/MM/YYYY` dans `data/articles-from-rss/`. À exécuter lors de la migration des anciens articles.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dry-run` | Simulation sans écriture | désactivé |
+
+**Utilisation** :
+```bash
+python3 scripts/fix_article_dates.py --dry-run
+python3 scripts/fix_article_dates.py
+```
+
+---
+
+### 46. Get_htmlText_From_JSONFile.py
+
+**Description** : Extrait le **contenu texte brut** de tous les articles d'un flux JSON. Interface GUI (`tkinter`) pour sélectionner le fichier source. Usage : analyse manuelle, débogage.
+
+**Utilisation** :
+```bash
+python3 scripts/Get_htmlText_From_JSONFile.py
+# Une fenêtre s'ouvre pour sélectionner un fichier JSON flux
+```
+
+**Sortie** : `data/raw/all_articles.txt`
+
+---
+
+## ⚙️ Système de quota adaptatif
 
 > **Module :** `utils/quota.py` | **Config :** `config/quota.json` | **État :** `data/quota_state.json`
 
-Le système de quota régule automatiquement le nombre d'articles importés par jour via l'API IA (EurIA ou Claude). Il applique quatre plafonds indépendants et trie les mots-clés de façon adaptative pour garantir la diversité des sources.
+Le système de quota régule le nombre d'articles importés par jour via l'API IA. Il applique quatre plafonds indépendants et trie les mots-clés adaptativement.
 
 ### Paramètres (`config/quota.json`)
 
@@ -653,63 +1157,20 @@ Le système de quota régule automatiquement le nombre d'articles importés par 
 
 | Paramètre | Description | Défaut |
 |---|---|---|
-| `enabled` | Active / désactive complètement le système | `true` |
-| `global_daily_limit` | Plafond journalier global (tous mots-clés confondus) | `150` |
+| `enabled` | Active / désactive le système | `true` |
+| `global_daily_limit` | Plafond journalier global | `150` |
 | `per_keyword_daily_limit` | Max articles par mot-clé par jour | `30` |
 | `per_source_daily_limit` | Max articles d'un même site pour un mot-clé donné | `5` |
-| `per_entity_daily_limit` | Max articles contenant une même entité nommée par jour (max 20 via UI) | `10` |
+| `per_entity_daily_limit` | Max articles contenant une même entité nommée (max 20 via UI) | `10` |
 | `adaptive_sorting` | Trie les mots-clés par ratio consommation/plafond croissant | `true` |
 
 ### Fonctionnement
 
-1. **Avant chaque import** : `quota.can_process(keyword, source)` vérifie les 3 plafonds (global, mot-clé, source).
-2. **Après détection NER, avant création** : `quota.can_process_entities(entities)` vérifie le plafond par entité — retourne `(True, '')` ou `(False, nom_entité)`. Un article est rejeté si l'une de ses entités est saturée.
-3. **Après ajout** : `quota.record_article(keyword, source, entities)` incrémente tous les compteurs (y compris par entité).
-4. **Tri adaptatif** : `quota.sort_by_priority(keywords)` ordonne les mots-clés par ratio consommation/plafond (croissant) — les sujets les moins traités passent en premier.
-5. **Reset automatique** : Les compteurs (global, mots-clés, entités) se réinitialisent à minuit chaque jour (reset lazy au premier appel après minuit).
-
-### Intégration dans les scripts
-
-| Script | Comportement |
-|---|---|
-| `get-keyword-from-rss.py` | Stoppe le traitement dès que le quota global est atteint ; saute les sources saturées |
-| `flux_watcher.py` | Sortie immédiate en début de run si quota global épuisé |
-
-### Interface graphique (Viewer)
-
-L'onglet **Quota** dans les Réglages du Viewer permet de :
-- Activer/désactiver le système
-- Ajuster les quatre plafonds via des curseurs (global, par mot-clé, par source, par entité — max 20)
-- Activer/désactiver le tri adaptatif
-- Visualiser la consommation en temps réel (barres de progression par mot-clé)
-- Identifier les sources saturées (badges en rouge)
-- Consulter le **Top 20 des entités nommées** du jour avec indication de saturation
-- Remettre à zéro les compteurs manuellement
-
----
-
-## �📂 Structure des chemins
-
-Les scripts utilisent des chemins relatifs depuis le dossier `scripts/` :
-
-```
-scripts/
-├── script.py           # Script en cours d'exécution
-│
-├── ../config/          # Configuration
-│   ├── sites_actualite.json
-│   ├── categories_actualite.json
-│   ├── prompt-rapport.txt
-│   └── thematiques_societales.json  # Thématiques + mots-clés
-│
-├── ../data/            # Données générées
-│   ├── articles/       # JSON des articles
-│   └── raw/            # Données brutes (txt)
-│
-└── ../rapports/        # Rapports générés
-    ├── markdown/       # Rapports .md
-    └── pdf/            # Rapports PDF
-```
+1. `quota.can_process(keyword, source)` — vérifie les 3 plafonds avant import
+2. `quota.can_process_entities(entities)` — vérifie le plafond par entité après NER
+3. `quota.record_article(keyword, source, entities)` — incrémente tous les compteurs
+4. `quota.sort_by_priority(keywords)` — priorise les sujets les moins traités
+5. Reset automatique à minuit (reset lazy au premier appel après minuit)
 
 ---
 
@@ -717,58 +1178,53 @@ scripts/
 
 ### Erreur : "No module named 'requests'"
 ```bash
-pip install requests beautifulsoup4 python-dotenv
+pip install -r viewer/requirements.txt
 ```
-
-### Erreur : "FileNotFoundError: ../data/articles/..."
-Assurez-vous d'exécuter les scripts **depuis le dossier scripts/** :
-```bash
-cd scripts/
-python3 nom_du_script.py
-```
-
-### Interface graphique ne s'affiche pas
-Les scripts utilisent `tkinter` qui nécessite un environnement graphique. Sur serveur headless, adaptez le code pour passer les chemins en arguments.
 
 ### Erreur API EurIA / Claude
 Vérifiez :
-- Le token `bearer` (EurIA) ou `CLAUDE_API_KEY` (Claude) dans le fichier `.env`
+- Le token `bearer` (EurIA) ou `CLAUDE_API_KEY` (Claude) dans `.env`
 - La variable `AI_PROVIDER` (`euria` ou `claude`) dans `.env`
-- La validité de l'URL de l'API
-- Votre connexion internet
+- La validité de l'URL de l'API et la connexion internet
+
+### Index obsolètes ou manquants
+```bash
+python3 scripts/migrate_build_indexes.py
+```
+
+### `48-heures.json` corrompu
+```bash
+python3 scripts/rebuild_48h.py
+```
 
 ---
 
 ## 📊 Workflow typique
 
-1. **Collecte et analyse** (génère articles JSON + rapport)
-   ```bash
-   python3 Get_data_from_JSONFile_AskSummary.py 2026-01-01 2026-01-31
-   ```
+### Collecte initiale d'un nouveau flux
+```bash
+python3 scripts/Get_data_from_JSONFile_AskSummary_v2.py --flux MonFlux --date_debut 2026-01-01 --date_fin 2026-01-31
+python3 scripts/enrich_entities.py --flux MonFlux
+python3 scripts/enrich_sentiment.py --flux MonFlux
+python3 scripts/enrich_images.py --flux MonFlux
+```
 
-2. **Enrichissement avec entités nommées (NER)** (optionnel)
-   ```bash
-   python3 scripts/enrich_entities.py
-   # Ou pour un flux spécifique :
-   python3 scripts/enrich_entities.py --flux Intelligence-artificielle
-   ```
+### Maintenance quotidienne (automatisée via cron)
+1. 00h05 — `archive_quota_state.py`
+2. 01h00 — `backup_data.py`
+3. 02h00 — `enrich_entities.py` (round-robin)
+4. 02h30 — `enrich_images.py`
+5. 03h00 — `enrich_sentiment.py`
+6. 07h00 — `trend_detector.py`
+7. 07h30 — `generate_morning_digest.py --ai`
+8. 08h00 — `generate_reading_notes.py`
+9. 23h00 — `generate_48h_report.py`
 
-3. **Analyse des thématiques sociétales**
-   ```bash
-   python3 analyse_thematiques.py
-   ```
-
-4. **Conversion en Markdown personnalisé** (optionnel)
-   ```bash
-   python3 articles_json_to_markdown.py
-   # Sélectionner : ../data/articles/articles_generated_2026-01-01_2026-01-31.json
-   ```
-
-5. **Extraction texte brut** (pour analyse manuelle)
-   ```bash
-   python3 Get_htmlText_From_JSONFile.py
-   # Sélectionner un flux JSON source
-   ```
+### Maintenance hebdomadaire (lundi)
+1. 05h30 — `optimize_scoring_weights.py`
+2. 05h45 — `optimize_quota.py`
+3. 06h00 — `scheduler_articles.py`
+4. 06h30 — `generate_briefing.py --period weekly`
 
 ---
 

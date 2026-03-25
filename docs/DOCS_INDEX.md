@@ -1,7 +1,7 @@
 # 📚 Index de la documentation - AnalyseActualités
 
 > Guide de navigation pour toute la documentation du projet  
-> Version 2.0 - 23 janvier 2026
+> Version 2.4 - 25 mars 2026
 
 ---
 
@@ -181,17 +181,31 @@
 
 ### scripts/USAGE.md
 ```
-├── Lancement rapide
-├── Scripts disponibles (×3)
-│   ├── Get_data_from_JSONFile_AskSummary.py
-│   ├── Get_htmlText_From_JSONFile.py
-│   └── articles_json_to_markdown.py
-├── Configuration requise
-│   ├── Fichier .env
-│   └── Dépendances Python
-├── Structure des chemins
-├── Dépannage (FAQ)
-└── Workflow typique
+├── Index des 46 scripts (tableau)
+├── Référence détaillée (sections numérotées §1–§46)
+│   ├── ETL : Get_data_from_JSONFile_AskSummary_v2.py, scheduler_articles.py
+│   ├── Veille RSS : flux_watcher.py, get-keyword-from-rss.py, web_watcher.py
+│   ├── Enrichissement : enrich_entities.py, enrich_sentiment.py,
+│   │   enrich_images.py, enrich_reading_time.py, enrich_source_credibility.py
+│   ├── Analyse : trend_detector.py, detect_contradictions.py, cluster_articles.py
+│   │   analyse_thematiques.py, entity_timeline.py, cross_flux_analysis.py
+│   ├── Rapports : generate_48h_report.py, generate_morning_digest.py,
+│   │   generate_briefing.py, generate_reading_notes.py,
+│   │   generate_keyword_reports.py, generate_data_quality_report.py,
+│   │   generate_ai_consumption_report.py, radar_wudd.py
+│   ├── Réparation : repair_failed_summaries.py, repair_failed_enrichments.py
+│   ├── Import/Export : import_articles.py, import_obsidian_reports.py
+│   ├── Maintenance : backup_data.py, archive_quota_state.py,
+│   │   optimize_quota.py, optimize_scoring_weights.py, calibrate_alerts.py,
+│   │   update_source_performance.py, update_quality_scores.py,
+│   │   precompute_entity_stats.py, benchmark_indexes.py,
+│   │   keyword_drift_detector.py, check_cron_health.py
+│   ├── Conversion : articles_json_to_markdown.py, articles_rss_to_markdown.py
+│   └── Migrations : migrate_build_indexes.py, normalize_entity_index.py,
+│       rebuild_48h.py, fix_article_dates.py, Get_htmlText_From_JSONFile.py
+├── Système de quota adaptatif (config, fonctionnement)
+├── Dépannage
+└── Workflow typique (collecte, maintenance quotidienne, hebdomadaire)
 ```
 
 ### .github/copilot-instructions.md (v2.0)

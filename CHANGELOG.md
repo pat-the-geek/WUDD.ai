@@ -1,3 +1,59 @@
+# 25/03/2026 — Documentation complète des nouvelles fonctionnalités (v2.4)
+
+## `scripts/USAGE.md` — Refonte complète
+
+Le guide de référence CLI a été entièrement réécrit pour couvrir les **46 scripts** du projet (contre 15 précédemment). Chaque script est maintenant documenté avec son rôle, ses arguments CLI, des exemples d'utilisation, son entrée cron et ses sorties.
+
+Scripts nouvellement documentés :
+
+| Script | Rôle |
+|---|---|
+| `web_watcher.py` | Surveillance sources web via sitemap |
+| `enrich_sentiment.py` | Enrichissement sentiment et ton éditorial |
+| `enrich_images.py` | Enrichissement images (og:image / twitter:image) |
+| `detect_contradictions.py` | Détection de contradictions entre sources |
+| `generate_morning_digest.py` | Morning Digest quotidien |
+| `generate_briefing.py` | Briefing exécutif hebdomadaire |
+| `generate_reading_notes.py` | Notes de lecture par tag |
+| `generate_keyword_reports.py` | Rapports Markdown par mot-clé |
+| `generate_data_quality_report.py` | Rapport qualité des données |
+| `generate_ai_consumption_report.py` | Rapport consommation API IA |
+| `cluster_articles.py` | Clustering thématique (UI) |
+| `import_obsidian_reports.py` | Sync rapports Obsidian |
+| `backup_data.py` | Sauvegarde incrémentale |
+| `archive_quota_state.py` | Archivage quotidien des quotas |
+| `optimize_quota.py` | Optimisation hebdomadaire des quotas |
+| `optimize_scoring_weights.py` | Optimisation des poids de scoring |
+| `calibrate_alerts.py` | Auto-calibration des seuils d'alerte |
+| `update_source_performance.py` | Scores empiriques des sources |
+| `update_quality_scores.py` | Scores de qualité des articles |
+| `precompute_entity_stats.py` | Pré-calcul stats entités |
+| `keyword_drift_detector.py` | Détection dérive mots-clés |
+| `rebuild_48h.py` | Reconstruction 48-heures.json |
+| `fix_article_dates.py` | Migration normalisation dates |
+| `normalize_entity_index.py` | Migration index entités v1→v2 |
+| `migrate_build_indexes.py` | Migration construction des index |
+
+## `docs/ARCHITECTURE.md` — Nouveaux modules `utils/`
+
+Documentation des modules `utils/` créés dans les versions v2.3–v2.4 :
+
+| Module | Rôle |
+|---|---|
+| `utils/rolling_window.py` | Fenêtre glissante 48h (`48-heures.json`) |
+| `utils/article_merger.py` | Recherche et fusion d'articles similaires |
+| `utils/async_enricher.py` | Enrichissement NER/sentiment asynchrone (aiohttp) |
+| `utils/engagement_tracker.py` | Signaux d'engagement implicites (auto-apprentissage) |
+| `utils/quality_monitor.py` | Score de qualité des articles (0–100) |
+| `utils/quota_optimizer.py` | Optimisation automatique des quotas |
+| `utils/scoring_optimizer.py` | Optimisation automatique des poids de scoring |
+| `utils/source_performance.py` | Score empirique des sources (métriques réelles) |
+| `utils/alert_calibrator.py` | Auto-calibration des seuils d'alerte |
+| `utils/contradiction_feedback.py` | Feedback sur les contradictions détectées |
+| `utils/source_registry.py` | Registre centralisé des sources surveillées |
+
+---
+
 # 20/03/2026 — Visualisations custom React dans le rapport cross-flux (sans Mermaid)
 
 ## `scripts/cross_flux_analysis.py` — Remplacement des blocs Mermaid
