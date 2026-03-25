@@ -194,39 +194,45 @@ def load_quota_config(project_root: Path) -> dict:
     return defaults
 
 
-def build_mermaid_xychart(history: list, global_limit: int, title: str = "") -> str:
-    """Génère un diagramme xychart-beta : articles traités + ligne de quota.
+_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
-    Pour 30 jours, n'affiche une étiquette que tous les 5 jours afin d'éviter la
-    surcharge de l'axe X (les valeurs de la barre restent toutes présentes).
+
+def _label(date_str: str) -> str:
+    """Formate une date en label Mermaid sans caractères spéciaux : 19Mar, 01Apr..."""
+    dt = datetime.fromisoformat(date_str)
+    return f"{dt.day:02d}{_MONTHS[dt.month - 1]}"
+
+
+def build_mermaid_xychart(history: list, global_limit: int, title: str = "") -> str:
+    """Génère un diagramme xychart-beta sans title ni caractères spéciaux.
+
+    - <= 10 jours : barre quotidienne, labels DDMMM (ex: 19Mar)
+    - >  10 jours : agrégation en périodes de 5 jours (6 points pour 30j),
+                   la ligne de quota représente le plafond sur 5 jours.
     """
     n = len(history)
-    # Pour ≤ 10 jours : toutes les dates ; au-delà : une étiquette tous les 5 jours
-    step = 1 if n <= 10 else 5
 
-    labels = []
-    values = []
-    for i, entry in enumerate(history):
-        dt = datetime.fromisoformat(entry["date"])
-        # Afficher l'étiquette uniquement aux positions multiples de step (et toujours la dernière)
-        if i % step == 0 or i == n - 1:
-            labels.append(dt.strftime("%d/%m"))
-        else:
-            labels.append("")
-        values.append(str(entry["global_count"]))
+    if n <= 10:
+        labels = [_label(e["date"]) for e in history]
+        values = [str(e["global_count"]) for e in history]
+        limit_per_period = global_limit
+    else:
+        period = 5
+        groups = [history[i:i + period] for i in range(0, n, period)]
+        labels = [_label(g[0]["date"]) for g in groups]
+        values = [str(sum(e["global_count"] for e in g)) for g in groups]
+        limit_per_period = global_limit * period
 
-    labels_str = ", ".join(f'"{l}"' for l in labels)
+    labels_str = ", ".join(labels)        # labels sans guillemets ni caractères spéciaux
     values_str = ", ".join(values)
-    limit_str  = ", ".join([str(global_limit)] * n)
-    y_max      = global_limit + round(global_limit * 0.1)
-    chart_title = title or f"Articles traites par IA - {n} derniers jours"
+    limit_str  = ", ".join([str(limit_per_period)] * len(labels))
+    y_max      = limit_per_period + round(limit_per_period * 0.1)
 
     return "\n".join([
         "```mermaid",
         "xychart-beta",
-        f'    title "{chart_title}"',
         f"    x-axis [{labels_str}]",
-        f'    y-axis "Articles" 0 --> {y_max}',
+        f"    y-axis Articles 0 --> {y_max}",
         f"    bar [{values_str}]",
         f"    line [{limit_str}]",
         "```",
@@ -339,12 +345,8 @@ def build_report(history: list, token_stats: dict, quota_cfg: dict) -> str:
     history_7d  = history[-7:]
     history_30d = history
 
-    mermaid_7d  = build_mermaid_xychart(
-        history_7d,  global_limit, "Articles traites par IA - 7 derniers jours"
-    )
-    mermaid_30d = build_mermaid_xychart(
-        history_30d, global_limit, "Articles traites par IA - 30 derniers jours"
-    )
+    mermaid_7d  = build_mermaid_xychart(history_7d,  global_limit)
+    mermaid_30d = build_mermaid_xychart(history_30d, global_limit)
 
     keyword_table = build_keyword_table(today_entry)
     token_table   = build_token_table(token_stats)
@@ -428,7 +430,7 @@ type: ai-consumption
 {mermaid_30d}
 
 > **Barres** = articles traités · **Ligne** = plafond journalier configuré ({global_limit} articles).
-> Les étiquettes de l'axe X sont affichées tous les 5 jours.
+> Le graphe 30j aggrège les articles par périodes de 5 jours — la ligne de quota représente le plafond cumulé sur 5 jours ({global_limit * 5} articles).
 
 ---
 
