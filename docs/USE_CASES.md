@@ -1,6 +1,6 @@
 # Use Cases — WUDD.ai
 
-> Quinze scénarios typiques d'utilisation de la plateforme, du point de vue de l'utilisateur, dont deux optimisés pour une utilisation sur smartphone en situation de mobilité.
+> Dix-huit scénarios typiques d'utilisation de la plateforme, du point de vue de l'utilisateur, dont deux optimisés pour une utilisation sur smartphone en situation de mobilité.
 > Chaque use case est illustré par un diagramme Mermaid.
 
 ---
@@ -24,6 +24,7 @@
 15. [Interrogation par terminal IA (local AI agent)](#15-interrogation-par-terminal-ia-local-ai-agent)
 16. [Export vers Obsidian](#16-export-vers-obsidian)
 17. [Vérification de la fiabilité des sources](#17-vérification-de-la-fiabilité-des-sources)
+18. [Configuration sémantique assistée par IA](#18-configuration-sémantique-assistée-par-ia)
 
 ---
 
@@ -213,7 +214,7 @@ flowchart LR
     class CHECK,STORE,HIT cache
 ```
 
-![Cartographie géopolitique — carte mondiale des entités](Screen-captures/WWUD.ai-Viewer-entities-map-world.png)
+![Cartographie géopolitique — carte mondiale des entités](Screen-captures/Direct-News-avec-carte.png)
 
 **Valeur produite :** Une carte mondiale interactive où chaque cercle représente une entité géopolitique mentionnée dans le corpus — sa taille reflète la fréquence des mentions. Un clic ouvre instantanément les articles correspondants.
 
@@ -257,7 +258,7 @@ sequenceDiagram
     U->>P: Revient à la liste → Exporte JSON des articles
 ```
 
-![Exploration du réseau sémantique — graphe de co-occurrences](Screen-captures/WWUD.ai-Viewer-entities-relations.png)
+![Exploration du réseau sémantique — graphe de co-occurrences](Screen-captures/Entité-map-relations.png)
 
 **Valeur produite :** L'utilisateur navigue dans le réseau sémantique de son corpus comme dans une carte mentale vivante — chaque clic recentre le graphe sur une nouvelle entité, révélant progressivement la structure relationnelle de l'information collectée.
 
@@ -338,9 +339,9 @@ sequenceDiagram
     V-->>U: Résultats avec extraits mis en évidence
 ```
 
-![Liste des fichiers — vue iPhone](Screen-captures/WWUD.ai-Viewer-files.mobile.png)
+![Liste des fichiers — vue mobile](Screen-captures/Explorateur-articles.png)
 
-![Articles — vue iPhone](Screen-captures/WWUD.ai-Viewer-articles-mobile.png)
+![Articles — vue mobile](Screen-captures/Explorateur-articles-big-picture.png)
 
 **Valeur produite :** Accès instantané à l'ensemble des résumés collectés depuis un iPhone, sans application native ni synchronisation cloud — la veille se consulte comme un journal personnalisé, sur ses propres données, en toute confidentialité.
 
@@ -382,9 +383,9 @@ flowchart TD
     class DASH,LISTE,CARTE,GALERIE,MARKER,IMG entity
 ```
 
-![Dashboard entités — carte géographique mobile](Screen-captures/WWUD.ai-Viewer-entities-map-mobile.png)
+![Dashboard entités — carte géographique](Screen-captures/Dashboard-entités.png)
 
-![Dashboard entités — galerie d'images mobile](Screen-captures/WWUD.ai-Viewer-entities-galerie-mobile.png)
+![Dashboard entités — galerie d'images](Screen-captures/Entité-articles.png)
 
 **Valeur produite :** En moins de trois minutes depuis un smartphone, l'utilisateur identifie les acteurs dominants de l'actualité récente, visualise leur ancrage géographique et les reconnaît visuellement — sans ordinateur, sans application dédiée, sur ses propres données.
 
@@ -897,6 +898,66 @@ python3 scripts/enrich_source_credibility.py --status # état du cycle
 
 ---
 
+## 18. Configuration sémantique assistée par IA
+
+**Contexte :** L'utilisateur surveille un mot-clé ambigu — par exemple *« espace »* peut désigner l'astronomie, l'immobilier ou la typographie. Il souhaite restreindre la détection au sens astronomique sans saisir manuellement des dizaines de termes de contexte (champ ET) ni de synonymes (champ OR).
+
+**Acteurs :** Utilisateur · Viewer · Flask · API EurIA ou Claude
+
+```mermaid
+sequenceDiagram
+    actor U as Utilisateur
+    participant V as Viewer (navigateur)
+    participant F as Flask (settings.py)
+    participant A as API EurIA / Claude
+
+    U->>V: Ouvre Réglages → onglet Mots-clés
+    V->>V: Affiche la liste des mots-clés avec bouton ✨ IA
+    U->>V: Clique sur ✨ IA (ex. mot-clé « espace »)
+    V->>F: POST /api/keywords/suggest { keyword: "espace" }
+    F->>A: Prompt : "Génère des synonymes (ou) et un champ lexical\n contextuel (et) pour le mot-clé espace en veille d'actualités"
+    A-->>F: JSON { ou: [...], et: ["spatial","satellite","NASA","ESA",...] }
+    F-->>V: { ou: [...], et: [...] }
+    V->>V: Affiche SemanticFieldModal
+    Note over V: Pills bleues = OR (synonymes)<br/>Pills vertes = ET (contexte)
+    U->>V: Clique sur les pills désirées (sélection/désélection)
+    U->>V: Clique « Appliquer »
+    V->>V: Fusionne sans doublon les termes sélectionnés<br/>dans les champs or / and existants (Set JS)
+    V->>V: Ferme la modal
+    U->>V: Clique « Enregistrer »
+    V->>F: POST /api/keywords (liste mise à jour)
+    F-->>V: { ok: true }
+    Note over V: Mot-clé enrichi — prochaine veille<br/>filtrée sur le bon sens sémantique
+```
+
+**Déclencheur :** Clic sur le bouton **✨ IA** dans la carte d'un mot-clé (Réglages → Mots-clés)
+
+**Pré-conditions :**
+- Le champ `keyword` de la carte est non vide
+- `AI_PROVIDER` est configuré dans `.env` (`euria` ou `claude`)
+
+**Flux nominal :**
+1. L'utilisateur ouvre l'onglet **Mots-clés** dans le panneau Réglages
+2. Il clique sur **✨ IA** sur la carte du mot-clé ambigu
+3. La modal `SemanticFieldModal` s'ouvre avec un indicateur de chargement
+4. L'IA retourne deux listes : synonymes (`ou`) et champ lexical contextuel (`et`)
+5. Les termes s'affichent sous forme de pills colorées (bleu = OR, vert = ET)
+6. L'utilisateur sélectionne/désélectionne les pills pertinentes
+7. Il clique **Appliquer** — les termes retenus sont fusionnés (sans doublon) dans les champs existants
+8. Il clique **Enregistrer** pour persister la configuration dans `keyword-to-search.json`
+
+**Cas alternatifs :**
+- Si l'IA ne répond pas : message d'erreur inline dans la modal, fermeture manuelle
+- Si tous les termes proposés sont déjà présents : l'union Set produit aucun doublon
+
+**Post-conditions :**
+- `config/keyword-to-search.json` contient les nouveaux termes OR/AND
+- La prochaine exécution de `get-keyword-from-rss.py` applique automatiquement les filtres enrichis
+
+**Valeur produite :** En moins de 30 secondes, l'utilisateur obtient un champ sémantique contextuel généré par l'IA pour disambiguïser un mot-clé — sans connaître le domaine ni saisir manuellement des dizaines de termes. La détection RSS est immédiatement plus précise, avec moins de faux positifs.
+
+---
+
 ```mermaid
 quadrantChart
     title Use cases - Frequence vs Profondeur d analyse
@@ -923,6 +984,7 @@ quadrantChart
     UC15 Terminal IA agent: [0.30, 0.35]
     UC16 Export Obsidian: [0.20, 0.72]
     UC17 Fiabilite sources: [0.15, 0.60]
+    UC18 Config semantique IA: [0.05, 0.48]
 ```
 
 | # | Use Case | Déclencheur | Durée typique | Sortie |
@@ -944,8 +1006,9 @@ quadrantChart
 | 15 | Terminal IA (local AI agent) | Ad hoc (éditeur / outil IA) | Immédiat | Réponse en langage naturel · lecture / écriture fichiers |
 | 16 | Export vers Obsidian | Ad hoc (viewer) | < 5 s / article | Note Markdown Obsidian avec frontmatter YAML complet |
 | 17 | Vérification fiabilité des sources | Cron planifié / manuel | ~1 min (script) | Score composite · tableau comparatif sources · multiplicateur scoring |
+| 18 | Configuration sémantique assistée par IA | Ad hoc (viewer) | < 30 s | Champs `or` / `and` enrichis sans doublon ; configuration sauvegardée |
 
 ---
 
 **Maintenu par** : Patrick Ostertag · patrick.ostertag@gmail.com
-**Créé le** : 2 mars 2026 · **Mis à jour le** : 17 mars 2026 (UC16 — export Obsidian · UC17 — fiabilité des sources)
+**Créé le** : 2 mars 2026 · **Mis à jour le** : 25 mars 2026 (UC16 — export Obsidian · UC17 — fiabilité des sources · UC18 — configuration sémantique IA)

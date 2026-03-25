@@ -5,7 +5,7 @@ import {
   Maximize2, Minimize2, ExternalLink, Database, Clipboard, BarChart2,
   ToggleLeft, ToggleRight, RotateCcw, ShieldOff,
   Sun, Moon, Monitor, Terminal, TrendingUp, Eye, Lock, EyeOff, Pencil,
-  BookOpen, Network, Layers,
+  BookOpen, Network, Layers, Sparkles,
 } from 'lucide-react'
 import KeywordForceGraph from './KeywordForceGraph'
 
@@ -394,6 +394,138 @@ function TagInput({ tags, onChange, placeholder, color }) {
   )
 }
 
+// ─── Modale champ sémantique ────────────────────────────────────────────────
+
+function SemanticFieldModal({ keyword, onClose, onApply }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState(null)
+  const [suggestions, setSuggestions] = useState(null)
+  const [selectedOu, setSelectedOu]   = useState(new Set())
+  const [selectedEt, setSelectedEt]   = useState(new Set())
+
+  const toggle = (set, setter, val) =>
+    setter(prev => { const s = new Set(prev); s.has(val) ? s.delete(val) : s.add(val); return s })
+
+  useEffect(() => {
+    setLoading(true); setError(null); setSuggestions(null)
+    fetch('/api/keywords/suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) { setError(d.error); return }
+        setSuggestions(d)
+        setSelectedOu(new Set(d.ou || []))
+        setSelectedEt(new Set(d.et || []))
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [keyword])
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden border border-slate-200 dark:border-slate-700">
+        {/* Header */}
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
+          <Sparkles size={16} className="text-amber-500" />
+          <div className="flex-1">
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-sm">Champ sémantique IA</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Suggestions pour <strong>"{keyword}"</strong></p>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Contenu */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {loading && (
+            <div className="flex items-center justify-center py-12 gap-3 text-slate-400 dark:text-slate-500 text-sm">
+              <RefreshCw size={16} className="animate-spin" />
+              L'IA génère des propositions…
+            </div>
+          )}
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl p-3 text-sm text-red-700 dark:text-red-300">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {error}
+            </div>
+          )}
+          {suggestions && (
+            <>
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[11px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700/50 rounded-full px-1.5 py-0.5 font-bold">OU</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Synonymes & variantes — élargissent la recherche</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {suggestions.ou.map(t => (
+                    <button
+                      key={t}
+                      onClick={() => toggle(selectedOu, setSelectedOu, t)}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                        selectedOu.has(t)
+                          ? 'bg-blue-500 dark:bg-blue-600 text-white border-blue-500 dark:border-blue-600'
+                          : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700/50 hover:bg-blue-100 dark:hover:bg-blue-800/40'
+                      }`}
+                    >
+                      {selectedOu.has(t) && <Check size={10} className="inline mr-1" />}{t}
+                    </button>
+                  ))}
+                  {suggestions.ou.length === 0 && <span className="text-xs text-slate-400 italic">Aucune proposition</span>}
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[11px] bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700/50 rounded-full px-1.5 py-0.5 font-bold">ET</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Champ lexical — restreignent au bon contexte</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {suggestions.et.map(t => (
+                    <button
+                      key={t}
+                      onClick={() => toggle(selectedEt, setSelectedEt, t)}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                        selectedEt.has(t)
+                          ? 'bg-green-500 dark:bg-green-600 text-white border-green-500 dark:border-green-600'
+                          : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700/50 hover:bg-green-100 dark:hover:bg-green-800/40'
+                      }`}
+                    >
+                      {selectedEt.has(t) && <Check size={10} className="inline mr-1" />}{t}
+                    </button>
+                  ))}
+                  {suggestions.et.length === 0 && <span className="text-xs text-slate-400 italic">Aucune proposition</span>}
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 italic">
+                Cliquez sur un terme pour le sélectionner ou désélectionner. Les termes sélectionnés (colorés) seront ajoutés.
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200 dark:border-slate-700 shrink-0 bg-slate-50/50 dark:bg-slate-900/30">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors border border-slate-200 dark:border-slate-600"
+          >
+            Annuler
+          </button>
+          <button
+            disabled={!suggestions || (selectedOu.size === 0 && selectedEt.size === 0)}
+            onClick={() => onApply([...selectedOu], [...selectedEt])}
+            className="px-4 py-1.5 text-xs bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            <Check size={12} /> Appliquer ({selectedOu.size + selectedEt.size} termes)
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Onglet Mots-clés ────────────────────────────────────────────────────────
 
 function KeywordsTab() {
@@ -403,6 +535,7 @@ function KeywordsTab() {
   const [saved, setSaved]         = useState(false)
   const [error, setError]         = useState(null)
   const [showMindmap, setShowMindmap] = useState(false)
+  const [semanticModal, setSemanticModal] = useState(null) // { idx, keyword }
 
   useEffect(() => {
     fetch('/api/keywords')
@@ -444,6 +577,22 @@ function KeywordsTab() {
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
+      {semanticModal && (
+        <SemanticFieldModal
+          keyword={semanticModal.keyword}
+          onClose={() => setSemanticModal(null)}
+          onApply={(ouTerms, etTerms) => {
+            const idx = semanticModal.idx
+            setKeywords(k => k.map((kw, i) => {
+              if (i !== idx) return kw
+              const newOr  = [...new Set([...(kw.or  || []), ...ouTerms])]
+              const newAnd = [...new Set([...(kw.and || []), ...etTerms])]
+              return { ...kw, or: newOr, and: newAnd }
+            }))
+            setSemanticModal(null)
+          }}
+        />
+      )}
       {/* Barre d'outils */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-200/50 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl shrink-0">
         <p className="text-xs text-slate-400 dark:text-slate-500 flex-1">
@@ -523,6 +672,14 @@ function KeywordsTab() {
                   className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-[#007AFF] transition-colors"
                 />
               </div>
+              <button
+                onClick={() => kw.keyword.trim() && setSemanticModal({ idx, keyword: kw.keyword.trim() })}
+                disabled={!kw.keyword.trim()}
+                className="mt-5 flex items-center gap-1 px-2.5 py-1.5 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-800/30 border border-amber-200 dark:border-amber-700/50 rounded-lg text-xs transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                title="Générer un champ sémantique par IA"
+              >
+                <Sparkles size={12} /> IA
+              </button>
               <button
                 onClick={() => remove(idx)}
                 className="mt-5 p-1.5 text-slate-400 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"

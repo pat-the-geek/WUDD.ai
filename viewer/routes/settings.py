@@ -97,6 +97,76 @@ def api_save_keywords():
     return jsonify({"ok": True})
 
 
+@settings_bp.route("/api/keywords/suggest", methods=["POST"])
+def api_suggest_semantic_field():
+    """Demande à l'IA des propositions de champ sémantique pour un mot-clé."""
+    import requests as req
+    data = request.get_json(force=True)
+    keyword = (data.get("keyword") or "").strip()
+    if not keyword:
+        abort(400, "Mot-clé manquant")
+
+    provider = os.environ.get("AI_PROVIDER", "euria").lower()
+    api_url  = os.environ.get("URL", "")
+    bearer   = os.environ.get("bearer", "")
+
+    prompt = (
+        f"Pour un système de veille d'actualités, je surveille le mot-clé : \"{keyword}\".\n\n"
+        f"Ce mot peut être ambigu ou avoir plusieurs sens selon le contexte.\n\n"
+        f"Génère deux listes de mots en français pour affiner la détection :\n"
+        f"1. **ou** : synonymes, variantes orthographiques, abréviations, noms de personnes/marques associés "
+        f"qui permettent de trouver des articles sur ce sujet même sans le mot exact.\n"
+        f"2. **et** : termes du champ sémantique qui doivent être présents dans le titre pour s'assurer "
+        f"que l'article traite bien du bon contexte (pas un autre sens du mot).\n\n"
+        f"Réponds UNIQUEMENT en JSON valide, sans commentaire, sans balise <think>, sans markdown :\n"
+        f"{{\"ou\": [\"terme1\", \"terme2\", ...], \"et\": [\"terme1\", \"terme2\", ...]}}\n\n"
+        f"Maximum 15 termes par liste. Termes courts et précis, adaptés aux titres d'articles de presse."
+    )
+
+    try:
+        if provider == "claude":
+            from utils.api_client import ClaudeClient
+            client = ClaudeClient(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+            full_text = ""
+            for chunk in client.stream(prompt=prompt, timeout=60):
+                if chunk.startswith("data: "):
+                    try:
+                        obj = json.loads(chunk[6:])
+                        full_text += obj.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                    except Exception:
+                        pass
+        else:
+            if not api_url or not bearer:
+                return jsonify({"error": "URL ou bearer manquant dans .env"}), 503
+            payload = {
+                "messages": [{"role": "user", "content": prompt}],
+                "model": "qwen3",
+                "stream": False,
+            }
+            headers = {"Authorization": f"Bearer {bearer}", "Content-Type": "application/json"}
+            r = req.post(api_url, json=payload, headers=headers, timeout=60)
+            r.raise_for_status()
+            full_text = r.json()["choices"][0]["message"]["content"]
+
+        # Extraire le JSON de la réponse (robuste aux balises markdown)
+        import re
+        match = re.search(r'\{[^{}]*"ou"[^{}]*"et"[^{}]*\}|\{[^{}]*"et"[^{}]*"ou"[^{}]*\}', full_text, re.DOTALL)
+        if not match:
+            # Essai avec bloc ```json ... ```
+            match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', full_text, re.DOTALL)
+            raw = match.group(1) if match else full_text.strip()
+        else:
+            raw = match.group(0)
+
+        result = json.loads(raw)
+        return jsonify({"ou": result.get("ou", []), "et": result.get("et", [])})
+
+    except json.JSONDecodeError as e:
+        return jsonify({"error": f"Réponse IA non parseable : {e}", "raw": full_text[:500]}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @settings_bp.route("/api/rss-feeds", methods=["GET"])
 def api_get_rss_feeds():
     """Parse le fichier OPML Reeder et retourne les flux RSS triés alphabétiquement."""

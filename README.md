@@ -42,6 +42,8 @@
 12. [Contribuer](#12-contribuer)
 13. [Contact et licence](#13-contact-et-licence)
 
+> 📖 Use cases illustrés : [docs/USE_CASES.md](docs/USE_CASES.md) — 18 scénarios avec diagrammes Mermaid, dont le UC18 : Génération assistée de champs sémantiques.
+
 ---
 
 ## 1. Présentation
@@ -273,7 +275,7 @@ WUDD.ai/
 | `config/flux_json_sources.json` | Liste des flux RSS/JSON et paramètres cron |
 | `config/sites_actualite.json` | Sources RSS disponibles |
 | `config/categories_actualite.json` | Catégories d'articles |
-| `config/keyword-to-search.json` | Mots-clés pour extraction quotidienne (avec filtres OR/AND optionnels) |
+| `config/keyword-to-search.json` | Mots-clés pour extraction quotidienne (avec filtres OR/AND et génération de champ sémantique IA) |
 | `config/thematiques_societales.json` | 12 thématiques sociétales |
 | `config/prompt-rapport.txt` | Template de prompt pour rapports |
 
@@ -403,6 +405,24 @@ Chaque entrée du fichier accepte deux collections optionnelles pour affiner la 
 ```
 
 > Les mots des collections `or` et `and` utilisent une correspondance par **frontière de mot** (`\b` regex) pour éviter les faux positifs (ex. `AI` ne matche pas `semaine`).
+
+#### Génération automatique du champ sémantique via l'IA
+
+Le Viewer intègre un bouton **✨ IA** dans chaque carte mot-clé (onglet **Réglages → Mots-clés**). Un clic déclenche une requête vers l'API EurIA ou Claude, qui analyse le mot-clé et propose :
+
+- Des **synonymes et variantes** (liste `or`) — pour capturer les articles qui traitent du même sujet avec une formulation différente
+- Un **champ lexical contextuel** (liste `and`) — pour exclure les sens ambigus du mot et n'aligner que sur le bon domaine sémantique
+
+```
+Exemple : mot-clé « espace »
+  → or  : (vide — le mot est suffisamment présent)
+  → et  : spatial, planète, satellite, NASA, ESA, astronaute, orbite, fusée…
+         (exclut automatiquement « espace immobilier » ou « espace typographique »)
+```
+
+Les propositions s'affichent sous forme de **pills sélectionnables** (bleu = OR, vert = ET). Vous cliquez pour inclure ou exclure chaque terme, puis **Appliquer** fusionne les termes retenus dans les champs existants sans doublons. La configuration est ensuite sauvegardée via **Enregistrer**.
+
+> **Endpoint backend :** `POST /api/keywords/suggest` — reçoit `{ keyword }`, retourne `{ ou: [], et: [] }`
 
 ### Enrichissement NER (entités nommées)
 
@@ -665,7 +685,7 @@ bash start-viewer.sh stop      # arrêter le conteneur Docker
 | Visionneuse JSON | Coloration syntaxique, mode édition/sauvegarde intégré |
 | Visionneuse Markdown | Rendu HTML avec images et graphiques Mermaid |
 | Recherche plein texte | Recherche dans tous les fichiers via **⌘K** / **Ctrl+K** |
-| Panneau réglages | Gestion des flux, des planifications et des thématiques ; onglets Quota, RSS, Mots-clés, Alertes |
+| Panneau réglages | Gestion des flux, des planifications et des thématiques ; onglets Quota, RSS, Mots-clés, Alertes |\n| Champ sémantique IA | Bouton **✨ IA** dans chaque carte mot-clé → génère automatiquement des synonymes (or) et un champ lexical contextuel (et) via l'API EurIA ou Claude, présentés comme pills sélectionnables avant application |
 | Dashboard entités | Vue agrégée cross-fichiers des entités nommées (NER) : statistiques par type, top entités, barres de proportion |
 | Détail d'une entité | Cliquer sur une entité ouvre la liste des articles la mentionnant, avec graphe de co-occurrences, synthèse IA en streaming, boutons **Générer un rapport** et **Exporter JSON** |
 | Top articles | Panneau des N articles les mieux scorés (grille 3 colonnes, images, entités cliquables, rang podium 🥇🥈🥉) |

@@ -1,6 +1,6 @@
 # Architecture — AnalyseActualités
 
-> Document de référence technique · Version 4.3 · 17 mars 2026
+> Document de référence technique · Version 4.4 · 25 mars 2026
 
 ---
 
@@ -902,6 +902,7 @@ L'interface est entièrement adaptée aux appareils mobiles et tablettes :
 | `/api/search` | GET | Recherche plein texte (param `q`) | — |
 | `/api/scheduler` | GET | Liste les tâches cron avec dernier/prochain passage | — |
 | `/api/keywords` | GET/POST | Lit/sauvegarde `keyword-to-search.json` | — |
+| `/api/keywords/suggest` | POST | Analyse le mot-clé via l'IA et retourne `{ ou: [...], et: [...] }` (synonymes + champ sémantique contextuel) | Provider EurIA (`stream: false`) ou Claude |
 | `/api/flux-sources` | GET/POST | Lit/sauvegarde `flux_json_sources.json` | — |
 | `/api/search/entity` | GET | Recherche cross-fichiers d'une entité NER | — |
 | `/api/entities/dashboard` | GET | Statistiques NER agrégées (top 50 par type) | — |
@@ -928,7 +929,8 @@ L'interface est entièrement adaptée aux appareils mobiles et tablettes :
 | `JsonViewer.jsx` | Édition JSON inline avec syntaxe colorée + sauvegarde |
 | `MarkdownViewer.jsx` | Rendu Markdown + diagrammes Mermaid (v11) |
 | `SearchOverlay.jsx` | Recherche plein texte globale (raccourci ⌘K) ; espacement adaptatif mobile |
-| `SettingsPanel.jsx` | Gestion des flux et mots-clés |
+| `SettingsPanel.jsx` | Gestion des flux et mots-clés ; onglet Mots-clés avec bouton **✨ IA** par carte |
+| `SemanticFieldModal` | Modal lancé par le bouton ✨ IA — appelle `POST /api/keywords/suggest`, affiche des pills sélectionnables (bleu = OR, vert = ET) et fusionne les sélections sans doublon dans les champs `or` / `and` |
 | `SchedulerPanel.jsx` | Statut cron + déclenchement manuel |
 | `ScriptConsolePanel.jsx` | Console modale SSE pour lancer `get-keyword-from-rss.py` ; logs en temps réel, rechargement auto de la liste de fichiers à la fin |
 | `EntityDashboard.jsx` | Dashboard NER : 3 onglets (Liste / Carte / Galerie), plein écran ; paddings et libellés adaptatifs mobile |
@@ -1237,4 +1239,4 @@ gantt
 ---
 
 **Maintenu par** : Patrick Ostertag · patrick.ostertag@gmail.com
-**Dernière mise à jour** : 3 mars 2026 · Version 4.2
+**Dernière mise à jour** : 25 mars 2026 · Version 4.4

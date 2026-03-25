@@ -25,22 +25,145 @@
       "Dario Amodei",
       "Claude Sonnet",
       "Claude haiku",
-      "Claude AI"
+      "Claude AI",
+      "Anthropic",
+      "Anthropic AI",
+      "Claude",
+      "Daniela Amodei",
+      "AI Anthropic",
+      "Anthropic Inc",
+      "Anthropic Labs",
+      "Anthropic Company"
+    ],
+    "and": [
+      "intelligence artificielle",
+      "IA",
+      "génération de texte",
+      "modèle linguistique",
+      "chatbot",
+      "start-up",
+      "technologie",
+      "silicon valley",
+      "fondation",
+      "sécurité IA"
     ]
   },
   {
-    "and": [],
+    "and": [
+      "LLM",
+      "modèle",
+      "EPFZ",
+      "EPFL",
+      "Modèle de langage",
+      "IA",
+      "intelligence artificielle",
+      "modèle linguistique",
+      "open source",
+      "génération de texte",
+      "chatbot",
+      "NLP",
+      "apprentissage automatique",
+      "langage naturel",
+      "grand modèle",
+      "IA générative",
+      "API",
+      "données",
+      "recherche"
+    ],
+    "keyword": "Apertus LLM",
+    "or": [
+      "Apertus",
+      "LLM Apertus",
+      "ApertusAI",
+      "Apertus LLM",
+      "Apertus Model",
+      "Apertus Open",
+      "Apertus Project",
+      "Apertus Framework",
+      "Apertus NLP",
+      "Apertus Chat",
+      "Apertus Bot",
+      "Apertus Tech",
+      "Apertus Lab",
+      "Apertus Studio",
+      "Apertus Core"
+    ]
+  },
+  {
+    "and": [
+      "technologie",
+      "smartphone",
+      "ordinateur",
+      "logiciel",
+      "innovation",
+      "produit",
+      "lancement",
+      "annonce",
+      "bourse",
+      "action",
+      "sécurité",
+      "conférence",
+      "WWDC",
+      "iPhone",
+      "iOS"
+    ],
     "keyword": "Apple",
     "or": [
       "iPhone",
       "iPad",
       "iOS",
       "MacBook",
-      "HomePod"
+      "HomePod",
+      "Apple Inc.",
+      "AAPL",
+      "Tim Cook",
+      "Mac",
+      "Apple Watch",
+      "AirPods",
+      "iCloud",
+      "App Store",
+      "Steve Jobs",
+      "Apple Park",
+      "Apple Music",
+      "Macs"
     ]
   },
   {
-    "keyword": "bactérie"
+    "keyword": "bactérie",
+    "or": [
+      "bactéries",
+      "microbe",
+      "microbes",
+      "germe",
+      "germes",
+      "pathogène",
+      "pathogènes",
+      "E. coli",
+      "salmonelle",
+      "listeria",
+      "staphylocoque",
+      "bactérien",
+      "bactérienne",
+      "infection",
+      "antibiotique"
+    ],
+    "and": [
+      "santé",
+      "maladie",
+      "épidémie",
+      "hygiène",
+      "médical",
+      "hôpital",
+      "traitement",
+      "vaccin",
+      "microbiologie",
+      "contamination",
+      "résistance",
+      "infectieux",
+      "laboratoire",
+      "épidémiologie",
+      "bactériologie"
+    ]
   },
   {
     "keyword": "David Bowie",
@@ -50,28 +173,141 @@
     ]
   },
   {
-    "and": [],
+    "and": [
+      "Villeneuve",
+      "Herbert",
+      "Arrakis",
+      "Atreides",
+      "film",
+      "roman",
+      "série",
+      "SF",
+      "science-fiction",
+      "cinéma",
+      "adaptation",
+      "Denis Villeneuve",
+      "Frank Herbert",
+      "HBO",
+      "Warner",
+      "box-office",
+      "critique",
+      "sortie",
+      "trailer",
+      "bande-annonce",
+      "saga"
+    ],
     "keyword": "Dune",
-    "or": []
+    "or": [
+      "Dune",
+      "Dune Partie 1",
+      "Dune Partie 2",
+      "Dune 2021",
+      "Dune 2024",
+      "Villeneuve",
+      "Herbert",
+      "Paul Atreides",
+      "Leto Atreides",
+      "Chani",
+      "Arrakis",
+      "Fremen",
+      "Bene Gesserit",
+      "Spice",
+      "Dune film"
+    ]
   },
   {
     "keyword": "éducation",
     "or": [
       "Education",
       "School",
-      "Pédagogique"
+      "Pédagogique",
+      "enseignement",
+      "école",
+      "université",
+      "formation",
+      "pédagogie",
+      "professeur",
+      "élève",
+      "bac",
+      "lycée",
+      "maternelle",
+      "primaire",
+      "collège"
+    ],
+    "and": [
+      "scolaire",
+      "étudiant",
+      "classe",
+      "programme",
+      "curriculum",
+      "enseignant",
+      "réforme",
+      "diplôme",
+      "baccalauréat",
+      "apprentissage",
+      "école publique",
+      "éducation nationale",
+      "éducation inclusive",
+      "éducation numérique",
+      "éducation civique"
     ]
   },
   {
     "keyword": "Elon Musk"
   },
   {
-    "keyword": "énergie"
+    "and": [
+      "renouvelable",
+      "solaire",
+      "éolien",
+      "pétrole",
+      "gaz",
+      "nucléaire",
+      "électrique",
+      "centrale",
+      "réseau",
+      "fossile",
+      "transition"
+    ],
+    "keyword": "énergie",
+    "or": []
   },
   {
-    "and": [],
+    "and": [
+      "philosophie",
+      "religion",
+      "théologie",
+      "cosmologie",
+      "poésie",
+      "littérature",
+      "art",
+      "spiritualité",
+      "dieux",
+      "temps",
+      "infini",
+      "mort",
+      "vie",
+      "âme",
+      "existence"
+    ],
     "keyword": "éternité ",
-    "or": []
+    "or": [
+      "éternel",
+      "éternité",
+      "immortalité",
+      "perpétuité",
+      "sans fin",
+      "éternellement",
+      "éternité divine",
+      "éternité absolue",
+      "éternité cosmique",
+      "éternité philosophique",
+      "éternité religieuse",
+      "éternité poétique",
+      "éternité littéraire",
+      "éternité artistique",
+      "éternité humaine"
+    ]
   },
   {
     "and": [],
@@ -94,24 +330,117 @@
     ]
   },
   {
-    "keyword": "Grok"
-  },
-  {
-    "and": [],
-    "keyword": "Guerre",
+    "and": [
+      "AI",
+      "IA",
+      "xAI",
+      "chatbot",
+      "modèle",
+      "Elon Musk"
+    ],
+    "keyword": "Grok",
     "or": []
   },
   {
-    "and": [],
-    "keyword": "Humanité",
+    "and": [
+      "armée",
+      "soldat",
+      "tir",
+      "bombardement",
+      "front",
+      "troupes",
+      "armistice",
+      "ceasefire",
+      "militaire",
+      "offensive",
+      "défense",
+      "bataille",
+      "conflit armé",
+      "victime",
+      "casualité"
+    ],
+    "keyword": "Guerre",
     "or": [
-      "Humanity"
+      "conflit",
+      "bataille",
+      "guerre mondiale",
+      "guerre civile",
+      "guerre froide",
+      "guerre totale",
+      "guerre sainte",
+      "guerre de tranchées",
+      "guerre d'indépendance",
+      "guerre de Sécession",
+      "guerre de Crimée",
+      "guerre du Golfe",
+      "guerre d'Algérie",
+      "guerre de Corée",
+      "guerre du Vietnam"
     ]
   },
   {
-    "and": [],
+    "and": [
+      "société",
+      "éthique",
+      "droits",
+      "valeurs",
+      "civilisation",
+      "dignité",
+      "solidarité",
+      "justice",
+      "morale",
+      "compassion",
+      "respect",
+      "coexistence",
+      "humanisme",
+      "humanitaire",
+      "égalité"
+    ],
+    "keyword": "Humanité",
+    "or": [
+      "Humanity",
+      "humanité",
+      "humanisme",
+      "humain",
+      "humains"
+    ]
+  },
+  {
+    "and": [
+      "économie",
+      "prix",
+      "taux",
+      "consommation",
+      "monétaire",
+      "banque centrale",
+      "indicateur",
+      "statistique",
+      "chiffre",
+      "hausse",
+      "coût",
+      "pouvoir d'achat",
+      "indice",
+      "marché",
+      "politique"
+    ],
     "keyword": "Inflation",
-    "or": []
+    "or": [
+      "inflationniste",
+      "taux d'inflation",
+      "inflation galopante",
+      "inflation élevée",
+      "inflation mondiale",
+      "inflation US",
+      "inflation européenne",
+      "inflation française",
+      "inflation alimentaire",
+      "inflation énergétique",
+      "inflation des prix",
+      "inflation des salaires",
+      "inflation des loyers",
+      "inflation des produits",
+      "inflation des services"
+    ]
   },
   {
     "and": [],
@@ -149,7 +478,18 @@
     "keyword": "Louvre"
   },
   {
-    "keyword": "Meta"
+    "and": [
+      "Facebook",
+      "Instagram",
+      "WhatsApp",
+      "Zuckerberg",
+      "Llama",
+      "réseau social",
+      "Quest",
+      "Ray-Ban"
+    ],
+    "keyword": "Meta",
+    "or": []
   },
   {
     "keyword": "Microsoft"
@@ -183,12 +523,87 @@
     ]
   },
   {
-    "and": [],
+    "and": [
+      "espace",
+      "satellite",
+      "fusée",
+      "astronaute",
+      "mission",
+      "planète",
+      "orbite",
+      "telescope",
+      "lancement",
+      "exploration",
+      "cosmos",
+      "station spatiale",
+      "recherche spatiale",
+      "astronomie",
+      "vol spatial"
+    ],
     "keyword": "Nasa",
-    "or": []
+    "or": [
+      "NASA",
+      "Nasa",
+      "Agence spatiale américaine",
+      "CNES",
+      "ESA",
+      "SpaceX",
+      "Elon Musk",
+      "Mars",
+      "Lune",
+      "ISS",
+      "Hubble",
+      "James Webb",
+      "Voyager",
+      "Apollo",
+      "Orion"
+    ]
   },
   {
-    "keyword": "nucléaire"
+    "and": [
+      "centrale",
+      "réacteur",
+      "bombe",
+      "missile",
+      "uranium",
+      "fission",
+      "fusion",
+      "AIEA",
+      "désarmement",
+      "prolifération",
+      "OTAN",
+      "énergie",
+      "électricité",
+      "sécurité",
+      "accident",
+      "déchets",
+      "armes",
+      "traité",
+      "radiation",
+      "stockage",
+      "exploitation",
+      "décommissionnement",
+      "séisme",
+      "fuite"
+    ],
+    "keyword": "nucléaire",
+    "or": [
+      "atomique",
+      "centrale",
+      "réacteur",
+      "EDF",
+      "Areva",
+      "Orano",
+      "Cern",
+      "Fukushima",
+      "Tchernobyl",
+      "fusion",
+      "fission",
+      "uranium",
+      "plutonium",
+      "IAEA",
+      "nucléaire"
+    ]
   },
   {
     "keyword": "OpenAI",
@@ -203,35 +618,168 @@
     "or": []
   },
   {
-    "and": [],
+    "and": [
+      "AI",
+      "IA",
+      "moteur de recherche",
+      "chatbot",
+      "recherche",
+      "Aravind Srinivas"
+    ],
     "keyword": "Perplexity",
     "or": []
   },
   {
-    "and": [],
+    "and": [
+      "espace",
+      "astronomie",
+      "orbite",
+      "atmosphère",
+      "climat",
+      "écologie",
+      "environnement",
+      "réchauffement",
+      "biodiversité",
+      "océan",
+      "forêt",
+      "faune",
+      "flore",
+      "écosystème",
+      "santé de la planète"
+    ],
     "keyword": "Planète",
     "or": [
       "Planet",
       "moon",
       "lune",
-      "mars"
+      "mars",
+      "planète",
+      "planètes",
+      "terre",
+      "vénus",
+      "jupiter",
+      "saturne",
+      "uranus",
+      "neptune",
+      "mercure",
+      "pluton",
+      "exoplanète",
+      "système solaire",
+      "astre",
+      "cosmos"
     ]
   },
   {
-    "and": [],
+    "and": [
+      "informatique",
+      "physique",
+      "technologie",
+      "recherche",
+      "ordinateur",
+      "calcul",
+      "cryptographie",
+      "qubit",
+      "algorithme",
+      "révolution",
+      "innovation",
+      "science",
+      "expérimental",
+      "développement",
+      "industrie"
+    ],
     "keyword": "Quantique",
-    "or": []
+    "or": [
+      "quantum",
+      "qubit",
+      "informatique quantique",
+      "calcul quantique",
+      "ordinateur quantique",
+      "cryptographie quantique",
+      "teleportation quantique",
+      "superposition",
+      "intrication",
+      "physique quantique",
+      "IBM Quantum",
+      "Google Quantum",
+      "Rigetti",
+      "D-Wave",
+      "Quantinuum"
+    ]
   },
   {
     "keyword": "Robotic",
     "or": [
-      "Robotique"
+      "Robotique",
+      "robot",
+      "robots",
+      "automatique",
+      "automatisation",
+      "IA",
+      "intelligence artificielle",
+      "drones",
+      "cyborg",
+      "android",
+      "robotique",
+      "autonome",
+      "machine learning",
+      "robotisé",
+      "automate",
+      "roboticien"
+    ],
+    "and": [
+      "technologie",
+      "industrie",
+      "fabrication",
+      "logistique",
+      "santé",
+      "agriculture",
+      "transport",
+      "militaire",
+      "recherche",
+      "innovation",
+      "start-up",
+      "prototype",
+      "développement",
+      "automobile",
+      "aérospatial"
     ]
   },
   {
-    "and": [],
+    "and": [
+      "technologie",
+      "innovation",
+      "réalité augmentée",
+      "réalité virtuelle",
+      "wearable",
+      "écran",
+      "capteur",
+      "IA",
+      "lunettes",
+      "connecté",
+      "affichage",
+      "utilisateur",
+      "design",
+      "lancement",
+      "prototype"
+    ],
     "keyword": "Smart glasses",
-    "or": []
+    "or": [
+      "lunettes intelligentes",
+      "lunettes connectées",
+      "AR glasses",
+      "VR glasses",
+      "Google Glass",
+      "Apple Glass",
+      "Meta Ray-Ban",
+      "Snap Spectacles",
+      "lunettes AR",
+      "lunettes VR",
+      "smartglasses",
+      "lunettes tech",
+      "lunettes numériques",
+      "lunettes futuristes",
+      "lunettes à réalité augmentée"
+    ]
   },
   {
     "and": [],
@@ -256,35 +804,219 @@
     ]
   },
   {
-    "and": [],
+    "and": [
+      "technologie",
+      "futur",
+      "science",
+      "éthique",
+      "corps",
+      "cerveau",
+      "évolution",
+      "société",
+      "transformation",
+      "progrès",
+      "bioéthique",
+      "avenir",
+      "humain",
+      "intelligence",
+      "vie"
+    ],
     "keyword": "transhumanisme",
-    "or": []
+    "or": [
+      "transhumaniste",
+      "transhumanistes",
+      "TH",
+      "posthumanisme",
+      "Ray Kurzweil",
+      "Elon Musk",
+      "Singularity",
+      "cyborg",
+      "augmentation humaine",
+      "intelligence artificielle",
+      "biotechnologie",
+      "nanotechnologie",
+      "immortalité",
+      "neurotechnologie",
+      "human enhancement"
+    ]
   },
   {
-    "keyword": "Trump"
+    "keyword": "Trump",
+    "or": [
+      "Trump",
+      "Donald Trump",
+      "DT",
+      "ex-président",
+      "ancien président",
+      "Trump Jr",
+      "Ivanka",
+      "MAGA",
+      "Trumpism",
+      "Trump Tower",
+      "Trump Organization",
+      "45e président",
+      "Trump 2024",
+      "Trump campagne",
+      "Trump affaire"
+    ],
+    "and": [
+      "président",
+      "États-Unis",
+      "politique",
+      "élection",
+      "justice",
+      "affaire",
+      "procès",
+      "campagne",
+      "MAGA",
+      " Maison Blanche",
+      "congrès",
+      "impeachment",
+      "RNC",
+      "parti républicain",
+      "sénat"
+    ]
   },
   {
     "and": [
       "banque",
-      "bank"
+      "bank",
+      "finance",
+      "investissement",
+      "actif",
+      "patrimoine",
+      "marché",
+      "bourse",
+      "crédit",
+      "risque",
+      "gestion",
+      "client",
+      "suisse",
+      "zurich",
+      "fusion",
+      "scandale"
     ],
-    "keyword": "UBS"
+    "keyword": "UBS",
+    "or": [
+      "UBS Group",
+      "Union Bancaire Suisse",
+      "UBS AG",
+      "UBS Bank",
+      "UBS Switzerland",
+      "UBS Finance",
+      "UBS Wealth",
+      "UBS Asset",
+      "UBS Investment",
+      "UBS Private",
+      "UBS Trading",
+      "UBS Markets",
+      "UBS Securities",
+      "UBS Advisory",
+      "UBS Consulting"
+    ]
   },
   {
-    "and": [],
+    "and": [
+      "guerre",
+      "crise",
+      "conflit",
+      "invasion",
+      "sanctions",
+      "armée",
+      "front",
+      "réfugiés",
+      "diplomatie",
+      "accord",
+      "tension",
+      "missile",
+      "bombardement",
+      "négociation",
+      "humanitaire"
+    ],
     "keyword": "Ukraine",
     "or": [
-      "Zelensky"
+      "Zelensky",
+      "Ukrainien",
+      "Ukrainienne",
+      "Kiev",
+      "Kyiv",
+      "Poutine",
+      "Russie",
+      "Guerre",
+      "Donbass",
+      "Crimea",
+      "OTAN",
+      "UE",
+      "NATO",
+      "Moscou",
+      "Volodymyr"
     ]
   },
   {
+    "and": [
+      "cosmologie",
+      "Big Bang",
+      "galaxie",
+      "cosmos",
+      "astronomie",
+      "télescope",
+      "matière noire",
+      "exoplanète",
+      "étoile",
+      "trou noir",
+      "science",
+      "recherche",
+      "découverte",
+      "théorie",
+      "observation",
+      "satellite",
+      "telescope",
+      "physique",
+      "cosmique",
+      "astrophysique",
+      "expansion",
+      "origine",
+      "formation",
+      "évolution",
+      "modèle"
+    ],
     "keyword": "univers",
     "or": [
-      "espace"
+      "espace",
+      "cosmos",
+      "galaxie",
+      "astre",
+      "planète",
+      "étoile",
+      "système solaire",
+      "NASA",
+      "ESA",
+      "CERN",
+      "Big Bang",
+      "astronomie",
+      "physique quantique",
+      "multivers",
+      "cosmologie"
     ]
   },
   {
-    "and": [],
+    "and": [
+      "streaming",
+      "séries",
+      "films",
+      "abonnement",
+      "plateforme",
+      "contenu",
+      "visionnage",
+      "dématérialisé",
+      "on-demand",
+      "catalogue",
+      "épisodes",
+      "diffusion",
+      "vidéo",
+      "service",
+      "utilisateur"
+    ],
     "keyword": "Vidéo à la demande",
     "or": [
       "Netflix",
@@ -293,11 +1025,56 @@
       "Paramount",
       "HBO",
       "Canal+",
-      "Arte"
+      "Arte",
+      "VOD",
+      "vidéo à la demande",
+      "streaming vidéo",
+      "plateforme vidéo",
+      "Disney+",
+      "Hulu",
+      "YouTube Premium",
+      "OCS",
+      "Salto",
+      "Molotov",
+      "MyCanal"
     ]
   },
   {
-    "keyword": "virus"
+    "keyword": "virus",
+    "or": [
+      "virus informatique",
+      "malware",
+      "ver",
+      "trojan",
+      "ransomware",
+      "cyberattaque",
+      "cybercriminalité",
+      "hacking",
+      "infection",
+      "contamination",
+      "code malveillant",
+      "logiciel malveillant",
+      "virus COVID",
+      "coronavirus",
+      "épidémie"
+    ],
+    "and": [
+      "informatique",
+      "sécurité",
+      "cyber",
+      "malveillant",
+      "attaque",
+      "infection",
+      "contamination",
+      "logiciel",
+      "code",
+      "réseau",
+      "données",
+      "système",
+      "ordinateur",
+      "mobile",
+      "protection"
+    ]
   },
   {
     "and": [],
@@ -305,17 +1082,6 @@
     "or": [
       "Visual Studio Code",
       "Multi-Agent Development"
-    ]
-  },
-  {
-    "keyword": "Apertus",
-    "or": [],
-    "and": [
-      "LLM",
-      "modèle",
-      "EPFZ",
-      "EPFL",
-      "Modèle de langage"
     ]
   }
 ]
