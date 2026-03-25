@@ -1,9 +1,9 @@
 /**
- * AlertsPanel — Affiche les alertes de tendance (Feature 2)
+ * AlertsPanel — Affiche les alertes de tendance et de silence (Feature 2)
  * Appelé via le bouton "Tendances" dans la navbar.
  */
 import { useState, useEffect, useCallback } from 'react'
-import { X, RefreshCw, TrendingUp, AlertTriangle, Bell } from 'lucide-react'
+import { X, RefreshCw, TrendingUp, AlertTriangle, Bell, VolumeX } from 'lucide-react'
 
 // Couleurs HIG : systemRed #FF3B30 / systemOrange #FF9500 / systemYellow #FFCC00
 const NIVEAU_CONFIG = {
@@ -11,6 +11,10 @@ const NIVEAU_CONFIG = {
   élevé:    { color: 'bg-orange-50 dark:bg-orange-900/25 text-[#a05000] dark:text-[#FF9F0A] border-orange-200 dark:border-orange-800', dot: 'bg-[#FF9500] dark:bg-[#FF9F0A]', label: 'Élevé' },
   modéré:   { color: 'bg-yellow-50 dark:bg-yellow-900/20 text-[#7a6000] dark:text-[#FFD60A] border-yellow-200 dark:border-yellow-800', dot: 'bg-[#FFCC00] dark:bg-[#FFD60A]', label: 'Modéré' },
 }
+
+// Style distinct pour les alertes de silence (bleu-gris, icône muet)
+const SILENCE_COLOR = 'bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+const SILENCE_DOT   = 'bg-slate-400 dark:bg-slate-500'
 
 const ENTITY_TYPE_FR = {
   PERSON: 'Personne', ORG: 'Organisation', GPE: 'Lieu/Pays',
@@ -24,6 +28,7 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
   const [error, setError] = useState(null)
   const [threshold, setThreshold] = useState('2.0')
   const [filterNiveau, setFilterNiveau] = useState('all')
+  const [filterType, setFilterType] = useState('all')
 
   const loadAlerts = useCallback(() => {
     setLoading(true)
@@ -55,7 +60,16 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
     }
   }
 
-  const filtered = filterNiveau === 'all' ? alerts : alerts.filter(a => a.niveau === filterNiveau)
+  const trendAlerts = alerts.filter(a => !a.type || a.type !== 'silence')
+  const silenceAlerts = alerts.filter(a => a.type === 'silence')
+
+  const filtered = alerts.filter(a => {
+    const matchNiveau = filterNiveau === 'all' || a.niveau === filterNiveau
+    const matchType = filterType === 'all'
+      || (filterType === 'tendance' && (!a.type || a.type !== 'silence'))
+      || (filterType === 'silence' && a.type === 'silence')
+    return matchNiveau && matchType
+  })
 
   return (
     <>
@@ -66,9 +80,15 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
           <div className="flex items-center gap-2">
             <TrendingUp size={18} className="text-orange-500" />
             <h2 className="font-semibold text-slate-900 dark:text-slate-100">Tendances &amp; Alertes</h2>
-            {alerts.length > 0 && (
+            {trendAlerts.length > 0 && (
               <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs rounded-full font-medium">
-                {alerts.length}
+                {trendAlerts.length} ↑
+              </span>
+            )}
+            {silenceAlerts.length > 0 && (
+              <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 text-xs rounded-full font-medium flex items-center gap-1">
+                <VolumeX size={10} />
+                {silenceAlerts.length}
               </span>
             )}
           </div>
@@ -93,7 +113,7 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
             </select>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <label className="text-slate-500 dark:text-slate-400">Filtre :</label>
+            <label className="text-slate-500 dark:text-slate-400">Niveau :</label>
             <select
               value={filterNiveau}
               onChange={e => setFilterNiveau(e.target.value)}
@@ -103,6 +123,18 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
               <option value="critique">Critique</option>
               <option value="élevé">Élevé</option>
               <option value="modéré">Modéré</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <label className="text-slate-500 dark:text-slate-400">Type :</label>
+            <select
+              value={filterType}
+              onChange={e => setFilterType(e.target.value)}
+              className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm"
+            >
+              <option value="all">Tendances + Silences</option>
+              <option value="tendance">Tendances ↑</option>
+              <option value="silence">Silences 🔇</option>
             </select>
           </div>
           <div className="flex-1" />
@@ -139,29 +171,45 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
           ) : (
             <div className="space-y-3">
               {filtered.map((alert, i) => {
-                const cfg = NIVEAU_CONFIG[alert.niveau] || NIVEAU_CONFIG.modéré
+                const isSilence = alert.type === 'silence'
+                const cfg = isSilence
+                  ? { color: SILENCE_COLOR, dot: SILENCE_DOT, label: 'Silence' }
+                  : (NIVEAU_CONFIG[alert.niveau] || NIVEAU_CONFIG.modéré)
                 const typeLabel = ENTITY_TYPE_FR[alert.entity_type] || alert.entity_type
                 return (
                   <div
                     key={i}
                     className={`flex items-center gap-4 p-4 rounded-xl border ${cfg.color} cursor-pointer hover:opacity-90 transition-opacity`}
                     onClick={() => onEntitySearch && onEntitySearch(alert.entity_value, alert.entity_type)}
-                    title="Cliquez pour rechercher cet entité"
+                    title={isSilence ? 'Sujet habituellement actif — aucune mention dans les 24h' : 'Cliquez pour rechercher cette entité'}
                   >
                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${cfg.dot}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold">{alert.entity_value}</span>
                         <span className="text-xs opacity-70">{typeLabel}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${cfg.color}`}>
-                          {cfg.label}
-                        </span>
+                        {isSilence ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium border bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600 flex items-center gap-1">
+                            <VolumeX size={9} />
+                            Silence
+                          </span>
+                        ) : (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${cfg.color}`}>
+                            {cfg.label}
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs opacity-70 mt-0.5">
-                        {alert.count_24h} mentions/24h · {alert.count_7j} /7j · ratio ×{alert.ratio}
+                        {isSilence
+                          ? `0 mentions/24h · moy. ${alert.baseline_avg_per_day}/j sur 7j (${alert.count_7j} total)`
+                          : `${alert.count_24h} mentions/24h · ${alert.count_7j} /7j · ratio ×${alert.ratio}`
+                        }
                       </div>
                     </div>
-                    <TrendingUp size={16} className="shrink-0 opacity-60" />
+                    {isSilence
+                      ? <VolumeX size={16} className="shrink-0 opacity-50" />
+                      : <TrendingUp size={16} className="shrink-0 opacity-60" />
+                    }
                   </div>
                 )
               })}
@@ -197,7 +245,7 @@ export default function AlertsPanel({ onClose, onEntitySearch }) {
           </select>
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <label className="text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">Filtre :</label>
+          <label className="text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">Niveau :</label>
           <select
             value={filterNiveau}
             onChange={e => setFilterNiveau(e.target.value)}

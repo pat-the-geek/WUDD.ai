@@ -55,10 +55,11 @@ def api_articles_top():
 
 @analytics_bp.route("/api/alerts")
 def api_get_alerts():
-    """Retourne les alertes de tendance (data/alertes.json).
+    """Retourne les alertes de tendance et de silence (data/alertes.json).
 
     Paramètres :
       niveau : filtre par niveau ("critique", "élevé", "modéré")
+      type   : filtre par type ("silence", "tendance")
     """
     alerts_file = PROJECT_ROOT / "data" / "alertes.json"
     if not alerts_file.exists():
@@ -66,8 +67,13 @@ def api_get_alerts():
     try:
         alerts = json.loads(alerts_file.read_text(encoding="utf-8"))
         niveau = request.args.get("niveau", "").strip()
+        alert_type = request.args.get("type", "").strip()
         if niveau:
             alerts = [a for a in alerts if a.get("niveau") == niveau]
+        if alert_type == "silence":
+            alerts = [a for a in alerts if a.get("type") == "silence"]
+        elif alert_type == "tendance":
+            alerts = [a for a in alerts if a.get("type") != "silence"]
         return jsonify(alerts)
     except (json.JSONDecodeError, OSError) as e:
         return jsonify({"error": str(e)}), 500
@@ -84,10 +90,21 @@ def api_run_trend_detector():
     data = request.get_json(force=True) or {}
     threshold = float(data.get("threshold", 2.0))
     top = int(data.get("top", 20))
+    no_silence = bool(data.get("no_silence", False))
+    silence_threshold = float(data.get("silence_threshold", 3.0))
+
+    cmd = [
+        sys.executable, str(script),
+        "--threshold", str(threshold),
+        "--top", str(top),
+        "--silence-threshold", str(silence_threshold),
+    ]
+    if no_silence:
+        cmd.append("--no-silence")
 
     try:
         result = subprocess.run(
-            [sys.executable, str(script), "--threshold", str(threshold), "--top", str(top)],
+            cmd,
             capture_output=True, text=True, timeout=120, cwd=str(PROJECT_ROOT)
         )
         alerts_file = PROJECT_ROOT / "data" / "alertes.json"

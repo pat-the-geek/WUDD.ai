@@ -4,6 +4,12 @@ sur les fenêtres 24h et 7j glissants et génère des alertes.
 
 Sortie : data/alertes.json (liste d'alertes triées par ratio décroissant)
 
+Deux types d'alertes sont générés :
+  - ``tendance`` (défaut, champ ``type`` absent) : entité dont les mentions
+    sur 24h dépassent le ratio seuil (count_24h / avg_per_day_7j >= threshold).
+  - ``silence`` : entité habituellement active (moy. >= 3/j sur 7j) mais
+    absente des dernières 24h. Détecte la disparition brusque d'un sujet.
+
 Les règles (seuils, types surveillés, filtres, notifications) sont configurables
 dans config/alert_rules.json. Les options CLI permettent de surcharger les valeurs
 par défaut à la volée.
@@ -12,10 +18,12 @@ Usage :
     python3 scripts/trend_detector.py [--top N] [--threshold RATIO] [--dry-run]
 
 Options :
-    --top N           Nombre d'entités alertes à conserver (défaut: valeur config)
-    --threshold RATIO Ratio minimal 24h/7j global (surcharge la config)
-    --dry-run         Affiche les alertes sans écrire alertes.json
-    --no-notify       Désactive les notifications webhook même si configurées
+    --top N                  Nombre d'entités alertes à conserver (défaut: valeur config)
+    --threshold RATIO        Ratio minimal 24h/7j global (surcharge la config)
+    --silence-threshold AVG  Moyenne journalière minimale pour alerte silence (défaut: 3.0)
+    --no-silence             Désactive la détection des silences
+    --dry-run                Affiche les alertes sans écrire alertes.json
+    --no-notify              Désactive les notifications webhook même si configurées
 """
 
 import argparse
@@ -358,6 +366,77 @@ def detect_trends(
     return alerts[:top_n]
 
 
+def detect_silences(
+    counts_24h: dict[str, int],
+    counts_7j: dict[str, int],
+    min_baseline_avg: float = 3.0,
+    top_n: int = 10,
+    rules: dict | None = None,
+) -> list[dict]:
+    """Détecte les entités habituellement actives qui ont disparu sur 24h.
+
+    Une alerte de silence est émise pour chaque entité vérifiant :
+      - Moyenne journalière sur 7j >= ``min_baseline_avg``
+      - Aucune mention sur les dernières 24h (count_24h == 0)
+
+    Les silences indiquent qu'un sujet habituellement couvert a brusquement
+    disparu de l'agenda médiatique, information tout aussi précieuse que
+    la détection d'une tendance à la hausse.
+
+    Args:
+        counts_24h       : mentions sur 24h  { "TYPE:valeur": count }
+        counts_7j        : mentions sur 7j   { "TYPE:valeur": count }
+        min_baseline_avg : seuil minimal de mentions/jour sur 7j pour
+                           déclencher une alerte de silence (défaut : 3.0)
+        top_n            : nombre maximum de silences à retourner
+        rules            : règles issues de alert_rules.json (optionnel)
+
+    Returns:
+        Liste d'alertes de silence triées par baseline_avg_per_day décroissant,
+        chacune ayant un champ ``"type": "silence"``.
+    """
+    if rules is None:
+        rules = {}
+
+    monitored_types = _build_monitored_types(rules)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    silences: list[dict] = []
+
+    for key, count_7j in counts_7j.items():
+        etype = key.split(":", 1)[0]
+
+        # Ignorer les types non surveillés
+        if monitored_types and etype not in monitored_types:
+            continue
+
+        avg_per_day = count_7j / 7.0
+        if avg_per_day < min_baseline_avg:
+            continue
+
+        # Silence détecté si l'entité est absente des 24h
+        if counts_24h.get(key, 0) > 0:
+            continue
+
+        value = key.split(":", 1)[1]
+        niveau = "élevé" if avg_per_day >= 10.0 else "modéré"
+
+        silences.append({
+            "type": "silence",
+            "entity_type": etype,
+            "entity_value": value,
+            "count_24h": 0,
+            "count_7j": count_7j,
+            "baseline_avg_per_day": round(avg_per_day, 2),
+            "niveau": niveau,
+            "detected_at": now_iso,
+        })
+
+    # Trier par fréquence de référence décroissante (sujets les plus actifs d'abord)
+    silences.sort(key=lambda s: s["baseline_avg_per_day"], reverse=True)
+    return silences[:top_n]
+
+
 # ── Point d'entrée ─────────────────────────────────────────────────────────────
 
 def parse_args():
@@ -367,6 +446,13 @@ def parse_args():
         "--threshold", type=float, default=None,
         help="Ratio 24h/7j minimal global pour déclencher une alerte (surcharge la config)"
     )
+    parser.add_argument(
+        "--silence-threshold", type=float, default=None,
+        help="Moyenne journalière minimale (sur 7j) pour déclencher une alerte de silence "
+             "(défaut : 3.0)"
+    )
+    parser.add_argument("--no-silence", action="store_true",
+                        help="Désactive la détection des silences")
     parser.add_argument("--dry-run", action="store_true", help="Affiche sans sauvegarder")
     parser.add_argument("--no-notify", action="store_true", help="Désactive les notifications webhook")
     return parser.parse_args()
@@ -403,6 +489,7 @@ def main():
     global_cfg = rules.get("global", {})
     threshold = args.threshold or global_cfg.get("threshold_ratio", 2.0)
     top_n     = args.top      or global_cfg.get("top_n", 20)
+    silence_baseline_avg = args.silence_threshold or global_cfg.get("silence_baseline_avg", 3.0)
 
     monitored_types = _build_monitored_types(rules)
     filters = rules.get("filtres", {})
@@ -428,7 +515,7 @@ def main():
     default_logger.info(f"  → {len(counts_7j)} entités trouvées sur 7j")
 
     alerts = detect_trends(counts_24h, counts_7j, threshold, top_n, rules=rules)
-    default_logger.info(f"{len(alerts)} alerte(s) détectée(s)")
+    default_logger.info(f"{len(alerts)} alerte(s) de tendance détectée(s)")
 
     if not alerts:
         default_logger.info("Aucune tendance significative détectée.")
@@ -440,21 +527,42 @@ def main():
                 f"(ratio {a['ratio']})"
             )
 
+    # Détection des silences (entités habituellement actives absentes sur 24h)
+    silences: list[dict] = []
+    if not args.no_silence:
+        silences = detect_silences(
+            counts_24h, counts_7j,
+            min_baseline_avg=silence_baseline_avg,
+            top_n=top_n,
+            rules=rules,
+        )
+        default_logger.info(f"{len(silences)} alerte(s) de silence détectée(s)")
+        for s in silences[:5]:
+            default_logger.info(
+                f"  [SILENCE/{s['niveau'].upper()}] {s['entity_type']}:{s['entity_value']} "
+                f"— 0 mentions/24h (moy. {s['baseline_avg_per_day']:.1f}/j sur 7j)"
+            )
+
+    all_alerts = alerts + silences
+
     if args.dry_run:
         default_logger.info("[DRY-RUN] Résultats non sauvegardés.")
-        print(json.dumps(alerts, ensure_ascii=False, indent=2))
+        print(json.dumps(all_alerts, ensure_ascii=False, indent=2))
         return
 
     _OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     _OUTPUT_FILE.write_text(
-        json.dumps(alerts, ensure_ascii=False, indent=2),
+        json.dumps(all_alerts, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    default_logger.info(f"Alertes sauvegardées dans {_OUTPUT_FILE}")
+    default_logger.info(
+        f"Alertes sauvegardées dans {_OUTPUT_FILE} "
+        f"({len(alerts)} tendances + {len(silences)} silences)"
+    )
 
     # Notifications webhook (si non désactivées par --no-notify)
     if not args.no_notify:
-        _send_notifications(alerts, rules)
+        _send_notifications(all_alerts, rules)
 
 
 if __name__ == "__main__":

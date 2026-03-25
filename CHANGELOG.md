@@ -1,3 +1,61 @@
+# 25/03/2026 — Détection des silences + refactoring web_watcher (v2.6.0)
+
+## `scripts/trend_detector.py` — Détection des silences (optimisation 3.7)
+
+Ajout de la fonction `detect_silences()` : détecte les entités habituellement
+actives (moy. ≥ 3 mentions/j sur 7j) qui disparaissent brusquement de l'agenda
+médiatique (0 mention sur les dernières 24h).
+
+**Nouvelle fonction :**
+
+```
+detect_silences(counts_24h, counts_7j, min_baseline_avg=3.0, top_n=10, rules=None)
+```
+
+Retourne une liste d'alertes avec `"type": "silence"` contenant :
+- `entity_type`, `entity_value`, `count_24h` (= 0), `count_7j`
+- `baseline_avg_per_day` : fréquence de référence (mentions/j sur 7j)
+- `niveau` : `"élevé"` si avg ≥ 10/j, `"modéré"` sinon
+
+**Intégration dans `main()` :**
+- Nouveau flag `--no-silence` pour désactiver la détection
+- Nouveau flag `--silence-threshold AVG` pour ajuster le seuil
+- Les alertes de tendance et de silence sont combinées dans `data/alertes.json`
+
+**Mise à jour `config/alert_rules.json` :**
+- Nouveau paramètre `"silence_baseline_avg": 3.0` dans la section `global`
+
+## `viewer/routes/analytics.py` — Support alertes de silence
+
+- `GET /api/alerts` : nouveau paramètre `?type=silence|tendance` pour filtrer
+- `POST /api/alerts/run` : nouveaux paramètres `no_silence` et `silence_threshold`
+
+## `viewer/src/components/AlertsPanel.jsx` — Affichage des silences
+
+- Nouveau badge compteur pour les alertes de silence (icône 🔇, fond gris)
+- Rendu distinct pour les silences : fond ardoise, icône `VolumeX`, détail `baseline_avg_per_day`
+- Nouveau filtre "Type" : Tendances ↑ / Silences 🔇 / Tous
+- Filtre "Filtre" renommé "Niveau" pour plus de clarté
+
+## `scripts/web_watcher.py` — Refactoring `_process_source()` (item 8)
+
+Extraction de la logique de persistance dans une fonction dédiée :
+
+```
+_save_and_index_articles(out_path, existing_articles, new_for_48h)
+```
+
+Responsabilités : tri par date, écriture atomique, mise à jour `article_index` +
+`entity_index`, mise à jour `48-heures.json` via `rolling_window`. `_process_source()`
+est réduite de 100 à 50 lignes et délègue clairement à cette nouvelle fonction.
+
+## Tests
+
+- `tests/test_new_features.py::TestDetectSilences` — 10 nouveaux tests
+  couvrant détection, niveaux, tri, top_n, filtrage par type, champs requis
+
+---
+
 # 25/03/2026 — Documentation complète des nouvelles fonctionnalités (v2.4)
 
 ## `scripts/USAGE.md` — Refonte complète
