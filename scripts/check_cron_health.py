@@ -35,18 +35,25 @@ MAIL_PASS = os.getenv("CRON_ALERT_PASS", "")
 # Seuils d'alerte : nombre maximal de minutes depuis la dernière exécution
 # avant de déclencher une alerte par job
 JOB_STALE_THRESHOLDS: dict[str, int] = {
-    "flux_watcher":           10,   # toutes les 5 min → alerte si > 10 min
-    "get_keyword_from_rss":   150,  # toutes les 2h (06-22h) → alerte si > 150 min
-    "web_watcher":            130,  # toutes les 2h → alerte si > 130 min
-    "check_cron_health":      15,   # toutes les 10 min → alerte si > 15 min
-    "backup_data":            1500, # quotidien 01:00 → alerte si > 25h
-    "enrich_entities":        1500, # quotidien 02:00
-    "enrich_images":          1500,
-    "enrich_sentiment":       1500,
-    "repair_failed_summaries": 10100, # hebdo dim 04:00 → alerte si > 7j+3h
-    "trend_detector":         1500,
-    "generate_morning_digest": 1500,
-    "generate_48h_report":    1500,
+    "flux_watcher":              10,    # toutes les 5 min → alerte si > 10 min
+    "get_keyword_from_rss":      150,   # toutes les 2h (06-22h) → alerte si > 150 min
+    "web_watcher":               130,   # toutes les 2h → alerte si > 130 min
+    "check_cron_health":         15,    # toutes les 10 min → alerte si > 15 min
+    "backup_data":               1500,  # quotidien 01:00 → alerte si > 25h
+    "enrich_entities":           1500,  # quotidien 02:00
+    "precompute_entity_stats":   1500,  # quotidien 02:45
+    "enrich_images":             1500,
+    "enrich_sentiment":          1500,
+    "update_quality_scores":     1500,  # quotidien 04:00
+    "repair_failed_summaries":   10100, # hebdo dim 04:00 → alerte si > 7j+3h
+    "repair_failed_enrichments": 10100, # hebdo dim 04:30
+    "trend_detector":            1500,
+    "calibrate_alerts":          1500,  # quotidien 07:15
+    "generate_morning_digest":   1500,
+    "generate_ai_consumption":   1500,  # quotidien 08:15
+    "generate_48h_report":       1500,
+    "optimize_scoring_weights":  10100, # hebdo lundi 05:30
+    "optimize_quota":            10100, # hebdo lundi 05:45
 }
 
 # Définition des jobs à surveiller : (nom, fichier_log ou répertoire_données)
@@ -87,6 +94,13 @@ JOB_DEFINITIONS: list[dict] = [
         "state_key": None,
     },
     {
+        "name": "precompute_entity_stats",
+        "label": "Pré-calcul stats entités",
+        "log": RAPPORTS_DIR / "cron_precompute_entity_stats.log",
+        "state_file": DATA_DIR / "entity_stats.json",
+        "state_key": None,  # mtime de entity_stats.json
+    },
+    {
         "name": "enrich_images",
         "label": "Enrichissement images",
         "log": RAPPORTS_DIR / "cron_enrich_images.log",
@@ -101,9 +115,23 @@ JOB_DEFINITIONS: list[dict] = [
         "state_key": None,
     },
     {
+        "name": "update_quality_scores",
+        "label": "Scores de qualité articles",
+        "log": RAPPORTS_DIR / "cron_quality_scores.log",
+        "state_file": None,
+        "state_key": None,
+    },
+    {
         "name": "repair_failed_summaries",
         "label": "Réparation résumés",
         "log": RAPPORTS_DIR / "cron_repair.log",
+        "state_file": None,
+        "state_key": None,
+    },
+    {
+        "name": "repair_failed_enrichments",
+        "label": "Réparation enrichissements NER/sentiment",
+        "log": RAPPORTS_DIR / "cron_repair_enrichments.log",
         "state_file": None,
         "state_key": None,
     },
@@ -115,6 +143,13 @@ JOB_DEFINITIONS: list[dict] = [
         "state_key": None,  # mtime de alertes.json
     },
     {
+        "name": "calibrate_alerts",
+        "label": "Calibration seuils d'alerte",
+        "log": RAPPORTS_DIR / "cron_calibrate_alerts.log",
+        "state_file": None,
+        "state_key": None,
+    },
+    {
         "name": "generate_morning_digest",
         "label": "Morning Digest",
         "log": RAPPORTS_DIR / "cron_morning_digest.log",
@@ -122,9 +157,30 @@ JOB_DEFINITIONS: list[dict] = [
         "state_key": None,
     },
     {
+        "name": "generate_ai_consumption",
+        "label": "Rapport consommation IA",
+        "log": RAPPORTS_DIR / "cron_ai_consumption.log",
+        "state_file": None,
+        "state_key": None,
+    },
+    {
         "name": "generate_48h_report",
         "label": "Rapport 48h",
         "log": RAPPORTS_DIR / "cron_48h_report.log",
+        "state_file": None,
+        "state_key": None,
+    },
+    {
+        "name": "optimize_scoring_weights",
+        "label": "Optimisation poids scoring (hebdo)",
+        "log": RAPPORTS_DIR / "cron_scoring_weights.log",
+        "state_file": None,
+        "state_key": None,
+    },
+    {
+        "name": "optimize_quota",
+        "label": "Optimisation quotas journaliers (hebdo)",
+        "log": RAPPORTS_DIR / "cron_optimize_quota.log",
         "state_file": None,
         "state_key": None,
     },

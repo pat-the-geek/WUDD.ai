@@ -20,7 +20,7 @@ Usage :
 
 import json
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -105,7 +105,7 @@ class ArticleDB:
         Returns:
             Liste de dicts article avec les champs disponibles.
         """
-        cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
         # DuckDB peut lire les JSON imbriqués avec json_extract
         glob = self._glob_pattern("articles-from-rss/*.json")
         sql = f"""
@@ -139,7 +139,7 @@ class ArticleDB:
             Liste de {source, article_count, avg_score_sentiment, last_article}
             triée par volume décroissant.
         """
-        cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
         glob = self._glob_pattern("articles-from-rss/*.json")
         sql = f"""
             SELECT
@@ -161,7 +161,7 @@ class ArticleDB:
         Returns:
             Liste de {date, article_count} triée par date croissante.
         """
-        cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
         glob = self._glob_pattern("articles-from-rss/*.json")
         sql = f"""
             SELECT
@@ -180,7 +180,7 @@ class ArticleDB:
         Returns:
             Liste de {sentiment, count, pct} triée par count décroissant.
         """
-        cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
         glob = self._glob_pattern("articles-from-rss/*.json")
         sql = f"""
             WITH base AS (
@@ -206,7 +206,7 @@ class ArticleDB:
         Returns:
             Liste de {source, article_count, avg_score_source}
         """
-        cutoff = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
         glob = self._glob_pattern("articles-from-rss/*.json")
         sql = f"""
             SELECT
@@ -229,7 +229,7 @@ class ArticleDB:
         Returns:
             Dict {avg_minutes, median_minutes, total_articles}
         """
-        cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
         glob = self._glob_pattern("articles-from-rss/*.json")
         sql = f"""
             SELECT
@@ -295,7 +295,7 @@ class ArticleDB:
             Liste de {entities_json, date} — entities_json est une chaîne JSON
             à désérialiser par l'appelant.
         """
-        cutoff = (datetime.utcnow() - timedelta(days=window_days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=window_days)).strftime("%Y-%m-%d")
         glob_art = str(self.project_root / "data" / "articles" / "*" / "*.json")
         glob_rss = str(self.project_root / "data" / "articles-from-rss" / "**" / "*.json")
         # Filtre best-effort sur la date (fonctionne pour formats ISO YYYY-MM-DD
@@ -419,7 +419,7 @@ class ArticleDB:
         Returns:
             Liste d'articles avec "Sources", "URL", "Date de publication", "Résumé".
         """
-        cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
         glob = self._glob_pattern("articles-from-rss/*.json")
         # Échapper les apostrophes dans la requête
         safe_query = query.replace("'", "''")

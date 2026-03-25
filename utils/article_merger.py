@@ -19,11 +19,11 @@ Deux fonctions publiques principales :
 import hashlib
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-from .date_utils import parse_article_date
+from .date_utils import parse_article_date, utc_now_naive
 from .deduplication import _normalize, _tokenize, _bigrams
 from .logging import default_logger
 
@@ -384,12 +384,12 @@ def _archive_articles(
         data = {"fichier_source": primary_file.name, "fusions": []}
 
     # ID unique de fusion
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     fusion_id = f"fus_{ts}_{hashlib.md5((merged_article.get('URL') or '').encode()).hexdigest()[:6]}"
 
     entry = {
         "id_fusion":            fusion_id,
-        "date_fusion":          datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "date_fusion":          datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "url_article_fusionné": merged_article.get("URL", ""),
         "articles_archivés": [
             {
@@ -405,7 +405,7 @@ def _archive_articles(
     }
 
     data.setdefault("fusions", []).append(entry)
-    data["dernière_modification"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    data["dernière_modification"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     _write_atomic(archive_path, data)
     default_logger.info(f"article_merger : archive écrite → {archive_path.relative_to(project_root)}")
@@ -459,7 +459,7 @@ def _update_all_48h_files(
     merged_article: dict,
 ) -> None:
     """Met à jour tous les fichiers 48-heures.json : supprime les secondaires, insère le fusionné."""
-    cutoff = datetime.utcnow() - timedelta(hours=48)
+    cutoff = utc_now_naive() - timedelta(hours=48)
     merged_url = merged_article.get("URL") or ""
 
     dt_merged = parse_article_date(merged_article.get("Date de publication", ""))
@@ -557,7 +557,7 @@ def execute_merge(
             break
 
     # ── 2. Construire l'article fusionné ─────────────────────────────────────
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     fusion_id = f"fus_{ts}_{hashlib.md5(primary_url.encode()).hexdigest()[:6]}"
     archive_rel = str(
         (primary_file.parent / "merged" / (primary_file.stem + "-merged.json"))
@@ -574,7 +574,7 @@ def execute_merge(
     merged_article["_fusion"] = {
         "est_article_fusionné": True,
         "id_fusion":            fusion_id,
-        "date_fusion":          datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "date_fusion":          datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "archive":              archive_rel,
         "source_principale": {
             "Sources":             primary.get("Sources"),
