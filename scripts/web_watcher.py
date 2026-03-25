@@ -469,6 +469,60 @@ def _process_article(
     return article
 
 
+def _save_and_index_articles(
+    out_path: Path,
+    existing_articles: list,
+    new_for_48h: list,
+) -> None:
+    """Persiste les articles collectés et met à jour les indexes et la fenêtre 48h.
+
+    Étapes effectuées :
+      1. Tri des articles par date décroissante
+      2. Écriture atomique dans out_path (.tmp → replace)
+      3. Mise à jour de article_index et entity_index
+      4. Mise à jour de 48-heures.json via rolling_window
+      5. Mise à jour de l'index pour 48-heures.json
+
+    Args:
+        out_path         : chemin cible du fichier JSON du keyword
+        existing_articles: liste complète des articles (anciens + nouveaux)
+        new_for_48h      : uniquement les nouveaux articles (pour rolling_window)
+    """
+    existing_articles.sort(
+        key=lambda a: (
+            datetime.strptime(a.get("Date de publication", ""), "%d/%m/%Y")
+            if a.get("Date de publication") else datetime.min
+        ),
+        reverse=True,
+    )
+    _write_atomic(out_path, existing_articles)
+
+    # Mise à jour des indexes article + entités
+    try:
+        _rel_kw = str(out_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
+        get_article_index(PROJECT_ROOT).update(existing_articles, _rel_kw)
+        if any("entities" in a for a in existing_articles):
+            get_entity_index(PROJECT_ROOT).update(existing_articles, _rel_kw)
+    except Exception as _e:
+        print_console(f"  Avertissement : index non mis à jour ({_e})", level="warning")
+
+    # Mise à jour 48-heures.json via rolling_window
+    WUDD_DIR.mkdir(parents=True, exist_ok=True)
+    wudd_path = WUDD_DIR / "48-heures.json"
+    nb_48h = update_rolling_window(new_for_48h, wudd_path, hours=48)
+    print_console(f"48-heures.json : +{len(new_for_48h)} web | {nb_48h} total dans la fenêtre 48h")
+
+    # Mise à jour de l'index pour 48-heures.json
+    try:
+        _wudd_articles = json.loads(wudd_path.read_text(encoding="utf-8"))
+        _rel_wudd = str(wudd_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
+        get_article_index(PROJECT_ROOT).update(_wudd_articles, _rel_wudd)
+        if any("entities" in a for a in _wudd_articles):
+            get_entity_index(PROJECT_ROOT).update(_wudd_articles, _rel_wudd)
+    except Exception as _e_48:
+        print_console(f"  Avertissement : index 48h non mis à jour ({_e_48})", level="warning")
+
+
 def _process_source(
     source: dict,
     state: dict,
@@ -532,42 +586,9 @@ def _process_source(
         new_for_48h.append(article)
         added += 1
 
-    # Sauvegarde
+    # Sauvegarde + indexation
     if added > 0:
-        existing_articles.sort(
-            key=lambda a: (
-                datetime.strptime(a.get("Date de publication", ""), "%d/%m/%Y")
-                if a.get("Date de publication") else datetime.min
-            ),
-            reverse=True,
-        )
-        _write_atomic(out_path, existing_articles)
-
-        # Mise à jour des indexes article + entités
-        try:
-            _rel_kw = str(out_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
-            get_article_index(PROJECT_ROOT).update(existing_articles, _rel_kw)
-            if any("entities" in a for a in existing_articles):
-                get_entity_index(PROJECT_ROOT).update(existing_articles, _rel_kw)
-        except Exception as _e:
-            print_console(f"  Avertissement : index non mis à jour ({_e})", level="warning")
-
-        # Mise à jour 48-heures.json via rolling_window
-        WUDD_DIR.mkdir(parents=True, exist_ok=True)
-        wudd_path = WUDD_DIR / "48-heures.json"
-        nb_48h = update_rolling_window(new_for_48h, wudd_path, hours=48)
-        print_console(f"48-heures.json : +{len(new_for_48h)} web | {nb_48h} total dans la fenêtre 48h")
-
-        # Mise à jour de l'index pour 48-heures.json
-        try:
-            _wudd_articles = json.loads(wudd_path.read_text(encoding="utf-8"))
-            _rel_wudd = str(wudd_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
-            get_article_index(PROJECT_ROOT).update(_wudd_articles, _rel_wudd)
-            if any("entities" in a for a in _wudd_articles):
-                get_entity_index(PROJECT_ROOT).update(_wudd_articles, _rel_wudd)
-        except Exception as _e_48:
-            print_console(f"  Avertissement : index 48h non mis à jour ({_e_48})", level="warning")
-
+        _save_and_index_articles(out_path, existing_articles, new_for_48h)
         print_console(f"  → {added} article(s) sauvegardé(s) dans {out_path.name}")
 
     return added

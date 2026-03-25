@@ -398,3 +398,108 @@ class TestTrendDetectorWithRules:
         entities = [a["entity_value"] for a in alerts]
         assert "Acme"   in entities
         assert "Dupont" not in entities
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# scripts/trend_detector.py — détection de silences (optimisation 3.7)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestDetectSilences:
+    """Tests pour detect_silences() — entités actives sur 7j disparues sur 24h."""
+
+    def setup_method(self):
+        from scripts.trend_detector import detect_silences
+        self.detect_silences = detect_silences
+
+    def test_silence_detected_when_entity_missing_from_24h(self):
+        """Une entité avec moy >= 3/j sur 7j et absente sur 24h → alerte silence."""
+        counts_7j  = {"PERSON:Macron": 21}   # 3.0/j exactement
+        counts_24h = {}
+        silences = self.detect_silences(counts_24h, counts_7j, min_baseline_avg=3.0)
+        assert len(silences) == 1
+        s = silences[0]
+        assert s["type"] == "silence"
+        assert s["entity_value"] == "Macron"
+        assert s["count_24h"] == 0
+        assert s["count_7j"] == 21
+        assert s["baseline_avg_per_day"] == 3.0
+
+    def test_no_silence_when_entity_present_on_24h(self):
+        """Si l'entité a des mentions sur 24h, pas d'alerte silence."""
+        counts_7j  = {"ORG:OpenAI": 35}
+        counts_24h = {"ORG:OpenAI": 2}
+        silences = self.detect_silences(counts_24h, counts_7j, min_baseline_avg=3.0)
+        assert len(silences) == 0
+
+    def test_no_silence_below_baseline_threshold(self):
+        """Entité avec moy < 3/j sur 7j → pas d'alerte silence."""
+        counts_7j  = {"GPE:Paris": 14}   # 2.0/j < 3.0 seuil
+        counts_24h = {}
+        silences = self.detect_silences(counts_24h, counts_7j, min_baseline_avg=3.0)
+        assert len(silences) == 0
+
+    def test_niveau_eleve_above_10_per_day(self):
+        """Entité avec moy >= 10/j → niveau 'élevé'."""
+        counts_7j  = {"ORG:NvidiaAI": 77}  # 11/j
+        counts_24h = {}
+        silences = self.detect_silences(counts_24h, counts_7j, min_baseline_avg=3.0)
+        assert len(silences) == 1
+        assert silences[0]["niveau"] == "élevé"
+
+    def test_niveau_modere_below_10_per_day(self):
+        """Entité avec 3 <= moy < 10/j → niveau 'modéré'."""
+        counts_7j  = {"PERSON:Leclerc": 28}  # 4/j
+        counts_24h = {}
+        silences = self.detect_silences(counts_24h, counts_7j, min_baseline_avg=3.0)
+        assert len(silences) == 1
+        assert silences[0]["niveau"] == "modéré"
+
+    def test_sorted_by_baseline_desc(self):
+        """Les silences sont triés par baseline_avg_per_day décroissant."""
+        counts_7j = {
+            "ORG:Airbus":   14,   # 2/j — sous seuil
+            "PERSON:A":     42,   # 6/j
+            "PERSON:B":     63,   # 9/j
+            "ORG:Safran":   21,   # 3/j exactement
+        }
+        counts_24h = {}
+        silences = self.detect_silences(counts_24h, counts_7j, min_baseline_avg=3.0)
+        assert len(silences) == 3  # Airbus sous seuil
+        assert silences[0]["entity_value"] == "B"
+        assert silences[1]["entity_value"] == "A"
+
+    def test_top_n_respected(self):
+        counts_7j = {f"PERSON:P{i}": 30 for i in range(20)}
+        counts_24h = {}
+        silences = self.detect_silences(counts_24h, counts_7j, top_n=5)
+        assert len(silences) == 5
+
+    def test_empty_counts_returns_empty(self):
+        silences = self.detect_silences({}, {}, min_baseline_avg=3.0)
+        assert silences == []
+
+    def test_required_fields_present(self):
+        """Chaque alerte de silence contient tous les champs requis."""
+        counts_7j  = {"PRODUCT:ChatGPT": 28}
+        counts_24h = {}
+        silences = self.detect_silences(counts_24h, counts_7j, min_baseline_avg=3.0)
+        assert len(silences) == 1
+        s = silences[0]
+        required = {"type", "entity_type", "entity_value", "count_24h",
+                    "count_7j", "baseline_avg_per_day", "niveau", "detected_at"}
+        assert required.issubset(s.keys())
+
+    def test_monitored_types_filter(self):
+        """Seuls les types activés dans les règles sont inclus."""
+        rules = {
+            "types_entites": {
+                "PERSON": {"enabled": True},
+                "ORG":    {"enabled": False},
+            }
+        }
+        counts_7j  = {"PERSON:Dupont": 21, "ORG:Acme": 35}
+        counts_24h = {}
+        silences = self.detect_silences(counts_24h, counts_7j, rules=rules, min_baseline_avg=3.0)
+        entity_values = [s["entity_value"] for s in silences]
+        assert "Dupont" in entity_values
+        assert "Acme" not in entity_values

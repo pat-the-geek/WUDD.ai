@@ -463,16 +463,17 @@ Ce rapport permettrait de détecter des régressions dans la qualité du pipelin
 | F | `utils/rolling_window.py` | ✅ Réalisé (v2.5) |
 | G | `parse_article_date()` centralisé | ✅ Réalisé (v2.5) |
 | H | Écriture atomique get-keyword | ✅ Réalisé (v2.5) |
-| 1-v2.5 | Index updates enrich_entities + enrich_sentiment | 🔲 À faire (critique) |
-| 2-v2.5 | rolling_window dans flux_watcher | 🔲 À faire |
-| 3-v2.5 | score_source à la création | 🔲 À faire |
-| 4-v2.5 | Tests rolling_window + parse_article_date | 🔲 À faire |
-| 5-v2.5 | Normalisation noms entités | 🔲 À faire |
-| 6-v2.5 | echec_parse dans api_client | 🔲 À faire |
-| 7-v2.5 | Index auto-rebuild au démarrage viewer | 🔲 À faire |
-| 8-v2.5 | Découper _process_source() | 🔲 À faire |
-| 9-v2.5 | Invalidation cache bias | 🔲 À faire |
-| 10-v2.5 | Rapport qualité des données | 🔲 À faire |
+| 1-v2.5 | Index updates enrich_entities + enrich_sentiment | ✅ Réalisé |
+| 2-v2.5 | rolling_window dans flux_watcher | ✅ Réalisé |
+| 3-v2.5 | score_source à la création | ✅ Réalisé |
+| 4-v2.5 | Tests rolling_window + parse_article_date | ✅ Réalisé |
+| 5-v2.5 | Normalisation noms entités | ✅ Réalisé |
+| 6-v2.5 | echec_parse dans api_client | ✅ Réalisé |
+| 7-v2.5 | Index auto-rebuild au démarrage viewer | ✅ Réalisé |
+| 8-v2.5 | Découper _process_source() | ✅ Réalisé |
+| 9-v2.5 | Invalidation cache bias | ✅ Réalisé |
+| 10-v2.5 | Rapport qualité des données | ✅ Réalisé |
+| 11-v2.6 | Détection silences (trend_detector) | ✅ Réalisé |
 
 ---
 
