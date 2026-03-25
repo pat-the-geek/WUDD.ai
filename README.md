@@ -1024,15 +1024,28 @@ docker rm -f wudd-ai-final   # ou wuddai, etc.
 
 | Planification | Tâche |
 |---|---|
-| `*/5 * * * *` | Surveillance round-robin flux RSS → `flux_watcher.py`, puis enchaîne immédiatement `entity_timeline.py` + `cross_flux_analysis.py` + `enrich_reading_time.py` (calculs locaux < 1 s) |
+| `*/5 * * * *` | Surveillance round-robin flux RSS → `flux_watcher.py`, puis enchaîne `entity_timeline.py` + `cross_flux_analysis.py` + `enrich_reading_time.py` (calculs locaux < 1 s) |
 | `0 6-22/2 * * *` | Extraction par mot-clé toutes les 2h de 6h00 à 22h00 (`get-keyword-from-rss.py`) |
+| `0 */2 * * *` | Surveillance sources web sans RSS (`web_watcher.py`) |
 | `*/10 * * * *` | Vérification santé du cron (`check_cron_health.py`) |
-| `0 6 * * 1` | Scheduler multi-flux chaque lundi (`scheduler_articles.py`) |
-| `0 7 * * *` | Détection de tendances et alertes (`trend_detector.py`) → `data/alertes.json` |
-| `0 23 * * *` | Rapport quotidien Top 10 entités — fenêtre 48h (`generate_48h_report.py`) |
+| `5 0 * * *` | Archivage état quotas du jour (`archive_quota_state.py`) |
+| `0 1 * * *` | Sauvegarde incrémentale `data/` → `BACKUP_L1` → `BACKUP_L2` (`backup_data.py`) |
+| `0 2 * * *` | Enrichissement NER round-robin, 1 fichier/jour (`enrich_entities.py`) |
+| `30 2 * * *` | Enrichissement images `og:image` sans appel IA (`enrich_images.py`) |
 | `0 3 * * *` | Enrichissement sentiment round-robin, 1 fichier/jour (`enrich_sentiment.py`) |
+| `0 4 * * 0` | Réparation résumés en erreur (`repair_failed_summaries.py`) |
+| `0 6 * * 1` | Scheduler multi-flux chaque lundi (`scheduler_articles.py`) |
+| `30 5 * * 1` | Optimisation poids de scoring (`optimize_scoring_weights.py`) |
+| `45 5 * * 1` | Optimisation quotas (`optimize_quota.py`) |
+| `30 6 * * 1` | Briefing exécutif hebdomadaire (`generate_briefing.py --period weekly`) |
+| `0 7 * * *` | Détection de tendances et alertes (`trend_detector.py`) → `data/alertes.json` |
+| `15 7 * * *` | Auto-calibration des seuils d'alerte (`calibrate_alerts.py`) |
+| `30 7 * * *` | Morning Digest quotidien (`generate_morning_digest.py --ai`) |
+| `0 8 * * *` | Notes de lecture par tag (`generate_reading_notes.py`) |
+| `0 23 * * *` | Rapport quotidien Top 10 entités — fenêtre 48h (`generate_48h_report.py`) |
 | `0 5 28-31 * *` | Radar thématique le dernier jour du mois (`radar_wudd.py`) |
 | `30 5 28-31 * *` | Conversion articles RSS → Markdown le dernier jour du mois (`articles_rss_to_markdown.py`) |
+| `0 6 28-31 * *` | Rapports Markdown par mot-clé le dernier jour du mois (`generate_keyword_reports.py`) |
 
 Tous les logs sont disponibles dans `rapports/`.
 
