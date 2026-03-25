@@ -30,6 +30,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 30 7 * * * root cd /app && python3 scripts/generate_morning_digest.py --ai 2>&1 | tee -a /app/rapports/cron_morning_digest.log
 # Notes de lecture quotidiennes à 8h00 (articles des 24h par tag, dans rapports/markdown/_WUDD.AI_/)
 0 8 * * * root cd /app && python3 scripts/generate_reading_notes.py 2>&1 | tee -a /app/rapports/cron_reading_notes.log
+# Rapport de consommation IA quotidien à 8h15 — ajoute dans rapports/markdown/_MORNING_DIGEST_/ai_consumption_report.md
+# Agrège articles traités (quota_state + quota_history 7j) + tokens parsés depuis les logs cron
+15 8 * * * root cd /app && python3 scripts/generate_ai_consumption_report.py 2>&1 | tee -a /app/rapports/cron_ai_consumption.log
 # Backup des données : data/ → BACKUP_L1 → BACKUP_L2 chaque nuit à 1h00
 # (avant les enrichissements NER/sentiment, après la dernière collecte de la veille)
 0 1 * * * root cd /app && python3 scripts/backup_data.py 2>&1 | tee -a /app/rapports/cron_backup.log

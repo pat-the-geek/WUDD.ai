@@ -203,6 +203,14 @@ def api_scheduler():
             "log_file": PROJECT_ROOT / "rapports" / "cron_reading_notes.log",
         },
         {
+            "name": "Rapport consommation IA quotidien",
+            "script": "generate_ai_consumption_report.py",
+            "cron": "15 8 * * *",
+            "category": "Rapports & digests",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_ai_consumption.log",
+        },
+        {
             "name": "Rapport Top 10 entités 48h",
             "script": "generate_48h_report.py",
             "cron": "0 23 * * *",
