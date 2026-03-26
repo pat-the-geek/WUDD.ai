@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { X, Tag, Loader2, BarChart2, FileText, Newspaper, List, Map, Images, Maximize2, Minimize2, TrendingUp, Search } from 'lucide-react'
 import EntityArticlePanel from './EntityArticlePanel'
 import EntityWorldMap from './EntityWorldMap'
@@ -113,6 +113,9 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
   const [viewMode, setViewMode] = useState('list') // 'list' | 'map'
   const [isMaximized, setIsMaximized] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState(null) // null = pas de recherche active
+  const [searchLoading, setSearchLoading] = useState(false)
+  const searchDebounceRef = useRef(null)
 
   useEffect(() => {
     fetch('/api/entities/dashboard')
@@ -120,6 +123,24 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
+
+  // Recherche débouncée (300ms) via l'API backend
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    if (!searchQuery || searchQuery.length < 2) {
+      setSearchResults(null)
+      setSearchLoading(false)
+      return
+    }
+    setSearchLoading(true)
+    searchDebounceRef.current = setTimeout(() => {
+      fetch(`/api/entities/search?q=${encodeURIComponent(searchQuery)}`)
+        .then(r => r.json())
+        .then(d => { setSearchResults(d.by_type ?? []); setSearchLoading(false) })
+        .catch(() => { setSearchResults([]); setSearchLoading(false) })
+    }, 300)
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current) }
+  }, [searchQuery])
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
@@ -307,25 +328,29 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
 
                     {/* Grille des types */}
                     {(() => {
-                      const filtered = searchQuery
-                        ? data.by_type
-                            .map(s => ({ ...s, top: s.top.filter(({ value }) => value.toLowerCase().startsWith(searchQuery.toLowerCase())) }))
-                            .filter(s => s.top.length > 0)
-                        : data.by_type
-                      return filtered.length > 0 ? (
+                      if (searchLoading) {
+                        return (
+                          <div className="flex items-center justify-center py-12 gap-2 text-slate-400 dark:text-slate-500 text-sm">
+                            <Loader2 size={16} className="animate-spin" /> Recherche…
+                          </div>
+                        )
+                      }
+                      const displayList = searchResults !== null ? searchResults : data.by_type
+                      const searchMax = displayList[0]?.mention_count ?? 1
+                      return displayList.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {filtered.map(section => (
+                          {displayList.map(section => (
                             <TypeSection
                               key={section.type}
                               section={section}
-                              maxMentions={maxMentions}
+                              maxMentions={searchResults !== null ? searchMax : maxMentions}
                               onEntitySearch={(value, type) => setSelectedEntity({ type, value })}
                             />
                           ))}
                         </div>
                       ) : (
                         <div className="text-center py-12 text-slate-400 dark:text-slate-500 text-sm">
-                          Aucune entité ne commence par « {searchQuery} »
+                          Aucune entité trouvée pour « {searchQuery} »
                         </div>
                       )
                     })()}

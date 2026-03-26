@@ -222,6 +222,81 @@ def api_search_entity():
     return jsonify(results[:100])
 
 
+@entities_bp.route("/api/entities/search")
+def api_entities_search():
+    """Recherche d'entités par nom (plein texte) dans l'entity_index.
+
+    Retourne le même format que /api/entities/dashboard (by_type) mais filtré
+    sur toutes les entrées de l'index (pas seulement le top 50 par type).
+    """
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify({"by_type": []})
+
+    q_lower = q.lower()
+    by_type: dict[str, dict[str, int]] = {}
+
+    try:
+        eidx = get_entity_index(PROJECT_ROOT)
+        all_entries = eidx.get_all_entries()  # { "TYPE:value": [{file, idx, date}, ...] }
+
+        for key, refs in all_entries.items():
+            parts = key.split(":", 1)
+            if len(parts) != 2:
+                continue
+            etype, value = parts[0], parts[1].strip()
+            if not value or q_lower not in value.lower():
+                continue
+            if etype not in by_type:
+                by_type[etype] = {}
+            by_type[etype][value] = by_type[etype].get(value, 0) + len(refs)
+
+    except Exception:
+        # Fallback rglob si l'index est indisponible
+        data_dirs = [
+            PROJECT_ROOT / "data" / "articles",
+            PROJECT_ROOT / "data" / "articles-from-rss",
+        ]
+        for data_dir in data_dirs:
+            if not data_dir.exists():
+                continue
+            for json_file in sorted(data_dir.rglob("*.json")):
+                rel_parts = json_file.relative_to(data_dir).parts
+                if "cache" in rel_parts or "_WUDD.AI_" in rel_parts:
+                    continue
+                try:
+                    articles = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
+                    if not isinstance(articles, list):
+                        continue
+                except (json.JSONDecodeError, OSError):
+                    continue
+                for article in articles:
+                    ents = article.get("entities")
+                    if not ents or not isinstance(ents, dict):
+                        continue
+                    for etype, values in ents.items():
+                        if not isinstance(values, list):
+                            continue
+                        for v in values:
+                            if isinstance(v, str) and q_lower in v.lower():
+                                if etype not in by_type:
+                                    by_type[etype] = {}
+                                by_type[etype][v] = by_type[etype].get(v, 0) + 1
+
+    result_types = []
+    for etype, value_counts in by_type.items():
+        sorted_values = sorted(value_counts.items(), key=lambda x: x[1], reverse=True)
+        result_types.append({
+            "type": etype,
+            "unique_count": len(sorted_values),
+            "mention_count": sum(c for _, c in sorted_values),
+            "top": [{"value": v, "count": c} for v, c in sorted_values[:100]],
+        })
+    result_types.sort(key=lambda x: x["mention_count"], reverse=True)
+
+    return jsonify({"by_type": result_types})
+
+
 @entities_bp.route("/api/entities/dashboard")
 def api_entities_dashboard():
     """Agrège les entités de tous les fichiers JSON et retourne des stats globales (via entity_index).
@@ -917,12 +992,61 @@ def api_entities_dashboard_invalidate():
 
 @entities_bp.route("/api/entities/geocode", methods=["POST"])
 def api_entities_geocode():
-    """Géocode une liste d'entités via Wikipedia API avec cache JSON local."""
+    """Géocode une liste d'entités via Wikipedia API + Nominatim (polygons), avec cache JSON local.
+
+    Format cache v2 : {"lat": float, "lon": float, "geojson": dict|null}
+    Les entrées au format v1 {lat, lon} sans clé geojson sont remplacées à la prochaine requête.
+    """
     import requests as req
+    import time
 
     names = request.get_json(force=True) or []
     if not names or not isinstance(names, list):
         return jsonify({})
+
+    # ── Coordonnées manuelles pour régions géopolitiques souvent mal reconnues ──
+    def _rect(b):
+        """Convertit [[sw_lat, sw_lon], [ne_lat, ne_lon]] en GeoJSON Polygon rectangle."""
+        (s, w), (n, e) = b
+        return {"type": "Polygon", "coordinates": [[[w, s], [e, s], [e, n], [w, n], [w, s]]]}
+
+    GEOCODE_OVERRIDES = {
+        "moyen-orient":       {"lat": 29.0,  "lon": 41.0,  "geojson": None},
+        "moyen orient":       {"lat": 29.0,  "lon": 41.0,  "geojson": None},
+        "middle east":        {"lat": 29.0,  "lon": 41.0,  "geojson": None},
+        "proche-orient":      {"lat": 33.5,  "lon": 36.0,  "geojson": None},
+        "proche orient":      {"lat": 33.5,  "lon": 36.0,  "geojson": None},
+        "golfe persique":     {"lat": 27.0,  "lon": 51.0,  "geojson": None},
+        "péninsule arabique": {"lat": 24.0,  "lon": 45.0,  "geojson": None},
+        "péninsule ibérique": {"lat": 40.0,  "lon": -4.0,  "geojson": None},
+        "balkans":            {"lat": 42.5,  "lon": 21.0,  "geojson": None},
+        "levant":             {"lat": 34.0,  "lon": 36.5,  "geojson": None},
+        "indochine":          {"lat": 15.0,  "lon": 102.0, "geojson": None},
+        "caucase":            {"lat": 42.0,  "lon": 44.0,  "geojson": None},
+        # Continents — bounds + rectangle GeoJSON coloré
+        "europe":             {"lat": 54.5,  "lon": 15.3,  "bounds": [[35.0, -25.0], [72.0, 45.0]],     "geojson": _rect([[35.0, -25.0], [72.0, 45.0]])},
+        "asie":               {"lat": 34.0,  "lon": 100.0, "bounds": [[-10.0, 26.0], [78.0, 180.0]],    "geojson": _rect([[-10.0, 26.0], [78.0, 180.0]])},
+        "asia":               {"lat": 34.0,  "lon": 100.0, "bounds": [[-10.0, 26.0], [78.0, 180.0]],    "geojson": _rect([[-10.0, 26.0], [78.0, 180.0]])},
+        "afrique":            {"lat": 1.0,   "lon": 17.0,  "bounds": [[-35.0, -20.0], [38.0, 52.0]],    "geojson": _rect([[-35.0, -20.0], [38.0, 52.0]])},
+        "africa":             {"lat": 1.0,   "lon": 17.0,  "bounds": [[-35.0, -20.0], [38.0, 52.0]],    "geojson": _rect([[-35.0, -20.0], [38.0, 52.0]])},
+        "amérique du nord":   {"lat": 54.5,  "lon": -105.0,"bounds": [[15.0, -170.0], [72.0, -52.0]],   "geojson": _rect([[15.0, -170.0], [72.0, -52.0]])},
+        "amérique du sud":    {"lat": -14.0, "lon": -55.0, "bounds": [[-56.0, -82.0], [13.0, -35.0]],   "geojson": _rect([[-56.0, -82.0], [13.0, -35.0]])},
+        "amérique latine":    {"lat": -5.0,  "lon": -60.0, "bounds": [[-56.0, -120.0], [33.0, -35.0]],  "geojson": _rect([[-56.0, -120.0], [33.0, -35.0]])},
+        "océanie":            {"lat": -27.0, "lon": 133.0, "bounds": [[-47.0, 113.0], [-10.0, 180.0]],  "geojson": _rect([[-47.0, 113.0], [-10.0, 180.0]])},
+        # Pays souvent mal résolus par Nominatim
+        "royaume-uni":        {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "royaume uni":        {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "united kingdom":     {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "uk":                 {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "grande-bretagne":    {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "grande bretagne":    {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "etats-unis":         {"lat": 39.5,  "lon": -98.4, "geojson": None},
+        "états-unis":         {"lat": 39.5,  "lon": -98.4, "geojson": None},
+        "etats unis":         {"lat": 39.5,  "lon": -98.4, "geojson": None},
+        "états unis":         {"lat": 39.5,  "lon": -98.4, "geojson": None},
+        "united states":      {"lat": 39.5,  "lon": -98.4, "geojson": None},
+        "usa":                {"lat": 39.5,  "lon": -98.4, "geojson": None},
+    }
 
     cache_path = PROJECT_ROOT / "data" / "geocode_cache.json"
     cache = {}
@@ -931,6 +1055,22 @@ def api_entities_geocode():
             cache = json.loads(cache_path.read_text(encoding="utf-8"))
         except Exception:
             cache = {}
+
+    # Invalider : entrées null + ancien format v1 sans clé 'geojson'
+    cache = {k: v for k, v in cache.items() if v is not None and "geojson" in v}
+
+    # Appliquer les overrides manuels (prioritaires sur tout).
+    # Si un polygon est déjà en cache pour cet override, on le préserve.
+    override_needs_polygon = []  # overrides avec geojson=None → Nominatim sera appelé
+    for name in names:
+        if name.lower() in GEOCODE_OVERRIDES:
+            override = GEOCODE_OVERRIDES[name.lower()].copy()
+            existing = cache.get(name, {})
+            if override.get("geojson") is None and isinstance(existing, dict) and existing.get("geojson"):
+                override["geojson"] = existing["geojson"]
+            cache[name] = override
+            if cache[name].get("geojson") is None:
+                override_needs_polygon.append(name)
 
     to_fetch = [n for n in names if n not in cache]
 
@@ -943,8 +1083,9 @@ def api_entities_geocode():
     for i in range(0, len(to_fetch), BATCH):
         batch = to_fetch[i : i + BATCH]
         titles_str = "|".join(batch)
-        fetched_coords: dict[str, dict] = {}
 
+        # ── Étape 1 : Wikipedia pour lat/lon ──────────────────────────────────
+        wiki_coords: dict[str, dict] = {}
         for lang in ("fr", "en"):
             try:
                 r = req.get(
@@ -961,7 +1102,6 @@ def api_entities_geocode():
                 )
                 data = r.json()
                 pages = data.get("query", {}).get("pages", {})
-                # normalizations : associe les redirections aux noms originaux
                 normalized = {
                     n["from"]: n["to"]
                     for n in data.get("query", {}).get("normalized", [])
@@ -974,20 +1114,79 @@ def api_entities_geocode():
                         "lat": page["coordinates"][0]["lat"],
                         "lon": page["coordinates"][0]["lon"],
                     }
-                    fetched_coords[title] = coords
-                    # mappe aussi la forme originale si redirigée
+                    wiki_coords[title] = coords
                     for orig, norm in normalized.items():
                         if norm == title:
-                            fetched_coords[orig] = coords
+                            wiki_coords[orig] = coords
             except Exception:
                 continue
 
-            if lang == "fr" and len(fetched_coords) >= len(batch):
-                break  # tout trouvé en FR
+            if lang == "fr" and len(wiki_coords) >= len(batch):
+                break
 
+        # ── Étape 2 : Nominatim — polygon + fallback lat/lon ──────────────────
         for name in batch:
-            if name not in cache:
-                cache[name] = fetched_coords.get(name)  # None si introuvable
+            try:
+                time.sleep(0.15)  # Respect Nominatim usage policy (max 1 req/s)
+                nom_r = req.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params={
+                        "q": name,
+                        "format": "json",
+                        "limit": 1,
+                        "polygon_geojson": 1,
+                        "polygon_threshold": "0.005",
+                    },
+                    headers={"User-Agent": WIKIPEDIA_UA},
+                    timeout=12,
+                )
+                results = nom_r.json()
+                if results:
+                    geojson  = results[0].get("geojson")
+                    nom_lat  = float(results[0]["lat"])
+                    nom_lon  = float(results[0]["lon"])
+                    # Wikipedia plus précis pour le point central ; Nominatim fournit le polygon
+                    if name in wiki_coords:
+                        cache[name] = {
+                            "lat": wiki_coords[name]["lat"],
+                            "lon": wiki_coords[name]["lon"],
+                            "geojson": geojson,
+                        }
+                    else:
+                        cache[name] = {"lat": nom_lat, "lon": nom_lon, "geojson": geojson}
+                    continue
+            except Exception:
+                pass
+
+            # Nominatim échoué : utiliser Wikipedia si disponible
+            if name in wiki_coords:
+                cache[name] = {**wiki_coords[name], "geojson": None}
+            # Sinon ne pas stocker → sera retenté à la prochaine requête
+
+    # ── Fetch polygon Nominatim pour les overrides sans geojson ───────────────
+    # (continents, grandes régions : bounds définis mais polygon absent)
+    for name in override_needs_polygon:
+        try:
+            time.sleep(0.15)
+            nom_r = req.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={
+                    "q": name,
+                    "format": "json",
+                    "limit": 1,
+                    "polygon_geojson": 1,
+                    "polygon_threshold": "0.005",
+                },
+                headers={"User-Agent": WIKIPEDIA_UA},
+                timeout=12,
+            )
+            results = nom_r.json()
+            if results:
+                geojson = results[0].get("geojson")
+                if geojson and geojson.get("type") != "Point":
+                    cache[name] = {**cache[name], "geojson": geojson}
+        except Exception:
+            pass
 
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(
@@ -1042,14 +1241,20 @@ def api_entities_images():
         # Snapshot thread-safe pour cette requête
         cache: dict = dict(_images_cache_mem)
 
-    to_fetch = [e for e in entities if e["name"] not in cache]
+    # Les PRODUCT avec null en cache sont re-tentés (stratégie de fetch modifiée)
+    to_fetch = [
+        e for e in entities
+        if e["name"] not in cache
+        or (cache.get(e["name"]) is None and e["type"] == "PRODUCT")
+    ]
     if not to_fetch:
         return jsonify({e["name"]: cache.get(e["name"]) for e in entities})
 
-    # ── Séparer PERSON vs ORG/PRODUCT vs autres ──────────────────────────────
-    person_names = [e["name"] for e in to_fetch if e["type"] == "PERSON"]
-    logo_names   = [e["name"] for e in to_fetch if e["type"] in ("ORG", "PRODUCT")]
-    other_names  = [e["name"] for e in to_fetch if e["type"] not in ("PERSON", "ORG", "PRODUCT")]
+    # ── Séparer PERSON vs ORG vs PRODUCT vs autres ─────────────────────────────
+    person_names  = [e["name"] for e in to_fetch if e["type"] == "PERSON"]
+    logo_names    = [e["name"] for e in to_fetch if e["type"] == "ORG"]
+    product_names = [e["name"] for e in to_fetch if e["type"] == "PRODUCT"]
+    other_names   = [e["name"] for e in to_fetch if e["type"] not in ("PERSON", "ORG", "PRODUCT")]
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -1283,9 +1488,9 @@ def api_entities_images():
                 continue
         return name, None
 
-    # ── PERSON & autres : pageimages puis Wikidata P18 si rien trouvé ───────────
-    pageimg = _pageimages(person_names + other_names)
-    for name in person_names + other_names:
+    # ── PERSON / PRODUCT & autres : pageimages puis Wikidata P18 si rien trouvé ──
+    pageimg = _pageimages(person_names + product_names + other_names)
+    for name in person_names + product_names + other_names:
         if name not in cache:
             cache[name] = pageimg.get(name)
 
@@ -1293,6 +1498,17 @@ def api_entities_images():
     persons_no_img = [n for n in person_names if not cache.get(n)]
     if persons_no_img:
         p18_files = _wikidata_p18_persons(persons_no_img)
+        if p18_files:
+            p18_urls = _resolve_logo_urls(list(set(p18_files.values())))
+            for name, fname in p18_files.items():
+                if name not in cache or not cache[name]:
+                    url = p18_urls.get(fname)
+                    cache[name] = {"url": url, "width": THUMB, "height": THUMB} if url else None
+
+    # Fallback Wikidata P18 pour les PRODUCT sans image Wikipedia
+    products_no_img = [n for n in product_names if not cache.get(n)]
+    if products_no_img:
+        p18_files = _wikidata_p18_persons(products_no_img)
         if p18_files:
             p18_urls = _resolve_logo_urls(list(set(p18_files.values())))
             for name, fname in p18_files.items():
@@ -1317,7 +1533,7 @@ def api_entities_images():
     _rejected = rejected if logo_names else set()
     _type_map = {e["name"]: e["type"] for e in to_fetch}
     null_entities = [
-        name for name in (person_names + logo_names + other_names)
+        name for name in (person_names + product_names + logo_names + other_names)
         if not cache.get(name) and name not in _rejected
     ][:SEARCH_LIMIT]
     if null_entities:

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { X, FileText, Download, Loader2, ExternalLink, ChevronLeft, Network, GripHorizontal, Maximize2, Minimize2, Info, Calendar, Layers, Terminal, BookOpen } from 'lucide-react'
+import EntityWorldMap from './EntityWorldMap'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import EntityGraph from './EntityGraph'
@@ -183,6 +184,33 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
       document.removeEventListener('mouseup',   onUp)
     }
   }, [])
+
+  // Drag du séparateur carte/articles
+  useEffect(() => {
+    const onMove = (e) => {
+      const d = splitDragRef.current
+      if (!d) return
+      const dy = e.clientY - d.startY
+      const pct = Math.max(20, Math.min(80, d.startPct + (dy / d.containerH) * 100))
+      setSplitPct(pct)
+    }
+    const onUp = () => { splitDragRef.current = null }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [])
+
+  const handleSplitMouseDown = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const container = splitContainerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    splitDragRef.current = { startY: e.clientY, startPct: splitPct, containerH: rect.height }
+  }
 
   const handleHeaderMouseDown = (e) => {
     if (isMaximized || isMobileFullscreen) return  // pas de drag en plein écran
@@ -438,6 +466,11 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
 
   // ── Exports ────────────────────────────────────────────────────────────────
   const [showReportDialog, setShowReportDialog] = useState(false)
+
+  // ── Splitter carte/articles (GPE · LOC) ────────────────────────────────────
+  const [splitPct, setSplitPct]   = useState(50)
+  const splitDragRef              = useRef(null)
+  const splitContainerRef         = useRef(null)
 
   const handleGenerateReport = () => {
     if (!articles.length) return
@@ -734,7 +767,90 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
             />
           </div>
         ) : (
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0">
+        /* Mode articles : visuel en haut + liste en bas (avec splitter) */
+        <div ref={splitContainerRef} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+
+          {/* ── Carte géographique — GPE / LOC ── */}
+          {(current.type === 'GPE' || current.type === 'LOC') && (
+            <>
+              <div style={{ height: `${splitPct}%` }} className="shrink-0 overflow-hidden">
+                <EntityWorldMap
+                  key={current.value}
+                  entities={[{ name: current.value, type: current.type, count: Math.max(1, articles.length) }]}
+                  onEntityClick={() => {}}
+                  style={{ height: '100%' }}
+                />
+              </div>
+              <div
+                onMouseDown={handleSplitMouseDown}
+                className="h-2 shrink-0 bg-slate-200 dark:bg-slate-700 hover:bg-violet-400 dark:hover:bg-violet-600 cursor-row-resize flex items-center justify-center transition-colors group select-none"
+              >
+                <div className="w-10 h-1 rounded-full bg-slate-400 dark:bg-slate-500 group-hover:bg-white transition-colors" />
+              </div>
+            </>
+          )}
+
+          {/* ── Photo — PERSON / ORG / PRODUCT ── */}
+          {(current.type === 'PERSON' || current.type === 'ORG' || current.type === 'PRODUCT') && (
+            <>
+              <div
+                style={{ height: `${splitPct}%` }}
+                className={`shrink-0 overflow-hidden flex items-center justify-center ${
+                  current.type === 'PERSON' || current.type === 'PRODUCT'
+                    ? 'bg-slate-900'
+                    : 'bg-white dark:bg-slate-800/60'
+                }`}
+              >
+                {entityImage ? (
+                  current.type === 'PERSON' || current.type === 'PRODUCT' ? (
+                    /* Portrait : fond flouté plein cadre + image centrée au-dessus */
+                    <div className="relative w-full h-full overflow-hidden">
+                      {/* Arrière-plan flouté */}
+                      <img
+                        src={entityImage.url}
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute inset-0 w-full h-full object-cover scale-110"
+                        style={{ filter: 'blur(22px)', transform: 'scale(1.15)' }}
+                      />
+                      <div className="absolute inset-0 bg-black/30" />
+                      {/* Portrait centré */}
+                      <img
+                        src={entityImage.url}
+                        alt={current.value}
+                        className="relative h-full w-auto mx-auto object-cover drop-shadow-2xl"
+                        onError={(e) => { e.currentTarget.parentElement.style.display = 'none' }}
+                      />
+                    </div>
+                  ) : (
+                    <img
+                      src={entityImage.url}
+                      alt={current.value}
+                      className="object-contain max-h-full max-w-full p-6"
+                      onError={(e) => { e.currentTarget.style.display = 'none' }}
+                    />
+                  )
+                ) : (
+                  <div className="flex flex-col items-center gap-3 text-slate-400 dark:text-slate-500">
+                    <div className={`w-20 h-20 bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center ${current.type === 'PERSON' ? 'rounded-full' : 'rounded-xl'}`}>
+                      <span className="text-violet-500 dark:text-violet-300 font-semibold text-2xl select-none">
+                        {current.value.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')}
+                      </span>
+                    </div>
+                    <span className="text-xs">Aucune image disponible</span>
+                  </div>
+                )}
+              </div>
+              <div
+                onMouseDown={handleSplitMouseDown}
+                className="h-2 shrink-0 bg-slate-200 dark:bg-slate-700 hover:bg-violet-400 dark:hover:bg-violet-600 cursor-row-resize flex items-center justify-center transition-colors group select-none"
+              >
+                <div className="w-10 h-1 rounded-full bg-slate-400 dark:bg-slate-500 group-hover:bg-white transition-colors" />
+              </div>
+            </>
+          )}
+          {/* Liste des articles */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0">
           {loading ? (
             <div className="flex items-center justify-center py-16 gap-2 text-slate-400 dark:text-slate-500">
               <Loader2 size={20} className="animate-spin" />
@@ -811,6 +927,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
               </article>
             ))
           )}
+          </div>
         </div>
         )}
 

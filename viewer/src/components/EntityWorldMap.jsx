@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Tooltip, GeoJSON, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 const TYPE_COLORS = {
@@ -19,6 +20,49 @@ function MapResizer({ containerRef }) {
     obs.observe(el)
     return () => obs.disconnect()
   }, [map, containerRef])
+  return null
+}
+
+/**
+ * Zoome automatiquement sur les marqueurs une fois les coordonnées disponibles.
+ * - marqueur avec polygon geojson → flyToBounds du polygon (zoom précis sur le territoire)
+ * - 1 marqueur sans polygon → flyTo zoom 5
+ * - N marqueurs → fitBounds
+ */
+function FlyToMarkers({ markers }) {
+  const map = useMap()
+  const prevKey = useRef('')
+
+  useEffect(() => {
+    if (markers.length === 0) return
+    const key = markers.map(m => `${m.lat},${m.lon},${m.bounds ? '1' : '0'}`).join('|')
+    if (key === prevKey.current) return
+    prevKey.current = key
+
+    try {
+      // Priorité 1 : bounds explicites (continents, grandes régions)
+      if (markers.length === 1 && markers[0].bounds) {
+        map.flyToBounds(markers[0].bounds, { padding: [10, 10], animate: true, duration: 1.2 })
+        return
+      }
+      // Priorité 2 : polygon GeoJSON (pays avec contour)
+      if (markers.length === 1 && markers[0].geojson && markers[0].geojson.type !== 'Point') {
+        const layer = L.geoJSON(markers[0].geojson)
+        const bounds = layer.getBounds()
+        if (bounds.isValid()) {
+          map.flyToBounds(bounds, { padding: [20, 20], animate: true, duration: 1.2 })
+          return
+        }
+      }
+      if (markers.length === 1) {
+        map.flyTo([markers[0].lat, markers[0].lon], 5, { animate: true, duration: 1.2 })
+      } else {
+        const bounds = L.latLngBounds(markers.map(m => [m.lat, m.lon]))
+        map.flyToBounds(bounds, { padding: [40, 40], animate: true, duration: 1.2 })
+      }
+    } catch (_) {}
+  }, [map, markers])
+
   return null
 }
 
@@ -55,7 +99,10 @@ export default function EntityWorldMap({ entities, onEntityClick, style }) {
   }, [entities])
 
   const markers = entities
-    .filter((e) => coords[e.name] != null)
+    .filter((e) => {
+      const c = coords[e.name]
+      return c != null && c.lat != null && c.lon != null
+    })
     .map((e) => ({ ...e, ...coords[e.name] }))
 
   return (
@@ -70,30 +117,19 @@ export default function EntityWorldMap({ entities, onEntityClick, style }) {
         center={[20, 10]}
         zoom={2}
         minZoom={1}
-        maxZoom={10}
+        maxZoom={18}
         scrollWheelZoom={true}
         style={{ height: '100%', width: '100%', borderRadius: '0.5rem' }}
       >
         <MapResizer containerRef={containerRef} />
+        <FlyToMarkers markers={markers} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {markers.map((m) => (
-          <CircleMarker
-            key={`${m.type}-${m.name}`}
-            center={[m.lat, m.lon]}
-            radius={markerRadius(m.count)}
-            pathOptions={{
-              color: TYPE_COLORS[m.type] ?? DEFAULT_COLOR,
-              fillColor: TYPE_COLORS[m.type] ?? DEFAULT_COLOR,
-              fillOpacity: 0.7,
-              weight: 1.5,
-            }}
-            eventHandlers={{
-              click: () => onEntityClick(m.type, m.name),
-            }}
-          >
+        {markers.flatMap((m) => {
+          const color = TYPE_COLORS[m.type] ?? DEFAULT_COLOR
+          const tooltip = (
             <Tooltip direction="top" offset={[0, -4]} opacity={0.95}>
               <span className="font-medium">{m.name}</span>
               <br />
@@ -101,8 +137,43 @@ export default function EntityWorldMap({ entities, onEntityClick, style }) {
                 {m.type} · {m.count} mention{m.count > 1 ? 's' : ''}
               </span>
             </Tooltip>
-          </CircleMarker>
-        ))}
+          )
+          const items = []
+          // Polygone coloré si disponible
+          if (m.geojson) {
+            items.push(
+              <GeoJSON
+                key={`geo-${m.type}-${m.name}`}
+                data={m.geojson}
+                style={{
+                  color,
+                  fillColor: color,
+                  fillOpacity: 0.25,
+                  weight: 2,
+                }}
+                eventHandlers={{ click: () => onEntityClick(m.type, m.name) }}
+              />
+            )
+          }
+          // Marqueur central (tooltip + clic)
+          items.push(
+            <CircleMarker
+              key={`cm-${m.type}-${m.name}`}
+              center={[m.lat, m.lon]}
+              radius={markerRadius(m.count)}
+              pathOptions={{
+                color,
+                fillColor: color,
+                fillOpacity: m.geojson ? 0.9 : 0.7,
+                weight: 1.5,
+              }}
+              eventHandlers={{ click: () => onEntityClick(m.type, m.name) }}
+            >
+              {tooltip}
+            </CircleMarker>
+          )
+          return items
+        })}
       </MapContainer>
 
       {/* Légende */}

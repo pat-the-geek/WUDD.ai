@@ -1082,74 +1082,79 @@ function DirectMode({ onReport }) {
   return (
     <div ref={directContainerRef} className="flex flex-col flex-1 min-h-0" style={{ background: '#0d1117' }}>
 
-      {/* ── En-tête : statut + sélecteur vitesse + pause ── */}
-      <div className="flex items-center gap-2 px-4 py-2 shrink-0" style={{ borderBottom: '1px solid #30363d' }}>
+      {/* ── En-tête : statut + contrôles ── */}
+      <div className="flex items-center gap-2 px-3 shrink-0" style={{ borderBottom: '1px solid #30363d', height: 40, minHeight: 40 }}>
+        {/* Indicateur live */}
         <span className={`w-2 h-2 rounded-full shrink-0 ${paused ? 'bg-slate-500' : 'bg-emerald-400 animate-pulse'}`} />
-        <span className="text-xs font-mono truncate max-w-[160px]" style={{ color: '#3fb950' }}>
-          {paused ? 'EN PAUSE' : scanning ? `[${scanning.feedTitle}]` : 'Connexion…'}
-          {!paused && <span className="animate-pulse ml-1">▋</span>}
+
+        {/* Statut — largeur fixe pour éviter les sauts de layout */}
+        <span className="font-mono overflow-hidden text-ellipsis whitespace-nowrap"
+          style={{ color: '#3fb950', fontSize: 11, width: 120, minWidth: 120, maxWidth: 120 }}>
+          {paused ? 'EN PAUSE' : scanning ? scanning.feedTitle : 'Connexion…'}
         </span>
+
+        {/* Compteur flux — desktop seulement */}
         {cycleStats && (
-          <span className="text-[10px] font-mono ml-1 shrink-0" style={{
+          <span className="hidden md:inline text-[10px] font-mono shrink-0" style={{
             color: cycleStats.success === null ? '#8b949e' : cycleStats.success < cycleStats.total * 0.3 ? '#f85149' : '#3fb950'
           }}>
-            {cycleStats.success === null
-              ? `⟳ ${cycleStats.total} flux…`
-              : `${cycleStats.success}/${cycleStats.total}`}
+            {cycleStats.success === null ? `⟳ ${cycleStats.total}` : `${cycleStats.success}/${cycleStats.total}`}
           </span>
         )}
 
-        <div className="flex items-center gap-1 ml-auto flex-wrap">
-          {/* ── Slider taille vignettes — desktop uniquement ── */}
+        <div className="flex items-center gap-1 ml-auto shrink-0">
+          {/* Slider vignettes — desktop uniquement */}
           <div className="hidden md:flex items-center gap-2 mr-2" style={{ minWidth: 140 }}>
             <ZoomOut size={13} style={{ color: '#8b949e', flexShrink: 0 }} />
             <input
-              type="range"
-              min="20"
-              max="135"
-              value={thumbSize}
+              type="range" min="20" max="135" value={thumbSize}
               onChange={e => setThumbSize(Number(e.target.value))}
               title={`Taille des vignettes : ${thumbSize}px`}
-              className="w-24 accent-emerald-500"
-              style={{ cursor: 'pointer' }}
+              className="w-24 accent-emerald-500" style={{ cursor: 'pointer' }}
             />
             <ZoomIn size={13} style={{ color: '#8b949e', flexShrink: 0 }} />
           </div>
-          {/* Bouton son */}
-          <button
-            onClick={toggleSound}
+
+          {/* Son */}
+          <button onClick={toggleSound}
             title={soundEnabled ? 'Désactiver le son' : 'Activer le son'}
-            className="flex items-center justify-center w-6 h-6 rounded transition-colors mr-1"
+            className="flex items-center justify-center w-7 h-7 rounded transition-colors"
             style={{
               background: soundEnabled ? '#1a4731' : '#161b22',
               border:     soundEnabled ? '1px solid #3fb950' : '1px solid #30363d',
               color:      soundEnabled ? '#3fb950' : '#8b949e',
-            }}
-          >
-            {soundEnabled ? <Volume2 size={11} /> : <VolumeX size={11} />}
+            }}>
+            {soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
           </button>
-          <span className="text-[10px] font-mono mr-0.5" style={{ color: '#8b949e' }}>Intervalle</span>
-          {DIRECT_INTERVALS.map(({ label, value }) => (
-            <button key={value} onClick={() => setIntervalVal(value)}
-              className="px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors"
-              style={{
-                background: interval === value ? '#1a4731' : '#161b22',
-                color:      interval === value ? '#3fb950' : '#8b949e',
-                border:     interval === value ? '1px solid #3fb950' : '1px solid #30363d',
-              }}>
-              {label}
-            </button>
-          ))}
+
+          {/* Intervalle — desktop uniquement */}
+          <div className="hidden md:flex items-center gap-1">
+            <span className="text-[10px] font-mono mx-1" style={{ color: '#8b949e' }}>Intervalle</span>
+            {DIRECT_INTERVALS.map(({ label, value }) => (
+              <button key={value} onClick={() => setIntervalVal(value)}
+                className="px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors"
+                style={{
+                  background: interval === value ? '#1a4731' : '#161b22',
+                  color:      interval === value ? '#3fb950' : '#8b949e',
+                  border:     interval === value ? '1px solid #3fb950' : '1px solid #30363d',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Pause */}
           <button onClick={() => setPaused(p => !p)}
-            className="ml-1 px-2 py-0.5 rounded text-[10px] font-mono transition-colors"
+            className="flex items-center justify-center w-7 h-7 rounded text-[11px] font-mono transition-colors"
             style={{
               background: paused ? '#1a4731' : '#161b22',
               color:      paused ? '#3fb950' : '#8b949e',
               border:     '1px solid #30363d',
             }}>
-            {paused ? '▶ Reprendre' : '⏸ Pause'}
+            {paused ? '▶' : '⏸'}
           </button>
-          {/* Bouton Terminal IA */}
+
+          {/* Terminal IA — desktop uniquement */}
           <button
             onClick={() => {
               if (!logEntries.length) return
@@ -1166,7 +1171,7 @@ function DirectMode({ onReport }) {
             }}
             disabled={!logEntries.length}
             title={`Terminal IA — analyser les ${logEntries.length} articles en direct`}
-            className="ml-1 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               background: '#1a3a2a',
               color:      '#3fb950',
@@ -1257,7 +1262,7 @@ function DirectMode({ onReport }) {
               style={{
                 width: '100%', height: '100%',
                 objectFit: 'cover', objectPosition: 'center',
-                filter: 'blur(18px) saturate(1.8)',
+                filter: 'blur(10px) saturate(1.8)',
                 transform: 'scale(1.1)',
                 display: 'block',
               }}
