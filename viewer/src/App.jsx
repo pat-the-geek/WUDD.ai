@@ -6,7 +6,7 @@ import SettingsPanel from './components/SettingsPanel'
 import EntitySearchModal from './components/EntitySearchModal'
 import EntityDashboard from './components/EntityDashboard'
 import ScriptConsolePanel from './components/ScriptConsolePanel'
-import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, EyeOff, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, ChevronRight, MoreHorizontal, MessageSquare, Newspaper, Filter, Tag, BookOpen } from 'lucide-react'
+import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, EyeOff, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, ChevronRight, MoreHorizontal, MessageSquare, Newspaper, Filter, Tag, BookOpen, Network } from 'lucide-react'
 import AlertsPanel from './components/AlertsPanel'
 import ExportPanel from './components/ExportPanel'
 import TopArticlesPanel from './components/TopArticlesPanel'
@@ -15,6 +15,7 @@ import ComparePanel from './components/ComparePanel'
 import EntityWatchPanel from './components/EntityWatchPanel'
 import ClusterView from './components/ClusterView'
 import ChatbotPanel from './components/ChatbotPanel'
+import KnowledgeGraph from './components/KnowledgeGraph'
 import wuddLogo from './assets/wudd-prism-floyd.svg'
 
 // Heures de passage du cron get-keyword-from-rss.py (Europe/Paris)
@@ -239,6 +240,7 @@ export default function App() {
   const [compareOpen, setCompareOpen]     = useState(false)
   const [watchOpen, setWatchOpen]         = useState(false)
   const [clusterOpen, setClusterOpen]     = useState(false)
+  const [graphOpen, setGraphOpen]         = useState(false)
   const [chatOpen, setChatOpen]           = useState(false)
   const [chatEntityContext, setChatEntityContext]   = useState(null) // { type, value } | null
   const [chatArticleContext, setChatArticleContext] = useState(null) // { titre, sources, date, url, entities, resume, reportMd } | null
@@ -716,6 +718,7 @@ export default function App() {
                 { Icon: Eye,           label: 'Biais éditoriaux',    desc: 'Analyse par source',             action: () => { setBiasOpen(true);    setOutilsOpen(false) } },
                 { Icon: Share2,        label: 'Export & Diffusion',  desc: 'Atom, Newsletter, Webhook',      action: () => { setExportOpen(true);  setOutilsOpen(false) } },
                 { Icon: Layers,        label: 'Clusters thématiques',desc: 'Regroupement par thème',         action: () => { setClusterOpen(true); setOutilsOpen(false) } },
+                { Icon: Network,       label: 'Graphe de connaissances', desc: 'Entités & articles liés',    action: () => { setGraphOpen(true);   setOutilsOpen(false) } },
                 { Icon: Bell,          label: 'Entités surveillées', desc: 'Veille & tendances 24h/7j',      action: () => { setWatchOpen(true);   setOutilsOpen(false) } },
                 { Icon: ArrowLeftRight,label: 'Comparer périodes',   desc: 'Analyse deux fenêtres de temps', action: () => { setCompareOpen(true); setOutilsOpen(false) } },
               ].map(({ Icon, label, desc, action }) => (
@@ -1150,6 +1153,9 @@ export default function App() {
       )}
       {clusterOpen && (
         <ClusterView onClose={() => setClusterOpen(false)} />
+      )}
+      {graphOpen && (
+        <KnowledgeGraph onClose={() => setGraphOpen(false)} />
       )}
       {watchOpen && (
         <EntityWatchPanel
