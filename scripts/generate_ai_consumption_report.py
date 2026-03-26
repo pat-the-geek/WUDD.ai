@@ -111,8 +111,11 @@ def _empty_provider() -> dict:
     return {"prompt": 0, "completion": 0, "total": 0, "calls": 0}
 
 
-def parse_tokens_from_logs(project_root: Path) -> dict:
-    """Parse les fichiers de log cron pour extraire la consommation de tokens du jour.
+def parse_tokens_from_logs(project_root: Path, date_str: str | None = None) -> dict:
+    """Parse les fichiers de log cron pour extraire la consommation de tokens.
+
+    Args:
+        date_str: Date au format YYYY-MM-DD. Si None, utilise aujourd'hui.
 
     Returns:
         dict {
@@ -124,7 +127,8 @@ def parse_tokens_from_logs(project_root: Path) -> dict:
             }
         }
     """
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    if date_str is None:
+        date_str = datetime.now().strftime("%Y-%m-%d")
     reports_dir = project_root / "rapports"
     stats = {}
 
@@ -140,7 +144,7 @@ def parse_tokens_from_logs(project_root: Path) -> dict:
         try:
             text = log_path.read_text(encoding="utf-8", errors="ignore")
             for line in text.splitlines():
-                if not line.startswith(today_str):
+                if not line.startswith(date_str):
                     continue
                 if not USAGE_LINE_PATTERN.search(line):
                     continue
@@ -177,6 +181,19 @@ def parse_tokens_from_logs(project_root: Path) -> dict:
             }
 
     return stats
+
+
+def parse_tokens_history(project_root: Path, all_history: list) -> dict:
+    """Parse les tokens pour chaque date présente dans all_history.
+
+    Retourne un dict {"YYYY-MM-DD": total_tokens_jour} en agrégeant tous les services.
+    """
+    token_by_date: dict[str, int] = {}
+    dates = sorted(set(e["date"] for e in all_history))
+    for date_str in dates:
+        day_stats = parse_tokens_from_logs(project_root, date_str)
+        token_by_date[date_str] = sum(s["total"] for s in day_stats.values())
+    return token_by_date
 
 
 def load_quota_config(project_root: Path) -> dict:
@@ -277,56 +294,72 @@ def _month_label(ym: str) -> str:
     return f"{_MONTHS[month - 1]}{str(year)[-2:]}"
 
 
-def build_monthly_mermaid_chart(all_history: list, global_limit: int) -> str:
-    """Génère un diagramme xychart-beta mensuel (une barre par mois)."""
-    months = _aggregate_by_month(all_history)
-    if not months:
+def build_monthly_mermaid_chart(all_history: list, token_by_date: dict) -> str:
+    """Génère un diagramme xychart-beta mensuel (une barre par mois) basé sur les tokens."""
+    # Agrège les tokens par mois
+    months_tok: dict[str, int] = {}
+    for entry in all_history:
+        ym = entry["date"][:7]
+        months_tok[ym] = months_tok.get(ym, 0) + token_by_date.get(entry["date"], 0)
+
+    if not months_tok:
         return "_Aucune donnée historique disponible._"
 
-    labels = [_month_label(ym) for ym in months]
-    values = [str(m["total"]) for m in months.values()]
-    # Limite mensuelle approximée sur la base du nombre de jours du mois
-    limits = [str(global_limit * m["days_in_month"]) for m in months.values()]
-    y_max  = max(
-        max(m["total"] for m in months.values()),
-        max(global_limit * m["days_in_month"] for m in months.values()),
-    )
-    y_max  = y_max + round(y_max * 0.1) + 1  # +10 % de marge
+    labels = [_month_label(ym) for ym in sorted(months_tok)]
+    values_list = [months_tok[ym] for ym in sorted(months_tok)]
+    values = [str(v) for v in values_list]
+
+    y_max = max(values_list) if values_list else 1
+    y_max = y_max + round(y_max * 0.15) + 1  # +15 % de marge
 
     labels_str = ", ".join(labels)
     values_str = ", ".join(values)
-    limits_str = ", ".join(limits)
 
     return "\n".join([
         "```mermaid",
         "xychart-beta",
         f"    x-axis [{labels_str}]",
-        f"    y-axis Articles 0 --> {y_max}",
+        f"    y-axis Tokens 0 --> {y_max}",
         f"    bar [{values_str}]",
-        f"    line [{limits_str}]",
         "```",
     ])
 
 
-def build_monthly_stats_table(all_history: list, global_limit: int) -> str:
-    """Génère un tableau comparatif mois par mois (tous les mois disponibles)."""
-    months = _aggregate_by_month(all_history)
-    if not months:
+def build_monthly_stats_table(all_history: list, token_by_date: dict) -> str:
+    """Génère un tableau comparatif mois par mois basé sur les tokens."""
+    # Agrège les tokens et jours actifs par mois
+    months_data: dict[str, dict] = {}
+    for entry in all_history:
+        ym = entry["date"][:7]
+        tok = token_by_date.get(entry["date"], 0)
+        if ym not in months_data:
+            year, month_num = int(ym[:4]), int(ym[5:7])
+            months_data[ym] = {
+                "total": 0,
+                "active_days": 0,
+                "max_day": 0,
+                "days_in_month": monthrange(year, month_num)[1],
+            }
+        months_data[ym]["total"] += tok
+        if tok > 0:
+            months_data[ym]["active_days"] += 1
+        if tok > months_data[ym]["max_day"]:
+            months_data[ym]["max_day"] = tok
+
+    if not months_data:
         return "_Aucune donnée historique disponible._"
 
-    month_keys = list(months.keys())
     lines = [
-        "| Mois | Total articles | Jours actifs | Moy./jour actif | Max/jour | Quota mensuel | Utilisation |",
-        "|---|---|---|---|---|---|---|",
+        "| Mois | Total tokens | Jours actifs | Moy./jour actif | Max/jour |",
+        "|---|---|---|---|---|",
     ]
 
     prev_total = None
-    for ym in month_keys:
-        m = months[ym]
+    for ym in sorted(months_data):
+        m = months_data[ym]
         year, month_num = int(ym[:4]), int(ym[5:7])
         month_label_fr = f"{_MONTHS_FR[month_num - 1]} {year}"
-        monthly_quota  = global_limit * m["days_in_month"]
-        usage_pct      = round(m["total"] / monthly_quota * 100) if monthly_quota else 0
+        avg_active = round(m["total"] / m["active_days"]) if m["active_days"] else 0
 
         # Indicateur d'évolution vs mois précédent
         if prev_total is not None and prev_total > 0:
@@ -338,26 +371,24 @@ def build_monthly_stats_table(all_history: list, global_limit: int) -> str:
                 trend = f"↓ {pct} %"
             else:
                 trend = f"→ {pct:+d} %"
-            total_cell = f"**{m['total']}** ({trend})"
+            total_cell = f"**{m['total']:,}** ({trend})"
         else:
-            total_cell = f"**{m['total']}**"
+            total_cell = f"**{m['total']:,}**"
 
         lines.append(
             f"| {month_label_fr} "
             f"| {total_cell} "
             f"| {m['active_days']} / {m['days_in_month']} "
-            f"| {m['avg_per_active_day']} "
-            f"| {m['max_day']} "
-            f"| {monthly_quota:,} "
-            f"| {usage_pct} % |"
+            f"| {avg_active:,} "
+            f"| {m['max_day']:,} |"
         )
         prev_total = m["total"]
 
     return "\n".join(lines)
 
 
-def build_day_comparison_table(all_history: list) -> str:
-    """Génère un tableau de comparaison hier / aujourd'hui / moyenne 7j."""
+def build_day_comparison_table(all_history: list, token_by_date: dict) -> str:
+    """Génère un tableau de comparaison hier / aujourd'hui / moyenne 7j basé sur les tokens."""
     if len(all_history) < 2:
         return "_Historique insuffisant pour la comparaison._"
 
@@ -365,9 +396,9 @@ def build_day_comparison_table(all_history: list) -> str:
     yesterday_entry = all_history[-2]
     history_7d      = all_history[-7:]
 
-    today_count     = today_entry["global_count"]
-    yesterday_count = yesterday_entry["global_count"]
-    avg_7d          = round(sum(e["global_count"] for e in history_7d) / len(history_7d))
+    today_count     = token_by_date.get(today_entry["date"], 0)
+    yesterday_count = token_by_date.get(yesterday_entry["date"], 0)
+    avg_7d          = round(sum(token_by_date.get(e["date"], 0) for e in history_7d) / len(history_7d))
 
     def _delta(val: int, ref: int) -> str:
         if ref == 0:
@@ -375,14 +406,14 @@ def build_day_comparison_table(all_history: list) -> str:
         d   = val - ref
         pct = round(d / ref * 100)
         sign = "+" if d >= 0 else ""
-        return f"{sign}{d} ({sign}{pct} %)"
+        return f"{sign}{d:,} ({sign}{pct} %)"
 
     lines = [
-        "| Période | Articles | Δ vs hier | Δ vs moy. 7j |",
+        "| Période | Tokens | Δ vs hier | Δ vs moy. 7j |",
         "|---|---|---|---|",
-        f"| Aujourd'hui ({today_entry['date']}) | **{today_count}** | {_delta(today_count, yesterday_count)} | {_delta(today_count, avg_7d)} |",
-        f"| Hier ({yesterday_entry['date']}) | {yesterday_count} | — | {_delta(yesterday_count, avg_7d)} |",
-        f"| Moyenne 7 jours | {avg_7d} | — | — |",
+        f"| Aujourd'hui ({today_entry['date']}) | **{today_count:,}** | {_delta(today_count, yesterday_count)} | {_delta(today_count, avg_7d)} |",
+        f"| Hier ({yesterday_entry['date']}) | {yesterday_count:,} | — | {_delta(yesterday_count, avg_7d)} |",
+        f"| Moyenne 7 jours | {avg_7d:,} | — | — |",
     ]
     return "\n".join(lines)
 
@@ -393,38 +424,35 @@ def _label(date_str: str) -> str:
     return f"{dt.day:02d}{_MONTHS[dt.month - 1]}"
 
 
-def build_mermaid_xychart(history: list, global_limit: int, title: str = "") -> str:
-    """Génère un diagramme xychart-beta sans title ni caractères spéciaux.
+def build_mermaid_xychart(history: list, token_by_date: dict, title: str = "") -> str:
+    """Génère un diagramme xychart-beta basé sur les tokens.
 
     - <= 10 jours : barre quotidienne, labels DDMMM (ex: 19Mar)
-    - >  10 jours : agrégation en périodes de 5 jours (6 points pour 30j),
-                   la ligne de quota représente le plafond sur 5 jours.
+    - >  10 jours : agrégation en périodes de 5 jours (6 points pour 30j).
     """
     n = len(history)
 
     if n <= 10:
         labels = [_label(e["date"]) for e in history]
-        values = [str(e["global_count"]) for e in history]
-        limit_per_period = global_limit
+        values = [str(token_by_date.get(e["date"], 0)) for e in history]
     else:
         period = 5
         groups = [history[i:i + period] for i in range(0, n, period)]
         labels = [_label(g[0]["date"]) for g in groups]
-        values = [str(sum(e["global_count"] for e in g)) for g in groups]
-        limit_per_period = global_limit * period
+        values = [str(sum(token_by_date.get(e["date"], 0) for e in g)) for g in groups]
 
-    labels_str = ", ".join(labels)        # labels sans guillemets ni caractères spéciaux
+    labels_str = ", ".join(labels)
     values_str = ", ".join(values)
-    limit_str  = ", ".join([str(limit_per_period)] * len(labels))
-    y_max      = limit_per_period + round(limit_per_period * 0.1)
+    int_values = [int(v) for v in values]
+    y_max = max(int_values) if int_values else 1
+    y_max = y_max + round(y_max * 0.15) + 1  # +15 % de marge
 
     return "\n".join([
         "```mermaid",
         "xychart-beta",
         f"    x-axis [{labels_str}]",
-        f"    y-axis Articles 0 --> {y_max}",
+        f"    y-axis Tokens 0 --> {y_max}",
         f"    bar [{values_str}]",
-        f"    line [{limit_str}]",
         "```",
     ])
 
@@ -522,56 +550,68 @@ def build_token_table(token_stats: dict) -> str:
 
 
 def build_report(history: list, token_stats: dict, quota_cfg: dict,
-                 all_history: list | None = None) -> str:
+                 all_history: list | None = None,
+                 token_by_date: dict | None = None) -> str:
     """history contient 30 entrées (les 30 derniers jours).
     all_history contient toutes les entrées disponibles (tous les mois).
+    token_by_date : dict {YYYY-MM-DD: total_tokens} pour l'historique des graphiques.
     """
     today_entry  = history[-1]
     today_str    = today_entry["date"]
     global_count = today_entry["global_count"]
     global_limit = quota_cfg["global_daily_limit"]
-    pct          = round(global_count / global_limit * 100) if global_limit else 0
+    pct_articles = round(global_count / global_limit * 100) if global_limit else 0
     today_dt     = datetime.fromisoformat(today_str)
     today_fr     = _date_fr(today_dt)
 
     # Utiliser all_history si disponible, sinon retomber sur history
     full_history = all_history if all_history else history
 
+    # token_by_date : si non fourni, utiliser seulement les tokens d'aujourd'hui
+    if token_by_date is None:
+        token_by_date = {today_str: sum(s["total"] for s in token_stats.values())}
+
     # Fenêtres temporelles
     history_7d  = history[-7:]
     history_30d = history
 
-    mermaid_7d  = build_mermaid_xychart(history_7d,  global_limit)
-    mermaid_30d = build_mermaid_xychart(history_30d, global_limit)
+    # Tokens aujourd'hui (depuis les logs)
+    total_tokens_today = sum(s["total"] for s in token_stats.values())
+
+    # Graphiques tokens
+    mermaid_7d  = build_mermaid_xychart(history_7d,  token_by_date)
+    mermaid_30d = build_mermaid_xychart(history_30d, token_by_date)
 
     keyword_table = build_keyword_table(today_entry)
     token_table   = build_token_table(token_stats)
 
-    # Tableaux comparatifs mensuel et quotidien
-    day_comparison_table   = build_day_comparison_table(full_history)
-    monthly_stats_table    = build_monthly_stats_table(full_history, global_limit)
-    monthly_mermaid_chart  = build_monthly_mermaid_chart(full_history, global_limit)
+    # Tableaux comparatifs mensuel et quotidien (basés sur les tokens)
+    day_comparison_table   = build_day_comparison_table(full_history, token_by_date)
+    monthly_stats_table    = build_monthly_stats_table(full_history, token_by_date)
+    monthly_mermaid_chart  = build_monthly_mermaid_chart(full_history, token_by_date)
 
     # Nombre de mois avec données disponibles (fichiers history présents)
     months_available = len(set(e["date"][:7] for e in full_history))
 
-    # Stats 7 jours
-    total_7d = sum(e["global_count"] for e in history_7d)
-    avg_7d   = round(total_7d / len(history_7d))
-    max_7d   = max(e["global_count"] for e in history_7d)
+    # Stats tokens 7 jours
+    tok_7d       = [token_by_date.get(e["date"], 0) for e in history_7d]
+    total_tok_7d = sum(tok_7d)
+    avg_tok_7d   = round(total_tok_7d / len(tok_7d)) if tok_7d else 0
+    max_tok_7d   = max(tok_7d) if tok_7d else 0
 
-    # Stats 30 jours
-    active_30d   = [e["global_count"] for e in history_30d if e["global_count"] > 0]
-    total_30d    = sum(e["global_count"] for e in history_30d)
-    avg_30d      = round(total_30d / len(active_30d)) if active_30d else 0
-    max_30d      = max(e["global_count"] for e in history_30d)
-    active_days  = len(active_30d)
+    # Stats tokens 30 jours
+    tok_30d        = [token_by_date.get(e["date"], 0) for e in history_30d]
+    active_tok_30d = [t for t in tok_30d if t > 0]
+    total_tok_30d  = sum(tok_30d)
+    avg_tok_30d    = round(total_tok_30d / len(active_tok_30d)) if active_tok_30d else 0
+    max_tok_30d    = max(tok_30d) if tok_30d else 0
+    active_days_tok = len(active_tok_30d)
 
-    # Tendance : aujourd'hui vs moyenne des 6 jours précédents (actifs)
-    prev_6j = [e["global_count"] for e in history_7d[:-1] if e["global_count"] > 0]
-    if prev_6j:
-        prev_avg  = round(sum(prev_6j) / len(prev_6j))
-        trend_pct = round((global_count - prev_avg) / prev_avg * 100) if prev_avg else 0
+    # Tendance tokens : aujourd'hui vs moyenne des 6 jours précédents
+    prev_6j_tok = [token_by_date.get(e["date"], 0) for e in history_7d[:-1] if token_by_date.get(e["date"], 0) > 0]
+    if prev_6j_tok:
+        prev_avg  = round(sum(prev_6j_tok) / len(prev_6j_tok))
+        trend_pct = round((total_tokens_today - prev_avg) / prev_avg * 100) if prev_avg else 0
         if trend_pct > 10:
             trend_str = f"↑ +{trend_pct} % vs moyenne 6j"
         elif trend_pct < -10:
@@ -580,12 +620,6 @@ def build_report(history: list, token_stats: dict, quota_cfg: dict,
             trend_str = f"→ {trend_pct:+d} % vs moyenne 6j (stable)"
     else:
         trend_str = "— premier jour de données"
-
-    total_tokens_today = sum(s["total"] for s in token_stats.values())
-
-    # Barre de progression ASCII pour le quota global
-    filled = round(pct / 5)
-    bar    = "█" * filled + "░" * (20 - filled)
 
     report = f"""---
 title: "Rapport de consommation IA — {today_fr}"
@@ -599,66 +633,56 @@ type: ai-consumption
 
 | Indicateur | Valeur |
 |---|---|
-| Articles traités | **{global_count}** / {global_limit} ({pct} %) |
-| Progression quota | `{bar}` {pct} % |
-| Tendance | {trend_str} |
-| Tokens tracés (logs) | {total_tokens_today:,} |
+| Tokens consommés aujourd'hui | **{total_tokens_today:,}** |
+| Tendance tokens | {trend_str} |
+| Articles traités (quota) | {global_count} / {global_limit} ({pct_articles} %) |
 
-### Comparaison hier / aujourd'hui
+### Comparaison hier / aujourd'hui (tokens)
 
 {day_comparison_table}
 
-### Statistiques 7 jours
+### Statistiques tokens 7 jours
 
 | Indicateur | Valeur |
 |---|---|
-| Total 7 jours | {total_7d} articles |
-| Moyenne / jour | {avg_7d} articles |
-| Maximum / jour | {max_7d} articles |
+| Total 7 jours | {total_tok_7d:,} tokens |
+| Moyenne / jour | {avg_tok_7d:,} tokens |
+| Maximum / jour | {max_tok_7d:,} tokens |
 
-### Statistiques 30 jours
+### Statistiques tokens 30 jours
 
 | Indicateur | Valeur |
 |---|---|
-| Total 30 jours | {total_30d} articles |
-| Jours actifs | {active_days} / 30 |
-| Moyenne / jour actif | {avg_30d} articles |
-| Maximum / jour | {max_30d} articles |
+| Total 30 jours | {total_tok_30d:,} tokens |
+| Jours actifs | {active_days_tok} / 30 |
+| Moyenne / jour actif | {avg_tok_30d:,} tokens |
+| Maximum / jour | {max_tok_30d:,} tokens |
 
 ---
 
-## Évolution sur 7 jours
+## Évolution des tokens sur 7 jours
 
 {mermaid_7d}
 
 ---
 
-## Évolution sur 30 jours
+## Évolution des tokens sur 30 jours
 
 {mermaid_30d}
 
-> **Barres** = articles traités · **Ligne** = plafond journalier configuré ({global_limit} articles).
-> Le graphe 30j aggrège les articles par périodes de 5 jours — la ligne de quota représente le plafond cumulé sur 5 jours ({global_limit * 5} articles).
+> **Barres** = tokens consommés · Agrégation par périodes de 5 jours pour le graphe 30j.
 
 ---
 
-## Évolution mensuelle ({months_available} mois disponibles)
+## Évolution mensuelle des tokens ({months_available} mois disponibles)
 
 {monthly_mermaid_chart}
-
-> **Barres** = total articles traités dans le mois · **Ligne** = plafond mensuel (quota journalier × jours du mois).
 
 ### Comparaison mois par mois
 
 {monthly_stats_table}
 
-> Les flèches (↑ ↓ →) indiquent l'évolution du total mensuel par rapport au mois précédent.
-
----
-
-## Consommation par mot-clé (aujourd'hui)
-
-{keyword_table}
+> Les flèches (↑ ↓ →) indiquent l'évolution par rapport au mois précédent.
 
 ---
 
@@ -666,9 +690,14 @@ type: ai-consumption
 
 {token_table}
 
-> ⚠️ Les tokens sont extraits des fichiers de log en temps réel.
+> ⚠️ Les tokens sont extraits des fichiers de log cron.
 > Seules les lignes `[EurIA] Usage` et `[Claude/...] Usage` du jour courant sont comptabilisées.
-> Un zéro indique soit l'absence d'appels aujourd'hui, soit un script n'ayant pas encore tourné.
+
+---
+
+## Consommation par mot-clé (aujourd'hui)
+
+{keyword_table}
 
 ---
 
@@ -695,17 +724,19 @@ def main():
     token_stats = parse_tokens_from_logs(PROJECT_ROOT)
     quota_cfg   = load_quota_config(PROJECT_ROOT)
 
-    today_count = history[-1]["global_count"]
+    today_count  = history[-1]["global_count"]
     global_limit = quota_cfg["global_daily_limit"]
     total_tokens = sum(s["total"] for s in token_stats.values())
 
-    all_history = load_all_quota_history(PROJECT_ROOT)
+    all_history     = load_all_quota_history(PROJECT_ROOT)
+    token_by_date   = parse_tokens_history(PROJECT_ROOT, all_history)
 
     print_console(f"  Quota aujourd'hui   : {today_count} / {global_limit} articles")
-    print_console(f"  Services avec tokens: {len(token_stats)} ({total_tokens:,} tokens tracés)")
+    print_console(f"  Tokens aujourd'hui  : {total_tokens:,} (depuis {len(token_stats)} services)")
     print_console(f"  Historique chargé   : {len(history)} jours (30j) / {len(all_history)} jours (total)")
+    print_console(f"  Jours avec tokens   : {sum(1 for v in token_by_date.values() if v > 0)} / {len(token_by_date)}")
 
-    report_md = build_report(history, token_stats, quota_cfg, all_history=all_history)
+    report_md = build_report(history, token_stats, quota_cfg, all_history=all_history, token_by_date=token_by_date)
 
     if args.dry_run:
         print(report_md[:3000])
