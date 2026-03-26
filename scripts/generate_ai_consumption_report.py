@@ -18,6 +18,7 @@ import argparse
 import json
 import re
 import sys
+from calendar import monthrange
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -194,7 +195,196 @@ def load_quota_config(project_root: Path) -> dict:
     return defaults
 
 
-_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+_MONTHS     = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+_MONTHS_FR  = ["jan", "fév", "mars", "avr", "mai", "juin",
+               "juil", "aoû", "sept", "oct", "nov", "déc"]
+
+
+def load_all_quota_history(project_root: Path) -> list:
+    """Charge tous les snapshots quota disponibles dans data/quota_history/.
+
+    Retourne une liste d'entrées triées par date ASC incluant aujourd'hui.
+    """
+    history_dir = project_root / "data" / "quota_history"
+    today = datetime.now().date()
+    today_iso = today.isoformat()
+    entries: dict[str, dict] = {}
+
+    # Charger tous les fichiers historiques disponibles
+    if history_dir.exists():
+        for hist_file in sorted(history_dir.glob("*.json")):
+            iso = hist_file.stem  # YYYY-MM-DD
+            try:
+                datetime.fromisoformat(iso)  # validation
+            except ValueError:
+                continue
+            try:
+                data = json.loads(hist_file.read_text(encoding="utf-8"))
+                entries[iso] = {
+                    "date":         iso,
+                    "global_count": data.get("global_count", 0),
+                    "keywords":     data.get("keywords", {}),
+                }
+            except Exception:
+                pass
+
+    # Ajouter aujourd'hui depuis quota_state.json
+    entry_today = {"date": today_iso, "global_count": 0, "keywords": {}}
+    state_file = project_root / "data" / "quota_state.json"
+    if state_file.exists():
+        try:
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+            if state.get("date") == today_iso:
+                entry_today["global_count"] = state.get("global_count", 0)
+                entry_today["keywords"]     = state.get("keywords", {})
+        except Exception:
+            pass
+    entries[today_iso] = entry_today
+
+    return sorted(entries.values(), key=lambda e: e["date"])
+
+
+def _aggregate_by_month(all_history: list) -> dict:
+    """Agrège les entrées journalières par mois (YYYY-MM).
+
+    Retourne un dict ordonné : {"YYYY-MM": {"total": int, "active_days": int,
+    "avg_per_active_day": int, "max_day": int, "days_in_month": int}}
+    """
+    months: dict[str, list] = {}
+    for entry in all_history:
+        ym = entry["date"][:7]  # "YYYY-MM"
+        months.setdefault(ym, []).append(entry["global_count"])
+
+    result = {}
+    for ym, counts in sorted(months.items()):
+        year, month = int(ym[:4]), int(ym[5:7])
+        days_in_month = monthrange(year, month)[1]
+        active = [c for c in counts if c > 0]
+        total  = sum(counts)
+        result[ym] = {
+            "total":              total,
+            "active_days":        len(active),
+            "avg_per_active_day": round(total / len(active)) if active else 0,
+            "max_day":            max(counts) if counts else 0,
+            "days_in_month":      days_in_month,
+        }
+    return result
+
+
+def _month_label(ym: str) -> str:
+    """Formate YYYY-MM en label court sans caractères spéciaux : Jan26."""
+    year, month = int(ym[:4]), int(ym[5:7])
+    return f"{_MONTHS[month - 1]}{str(year)[-2:]}"
+
+
+def build_monthly_mermaid_chart(all_history: list, global_limit: int) -> str:
+    """Génère un diagramme xychart-beta mensuel (une barre par mois)."""
+    months = _aggregate_by_month(all_history)
+    if not months:
+        return "_Aucune donnée historique disponible._"
+
+    labels = [_month_label(ym) for ym in months]
+    values = [str(m["total"]) for m in months.values()]
+    # Limite mensuelle approximée sur la base du nombre de jours du mois
+    limits = [str(global_limit * m["days_in_month"]) for m in months.values()]
+    y_max  = max(
+        max(m["total"] for m in months.values()),
+        max(global_limit * m["days_in_month"] for m in months.values()),
+    )
+    y_max  = y_max + round(y_max * 0.1) + 1  # +10 % de marge
+
+    labels_str = ", ".join(labels)
+    values_str = ", ".join(values)
+    limits_str = ", ".join(limits)
+
+    return "\n".join([
+        "```mermaid",
+        "xychart-beta",
+        f"    x-axis [{labels_str}]",
+        f"    y-axis Articles 0 --> {y_max}",
+        f"    bar [{values_str}]",
+        f"    line [{limits_str}]",
+        "```",
+    ])
+
+
+def build_monthly_stats_table(all_history: list, global_limit: int) -> str:
+    """Génère un tableau comparatif mois par mois (tous les mois disponibles)."""
+    months = _aggregate_by_month(all_history)
+    if not months:
+        return "_Aucune donnée historique disponible._"
+
+    month_keys = list(months.keys())
+    lines = [
+        "| Mois | Total articles | Jours actifs | Moy./jour actif | Max/jour | Quota mensuel | Utilisation |",
+        "|---|---|---|---|---|---|---|",
+    ]
+
+    prev_total = None
+    for ym in month_keys:
+        m = months[ym]
+        year, month_num = int(ym[:4]), int(ym[5:7])
+        month_label_fr = f"{_MONTHS_FR[month_num - 1]} {year}"
+        monthly_quota  = global_limit * m["days_in_month"]
+        usage_pct      = round(m["total"] / monthly_quota * 100) if monthly_quota else 0
+
+        # Indicateur d'évolution vs mois précédent
+        if prev_total is not None and prev_total > 0:
+            delta = m["total"] - prev_total
+            pct   = round(delta / prev_total * 100)
+            if pct > 10:
+                trend = f"↑ +{pct} %"
+            elif pct < -10:
+                trend = f"↓ {pct} %"
+            else:
+                trend = f"→ {pct:+d} %"
+            total_cell = f"**{m['total']}** ({trend})"
+        else:
+            total_cell = f"**{m['total']}**"
+
+        lines.append(
+            f"| {month_label_fr} "
+            f"| {total_cell} "
+            f"| {m['active_days']} / {m['days_in_month']} "
+            f"| {m['avg_per_active_day']} "
+            f"| {m['max_day']} "
+            f"| {monthly_quota:,} "
+            f"| {usage_pct} % |"
+        )
+        prev_total = m["total"]
+
+    return "\n".join(lines)
+
+
+def build_day_comparison_table(all_history: list) -> str:
+    """Génère un tableau de comparaison hier / aujourd'hui / moyenne 7j."""
+    if len(all_history) < 2:
+        return "_Historique insuffisant pour la comparaison._"
+
+    today_entry     = all_history[-1]
+    yesterday_entry = all_history[-2]
+    history_7d      = all_history[-7:]
+
+    today_count     = today_entry["global_count"]
+    yesterday_count = yesterday_entry["global_count"]
+    avg_7d          = round(sum(e["global_count"] for e in history_7d) / len(history_7d))
+
+    def _delta(val: int, ref: int) -> str:
+        if ref == 0:
+            return "—"
+        d   = val - ref
+        pct = round(d / ref * 100)
+        sign = "+" if d >= 0 else ""
+        return f"{sign}{d} ({sign}{pct} %)"
+
+    lines = [
+        "| Période | Articles | Δ vs hier | Δ vs moy. 7j |",
+        "|---|---|---|---|",
+        f"| Aujourd'hui ({today_entry['date']}) | **{today_count}** | {_delta(today_count, yesterday_count)} | {_delta(today_count, avg_7d)} |",
+        f"| Hier ({yesterday_entry['date']}) | {yesterday_count} | — | {_delta(yesterday_count, avg_7d)} |",
+        f"| Moyenne 7 jours | {avg_7d} | — | — |",
+    ]
+    return "\n".join(lines)
 
 
 def _label(date_str: str) -> str:
@@ -331,8 +521,11 @@ def build_token_table(token_stats: dict) -> str:
     return f"{synth}\n\n### Détail par service\n\n{table_detail}"
 
 
-def build_report(history: list, token_stats: dict, quota_cfg: dict) -> str:
-    """history contient 30 entrées (les 30 derniers jours)."""
+def build_report(history: list, token_stats: dict, quota_cfg: dict,
+                 all_history: list | None = None) -> str:
+    """history contient 30 entrées (les 30 derniers jours).
+    all_history contient toutes les entrées disponibles (tous les mois).
+    """
     today_entry  = history[-1]
     today_str    = today_entry["date"]
     global_count = today_entry["global_count"]
@@ -340,6 +533,9 @@ def build_report(history: list, token_stats: dict, quota_cfg: dict) -> str:
     pct          = round(global_count / global_limit * 100) if global_limit else 0
     today_dt     = datetime.fromisoformat(today_str)
     today_fr     = _date_fr(today_dt)
+
+    # Utiliser all_history si disponible, sinon retomber sur history
+    full_history = all_history if all_history else history
 
     # Fenêtres temporelles
     history_7d  = history[-7:]
@@ -350,6 +546,14 @@ def build_report(history: list, token_stats: dict, quota_cfg: dict) -> str:
 
     keyword_table = build_keyword_table(today_entry)
     token_table   = build_token_table(token_stats)
+
+    # Tableaux comparatifs mensuel et quotidien
+    day_comparison_table   = build_day_comparison_table(full_history)
+    monthly_stats_table    = build_monthly_stats_table(full_history, global_limit)
+    monthly_mermaid_chart  = build_monthly_mermaid_chart(full_history, global_limit)
+
+    # Nombre de mois avec données disponibles (fichiers history présents)
+    months_available = len(set(e["date"][:7] for e in full_history))
 
     # Stats 7 jours
     total_7d = sum(e["global_count"] for e in history_7d)
@@ -400,6 +604,10 @@ type: ai-consumption
 | Tendance | {trend_str} |
 | Tokens tracés (logs) | {total_tokens_today:,} |
 
+### Comparaison hier / aujourd'hui
+
+{day_comparison_table}
+
 ### Statistiques 7 jours
 
 | Indicateur | Valeur |
@@ -431,6 +639,20 @@ type: ai-consumption
 
 > **Barres** = articles traités · **Ligne** = plafond journalier configuré ({global_limit} articles).
 > Le graphe 30j aggrège les articles par périodes de 5 jours — la ligne de quota représente le plafond cumulé sur 5 jours ({global_limit * 5} articles).
+
+---
+
+## Évolution mensuelle ({months_available} mois disponibles)
+
+{monthly_mermaid_chart}
+
+> **Barres** = total articles traités dans le mois · **Ligne** = plafond mensuel (quota journalier × jours du mois).
+
+### Comparaison mois par mois
+
+{monthly_stats_table}
+
+> Les flèches (↑ ↓ →) indiquent l'évolution du total mensuel par rapport au mois précédent.
 
 ---
 
@@ -477,11 +699,13 @@ def main():
     global_limit = quota_cfg["global_daily_limit"]
     total_tokens = sum(s["total"] for s in token_stats.values())
 
+    all_history = load_all_quota_history(PROJECT_ROOT)
+
     print_console(f"  Quota aujourd'hui   : {today_count} / {global_limit} articles")
     print_console(f"  Services avec tokens: {len(token_stats)} ({total_tokens:,} tokens tracés)")
-    print_console(f"  Historique chargé   : {len(history)} jours")
+    print_console(f"  Historique chargé   : {len(history)} jours (30j) / {len(all_history)} jours (total)")
 
-    report_md = build_report(history, token_stats, quota_cfg)
+    report_md = build_report(history, token_stats, quota_cfg, all_history=all_history)
 
     if args.dry_run:
         print(report_md[:3000])
