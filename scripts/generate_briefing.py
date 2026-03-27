@@ -366,6 +366,34 @@ def generate_ai_synthesis(
         return ""
 
 
+# ── Helpers de formatage français (TTS) ─────────────────────────────────────
+
+_MOIS_FR = [
+    "", "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre"
+]
+_JOURS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+
+
+def _date_fr(date_str: str) -> str:
+    """Convertit une date (tous formats du pipeline) en texte français 'JJ mois AAAA'."""
+    dt = _parse_date(date_str)
+    if dt is None:
+        return date_str
+    return f"{dt.day} {_MOIS_FR[dt.month]} {dt.year}"
+
+
+def _datetime_fr(dt: datetime) -> str:
+    """Convertit un datetime en texte français lisible par TTS."""
+    jour = _JOURS_FR[dt.weekday()]
+    h = dt.hour
+    m = dt.minute
+    heure_label = "heure" if h == 1 else "heures"
+    date_part = f"{jour} {dt.day} {_MOIS_FR[dt.month]} {dt.year}"
+    time_part = f"{h} {heure_label}" if m == 0 else f"{h} heures {m}"
+    return f"{date_part} à {time_part}"
+
+
 # ── Génération du texte podcast ──────────────────────────────────────────────
 
 def build_podcast_markdown(
@@ -378,8 +406,9 @@ def build_podcast_markdown(
     alerts: list[dict],
     ai_synthesis: str = "",
 ) -> str:
-    """Génère un texte Markdown fluide adapté à la synthèse vocale (TTS)."""
-    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y à %H:%M UTC")
+    """Génère un texte Markdown fluide adapté à la synthèse vocale (TTS), limité à 4000 caractères."""
+    _MAX_CHARS = 4000
+    now_str = _datetime_fr(datetime.now(timezone.utc))
     total = len(articles)
     sentiment = _sentiment_stats(articles)
 
@@ -387,112 +416,64 @@ def build_podcast_markdown(
     neu = sentiment.get("neutre", 0)
     neg = sentiment.get("négatif", 0)
     sent_total = pos + neu + neg
-    def _pct(n): return f"{n * 100 // sent_total} pour cent" if sent_total else "non disponible"
+    def _pct(n): return f"{n * 100 // sent_total} %" if sent_total else "n/d"
 
     lines = [
-        f"# Podcast WUDD point AI — Briefing {period_label} du {date_fin}",
-        "",
-        f"Bonjour. Voici votre briefing {period_label} WUDD point AI, généré le {now_str}.",
-        f"Cette édition couvre la période du {date_debut} au {date_fin}",
-        f"et synthétise {total} articles analysés par l'intelligence artificielle.",
-        "",
-        "---",
+        f"Bonjour. Voici votre briefing {period_label} What's up doc !, généré le {now_str}.",
+        f"Période du {_date_fr(date_debut)} au {_date_fr(date_fin)} — {total} articles analysés.",
         "",
     ]
 
-    # ── Synthèse IA ──────────────────────────────────────────────────────────
+    # ── Synthèse IA (tronquée à 800 chars, sans entêtes parasites) ──────────
     if ai_synthesis:
-        lines += [
-            "## Synthèse de la semaine",
-            "",
-            ai_synthesis.strip(),
-            "",
-            "---",
-            "",
-        ]
+        synth_lines = []
+        for ln in ai_synthesis.strip().splitlines():
+            ls = ln.strip()
+            # Supprimer les lignes d'entête générées par l'IA (résumé exécutif, période, etc.)
+            if not ls:
+                continue
+            low = ls.lower().lstrip("*_# ")
+            if (low.startswith("résumé exécutif") or low.startswith("période") or
+                    low.startswith("veille informationnelle") or ls.startswith("#")):
+                continue
+            synth_lines.append(ln)
+        synth = "\n".join(synth_lines).strip()
+        if len(synth) > 2500:
+            synth = synth[:2497] + "…"
+        if synth:
+            lines += [synth, ""]
 
-    # ── Alertes ──────────────────────────────────────────────────────────────
-    if alerts:
-        lines += [
-            "## Tendances et alertes",
-            "",
-            f"Cette semaine, {len(alerts[:5])} tendances ont été détectées.",
-            "",
-        ]
-        for a in alerts[:5]:
-            niveau = a.get("niveau", "modéré")
-            lines.append(
-                f"{a['entity_value']}, de type {a['entity_type']}, "
-                f"présente un niveau d'alerte {niveau} avec {a['count_24h']} mentions sur les dernières 24 heures."
-            )
-        lines += ["", "---", ""]
 
-    # ── Top Entités ──────────────────────────────────────────────────────────
-    if top_entities:
-        lines += [
-            "## Les sujets les plus mentionnés",
-            "",
-            f"Voici les {len(top_entities)} entités qui ont le plus retenu l'attention cette semaine.",
-            "",
-        ]
-        for i, (etype, name, count) in enumerate(top_entities, 1):
-            mention_str = "mention" if count == 1 else "mentions"
-            lines.append(f"{i}. {name}, avec {count} {mention_str}.")
-        lines += ["", "---", ""]
 
-    # ── Top Articles ─────────────────────────────────────────────────────────
+    # ── Top Articles (2 max, résumé 200 chars) ────────────────────────────────
     if top_articles:
-        lines += [
-            "## Les articles à la une",
-            "",
-            "Voici les cinq articles les plus pertinents de la période.",
-            "",
-        ]
-        for i, article in enumerate(top_articles[:5], 1):
+        lines += ["## Articles à la une", ""]
+        for i, article in enumerate(top_articles[:2], 1):
             source = article.get("Sources") or article.get("source") or "Source inconnue"
             date   = article.get("Date de publication") or ""
-            resume = (article.get("Résumé") or "")[:500]
-            titre  = article.get("Titre") or ""
+            resume = (article.get("Résumé") or "")[:200]
+            if len(article.get("Résumé") or "") > 200:
+                resume += "…"
+            date_str = f", {_date_fr(date)}" if date else ""
+            lines += [f"**{i}. {source}{date_str}.** {resume}", ""]
+        lines.append("")
 
-            header = f"**Article {i}"
-            if titre:
-                header += f" — {titre}"
-            header += f"** — {source}"
-            if date:
-                header += f", publié le {date}"
-            header += "."
-
-            lines += [
-                header,
-                "",
-                resume + ("…" if len(article.get("Résumé") or "") > 500 else ""),
-                "",
-            ]
-        lines += ["---", ""]
-
-    # ── Statistiques ─────────────────────────────────────────────────────────
-    lines += [
-        "## En bref",
-        "",
-        f"Sur la période, {total} articles ont été analysés.",
-    ]
+    # ── En bref (une ligne) ───────────────────────────────────────────────────
+    bref_parts = [f"{total} articles"]
     if sent_total:
-        lines.append(
-            f"La tonalité globale est {_pct(pos)} positive, "
-            f"{_pct(neu)} neutre, et {_pct(neg)} négative."
-        )
+        bref_parts.append(f"tonalité : {_pct(pos)} positive, {_pct(neu)} neutre, {_pct(neg)} négative")
     sources = _source_stats(articles, top_n=3)
     if sources:
-        src_str = ", ".join(f"{s}" for s, _ in sources)
-        lines.append(f"Les sources les plus actives sont : {src_str}.")
-    lines += [
-        "",
-        "---",
-        "",
-        f"Ce briefing a été généré automatiquement par WUDD point AI le {now_str}. À bientôt.",
-    ]
+        bref_parts.append("sources : " + ", ".join(s for s, _ in sources))
+    lines += ["## En bref", "", " — ".join(bref_parts) + ".", "", f"*Généré par What's up doc ! le {now_str}.*"]
 
-    return "\n".join(lines)
+    result = "\n".join(lines)
+
+    # ── Troncature de sécurité ────────────────────────────────────────────────
+    if len(result) > _MAX_CHARS:
+        result = result[:_MAX_CHARS - 3] + "…"
+
+    return result
 
 
 # ── Point d'entrée ────────────────────────────────────────────────────────────
