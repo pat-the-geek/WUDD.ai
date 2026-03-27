@@ -76,7 +76,6 @@ export default function EntityWorldMap({ entities, onEntityClick, style }) {
   const [coords, setCoords] = useState({})
   const [loading, setLoading] = useState(true)
   const containerRef = useRef(null)
-  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
     if (!entities || entities.length === 0) {
@@ -86,38 +85,62 @@ export default function EntityWorldMap({ entities, onEntityClick, style }) {
 
     let cancelled = false
     const names = entities.map((e) => e.name)
+    setCoords({})
+    setLoading(true)
 
-    // firstCall=true → max_new=0 (cache uniquement, retour immédiat)
-    // firstCall=false → max_new=25 (géocode 25 nouvelles entrées par lot)
-    const fetchBatch = (accumulated, firstCall) => {
-      if (cancelled) return
-      const maxNew = firstCall ? 0 : 25
-      fetch(`/api/entities/geocode?max_new=${maxNew}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(names),
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (cancelled) return
-          const merged = { ...accumulated, ...data }
-          setCoords(merged)
-          setLoading(false) // affiche la carte dès le premier retour (même vide)
+    const run = async () => {
+      try {
+        const resp = await fetch('/api/entities/geocode/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(names),
+        })
 
-          const still = names.filter((n) => merged[n] == null).length
-          setPendingCount(still)
+        const reader = resp.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let firstResult = false
 
-          if (still > 0) {
-            // Délai court si premier appel (enchaîne immédiatement avec geocodage)
-            setTimeout(() => fetchBatch(merged, false), firstCall ? 0 : 500)
+        while (true) {
+          if (cancelled) { reader.cancel(); break }
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          // Découper sur les doubles newlines SSE
+          const parts = buffer.split('\n\n')
+          buffer = parts.pop() // conserver le fragment incomplet
+
+          const newEntries = {}
+          let addedCount = 0
+          for (const part of parts) {
+            const line = part.trim()
+            if (!line.startsWith('data: ')) continue
+            try {
+              const parsed = JSON.parse(line.slice(6))
+              if (parsed.type === 'done') continue
+              const { name, ...rest } = parsed
+              if (name && rest.lat != null) {
+                newEntries[name] = rest
+                addedCount++
+              }
+            } catch (_) {}
           }
-        })
-        .catch(() => {
-          if (!cancelled) setLoading(false)
-        })
+
+          if (addedCount > 0 && !cancelled) {
+            if (!firstResult) {
+              firstResult = true
+              setLoading(false)
+            }
+            setCoords((prev) => ({ ...prev, ...newEntries }))
+          }
+        }
+      } catch (_) {}
+
+      if (!cancelled) setLoading(false)
     }
 
-    fetchBatch({}, true)
+    run()
     return () => { cancelled = true }
   }, [entities])
 
@@ -133,12 +156,6 @@ export default function EntityWorldMap({ entities, onEntityClick, style }) {
       {loading && (
         <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-gray-900/70 rounded-lg">
           <span className="text-white text-sm">Géocodage en cours…</span>
-        </div>
-      )}
-      {!loading && pendingCount > 0 && (
-        <div className="absolute bottom-2 left-2 z-[1000] flex items-center gap-1.5 bg-black/60 text-white text-xs px-2.5 py-1 rounded-full pointer-events-none">
-          <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-          Géocodage en cours ({pendingCount} restants)…
         </div>
       )}
 
@@ -168,8 +185,17 @@ export default function EntityWorldMap({ entities, onEntityClick, style }) {
             </Tooltip>
           )
           const items = []
-          // Polygone coloré si disponible (ignorer les Point geojson — icône Leaflet cassée)
-          if (m.geojson && m.geojson.type !== 'Point') {
+          // Vérifier si le geojson est un rectangle bbox Nominatim (Polygon 5 pts, 2 lon × 2 lat)
+          const isBboxRect = (geo) => {
+            if (!geo || geo.type !== 'Polygon') return false
+            const ring = geo.coordinates?.[0] ?? []
+            if (ring.length !== 5) return false
+            const lons = new Set(ring.map((p) => Math.round(p[0] * 1e4)))
+            const lats = new Set(ring.map((p) => Math.round(p[1] * 1e4)))
+            return lons.size === 2 && lats.size === 2
+          }
+          // Polygone coloré si disponible (ignorer Point et bbox rectangles)
+          if (m.geojson && m.geojson.type !== 'Point' && !isBboxRect(m.geojson)) {
             items.push(
               <GeoJSON
                 key={`geo-${m.type}-${m.name}`}

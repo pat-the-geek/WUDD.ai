@@ -1033,16 +1033,16 @@ def api_entities_geocode():
         "levant":             {"lat": 34.0,  "lon": 36.5,  "geojson": None},
         "indochine":          {"lat": 15.0,  "lon": 102.0, "geojson": None},
         "caucase":            {"lat": 42.0,  "lon": 44.0,  "geojson": None},
-        # Continents — bounds + rectangle GeoJSON coloré
-        "europe":             {"lat": 54.5,  "lon": 15.3,  "bounds": [[35.0, -25.0], [72.0, 45.0]],     "geojson": _rect([[35.0, -25.0], [72.0, 45.0]])},
-        "asie":               {"lat": 34.0,  "lon": 100.0, "bounds": [[-10.0, 26.0], [78.0, 180.0]],    "geojson": _rect([[-10.0, 26.0], [78.0, 180.0]])},
-        "asia":               {"lat": 34.0,  "lon": 100.0, "bounds": [[-10.0, 26.0], [78.0, 180.0]],    "geojson": _rect([[-10.0, 26.0], [78.0, 180.0]])},
-        "afrique":            {"lat": 1.0,   "lon": 17.0,  "bounds": [[-35.0, -20.0], [38.0, 52.0]],    "geojson": _rect([[-35.0, -20.0], [38.0, 52.0]])},
-        "africa":             {"lat": 1.0,   "lon": 17.0,  "bounds": [[-35.0, -20.0], [38.0, 52.0]],    "geojson": _rect([[-35.0, -20.0], [38.0, 52.0]])},
-        "amérique du nord":   {"lat": 54.5,  "lon": -105.0,"bounds": [[15.0, -170.0], [72.0, -52.0]],   "geojson": _rect([[15.0, -170.0], [72.0, -52.0]])},
-        "amérique du sud":    {"lat": -14.0, "lon": -55.0, "bounds": [[-56.0, -82.0], [13.0, -35.0]],   "geojson": _rect([[-56.0, -82.0], [13.0, -35.0]])},
-        "amérique latine":    {"lat": -5.0,  "lon": -60.0, "bounds": [[-56.0, -120.0], [33.0, -35.0]],  "geojson": _rect([[-56.0, -120.0], [33.0, -35.0]])},
-        "océanie":            {"lat": -27.0, "lon": 133.0, "bounds": [[-47.0, 113.0], [-10.0, 180.0]],  "geojson": _rect([[-47.0, 113.0], [-10.0, 180.0]])},
+        # Continents — bounds pour le zoom uniquement (pas de rectangle GeoJSON)
+        "europe":             {"lat": 54.5,  "lon": 15.3,  "bounds": [[35.0, -25.0], [72.0, 45.0]],     "geojson": None},
+        "asie":               {"lat": 34.0,  "lon": 100.0, "bounds": [[-10.0, 26.0], [78.0, 180.0]],    "geojson": None},
+        "asia":               {"lat": 34.0,  "lon": 100.0, "bounds": [[-10.0, 26.0], [78.0, 180.0]],    "geojson": None},
+        "afrique":            {"lat": 1.0,   "lon": 17.0,  "bounds": [[-35.0, -20.0], [38.0, 52.0]],    "geojson": None},
+        "africa":             {"lat": 1.0,   "lon": 17.0,  "bounds": [[-35.0, -20.0], [38.0, 52.0]],    "geojson": None},
+        "amérique du nord":   {"lat": 54.5,  "lon": -105.0,"bounds": [[15.0, -170.0], [72.0, -52.0]],   "geojson": None},
+        "amérique du sud":    {"lat": -14.0, "lon": -55.0, "bounds": [[-56.0, -82.0], [13.0, -35.0]],   "geojson": None},
+        "amérique latine":    {"lat": -5.0,  "lon": -60.0, "bounds": [[-56.0, -120.0], [33.0, -35.0]],  "geojson": None},
+        "océanie":            {"lat": -27.0, "lon": 133.0, "bounds": [[-47.0, 113.0], [-10.0, 180.0]],  "geojson": None},
         # Pays souvent mal résolus par Nominatim
         "royaume-uni":        {"lat": 55.4,  "lon": -3.4,  "geojson": None},
         "royaume uni":        {"lat": 55.4,  "lon": -3.4,  "geojson": None},
@@ -1158,6 +1158,14 @@ def api_entities_geocode():
                     # Ignorer les geojson de type Point (pas un polygone utile)
                     if geojson and geojson.get("type") == "Point":
                         geojson = None
+                    # Ignorer les bbox rectangles Nominatim (Polygon 5 pts, 2 lon × 2 lat)
+                    if geojson and geojson.get("type") == "Polygon":
+                        ring = geojson.get("coordinates", [[]])[0]
+                        if len(ring) == 5:
+                            lons = {round(p[0], 4) for p in ring}
+                            lats = {round(p[1], 4) for p in ring}
+                            if len(lons) == 2 and len(lats) == 2:
+                                geojson = None
                     # Wikipedia plus précis pour le point central ; Nominatim fournit le polygon
                     if name in wiki_coords:
                         cache[name] = {
@@ -1207,6 +1215,211 @@ def api_entities_geocode():
     )
 
     return jsonify({n: cache.get(n) for n in names})
+
+
+@entities_bp.route("/api/entities/geocode/stream", methods=["POST"])
+def api_entities_geocode_stream():
+    """Version SSE du géocodage — yield chaque entité dès qu'elle est résolue.
+
+    Le frontend peut afficher les marqueurs au fur et à mesure sans attendre
+    la fin du géocodage.
+    Format SSE : data: {name, lat, lon, geojson, bounds?}\n\n
+    Événement terminal : data: {type: "done", saved: N}\n\n
+    """
+    import requests as req
+    import time
+
+    names = request.get_json(force=True) or []
+    if not names or not isinstance(names, list):
+        return jsonify({})
+
+    def _is_bbox_rect(geo):
+        """Retourne True si geo est un rectangle bbox Nominatim (Polygon 5 pts, 2 lon × 2 lat)."""
+        if not geo or geo.get("type") != "Polygon":
+            return False
+        ring = geo.get("coordinates", [[]])[0]
+        if len(ring) != 5:
+            return False
+        lons = {round(p[0], 4) for p in ring}
+        lats = {round(p[1], 4) for p in ring}
+        return len(lons) == 2 and len(lats) == 2
+
+    WIKIPEDIA_UA = (
+        "WUDD.ai/2.1.0 (news monitoring tool; "
+        "https://github.com/patrickostertag) python-requests"
+    )
+
+    # Overrides manuels (continents, régions géopolitiques) — identiques à api_entities_geocode
+    GEOCODE_OVERRIDES = {
+        "moyen-orient":       {"lat": 29.0,  "lon": 41.0,  "geojson": None},
+        "moyen orient":       {"lat": 29.0,  "lon": 41.0,  "geojson": None},
+        "middle east":        {"lat": 29.0,  "lon": 41.0,  "geojson": None},
+        "proche-orient":      {"lat": 33.5,  "lon": 36.0,  "geojson": None},
+        "proche orient":      {"lat": 33.5,  "lon": 36.0,  "geojson": None},
+        "golfe persique":     {"lat": 27.0,  "lon": 51.0,  "geojson": None},
+        "péninsule arabique": {"lat": 24.0,  "lon": 45.0,  "geojson": None},
+        "péninsule ibérique": {"lat": 40.0,  "lon": -4.0,  "geojson": None},
+        "balkans":            {"lat": 42.5,  "lon": 21.0,  "geojson": None},
+        "levant":             {"lat": 34.0,  "lon": 36.5,  "geojson": None},
+        "indochine":          {"lat": 15.0,  "lon": 102.0, "geojson": None},
+        "caucase":            {"lat": 42.0,  "lon": 44.0,  "geojson": None},
+        "europe":             {"lat": 54.5,  "lon": 15.3,  "bounds": [[35.0, -25.0], [72.0, 45.0]],     "geojson": None},
+        "asie":               {"lat": 34.0,  "lon": 100.0, "bounds": [[-10.0, 26.0], [78.0, 180.0]],    "geojson": None},
+        "asia":               {"lat": 34.0,  "lon": 100.0, "bounds": [[-10.0, 26.0], [78.0, 180.0]],    "geojson": None},
+        "afrique":            {"lat": 1.0,   "lon": 17.0,  "bounds": [[-35.0, -20.0], [38.0, 52.0]],    "geojson": None},
+        "africa":             {"lat": 1.0,   "lon": 17.0,  "bounds": [[-35.0, -20.0], [38.0, 52.0]],    "geojson": None},
+        "amérique du nord":   {"lat": 54.5,  "lon": -105.0,"bounds": [[15.0, -170.0], [72.0, -52.0]],   "geojson": None},
+        "amérique du sud":    {"lat": -14.0, "lon": -55.0, "bounds": [[-56.0, -82.0], [13.0, -35.0]],   "geojson": None},
+        "amérique latine":    {"lat": -5.0,  "lon": -60.0, "bounds": [[-56.0, -120.0], [33.0, -35.0]],  "geojson": None},
+        "océanie":            {"lat": -27.0, "lon": 133.0, "bounds": [[-47.0, 113.0], [-10.0, 180.0]],  "geojson": None},
+        "royaume-uni":        {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "royaume uni":        {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "united kingdom":     {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "uk":                 {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "grande-bretagne":    {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "grande bretagne":    {"lat": 55.4,  "lon": -3.4,  "geojson": None},
+        "etats-unis":         {"lat": 39.5,  "lon": -98.4, "geojson": None},
+        "états-unis":         {"lat": 39.5,  "lon": -98.4, "geojson": None},
+        "etats unis":         {"lat": 39.5,  "lon": -98.4, "geojson": None},
+        "états unis":         {"lat": 39.5,  "lon": -98.4, "geojson": None},
+        "united states":      {"lat": 39.5,  "lon": -98.4, "geojson": None},
+        "usa":                {"lat": 39.5,  "lon": -98.4, "geojson": None},
+    }
+
+    cache_path = PROJECT_ROOT / "data" / "geocode_cache.json"
+
+    def generate():
+        # ── Chargement du cache ──────────────────────────────────────────────
+        cache = {}
+        if cache_path.exists():
+            try:
+                cache = json.loads(cache_path.read_text(encoding="utf-8"))
+            except Exception:
+                cache = {}
+        cache = {k: v for k, v in cache.items() if v is not None and "geojson" in v}
+
+        # Appliquer les overrides (préserver polygon existant si présent)
+        for name in names:
+            if name.lower() in GEOCODE_OVERRIDES:
+                override = GEOCODE_OVERRIDES[name.lower()].copy()
+                existing = cache.get(name, {})
+                if override.get("geojson") is None and isinstance(existing, dict) and existing.get("geojson"):
+                    override["geojson"] = existing["geojson"]
+                cache[name] = override
+
+        # ── Yield immédiat des entrées déjà en cache ─────────────────────────
+        to_fetch = []
+        for name in names:
+            if name in cache and cache[name].get("lat") is not None:
+                yield f"data: {json.dumps({'name': name, **cache[name]}, ensure_ascii=False)}\n\n"
+            else:
+                to_fetch.append(name)
+
+        if not to_fetch:
+            yield f'data: {{"type": "done", "saved": 0}}\n\n'
+            return
+
+        # ── Wikipedia : coordonnées en lot ───────────────────────────────────
+        wiki_coords: dict = {}
+        BATCH = 50
+        for i in range(0, len(to_fetch), BATCH):
+            batch_names = to_fetch[i: i + BATCH]
+            titles_str = "|".join(batch_names)
+            for lang in ("fr", "en"):
+                try:
+                    r = req.get(
+                        f"https://{lang}.wikipedia.org/w/api.php",
+                        params={
+                            "action": "query",
+                            "titles": titles_str,
+                            "prop": "coordinates",
+                            "format": "json",
+                            "origin": "*",
+                        },
+                        headers={"User-Agent": WIKIPEDIA_UA},
+                        timeout=10,
+                    )
+                    data = r.json()
+                    pages = data.get("query", {}).get("pages", {})
+                    normalized = {
+                        n["from"]: n["to"]
+                        for n in data.get("query", {}).get("normalized", [])
+                    }
+                    for page in pages.values():
+                        if "coordinates" not in page:
+                            continue
+                        title = page.get("title", "")
+                        c = {
+                            "lat": page["coordinates"][0]["lat"],
+                            "lon": page["coordinates"][0]["lon"],
+                        }
+                        wiki_coords[title] = c
+                        for orig, norm in normalized.items():
+                            if norm == title:
+                                wiki_coords[orig] = c
+                except Exception:
+                    continue
+                if lang == "fr" and len(wiki_coords) >= len(batch_names):
+                    break
+
+        # ── Nominatim : polygon, un par un — yield immédiat à chaque résultat ─
+        saved = 0
+        for name in to_fetch:
+            result = None
+            try:
+                time.sleep(0.15)  # Respect Nominatim usage policy
+                nom_r = req.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params={
+                        "q": name,
+                        "format": "json",
+                        "limit": 1,
+                        "polygon_geojson": 1,
+                        "polygon_threshold": "0.005",
+                    },
+                    headers={"User-Agent": WIKIPEDIA_UA},
+                    timeout=12,
+                )
+                results = nom_r.json()
+                if results:
+                    geojson  = results[0].get("geojson")
+                    nom_lat  = float(results[0]["lat"])
+                    nom_lon  = float(results[0]["lon"])
+                    if geojson and geojson.get("type") == "Point":
+                        geojson = None
+                    if _is_bbox_rect(geojson):
+                        geojson = None
+                    if name in wiki_coords:
+                        result = {"lat": wiki_coords[name]["lat"], "lon": wiki_coords[name]["lon"], "geojson": geojson}
+                    else:
+                        result = {"lat": nom_lat, "lon": nom_lon, "geojson": geojson}
+            except Exception:
+                pass
+
+            if result is None and name in wiki_coords:
+                result = {**wiki_coords[name], "geojson": None}
+
+            if result:
+                cache[name] = result
+                saved += 1
+                yield f"data: {json.dumps({'name': name, **result}, ensure_ascii=False)}\n\n"
+
+        # ── Sauvegarde du cache ──────────────────────────────────────────────
+        try:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(
+                json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except Exception:
+            pass
+
+        yield f'data: {{"type": "done", "saved": {saved}}}\n\n'
+
+    return Response(
+        stream_with_context(generate()),
+        content_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @entities_bp.route("/api/entities/images", methods=["POST"])
