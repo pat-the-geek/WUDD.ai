@@ -18,8 +18,11 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import {
   X, Search, ZoomIn, ZoomOut, Maximize2, Minimize2,
-  RefreshCw, Loader2, Network,
+  RefreshCw, Loader2, Network, Crosshair, ExternalLink,
 } from 'lucide-react'
+import ArticleFullReportDialog from './ArticleFullReportDialog'
+import GraphArticlePanel from './GraphArticlePanel'
+import EntityArticlePanel from './EntityArticlePanel'
 
 // ── Couleurs par type NER ──────────────────────────────────────────────────
 const TYPE_CFG = {
@@ -45,6 +48,50 @@ const TYPE_CFG = {
 const ARTICLE_COLOR  = '#3b82f6'   // blue-500
 const ENTITY_DEFAULT = '#94a3b8'   // slate-400
 
+// ── Rendu spécial : silhouette avatar pour les entités PERSON ────────────────
+function drawPersonNode(ctx, x, y, r, color, lw, isDark) {
+  // 1. Fond coloré (cercle complet)
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.fillStyle = color
+  ctx.globalAlpha = 0.92
+  ctx.fill()
+  ctx.globalAlpha = 1.0
+
+  // 2. Silence des formes internes clippées au cercle
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.clip()
+
+  const avatarColor = isDark ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.95)'
+
+  // Tête
+  const headR = r * 0.30
+  const headY = y - r * 0.18
+  ctx.beginPath()
+  ctx.arc(x, headY, headR, 0, Math.PI * 2)
+  ctx.fillStyle = avatarColor
+  ctx.fill()
+
+  // Épaules (grand cercle positionné bas)
+  const shoulderR = r * 0.58
+  const shoulderY = y + r * 0.82
+  ctx.beginPath()
+  ctx.arc(x, shoulderY, shoulderR, 0, Math.PI * 2)
+  ctx.fillStyle = avatarColor
+  ctx.fill()
+
+  ctx.restore()
+
+  // 3. Contour
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)'
+  ctx.lineWidth = lw
+  ctx.stroke()
+}
+
 // Rayon des cercles
 const R_ARTICLE = 9
 const R_ENTITY  = 6
@@ -58,7 +105,7 @@ const R_ENTITY  = 6
  * @param {number} W / H     — dimensions du canvas
  * @param {number} temp      — température (refroidissement)
  */
-function stepForce(nodes, edges, W, H, temp) {
+function stepForce(nodes, edges, W, H, temp, linkMult = 1.2) {
   const n   = nodes.length
   if (n === 0) return
   const k   = Math.sqrt((W * H) / Math.max(n, 1)) * 0.85
@@ -85,7 +132,7 @@ function stepForce(nodes, edges, W, H, temp) {
     const dx    = nodes[ti].x - nodes[si].x
     const dy    = nodes[ti].y - nodes[si].y
     const d     = Math.sqrt(dx * dx + dy * dy) || 0.01
-    const ideal = k * 1.2
+    const ideal = k * linkMult
     const f     = (d - ideal) * 0.3
     const nx    = (dx / d) * f
     const ny    = (dy / d) * f
@@ -125,6 +172,7 @@ export default function KnowledgeGraph({ onClose }) {
   const [dateFrom,  setDateFrom] = useState(weekAgo)
   const [dateTo,    setDateTo]   = useState(today)
   const [searchBuf, setSearchBuf] = useState('') // champ non-committée
+  const [loadAll,   setLoadAll]   = useState(false) // mode "tout charger"
 
   // ── État de chargement ───────────────────────────────────────────────────
   const [loading,   setLoading]  = useState(false)
@@ -165,6 +213,32 @@ export default function KnowledgeGraph({ onClose }) {
 
   // ── Nœud sélectionné ─────────────────────────────────────────────────────
   const [selected, setSelected] = useState(null)
+  // ── Dialog rapport article ────────────────────────────────────────────
+  const [reportArticle, setReportArticle] = useState(null) // { article, filePath }
+  const [entityPanel,   setEntityPanel]   = useState(null) // { type, value }
+
+  // ── Multiplicateur longueur des liens ─────────────────────────────────
+  const [linkMult,   setLinkMult]   = useState(1.2)
+  const linkMultRef = useRef(1.2)
+  useEffect(() => { linkMultRef.current = linkMult }, [linkMult])
+
+  // Calcule automatiquement le multiplicateur idéal selon densité du graphe
+  const autoLinkMult = useCallback(() => {
+    const n = nodesArrRef.current.length
+    const e = edgesArrRef.current.length
+    if (n === 0) return
+    // Degré moyen : liens par nœud (2×arêtes / nœuds)
+    const avgDegree = e > 0 ? (2 * e) / n : 1
+    // Plus de nœuds + fort degré moyen → liens plus longs pour aérer
+    // Formule : mult = 0.6 × log2(n/8+1) × sqrt(avgDegree/3 + 0.5)
+    // Plafonnée entre 0.5 et 3.5
+    const raw     = 0.6 * Math.log2(Math.max(n, 8) / 8 + 1) * Math.sqrt(avgDegree / 3 + 0.5)
+    const clamped = Math.min(5.0, Math.max(0.5, raw))
+    const v       = Math.round(clamped * 10) / 10
+    setLinkMult(v)
+    linkMultRef.current = v
+    if (tempRef.current < 5) tempRef.current = 10  // relance la simulation
+  }, [])
 
   // ── SSE ref pour pouvoir annuler ─────────────────────────────────────────
   const abortRef = useRef(null)
@@ -233,6 +307,22 @@ export default function KnowledgeGraph({ onClose }) {
       const r     = node.r
       const isSelected = selected && selected.id === node.id
 
+      // Anneau de mise en avant pour le nœud dont le nom = critère de recherche
+      if (node.pinned) {
+        // Halo pulsant extérieur
+        ctx.beginPath()
+        ctx.arc(node.x, node.y, r + 10, 0, Math.PI * 2)
+        ctx.strokeStyle = `${color}55`
+        ctx.lineWidth = 4 / scale
+        ctx.stroke()
+        // Anneau intérieur
+        ctx.beginPath()
+        ctx.arc(node.x, node.y, r + 4, 0, Math.PI * 2)
+        ctx.strokeStyle = `${color}cc`
+        ctx.lineWidth = 2 / scale
+        ctx.stroke()
+      }
+
       // Halo si sélectionné
       if (isSelected) {
         ctx.beginPath()
@@ -241,32 +331,42 @@ export default function KnowledgeGraph({ onClose }) {
         ctx.fill()
       }
 
-      // Cercle principal
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
-      ctx.fillStyle = color
-      ctx.globalAlpha = node.kind === 'entity' ? 0.85 : 1.0
-      ctx.fill()
-      ctx.globalAlpha = 1.0
+      // Cercle principal (ou silhouette pour PERSON)
+      if (node.kind === 'entity' && node.ner_type === 'PERSON') {
+        drawPersonNode(ctx, node.x, node.y, r, color, lw, isDark)
+      } else {
+        ctx.beginPath()
+        ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
+        ctx.fillStyle = color
+        ctx.globalAlpha = node.kind === 'entity' ? 0.85 : 1.0
+        ctx.fill()
+        ctx.globalAlpha = 1.0
 
-      // Contour
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
-      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)'
-      ctx.lineWidth = lw
-      ctx.stroke()
+        // Contour
+        ctx.beginPath()
+        ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
+        ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)'
+        ctx.lineWidth = lw
+        ctx.stroke()
+      }
 
-      // Label (seulement à fort zoom ou pour les articles)
-      if (scale > 1.4 || (scale > 0.8 && node.kind === 'article')) {
+      // Label : toujours visible pour le nœud pinné, sinon seulement à fort zoom
+      if (node.pinned || scale > 1.4 || (scale > 0.8 && node.kind === 'article')) {
         const label = node.kind === 'article'
           ? (node.source || '').slice(0, 18)
-          : (node.value  || '').slice(0, 16)
+          : (node.value  || '').slice(0, 20)
         if (label) {
-          const fs = Math.max(7, Math.min(11, 10 / scale))
-          ctx.font      = `${fs}px system-ui, sans-serif`
-          ctx.fillStyle = isDark ? 'rgba(226,232,240,0.9)' : 'rgba(30,41,59,0.9)'
+          const fs = node.pinned
+            ? Math.max(10, Math.min(16, 14 / scale))
+            : Math.max(7, Math.min(11, 10 / scale))
+          ctx.font      = node.pinned
+            ? `bold ${fs}px system-ui, sans-serif`
+            : `${fs}px system-ui, sans-serif`
+          ctx.fillStyle = node.pinned
+            ? color
+            : (isDark ? 'rgba(226,232,240,0.9)' : 'rgba(30,41,59,0.9)')
           ctx.textAlign = 'center'
-          ctx.fillText(label, node.x, node.y + r + fs + 1)
+          ctx.fillText(label, node.x, node.y + r + fs + 2)
         }
       }
     }
@@ -285,10 +385,19 @@ export default function KnowledgeGraph({ onClose }) {
       const H = canvas.height
       // 3 itérations par frame pour vitesse/qualité
       for (let i = 0; i < 3; i++) {
-        stepForce(nodes, edges, W, H, tempRef.current)
+        stepForce(nodes, edges, W, H, tempRef.current, linkMultRef.current)
       }
       tempRef.current *= 0.992   // refroidissement
       ticksRef.current += 3
+      // Maintenir les nœuds pinnés (= entité correspondant au critère) au centre
+      for (const node of nodes) {
+        if (node.pinned) {
+          node.x  = W / 2
+          node.y  = H / 2
+          node.vx = 0
+          node.vy = 0
+        }
+      }
     }
 
     draw()
@@ -324,10 +433,14 @@ export default function KnowledgeGraph({ onClose }) {
     abortRef.current = ctrl
 
     const params = new URLSearchParams()
-    if (dateFrom) params.set('date_from', dateFrom)
-    if (dateTo)   params.set('date_to',   dateTo)
-    if (search)   params.set('search',    search)
-    params.set('max_articles', '200')
+    if (loadAll) {
+      params.set('all', 'true')
+    } else {
+      if (dateFrom) params.set('date_from', dateFrom)
+      if (dateTo)   params.set('date_to',   dateTo)
+      params.set('max_articles', '200')
+    }
+    if (search)   params.set('search', search)
 
     const url    = `/api/graph/knowledge?${params}`
     const canvas = canvasRef.current
@@ -353,7 +466,7 @@ export default function KnowledgeGraph({ onClose }) {
               if (!line.startsWith('data: ')) continue
               try {
                 const ev = JSON.parse(line.slice(6))
-                handleEvent(ev, canvas)
+                handleEvent(ev, canvas, search)
               } catch { /* ignore */ }
             }
             readChunk()
@@ -372,9 +485,9 @@ export default function KnowledgeGraph({ onClose }) {
           setStatus(`Erreur : ${e.message}`)
         }
       })
-  }, [dateFrom, dateTo, search])
+  }, [dateFrom, dateTo, search, loadAll])
 
-  function handleEvent(ev, canvas) {
+  function handleEvent(ev, canvas, searchTerm = '') {
     const nodes = nodesArrRef.current
     const edges = edgesArrRef.current
     const idx   = nodeIndexRef.current
@@ -383,15 +496,21 @@ export default function KnowledgeGraph({ onClose }) {
 
     if (ev.type === 'node') {
       if (idx[ev.id] !== undefined) return  // déjà présent
-      const r  = ev.kind === 'article' ? R_ARTICLE : R_ENTITY
-      // Position initiale : cercle aléatoire autour du centre
+      // Détecte si l'entité correspond exactement au critère de recherche
+      const isMatch =
+        ev.kind === 'entity' &&
+        searchTerm.trim().length > 0 &&
+        (ev.value || '').trim().toLowerCase() === searchTerm.trim().toLowerCase()
+      const r = isMatch ? R_ENTITY * 3 : (ev.kind === 'article' ? R_ARTICLE : R_ENTITY)
+      // Position initiale : centre si match, sinon cercle aléatoire
       const angle = Math.random() * Math.PI * 2
       const dist  = 80 + Math.random() * Math.min(W, H) * 0.35
       nodes.push({
         ...ev,
         r,
-        x: W / 2 + Math.cos(angle) * dist,
-        y: H / 2 + Math.sin(angle) * dist,
+        pinned: isMatch,
+        x: isMatch ? W / 2 : W / 2 + Math.cos(angle) * dist,
+        y: isMatch ? H / 2 : H / 2 + Math.sin(angle) * dist,
         vx: 0,
         vy: 0,
       })
@@ -511,9 +630,24 @@ export default function KnowledgeGraph({ onClose }) {
     const dy = Math.abs(e.clientY - dragRef.current.startY)
     dragRef.current = null
 
-    // Clic (pas de drag significatif) → sélection
+    // Clic (pas de drag significatif) → sélection ou ouverture dialog article
     if (dx < 4 && dy < 4) {
-      setSelected(tooltip?.node ?? null)
+      const node = tooltip?.node ?? null
+      if (node?.kind === 'article') {
+        setReportArticle({
+          article: {
+            'URL':                  node.url,
+            'Sources':              node.source,
+            'Date de publication':  node.date,
+            'Résumé':               node.resume,
+          },
+          filePath: node.file ?? '',
+        })
+      } else if (node?.kind === 'entity') {
+        setEntityPanel({ type: node.ner_type, value: node.value })
+      } else {
+        setSelected(node)
+      }
     }
   }, [tooltip])
 
@@ -558,6 +692,7 @@ export default function KnowledgeGraph({ onClose }) {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
+    <>
     <div
       className={`fixed inset-0 z-50 flex flex-col bg-slate-50 dark:bg-slate-900 ${
         fullscreen ? '' : 'md:inset-4 md:rounded-2xl md:shadow-2xl'
@@ -589,23 +724,39 @@ export default function KnowledgeGraph({ onClose }) {
           />
         </div>
 
-        {/* Date début */}
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={e => setDateFrom(e.target.value)}
-          className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 outline-none"
-          title="Date de début"
-        />
-        <span className="text-xs text-slate-400">→</span>
-        {/* Date fin */}
-        <input
-          type="date"
-          value={dateTo}
-          onChange={e => setDateTo(e.target.value)}
-          className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 outline-none"
-          title="Date de fin"
-        />
+        {/* Filtres de date (masqués en mode tout charger) */}
+        {!loadAll && (
+          <>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 outline-none"
+              title="Date de début"
+            />
+            <span className="text-xs text-slate-400">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 outline-none"
+              title="Date de fin"
+            />
+          </>
+        )}
+
+        {/* Toggle Tout charger */}
+        <button
+          onClick={() => setLoadAll(v => !v)}
+          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors shrink-0 ${
+            loadAll
+              ? 'bg-amber-500 border-amber-600 text-white hover:bg-amber-600'
+              : 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+          }`}
+          title={loadAll ? 'Mode : tous les fichiers (sans filtre de date)' : 'Mode : filtré par date (7 derniers jours)'}
+        >
+          Tout
+        </button>
 
         {/* Charger */}
         <button
@@ -620,6 +771,33 @@ export default function KnowledgeGraph({ onClose }) {
         </button>
 
         <div className="flex-1" />
+
+        {/* ── Contrôle longueur des liens ── */}
+        <div className="flex items-center gap-1.5 shrink-0 bg-slate-100/70 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0 select-none whitespace-nowrap">Liens</span>
+          <input
+            type="range"
+            min="0.4"
+            max="5"
+            step="0.1"
+            value={linkMult}
+            onChange={e => {
+              const v = parseFloat(e.target.value)
+              setLinkMult(v)
+              if (tempRef.current < 5) tempRef.current = 8
+            }}
+            className="w-20 accent-violet-500 cursor-pointer"
+            title={`Longueur des liens : ${linkMult.toFixed(1)}×`}
+          />
+          <span className="text-[11px] font-mono text-slate-600 dark:text-slate-300 w-7 shrink-0 tabular-nums">{linkMult.toFixed(1)}×</span>
+          <button
+            onClick={autoLinkMult}
+            className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors shrink-0"
+            title={`Calcul automatique de la longueur idéale (${nodesArrRef.current.length} nœuds)`}
+          >
+            Auto
+          </button>
+        </div>
 
         {/* Zoom in/out/fit */}
         <button
@@ -641,7 +819,7 @@ export default function KnowledgeGraph({ onClose }) {
           className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
           title="Ajuster la vue"
         >
-          <Maximize2 size={14} />
+          <Crosshair size={14} />
         </button>
         <button
           onClick={() => setFullscreen(f => !f)}
@@ -691,6 +869,7 @@ export default function KnowledgeGraph({ onClose }) {
                   color={TYPE_CFG[t]?.color ?? ENTITY_DEFAULT}
                   label={TYPE_CFG[t]?.label ?? t}
                   r={R_ENTITY}
+                  isPerson={t === 'PERSON'}
                 />
               ))}
               {presentTypes.length === 0 && (
@@ -728,15 +907,23 @@ export default function KnowledgeGraph({ onClose }) {
                       {tooltip.node.resume}
                     </div>
                   )}
-                  <a
-                    href={tooltip.node.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="pointer-events-auto text-blue-500 hover:underline mt-1 inline-block"
-                    onClick={e => e.stopPropagation()}
+                  <button
+                    className="pointer-events-auto text-blue-500 hover:underline mt-1 inline-block text-left"
+                    onClick={e => {
+                      e.stopPropagation()
+                      setReportArticle({
+                        article: {
+                          'URL': tooltip.node.url,
+                          'Sources': tooltip.node.source,
+                          'Date de publication': tooltip.node.date,
+                          'Résumé': tooltip.node.resume,
+                        },
+                        filePath: tooltip.node.file ?? '',
+                      })
+                    }}
                   >
-                    Ouvrir l'article ↗
-                  </a>
+                    Voir l’article →
+                  </button>
                 </>
               ) : (
                 <>
@@ -757,69 +944,95 @@ export default function KnowledgeGraph({ onClose }) {
 
         {/* Panneau latéral nœud sélectionné */}
         {selected && (
-          <div className="w-72 border-l border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 overflow-y-auto shrink-0 text-sm">
-            <div className="flex items-start justify-between mb-3">
-              <span className="font-semibold text-slate-800 dark:text-slate-100">
-                {selected.kind === 'article' ? '📰 Article' : `● ${selected.ner_type}`}
+          <div className="w-72 border-l border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800 overflow-y-auto shrink-0 text-sm flex flex-col">
+            {/* En-tête */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+              <span className="font-semibold text-slate-800 dark:text-slate-100 text-[13px]">
+                {selected.kind === 'article'
+                  ? <span className="flex items-center gap-1.5"><span className="text-base">📰</span> Article</span>
+                  : <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full inline-block" style={{ background: TYPE_CFG[selected.ner_type]?.color ?? ENTITY_DEFAULT }} />
+                      {TYPE_CFG[selected.ner_type]?.label ?? selected.ner_type}
+                    </span>
+                }
               </span>
-              <button
-                onClick={() => setSelected(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
+              <button onClick={() => setSelected(null)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                 <X size={14} />
               </button>
             </div>
-
-            {selected.kind === 'article' ? (
-              <div className="space-y-2">
-                <div>
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Source</span>
-                  <p className="text-slate-700 dark:text-slate-200 mt-0.5">{selected.source}</p>
-                </div>
-                <div>
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Date</span>
-                  <p className="text-slate-500 dark:text-slate-400 mt-0.5">{selected.date}</p>
-                </div>
-                {selected.resume && (
-                  <div>
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Résumé</span>
-                    <p className="text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed text-xs">
-                      {selected.resume}
-                    </p>
-                  </div>
-                )}
-                <a
-                  href={selected.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block text-blue-500 hover:underline text-xs mt-1"
+            {/* Bouton Ouvrir entité (affiché uniquement pour les nœuds entité) */}
+            {selected.kind === 'entity' && (
+              <div className="px-4 pt-3 pb-0">
+                <button
+                  onClick={() => setEntityPanel({ type: selected.ner_type, value: selected.value })}
+                  className="w-full px-3 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm"
                 >
-                  Ouvrir l'article ↗
-                </a>
+                  Ouvrir le panneau entité
+                </button>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <div>
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Entité</span>
-                  <p
-                    className="font-medium mt-0.5"
-                    style={{ color: TYPE_CFG[selected.ner_type]?.color ?? ENTITY_DEFAULT }}
+            )}
+
+            {/* Corps */}
+            <div className="flex-1 p-4 space-y-3">
+            {selected.kind === 'article' ? (
+              <>
+                {/* Badge source + date */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center text-[11px] font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-black/5 dark:bg-white/10 px-3 py-0.5 rounded-full">
+                    {selected.source ?? '—'}
+                  </span>
+                  {selected.date && (
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">{selected.date}</span>
+                  )}
+                </div>
+
+                {/* Résumé aperçu */}
+                {selected.resume && (
+                  <p className="text-[12px] leading-relaxed text-slate-600 dark:text-slate-300 line-clamp-6">
+                    {selected.resume}
+                  </p>
+                )}
+
+                {/* URL tronquée */}
+                {selected.url && (
+                  <a
+                    href={selected.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-500 hover:underline truncate"
+                    title={selected.url}
                   >
+                    <ExternalLink size={10} className="shrink-0" />
+                    {selected.url.replace(/^https?:\/\//, '').slice(0, 45)}…
+                  </a>
+                )}
+
+                {/* CTA principal */}
+                <button
+                  onClick={() => setReportArticle({ article: { 'URL': selected.url, 'Sources': selected.source, 'Date de publication': selected.date, 'Résumé': selected.resume }, filePath: selected.file ?? '' })}
+                  className="w-full px-3 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm shadow-violet-200 dark:shadow-none"
+                >
+                  Ouvrir l'article complet
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Nom entité */}
+                <div>
+                  <p className="text-base font-bold mt-0.5" style={{ color: TYPE_CFG[selected.ner_type]?.color ?? ENTITY_DEFAULT }}>
                     {selected.value}
                   </p>
-                </div>
-                <div>
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Type</span>
-                  <p className="text-slate-600 dark:text-slate-300 mt-0.5">
+                  <p className="text-[11px] text-slate-400 mt-0.5 uppercase tracking-wider">
                     {TYPE_CFG[selected.ner_type]?.label ?? selected.ner_type}
                   </p>
                 </div>
+
                 {/* Articles liés */}
                 <div>
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                     Articles liés
                   </span>
-                  <ul className="mt-1 space-y-1">
+                  <ul className="mt-2 space-y-1.5">
                     {edgesArrRef.current
                       .filter(([si]) => nodesArrRef.current[si]?.id === selected.id)
                       .slice(0, 10)
@@ -827,32 +1040,76 @@ export default function KnowledgeGraph({ onClose }) {
                         const art = nodesArrRef.current[ti]
                         if (!art) return null
                         return (
-                          <li key={art.id} className="text-xs text-slate-500 dark:text-slate-400">
-                            <a href={art.url} target="_blank" rel="noopener noreferrer"
-                              className="hover:text-blue-500 hover:underline">
-                              {art.source} — {art.date}
-                            </a>
+                          <li key={art.id}>
+                            <button
+                              onClick={() => setReportArticle({ article: { 'URL': art.url, 'Sources': art.source, 'Date de publication': art.date, 'Résumé': art.resume }, filePath: art.file ?? '' })}
+                              className="w-full text-left px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 hover:bg-violet-50 dark:hover:bg-violet-900/30 border border-slate-100 dark:border-slate-700 hover:border-violet-200 dark:hover:border-violet-800 transition-colors group"
+                            >
+                              <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 group-hover:text-violet-700 dark:group-hover:text-violet-300 truncate">
+                                {art.source}
+                              </span>
+                              <span className="block text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                {art.date}
+                              </span>
+                            </button>
                           </li>
                         )
                       })
                     }
                   </ul>
                 </div>
-              </div>
+              </>
             )}
+            </div>
           </div>
         )}
       </div>
     </div>
+
+    {/* ── Panel article ── */}
+    {reportArticle && (
+      <GraphArticlePanel
+        article={reportArticle.article}
+        filePath={reportArticle.filePath}
+        onClose={() => setReportArticle(null)}
+      />
+    )}
+
+    {/* ── Panel entité ── */}
+    {entityPanel && (
+      <EntityArticlePanel
+        entityType={entityPanel.type}
+        entityValue={entityPanel.value}
+        onClose={() => setEntityPanel(null)}
+      />
+    )}
+    </>
   )
 }
 
 // ── Légende item ─────────────────────────────────────────────────────────────
-function LegendItem({ color, label, r }) {
+function LegendItem({ color, label, r, isPerson }) {
+  const cx = r + 1
+  const cy = r + 1
   return (
     <div className="flex items-center gap-2 py-0.5">
       <svg width={r * 2 + 2} height={r * 2 + 2}>
-        <circle cx={r + 1} cy={r + 1} r={r} fill={color} opacity={0.9} />
+        <circle cx={cx} cy={cy} r={r} fill={color} opacity={0.9} />
+        {isPerson && (
+          <>
+            {/* Tête */}
+            <circle cx={cx} cy={cy - r * 0.18} r={r * 0.30} fill="rgba(255,255,255,0.92)" />
+            {/* Épaules (grand cercle bas, clippé par le cercle principal) */}
+            <clipPath id="person-legend-clip">
+              <circle cx={cx} cy={cy} r={r} />
+            </clipPath>
+            <circle
+              cx={cx} cy={cy + r * 0.82} r={r * 0.58}
+              fill="rgba(255,255,255,0.92)"
+              clipPath="url(#person-legend-clip)"
+            />
+          </>
+        )}
       </svg>
       <span className="text-slate-600 dark:text-slate-300">{label}</span>
     </div>
