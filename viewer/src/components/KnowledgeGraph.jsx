@@ -222,6 +222,21 @@ export default function KnowledgeGraph({ onClose }) {
   const linkMultRef = useRef(1.2)
   useEffect(() => { linkMultRef.current = linkMult }, [linkMult])
 
+  // ── Filtrage par type d'entité ─────────────────────────────────────────
+  const [hiddenTypes,   setHiddenTypes]   = useState(new Set())
+  const hiddenTypesRef = useRef(new Set())
+  useEffect(() => { hiddenTypesRef.current = hiddenTypes }, [hiddenTypes])
+
+  const toggleType = useCallback((type) => {
+    setHiddenTypes(prev => {
+      const next = new Set(prev)
+      if (next.has(type)) next.delete(type)
+      else next.add(type)
+      hiddenTypesRef.current = next
+      return next
+    })
+  }, [])
+
   // Calcule automatiquement le multiplicateur idéal selon densité du graphe
   const autoLinkMult = useCallback(() => {
     const n = nodesArrRef.current.length
@@ -233,7 +248,7 @@ export default function KnowledgeGraph({ onClose }) {
     // Formule : mult = 0.6 × log2(n/8+1) × sqrt(avgDegree/3 + 0.5)
     // Plafonnée entre 0.5 et 3.5
     const raw     = 0.6 * Math.log2(Math.max(n, 8) / 8 + 1) * Math.sqrt(avgDegree / 3 + 0.5)
-    const clamped = Math.min(5.0, Math.max(0.5, raw))
+    const clamped = Math.min(40.0, Math.max(0.5, raw))
     const v       = Math.round(clamped * 10) / 10
     setLinkMult(v)
     linkMultRef.current = v
@@ -286,6 +301,9 @@ export default function KnowledgeGraph({ onClose }) {
 
     const lw = Math.max(0.3, 0.8 / scale)
 
+    const hidden = hiddenTypesRef.current
+    const isHidden = (n) => n.kind === 'entity' && hidden.has(n.ner_type)
+
     // ── Arêtes ──────────────────────────────────────────────────────────
     ctx.strokeStyle = isDark ? 'rgba(148,163,184,0.25)' : 'rgba(100,116,139,0.20)'
     ctx.lineWidth   = lw
@@ -294,6 +312,7 @@ export default function KnowledgeGraph({ onClose }) {
       const s = nodes[si]
       const t = nodes[ti]
       if (!s || !t) continue
+      if (isHidden(s) || isHidden(t)) continue
       ctx.moveTo(s.x, s.y)
       ctx.lineTo(t.x, t.y)
     }
@@ -301,6 +320,7 @@ export default function KnowledgeGraph({ onClose }) {
 
     // ── Nœuds ───────────────────────────────────────────────────────────
     for (const node of nodes) {
+      if (isHidden(node)) continue
       const color = node.kind === 'article'
         ? ARTICLE_COLOR
         : (TYPE_CFG[node.ner_type]?.color ?? ENTITY_DEFAULT)
@@ -778,7 +798,7 @@ export default function KnowledgeGraph({ onClose }) {
           <input
             type="range"
             min="0.4"
-            max="5"
+            max="40"
             step="0.1"
             value={linkMult}
             onChange={e => {
@@ -860,7 +880,9 @@ export default function KnowledgeGraph({ onClose }) {
 
           {/* Légende */}
           {showLegend && (
-            <div className="absolute top-3 left-3 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-[11px] max-h-64 overflow-y-auto shadow-sm">
+            <div className="absolute top-3 left-3 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-[11px] overflow-y-auto shadow-sm"
+              style={{ maxHeight: '50%', width: 'auto', minWidth: '9rem' }}
+            >
               <div className="font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Légende</div>
               <LegendItem color={ARTICLE_COLOR} label="Article" r={R_ARTICLE} />
               {presentTypes.map(t => (
@@ -870,6 +892,8 @@ export default function KnowledgeGraph({ onClose }) {
                   label={TYPE_CFG[t]?.label ?? t}
                   r={R_ENTITY}
                   isPerson={t === 'PERSON'}
+                  hidden={hiddenTypes.has(t)}
+                  onClick={() => toggleType(t)}
                 />
               ))}
               {presentTypes.length === 0 && (
@@ -1088,14 +1112,22 @@ export default function KnowledgeGraph({ onClose }) {
 }
 
 // ── Légende item ─────────────────────────────────────────────────────────────
-function LegendItem({ color, label, r, isPerson }) {
+function LegendItem({ color, label, r, isPerson, hidden, onClick }) {
   const cx = r + 1
   const cy = r + 1
   return (
-    <div className="flex items-center gap-2 py-0.5">
+    <div
+      className={[
+        'flex items-center gap-2 py-0.5 rounded',
+        onClick ? 'cursor-pointer select-none px-1 -mx-1 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors' : '',
+        hidden  ? 'opacity-40' : '',
+      ].join(' ')}
+      onClick={onClick}
+      title={onClick ? (hidden ? `Afficher ${label}` : `Masquer ${label}`) : undefined}
+    >
       <svg width={r * 2 + 2} height={r * 2 + 2}>
-        <circle cx={cx} cy={cy} r={r} fill={color} opacity={0.9} />
-        {isPerson && (
+        <circle cx={cx} cy={cy} r={r} fill={color} opacity={hidden ? 0.35 : 0.9} />
+        {isPerson && !hidden && (
           <>
             {/* Tête */}
             <circle cx={cx} cy={cy - r * 0.18} r={r * 0.30} fill="rgba(255,255,255,0.92)" />
@@ -1111,7 +1143,7 @@ function LegendItem({ color, label, r, isPerson }) {
           </>
         )}
       </svg>
-      <span className="text-slate-600 dark:text-slate-300">{label}</span>
+      <span className={`text-slate-600 dark:text-slate-300 ${hidden ? 'line-through' : ''}`}>{label}</span>
     </div>
   )
 }

@@ -165,7 +165,10 @@ Associer un texte à des mots-clés, c'est identifier de quoi il parle — son s
 Reconnaître qu'un mot désigne une personne, un lieu, une organisation, un produit… c'est aller plus loin : on ne cherche plus seulement le thème mais les acteurs du réel que le texte convoque. C'est ce qu'on appelle la reconnaissance d'entités nommées (NER — Named Entity Recognition). WUDD.ai l'implémente via l'extraction automatique de 18 types d'entités (PERSON, ORG, GPE, PRODUCT, EVENT, DATE…) par l'API EurIA ou Claude, visualisées dans le Dashboard Entités avec carte géographique et galerie d'images.
 
 **3. La sémantique relationnelle — le liant**
-Ce qui rend le système vraiment sémantique, c'est quand il commence à percevoir les relations entre entités : qui fait quoi, qui est lié à qui, quelle entité est associée à quel événement. C'est là que le sens devient structuré comme une connaissance. WUDD.ai l'implémente via un graphe de co-occurrences interactif (L1 et L2), accessible depuis le panneau de détail de chaque entité, permettant une navigation relationnelle continue à travers le réseau sémantique du corpus.
+Ce qui rend le système vraiment sémantique, c'est quand il commence à percevoir les relations entre entités : qui fait quoi, qui est lié à qui, quelle entité est associée à quel événement. C'est là que le sens devient structuré comme une connaissance. WUDD.ai l'implémente à deux niveaux :
+
+- **Graphe de co-occurrences par entité** (L1 et L2) — accessible depuis le panneau de détail de chaque entité, pour une navigation relationnelle continue dans le réseau sémantique du corpus.
+- **Graphe de connaissances global** — vue d'ensemble de style Obsidian (force-directed canvas) qui positionne simultanément tous les articles et toutes les entités du corpus, avec leurs liaisons. Chargement en streaming SSE, légende interactive (clic pour masquer/afficher un type d'entité), contrôle de la longueur des liens (slider + calcul automatique selon la densité du graphe), zoom/pan, plein écran.
 
 > Documentation complète : [docs/ENTITIES.md](docs/ENTITIES.md) — pipeline NER, Dashboard Liste / Carte / Galerie / Graphe, panneau de détail, caches.
 
@@ -692,6 +695,7 @@ bash start-viewer.sh stop      # arrêter le conteneur Docker
 | Tendances & alertes | Détection des entités en forte hausse (ratio 24h/7j), seuils configurables par type d'entité dans `config/alert_rules.json` |
 | Biais éditoriaux | Analyse et visualisation du sentiment et du ton éditorial par source RSS |
 | Timeline des entités | Sparklines SVG d'évolution temporelle des entités nommées dans le Dashboard |
+| Graphe de connaissances | Graphe interactif de type Obsidian style (force-directed) visualisant les relations entre tous les articles et entités du corpus — chargement en streaming SSE, filtrage par période ou mode « tout charger », légende interactive (clic pour masquer/afficher un type d'entité), contrôle de la longueur des liens (slider 0.4×–40× + calcul Auto basé sur la densité du graphe), zoom, pan, plein écran, clic sur article ou entité pour ouvrir le panneau de détail |
 | Temps de lecture | Badge ⧗ estimé sur chaque article (basé sur `enrich_reading_time.py`, 230 mots/min) |
 | Interface mobile | Toolbars transparentes fixées en bas (`backdrop-blur`, safe-area iPhone), boutons fermer à droite, bottom sheet pour panneau RSS |
 | Export Obsidian | Bouton dans chaque fiche article et rapport d'entité — génère une note Markdown avec frontmatter YAML et `[[wikilinks]]` pour les entités, sauvegarde dans `OBSIDIAN_DIR` avec déduplication MD5 |
@@ -754,6 +758,10 @@ bash start-viewer.sh stop      # arrêter le conteneur Docker
 **Intégration Obsidian**
 
 ![Obsidian integration](docs/Screen-captures/Obsidian-integration.png)
+
+**Graphe de connaissances**
+
+![Graphe de connaissances](docs/Screen-captures/Graph-de-connaissances.png)
 
 ### Prérequis
 
