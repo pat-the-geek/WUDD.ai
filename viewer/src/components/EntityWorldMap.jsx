@@ -76,6 +76,7 @@ export default function EntityWorldMap({ entities, onEntityClick, style }) {
   const [coords, setCoords] = useState({})
   const [loading, setLoading] = useState(true)
   const containerRef = useRef(null)
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
     if (!entities || entities.length === 0) {
@@ -83,19 +84,41 @@ export default function EntityWorldMap({ entities, onEntityClick, style }) {
       return
     }
 
+    let cancelled = false
     const names = entities.map((e) => e.name)
 
-    fetch('/api/entities/geocode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(names),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        setCoords(data)
-        setLoading(false)
+    // firstCall=true → max_new=0 (cache uniquement, retour immédiat)
+    // firstCall=false → max_new=25 (géocode 25 nouvelles entrées par lot)
+    const fetchBatch = (accumulated, firstCall) => {
+      if (cancelled) return
+      const maxNew = firstCall ? 0 : 25
+      fetch(`/api/entities/geocode?max_new=${maxNew}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(names),
       })
-      .catch(() => setLoading(false))
+        .then((r) => r.json())
+        .then((data) => {
+          if (cancelled) return
+          const merged = { ...accumulated, ...data }
+          setCoords(merged)
+          setLoading(false) // affiche la carte dès le premier retour (même vide)
+
+          const still = names.filter((n) => merged[n] == null).length
+          setPendingCount(still)
+
+          if (still > 0) {
+            // Délai court si premier appel (enchaîne immédiatement avec geocodage)
+            setTimeout(() => fetchBatch(merged, false), firstCall ? 0 : 500)
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setLoading(false)
+        })
+    }
+
+    fetchBatch({}, true)
+    return () => { cancelled = true }
   }, [entities])
 
   const markers = entities
@@ -110,6 +133,12 @@ export default function EntityWorldMap({ entities, onEntityClick, style }) {
       {loading && (
         <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-gray-900/70 rounded-lg">
           <span className="text-white text-sm">Géocodage en cours…</span>
+        </div>
+      )}
+      {!loading && pendingCount > 0 && (
+        <div className="absolute bottom-2 left-2 z-[1000] flex items-center gap-1.5 bg-black/60 text-white text-xs px-2.5 py-1 rounded-full pointer-events-none">
+          <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+          Géocodage en cours ({pendingCount} restants)…
         </div>
       )}
 

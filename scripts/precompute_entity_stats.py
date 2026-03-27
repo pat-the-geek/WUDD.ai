@@ -105,17 +105,20 @@ def build_entity_stats() -> dict:
     # Stats article_index
     total_articles = 0
     total_with_entities = 0
+    total_files = 0
     try:
         from utils.article_index import get_article_index
         aidx = get_article_index(PROJECT_ROOT)
         astats = aidx.stats()
         total_articles = astats.get("total", 0)
         total_with_entities = astats.get("with_entities", 0)
+        total_files = astats.get("total_files", 0)
     except Exception:
         pass
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "total_files": total_files,
         "total_articles": total_articles,
         "total_with_entities": total_with_entities,
         "by_type": result_types,

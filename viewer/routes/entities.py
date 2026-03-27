@@ -339,8 +339,17 @@ def api_entities_dashboard():
                             }
                     except Exception:
                         pass
+                    # total_files depuis le precomputed peut être None si généré par une
+                    # ancienne version — fallback sur l'article_index dans ce cas
+                    precomp_total_files = precomp.get("total_files") or 0
+                    if not precomp_total_files:
+                        try:
+                            _aidx = get_article_index(PROJECT_ROOT)
+                            precomp_total_files = _aidx.stats().get("total_files", 0)
+                        except Exception:
+                            pass
                     result_payload = {
-                        "total_files":          precomp.get("total_files", 0),
+                        "total_files":          precomp_total_files,
                         "total_articles":       precomp.get("total_articles", 0),
                         "total_with_entities":  precomp.get("total_with_entities", 0),
                         "by_type":              precomp.get("by_type", []),
@@ -376,14 +385,8 @@ def api_entities_dashboard():
         # Totaux depuis l'article_index (URL-dédupliqué)
         aidx = get_article_index(PROJECT_ROOT)
         astats = aidx.stats()
-        # Exclure les fichiers dérivés/_WUDD.AI_/ du comptage (48-heures.json = agrégat glissant
-        # dont les articles sont déjà présents dans les fichiers par mot-clé → double-comptage)
-        total_files = len({
-            ref.get("file", "")
-            for refs in all_entries.values()
-            for ref in refs
-            if ref.get("file") and "_WUDD.AI_" not in ref.get("file", "")
-        })
+        # total_files depuis l'article_index (tous les fichiers, même sans entités)
+        total_files = astats.get("total_files", 0)
         total_articles = astats.get("total", 0)
         # Utiliser l'article_index (URL-dédupliqué) pour éviter de compter 2×
         # les articles présents à la fois dans un fichier mot-clé et dans 48-heures.json
@@ -1004,6 +1007,13 @@ def api_entities_geocode():
     if not names or not isinstance(names, list):
         return jsonify({})
 
+    # Limite le nombre de nouvelles entités geocodées par requête (évite les timeouts >30s).
+    # Le frontend appelle l'endpoint en séquence jusqu'à ce que tout soit en cache.
+    try:
+        max_new = min(int(request.args.get("max_new", 25)), 60)
+    except (ValueError, TypeError):
+        max_new = 25
+
     # ── Coordonnées manuelles pour régions géopolitiques souvent mal reconnues ──
     def _rect(b):
         """Convertit [[sw_lat, sw_lon], [ne_lat, ne_lon]] en GeoJSON Polygon rectangle."""
@@ -1072,7 +1082,7 @@ def api_entities_geocode():
             if cache[name].get("geojson") is None:
                 override_needs_polygon.append(name)
 
-    to_fetch = [n for n in names if n not in cache]
+    to_fetch = [n for n in names if n not in cache][:max_new]
 
     WIKIPEDIA_UA = (
         "WUDD.ai/2.1.0 (news monitoring tool; "

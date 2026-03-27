@@ -397,8 +397,14 @@ class ArticleIndex:
         with self._lock:
             self._load()
         articles = self._data["articles"]
+        total_files = len({
+            a.get("file", "")
+            for a in articles
+            if a.get("file") and "_WUDD.AI_" not in a.get("file", "")
+        })
         return {
             "total": len(articles),
+            "total_files": total_files,
             "with_entities": sum(1 for a in articles if a.get("has_entities")),
             "with_sentiment": sum(1 for a in articles if a.get("has_sentiment")),
             "with_images": sum(1 for a in articles if a.get("has_images")),
