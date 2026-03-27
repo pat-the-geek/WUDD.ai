@@ -168,8 +168,8 @@ export default function EntityWorldMap({ entities, onEntityClick, style }) {
             </Tooltip>
           )
           const items = []
-          // Polygone coloré si disponible
-          if (m.geojson) {
+          // Polygone coloré si disponible (ignorer les Point geojson — icône Leaflet cassée)
+          if (m.geojson && m.geojson.type !== 'Point') {
             items.push(
               <GeoJSON
                 key={`geo-${m.type}-${m.name}`}

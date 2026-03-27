@@ -1155,6 +1155,9 @@ def api_entities_geocode():
                     geojson  = results[0].get("geojson")
                     nom_lat  = float(results[0]["lat"])
                     nom_lon  = float(results[0]["lon"])
+                    # Ignorer les geojson de type Point (pas un polygone utile)
+                    if geojson and geojson.get("type") == "Point":
+                        geojson = None
                     # Wikipedia plus précis pour le point central ; Nominatim fournit le polygon
                     if name in wiki_coords:
                         cache[name] = {
