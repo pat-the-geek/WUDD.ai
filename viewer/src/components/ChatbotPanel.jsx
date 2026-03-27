@@ -84,9 +84,10 @@ function sanitizeMermaid(code) {
     (_, inner) => `("${inner.replace(/"/g, "'")}")`)
   // 10. Supprimer les blocs <think>...</think> que certains modèles IA insèrent
   s = s.replace(/<think>[\s\S]*?<\/think>/gi, '')
-  // 11. Retirer les préfixes/suffixes parasites hors du type de diagramme
-  //     (texte avant la 1ère ligne de type diagram)
-  s = s.replace(/^[^\n]*\n(?=\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|mindmap|gitGraph|erDiagram|journey|quadrantChart|xychart|block|packet|architecture|timeline|sankey|zenuml))/i, '')
+  // 11. Retirer tous les préfixes parasites avant la déclaration du type de diagramme
+  //     (supporte plusieurs lignes de preamble + xychart-beta + stateDiagram-v2)
+  const m11 = s.match(/^(?:xychart-beta|graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|gantt|pie|mindmap|gitGraph|erDiagram|journey|quadrantChart|xychart|block|packet|architecture|timeline|sankey|zenuml)/im)
+  if (m11 && m11.index > 0) s = s.slice(m11.index)
   return s.trim()
 }
 
