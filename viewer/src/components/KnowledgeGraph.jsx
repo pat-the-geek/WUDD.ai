@@ -16,6 +16,7 @@
  *   - Légende
  */
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
   X, Search, ZoomIn, ZoomOut, Maximize2, Minimize2,
   RefreshCw, Loader2, Network, Crosshair, ExternalLink,
@@ -240,6 +241,105 @@ export default function KnowledgeGraph({ onClose }) {
   const [selectedEntityKeys, setSelectedEntityKeys] = useState(new Set())
   const selectedEntityKeysRef = useRef(new Set())
   useEffect(() => { selectedEntityKeysRef.current = selectedEntityKeys }, [selectedEntityKeys])
+
+  // ── Autocomplétion entités ──────────────────────────────────────────────────
+  // suggestions : [{value, type, count}]
+  const [suggestions,    setSuggestions]    = useState([])
+  const [suggestImages,  setSuggestImages]  = useState({}) // name => {url}
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const suggestAbortRef     = useRef(null)
+  const searchContainerRef  = useRef(null)
+  const [dropdownPos, setDropdownPos] = useState(null) // {top, left, width} en px fixed
+
+  const openSuggestDropdown = useCallback(() => {
+    if (!searchContainerRef.current) return
+    const r = searchContainerRef.current.getBoundingClientRect()
+    setDropdownPos({ top: r.bottom + 4, left: r.left, width: Math.max(288, r.width) })
+    setShowSuggestions(true)
+  }, [])
+
+  useEffect(() => {
+    const q = searchBuf.trim()
+    if (q.length < 1) { setSuggestions([]); setShowSuggestions(false); return }
+    // Debounce 250 ms
+    const timer = setTimeout(async () => {
+      suggestAbortRef.current?.abort()
+      const ctrl = new AbortController()
+      suggestAbortRef.current = ctrl
+      try {
+        const res = await fetch(`/api/entities/search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
+        if (!res.ok) return
+        const data = await res.json()
+        const flat = []
+        for (const t of (data.by_type ?? [])) {
+          for (const item of (t.top ?? [])) {
+            flat.push({ value: item.value, type: t.type, count: item.count })
+          }
+        }
+        flat.sort((a, b) => b.count - a.count)
+        const top = flat.slice(0, 20)
+        setSuggestions(top)
+        setShowSuggestions(false) // sera rouvert via openSuggestDropdown si focus
+        if (top.length > 0 && document.activeElement === searchContainerRef.current?.querySelector('input')) {
+          openSuggestDropdown()
+        }
+        // Charge les images en arrière-plan
+        if (top.length > 0) {
+          const imgRes = await fetch('/api/entities/images', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(top.map(s => ({ name: s.value, type: s.type }))),
+            signal: ctrl.signal,
+          })
+          if (imgRes.ok) {
+            const imgs = await imgRes.json()
+            setSuggestImages(imgs)
+          }
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') console.error(err)
+      }
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [searchBuf])
+
+  // ── Autocomplétion articles (filtre titre/résumé) ────────────────────────────
+  // Suggestions calcées client-side depuis les nœuds déjà chargés dans le graphe.
+  // articleSuggestions : [{source, resume, url, excerpt}]
+  const [articleSuggestions,     setArticleSuggestions]     = useState([])
+  const [showArticleSuggestions, setShowArticleSuggestions] = useState(false)
+  const [articleDropdownPos,     setArticleDropdownPos]     = useState(null)
+  const articleContainerRef = useRef(null)
+  const openArticleDropdown = useCallback(() => {
+    if (!articleContainerRef.current) return
+    const r = articleContainerRef.current.getBoundingClientRect()
+    setArticleDropdownPos({ top: r.bottom + 4, left: r.left, width: Math.max(320, r.width) })
+    setShowArticleSuggestions(true)
+  }, [])
+
+  useEffect(() => {
+    const q = articleQueryBuf.trim().toLowerCase()
+    if (q.length < 1) { setArticleSuggestions([]); setShowArticleSuggestions(false); return }
+    const nodes = nodesArrRef.current.filter(n => n.kind === 'article')
+    if (nodes.length === 0) { setArticleSuggestions([]); setShowArticleSuggestions(false); return }
+    const matches = []
+    for (const n of nodes) {
+      const resume = n.resume ?? ''
+      const source = n.source ?? ''
+      const pos = resume.toLowerCase().indexOf(q)
+      if (pos === -1) continue
+      // Extrait centré sur la correspondance (~80 caractères)
+      const start   = Math.max(0, pos - 30)
+      const end     = Math.min(resume.length, pos + q.length + 50)
+      const excerpt = (start > 0 ? '…' : '') + resume.slice(start, end) + (end < resume.length ? '…' : '')
+      const posInExcerpt = excerpt.indexOf(resume.slice(pos, pos + q.length))
+      matches.push({ source, resume, url: n.url, excerpt, matchStart: start > 0 ? pos - start + 1 : pos, matchLen: q.length })
+      if (matches.length >= 15) break
+    }
+    setArticleSuggestions(matches)
+    if (matches.length > 0) openArticleDropdown()
+    else setShowArticleSuggestions(false)
+  }, [articleQueryBuf, openArticleDropdown])
 
   // ── État de chargement ───────────────────────────────────────────────────
   const [loading,   setLoading]  = useState(false)
@@ -684,6 +784,34 @@ export default function KnowledgeGraph({ onClose }) {
 
   // Maintient loadRef à jour pour les appels depuis toggleType
   useEffect(() => { loadRef.current = load }, [load])
+
+  // Applique le filtre article depuis une suggestion
+  const selectArticleSuggestion = useCallback((sug) => {
+    setShowArticleSuggestions(false)
+    // Extrait le terme tapé (preserving case depuis le champ)
+    const q = articleQueryBuf.trim()
+    setArticleQueryBuf(q)
+    setArticleQuery(q)
+    if (selectedEntityKeysRef.current.size > 0) {
+      setTimeout(() => loadRef.current?.('articles', search, q), 0)
+    } else {
+      setTimeout(() => loadRef.current?.('entities', search, q), 0)
+    }
+  }, [articleQueryBuf, search])
+
+  // Lance la recherche directement depuis une suggestion
+  const selectSuggestion = useCallback((sug) => {
+    setShowSuggestions(false)
+    setSuggestions([])
+    const kw = sug.value
+    setSearchBuf(kw)
+    setSearch(kw)
+    setSelectedEntityKeys(new Set())
+    selectedEntityKeysRef.current = new Set()
+    setActiveTypes(new Set())
+    activeTypesRef.current = new Set()
+    setTimeout(() => loadRef.current?.('entities', kw, articleQuery), 0)
+  }, [articleQuery])
 
   const runSearchOrReload = useCallback(() => {
     const nextKeyword = searchBuf.trim()
@@ -1148,8 +1276,8 @@ export default function KnowledgeGraph({ onClose }) {
           Graphe de connaissances
         </span>
 
-        {/* Recherche */}
-        <div className="flex items-center gap-1 flex-1 min-w-[140px] max-w-xs ml-2">
+        {/* Recherche avec autocomplétion */}
+        <div ref={searchContainerRef} className="relative flex items-center gap-1 flex-1 min-w-[140px] max-w-xs ml-2">
           <Search size={13} className="text-slate-400 shrink-0" />
           <input
             type="text"
@@ -1157,12 +1285,89 @@ export default function KnowledgeGraph({ onClose }) {
             value={searchBuf}
             onChange={e => setSearchBuf(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter') {
-                runSearchOrReload()
-              }
+              if (e.key === 'Enter') { setShowSuggestions(false); runSearchOrReload() }
+              if (e.key === 'Escape') { setShowSuggestions(false) }
             }}
+            onFocus={() => suggestions.length > 0 && openSuggestDropdown()}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
             className="w-full text-xs bg-transparent outline-none text-slate-700 dark:text-slate-200 placeholder-slate-400"
           />
+          {/* Dropdown suggestions — portal dans document.body pour échapper aux overflow/transform parents */}
+          {showSuggestions && dropdownPos && createPortal(
+            <div
+              className="fixed overflow-y-auto z-[9999] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl"
+              style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width, maxHeight: '50vh' }}
+            >
+              {suggestions.map((sug, i) => {
+                const img  = suggestImages[sug.value]
+                const cfg  = TYPE_CFG[sug.type]
+                const isRound = sug.type === 'PERSON'
+                const initials = sug.value.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
+                return (
+                  <button
+                    key={`${sug.type}:${sug.value}:${i}`}
+                    onMouseDown={e => { e.preventDefault(); selectSuggestion(sug) }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors first:rounded-t-xl last:rounded-b-xl"
+                  >
+                    {/* Avatar */}
+                    <div
+                      className={`shrink-0 overflow-hidden border border-slate-200 dark:border-slate-600 ${
+                        isRound ? 'rounded-full' : 'rounded-md'
+                      } ${img ? 'bg-white' : 'bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center'}`}
+                      style={{ width: 28, height: 28 }}
+                    >
+                      {img ? (
+                        <img src={img.url} alt={sug.value} className={`w-full h-full ${isRound ? 'object-cover' : 'object-contain p-0.5'}`} />
+                      ) : (
+                        <span className="text-violet-500 dark:text-violet-300 font-semibold" style={{ fontSize: 9 }}>{initials}</span>
+                      )}
+                    </div>
+                    {/* Nom */}
+                    <span className="flex-1 text-xs text-slate-800 dark:text-slate-100 truncate">{sug.value}</span>
+                    {/* Badge type */}
+                    <span
+                      className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white"
+                      style={{ background: cfg?.color ?? ENTITY_DEFAULT }}
+                    >{cfg?.label ?? sug.type}</span>
+                  </button>
+                )
+              })}
+            </div>,
+            document.body
+          )}
+
+          {/* Dropdown suggestions articles — portal */}
+          {showArticleSuggestions && articleDropdownPos && createPortal(
+            <div
+              className="fixed overflow-y-auto z-[9999] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl"
+              style={{ top: articleDropdownPos.top, left: articleDropdownPos.left, width: articleDropdownPos.width, maxHeight: '50vh' }}
+            >
+              <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+                Articles du graphe actuel — cliquez pour filtrer
+              </div>
+              {articleSuggestions.map((sug, i) => {
+                const q   = articleQueryBuf.trim()
+                const low = sug.excerpt.toLowerCase()
+                const pos = low.indexOf(q.toLowerCase())
+                const before = pos >= 0 ? sug.excerpt.slice(0, pos) : sug.excerpt
+                const match  = pos >= 0 ? sug.excerpt.slice(pos, pos + q.length) : ''
+                const after  = pos >= 0 ? sug.excerpt.slice(pos + q.length) : ''
+                return (
+                  <button
+                    key={`${sug.url}:${i}`}
+                    onMouseDown={e => { e.preventDefault(); selectArticleSuggestion(sug) }}
+                    className="flex flex-col w-full px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors last:rounded-b-xl border-t border-slate-100 dark:border-slate-700/50 first:border-t-0"
+                  >
+                    <span className="text-[10px] font-semibold text-blue-500 dark:text-blue-400 mb-0.5 truncate">{sug.source}</span>
+                    <span className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-2">
+                      {before}<strong className="text-slate-900 dark:text-white bg-yellow-100 dark:bg-yellow-900/40 rounded px-0.5">{match}</strong>{after}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>,
+            document.body
+          )}
         </div>
 
         {/* Filtres de date (masqués en mode tout charger) */}
@@ -1245,19 +1450,24 @@ export default function KnowledgeGraph({ onClose }) {
         </div>
 
         {/* ── Filtre article (titre + résumé) ── */}
-        <div className="flex items-center gap-2 basis-full">
+        <div className="relative flex items-center gap-2 basis-full">
           <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0">Article</span>
-          <input
-            type="text"
-            placeholder="Filtre titre / résumé…"
-            value={articleQueryBuf}
-            onChange={e => setArticleQueryBuf(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') runSearchOrReload()
-            }}
-            className="flex-1 min-w-[220px] text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 outline-none"
-            title="Filtrer les articles sur le titre et le résumé"
-          />
+          <div ref={articleContainerRef} className="relative flex-1 min-w-[220px]">
+            <input
+              type="text"
+              placeholder={nodesArrRef.current.filter(n => n.kind === 'article').length > 0 ? 'Filtre titre / résumé…' : 'Chargez d’abord le graphe'}
+              value={articleQueryBuf}
+              onChange={e => setArticleQueryBuf(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { setShowArticleSuggestions(false); runSearchOrReload() }
+                if (e.key === 'Escape') setShowArticleSuggestions(false)
+              }}
+              onFocus={() => articleSuggestions.length > 0 && openArticleDropdown()}
+              onBlur={() => setTimeout(() => setShowArticleSuggestions(false), 150)}
+              className="w-full text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 outline-none"
+              title="Filtrer les articles sur le titre et le résumé"
+            />
+          </div>
         </div>
 
         <div className="flex-1" />
