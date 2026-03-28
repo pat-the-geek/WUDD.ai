@@ -437,6 +437,12 @@ export default function KnowledgeGraph({ onClose }) {
   const activeTypesRef = useRef(new Set())
   useEffect(() => { activeTypesRef.current = activeTypes }, [activeTypes])
 
+  // ── Relations L2 : co-occurrences entité↔entité ─────────────────────────
+  const [showL2, setShowL2] = useState(false)
+  const showL2Ref = useRef(false)
+  useEffect(() => { showL2Ref.current = showL2 }, [showL2])
+  const l2EdgesArrRef = useRef([]) // arêtes entité↔entité (co-occurrence dans articles)
+
   // Ref stable vers la fonction load (pour appel depuis toggleType sans dépendance cyclique)
   const loadRef = useRef(null)
 
@@ -451,6 +457,54 @@ export default function KnowledgeGraph({ onClose }) {
       loadRef.current?.('articles')
     }
   }, [])
+
+  // Calcule les arêtes L2 (co-occurrences entité↔entité via articles partagés)
+  const computeL2Edges = useCallback(() => {
+    if (!showL2Ref.current) {
+      l2EdgesArrRef.current = []
+      return
+    }
+    const nodes = nodesArrRef.current
+    const edges = edgesArrRef.current
+    // Article → liste d'indices d'entités connectées
+    const artToEntities = {}
+    for (const [si, ti] of edges) {
+      const sNode = nodes[si]
+      const tNode = nodes[ti]
+      if (!sNode || !tNode) continue
+      let entityIdx, artIdx
+      if (sNode.kind === 'entity' && tNode.kind === 'article') {
+        entityIdx = si; artIdx = ti
+      } else if (sNode.kind === 'article' && tNode.kind === 'entity') {
+        entityIdx = ti; artIdx = si
+      } else continue
+      if (!artToEntities[artIdx]) artToEntities[artIdx] = []
+      artToEntities[artIdx].push(entityIdx)
+    }
+    // Paires uniques d'entités qui partagent au moins un article
+    const l2EdgeSet = new Set()
+    const l2Edges   = []
+    for (const entityList of Object.values(artToEntities)) {
+      for (let i = 0; i < entityList.length; i++) {
+        for (let j = i + 1; j < entityList.length; j++) {
+          const a   = Math.min(entityList[i], entityList[j])
+          const b   = Math.max(entityList[i], entityList[j])
+          const key = `${a}-${b}`
+          if (!l2EdgeSet.has(key)) {
+            l2EdgeSet.add(key)
+            l2Edges.push([a, b])
+          }
+        }
+      }
+    }
+    l2EdgesArrRef.current = l2Edges
+  }, [])
+
+  // Quand showL2 change : recalcule les arêtes L2 et relance la simulation
+  useEffect(() => {
+    computeL2Edges()
+    if (nodesArrRef.current.length > 0) tempRef.current = Math.max(tempRef.current, 5)
+  }, [showL2, computeL2Edges])
 
   // Calcule automatiquement le multiplicateur idéal selon densité du graphe
   const autoLinkMult = useCallback(() => {
@@ -528,6 +582,26 @@ export default function KnowledgeGraph({ onClose }) {
       ctx.lineTo(t.x, t.y)
     }
     ctx.stroke()
+
+    // ── Arêtes L2 (co-occurrences entité↔entité) ────────────────────────────
+    const l2Edges = l2EdgesArrRef.current
+    if (l2Edges.length > 0) {
+      ctx.save()
+      ctx.strokeStyle = isDark ? 'rgba(167,139,250,0.40)' : 'rgba(124,58,237,0.28)'
+      ctx.lineWidth   = lw * 1.6
+      ctx.setLineDash([Math.max(2, 4 / scale), Math.max(2, 4 / scale)])
+      ctx.beginPath()
+      for (const [si, ti] of l2Edges) {
+        const s = nodes[si]
+        const t = nodes[ti]
+        if (!s || !t) continue
+        ctx.moveTo(s.x, s.y)
+        ctx.lineTo(t.x, t.y)
+      }
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.restore()
+    }
 
     // ── Nœuds (z-order : typeOrder[0] = au dessus = dessiné en dernier) ──
     const _to = typeOrderRef.current
@@ -637,8 +711,11 @@ export default function KnowledgeGraph({ onClose }) {
       const W = canvas.width
       const H = canvas.height
       // 3 itérations par frame pour vitesse/qualité
+      const simEdges = showL2Ref.current && l2EdgesArrRef.current.length > 0
+        ? [...edges, ...l2EdgesArrRef.current]
+        : edges
       for (let i = 0; i < 3; i++) {
-        stepForce(nodes, edges, W, H, tempRef.current, linkMultRef.current)
+        stepForce(nodes, simEdges, W, H, tempRef.current, linkMultRef.current)
       }
       tempRef.current *= 0.992   // refroidissement
     } else if (autoFitRef.current && canvas && nodes.length > 0) {
@@ -958,6 +1035,8 @@ export default function KnowledgeGraph({ onClose }) {
         ...prev.filter(t => presentNerTypes.includes(t)),
         ...presentNerTypes.filter(t => !prev.includes(t)),
       ])
+      // Calculer les arêtes L2 si l'option est activée
+      computeL2Edges()
       // Réchauffer la simulation pour la finalisation
       tempRef.current = Math.max(tempRef.current, 12)
       // Demander un auto-fit dès que la simulation sera refroidie
@@ -1391,6 +1470,24 @@ export default function KnowledgeGraph({ onClose }) {
           </>
         )}
 
+        {/* Checkbox L2 : relations entité↔entité */}
+        <label
+          className={`flex items-center gap-1.5 cursor-pointer select-none shrink-0 px-2 py-1 rounded-lg border transition-colors ${
+            showL2
+              ? 'bg-violet-100 dark:bg-violet-900/30 border-violet-400 dark:border-violet-600'
+              : 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600'
+          }`}
+          title="Afficher les relations L2 : liaisons directes entre entités co-citées dans les mêmes articles"
+        >
+          <input
+            type="checkbox"
+            checked={showL2}
+            onChange={e => setShowL2(e.target.checked)}
+            className="w-3.5 h-3.5 accent-violet-500 cursor-pointer"
+          />
+          <span className={`text-xs font-semibold ${showL2 ? 'text-violet-700 dark:text-violet-300' : 'text-slate-500 dark:text-slate-400'}`}>L2</span>
+        </label>
+
         {/* Toggle Tout charger */}
         <button
           onClick={() => setLoadAll(v => !v)}
@@ -1609,6 +1706,17 @@ export default function KnowledgeGraph({ onClose }) {
               ))}
               {presentTypes.length === 0 && (
                 <span className="text-slate-400 italic">Chargez le graphe</span>
+              )}
+              {/* Entrée L2 si activé */}
+              {showL2 && l2EdgesArrRef.current.length > 0 && (
+                <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
+                  <svg width="22" height="10" className="shrink-0">
+                    <line x1="1" y1="5" x2="21" y2="5"
+                      stroke="#7c3aed" strokeWidth="1.5"
+                      strokeDasharray="3 3" strokeOpacity="0.7" />
+                  </svg>
+                  <span className="text-[10px] text-violet-600 dark:text-violet-400 font-medium">L2 co-occur.</span>
+                </div>
               )}
             </div>
           )}
