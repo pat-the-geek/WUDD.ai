@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
-import { Loader2, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
+import { Loader2, ZoomIn, ZoomOut, Maximize2, ChevronLeft, ChevronRight } from 'lucide-react'
 
 // Couleurs par type NER — cohérentes avec EntityDashboard
 const TYPE_CFG = {
@@ -124,6 +124,12 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
   const [depth, setDepth]       = useState(1)     // 1 ou 2
   const [spacing, setSpacing]   = useState(1.0)   // facteur d'espacement
   const [tooltip, setTooltip]   = useState(null)
+  // Taille proportionnelle au nombre total d'articles + animation de révélation
+  const [sizeByTotal, setSizeByTotal] = useState(true)   // ON par défaut
+  const [animProgress, setAnimProgress] = useState(1)  // 0→1 pendant l'animation
+  const animFrameRef = useRef(null)
+  // Ordre de la légende (détermine le z-order des nœuds dans le SVG)
+  const [typeOrder, setTypeOrder] = useState([])
 
   // ── Zoom / pan ─────────────────────────────────────────────────────────────
   // view = { x, y, scale } où (x,y) est l'origine du viewBox en coord. SVG
@@ -292,6 +298,7 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
     setData(null)
     setSpacing(1.0)    // reset espacement à chaque nouvelle entité
     applyView(VIEW0)   // reset zoom à chaque nouvelle entité
+    setTypeOrder([])   // reset ordre légende
     const params = new URLSearchParams({
       type: entityType, value: entityValue, depth, limit: 40, limit_l2: 4,
     })
@@ -300,6 +307,26 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
       .then(d => { if (d.error) throw new Error(d.error); setData(d); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })
   }, [entityType, entityValue, depth, applyView])
+
+  // ── Animation de révélation des tailles proportionnelles ──────────────────
+  // Quand on active sizeByTotal ou qu'on charge un nouveau graphe en mode total,
+  // les nœuds grandissent progressivement de leur taille de base vers leur taille cible.
+  useEffect(() => {
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
+    if (!sizeByTotal || !data) { setAnimProgress(1); return }
+    setAnimProgress(0)
+    const start = performance.now()
+    const DURATION = 700
+    const animate = (now) => {
+      const p = Math.min(1, (now - start) / DURATION)
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - p, 3)
+      setAnimProgress(eased)
+      if (p < 1) animFrameRef.current = requestAnimationFrame(animate)
+    }
+    animFrameRef.current = requestAnimationFrame(animate)
+    return () => { if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current) }
+  }, [sizeByTotal, data])
 
   // ── Layout ─────────────────────────────────────────────────────────────────
   const { nodes, edges, positions, nodeIndex } = useMemo(() => {
@@ -321,11 +348,60 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
   // ── Métriques visuelles ────────────────────────────────────────────────────
   const maxWeight  = edges.length  > 0 ? Math.max(...edges.map(e => e.weight)) : 1
   const maxCountL1 = nodes.filter(n => n.level === 1).reduce((m, n) => Math.max(m, n.count), 1)
+  const maxTotal   = nodes.filter(n => !n.central).reduce((m, n) => Math.max(m, n.total_count ?? 0), 1)
 
   const nodeRadius = n => {
-    if (n.central)    return 22
+    if (n.central) return 22
+    if (sizeByTotal) {
+      // Échelle logarithmique pour bien différencier les entités rares vs dominantes
+      const logVal = Math.log1p(n.total_count ?? 0)
+      const logMax = Math.log1p(maxTotal)
+      const t = logMax > 0 ? logVal / logMax : 0
+      const targetR = n.level === 2 ? 4 + t * 12 : 5 + t * 22
+      const baseR   = n.level === 2 ? 4 : 5
+      return baseR + (targetR - baseR) * animProgress
+    }
     if (n.level === 2) return 5 + (n.count / maxCountL1) * 6
     return 7 + (n.count / maxCountL1) * 13
+  }
+
+  // ── Ordre de la légende (initialisation + mise à jour) ─────────────────────
+  const presentTypes = useMemo(
+    () => [...new Set(nodes.filter(n => !n.central).map(n => n.type))],
+    [nodes]
+  )
+  // Fusionne l'ordre utilisateur avec les types effectivement présents
+  const orderedTypes = useMemo(() => {
+    const known  = typeOrder.filter(t => presentTypes.includes(t))
+    const newTypes = presentTypes.filter(t => !typeOrder.includes(t))
+    return [...known, ...newTypes]
+  }, [typeOrder, presentTypes])
+
+  // Tri des nœuds pour le rendu SVG : typeOrder[0] = dernière couche = au dessus
+  const nodesForRender = useMemo(() => {
+    return [...nodes].sort((a, b) => {
+      if (a.central) return 1   // central toujours au-dessus de tout
+      if (b.central) return -1
+      const ai = orderedTypes.indexOf(a.type)
+      const bi = orderedTypes.indexOf(b.type)
+      // Plus l'index est BAS dans orderedTypes, plus le nœud est en haut → rendu en dernier
+      // Donc : index élevé → rendu en premier (en dessous)
+      return bi - ai
+    })
+  }, [nodes, orderedTypes])
+
+  // Déplacement dans la légende via boutons ◀ ▶
+  const moveLegendType = (type, dir) => {
+    setTypeOrder(() => {
+      const order = [...orderedTypes]
+      const i = order.indexOf(type)
+      if (i === -1) return order
+      const j = i + dir
+      if (j < 0 || j >= order.length) return order
+      const next = [...order]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
   }
   const edgeOpacity = (e, _srcNode, tgtNode) => {
     const base = (tgtNode?.level ?? 1) === 2 ? 0.12 : 0.15
@@ -352,7 +428,6 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
     </div>
   )
 
-  const presentTypes = [...new Set(nodes.filter(n => !n.central).map(n => n.type))]
   const nL1 = nodes.filter(n => n.level === 1).length
   const nL2 = nodes.filter(n => n.level === 2).length
   const zoomPct = Math.round(view.scale * 100)
@@ -361,97 +436,104 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
   const vb = `${view.x} ${view.y} ${W / view.scale} ${H / view.scale}`
 
   return (
-    <div className="flex flex-col h-full min-h-0 select-none">
-      {/* ── Barre de contrôle ── */}
-      <div className="flex items-center gap-2 mb-2 px-1 flex-wrap shrink-0">
-        <span className="text-xs text-slate-500 dark:text-slate-400">
-          {nL1} entités L1
-          {nL2 > 0 && <> · <span className="text-slate-400">{nL2} L2</span></>}
-          {' · '}{edges.length} relations
+    <div className="flex flex-col h-full min-h-0">
+
+      {/* ══ Barre 1 : contrôles principaux (jamais wrap, scroll horizontal) ══ */}
+      <div className="flex items-center gap-2 mb-1 px-1 shrink-0 select-none overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+        <span className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0">
+          {nL1} L1{nL2 > 0 && <> · {nL2} L2</>} · {edges.length} liens
         </span>
 
         {/* Profondeur */}
-        <div className="flex rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden text-[11px]">
-          <button
-            onClick={() => setDepth(1)}
-            className={`px-2 py-1 transition-colors ${depth === 1 ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-          >
-            Niveau 1
+        <div className="flex shrink-0 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden text-[11px]">
+          <button onClick={() => setDepth(1)}
+            className={`px-2 py-1 transition-colors ${depth === 1 ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+            Niv.1
           </button>
-          <button
-            onClick={() => setDepth(2)}
-            className={`px-2 py-1 transition-colors border-l border-slate-200 dark:border-slate-700 ${depth === 2 ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-          >
-            Niveau 2
+          <button onClick={() => setDepth(2)}
+            className={`px-2 py-1 transition-colors border-l border-slate-200 dark:border-slate-700 ${depth === 2 ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+            Niv.2
           </button>
         </div>
 
         {/* Dates/nombres */}
-        <label className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showNoise}
-            onChange={e => setShowNoise(e.target.checked)}
-            className="w-3 h-3 accent-violet-500"
-          />
-          Dates / nombres
+        <label className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 cursor-pointer whitespace-nowrap">
+          <input type="checkbox" checked={showNoise} onChange={e => setShowNoise(e.target.checked)} className="w-3 h-3 accent-violet-500" />
+          Dates
         </label>
 
-        {/* Espacement entre nœuds — slider */}
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-          <span>Liens</span>
-          <input
-            type="range"
-            min="0.4" max="3.5" step="0.05"
-            value={spacing}
+        {/* Taille ∝ articles */}
+        <label className="flex shrink-0 items-center gap-1 text-[11px] cursor-pointer whitespace-nowrap font-medium text-violet-600 dark:text-violet-400" title="Taille ∝ nombre total d'articles (échelle log)">
+          <input type="checkbox" checked={sizeByTotal} onChange={e => setSizeByTotal(e.target.checked)} className="w-3 h-3 accent-violet-500" />
+          Taille ∝
+        </label>
+
+        {/* Espacement */}
+        <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="whitespace-nowrap">Liens</span>
+          <input type="range" min="0.4" max="3.5" step="0.05" value={spacing}
             onChange={e => setSpacing(+e.target.value)}
-            className="w-20 accent-violet-500"
-            title={`Longueur des liens : ${spacing.toFixed(1)}×`}
-          />
-          <span className="tabular-nums w-7">{spacing.toFixed(1)}×</span>
+            className="w-16 accent-violet-500" title={`${spacing.toFixed(1)}×`} />
         </div>
 
-        {/* Contrôles zoom */}
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            onClick={() => {
-              const v = viewRef.current
-              applyView({ ...v, scale: Math.max(0.2, v.scale * 0.82) })
-            }}
-            title="Dézoomer"
-            className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          >
+        {/* Zoom */}
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <button onClick={() => applyView({ ...viewRef.current, scale: Math.max(0.2, viewRef.current.scale * 0.82) })}
+            className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700">
             <ZoomOut size={13} />
           </button>
-          <span className="text-[11px] text-slate-400 w-10 text-center tabular-nums">
-            {zoomPct}%
-          </span>
-          <button
-            onClick={() => {
-              const v = viewRef.current
-              applyView({ ...v, scale: Math.min(12, v.scale * 1.22) })
-            }}
-            title="Zoomer"
-            className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          >
+          <span className="text-[11px] text-slate-400 w-9 text-center tabular-nums">{zoomPct}%</span>
+          <button onClick={() => applyView({ ...viewRef.current, scale: Math.min(12, viewRef.current.scale * 1.22) })}
+            className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700">
             <ZoomIn size={13} />
           </button>
-          <button
-            onClick={resetView}
-            title="Réinitialiser la vue"
-            className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          >
+          <button onClick={resetView} title="Réinitialiser"
+            className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700">
             <Maximize2 size={12} />
           </button>
         </div>
       </div>
 
-      {/* ── Graphe SVG ── */}
+      {/* ══ Barre 2 : z-order légende (jamais wrap, scroll horizontal) ══ */}
+      {orderedTypes.length > 0 && (
+        <div className="flex items-center gap-1 mb-1.5 px-1 shrink-0 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+          <span className="text-[10px] font-semibold text-violet-500 dark:text-violet-400 whitespace-nowrap shrink-0 mr-0.5" title="z-order : 1er = par dessus les autres">z↑</span>
+          {orderedTypes.map((type, idx) => (
+            <span key={type} className="inline-flex shrink-0 items-center rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
+              <button
+                onMouseDown={e => { e.preventDefault(); e.stopPropagation(); moveLegendType(type, -1) }}
+                disabled={idx === 0}
+                className="w-5 h-6 flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/40 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                title="Vers le dessus"
+              >
+                <ChevronLeft size={12} />
+              </button>
+              <span className="flex items-center gap-1 px-1 py-0.5 text-[11px] text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: TYPE_CFG[type]?.node ?? '#94a3b8' }} />
+                {TYPE_CFG[type]?.label ?? type}
+              </span>
+              <button
+                onMouseDown={e => { e.preventDefault(); e.stopPropagation(); moveLegendType(type, 1) }}
+                disabled={idx === orderedTypes.length - 1}
+                className="w-5 h-6 flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/40 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                title="Vers le dessous"
+              >
+                <ChevronRight size={12} />
+              </button>
+            </span>
+          ))}
+          {depth === 2 && nL2 > 0 && (
+            <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0 ml-1">● L1 ╌ L2</span>
+          )}
+        </div>
+      )}
+
+      {/* ══ Graphe SVG ══ */}
       <div className="flex-1 min-h-0 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-hidden">
         <svg
           ref={svgCallbackRef}
           viewBox={vb}
-          className="w-full h-full block"
+          className="w-full h-full block select-none"
           style={{ cursor: dragState.current ? 'grabbing' : 'grab' }}
           onMouseDown={handleSvgMouseDown}
         >
@@ -464,8 +546,7 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
             const color = TYPE_CFG[tgtNode?.type]?.node ?? '#94a3b8'
             const isL2edge = (tgtNode?.level ?? 1) === 2
             return (
-              <line
-                key={i}
+              <line key={i}
                 x1={positions[si].x} y1={positions[si].y}
                 x2={positions[ti].x} y2={positions[ti].y}
                 stroke={color}
@@ -477,8 +558,9 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
             )
           })}
 
-          {/* Nœuds */}
-          {nodes.map((node, i) => {
+          {/* Nœuds — ordre z selon la légende */}
+          {nodesForRender.map((node) => {
+            const i = nodes.indexOf(node)
             if (!positions[i]) return null
             const { x, y } = positions[i]
             const r = nodeRadius(node)
@@ -487,51 +569,34 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
             const label = node.value.length > (isL2 ? 11 : 15)
               ? node.value.slice(0, isL2 ? 10 : 14) + '…'
               : node.value
-
             return (
-              <g
-                key={i}
-                transform={`translate(${x},${y})`}
+              <g key={i} transform={`translate(${x},${y})`}
                 style={{ cursor: node.central ? 'default' : 'pointer' }}
-                onClick={() => {
-                  if (!dragMoved.current && !node.central) onNavigate(node.type, node.value)
-                }}
+                onClick={() => { if (!dragMoved.current && !node.central) onNavigate(node.type, node.value) }}
                 onMouseEnter={e => setTooltip({ node, x: e.clientX, y: e.clientY })}
                 onMouseLeave={() => setTooltip(null)}
                 onMouseMove={e => tooltip && setTooltip(t => ({ ...t, x: e.clientX, y: e.clientY }))}
               >
-                {/* Zone de clic élargie pour les petits nœuds (L2) */}
-                {!node.central && (
-                  <circle r={Math.max(r + 5, 14)} fill="transparent" />
-                )}
-                <circle
-                  r={r}
-                  fill={color}
+                {!node.central && <circle r={Math.max(r + 5, 14)} fill="transparent" />}
+                <circle r={r} fill={color}
                   fillOpacity={node.central ? 1 : isL2 ? 0.55 : 0.82}
                   stroke={node.central ? '#7c3aed' : isL2 ? color : 'white'}
                   strokeWidth={node.central ? 3 : isL2 ? 1 : 1.5}
                   strokeOpacity={isL2 ? 0.6 : 0.9}
                   strokeDasharray={isL2 ? '2 2' : undefined}
                 />
-                {/* Label dans le cercle central */}
                 {node.central && (
-                  <text
-                    textAnchor="middle" dominantBaseline="middle"
-                    fill="white" fontSize="8.5" fontWeight="700"
-                    style={{ pointerEvents: 'none' }}
-                  >
+                  <text textAnchor="middle" dominantBaseline="middle"
+                    fill="white" fontSize="8.5" fontWeight="700" style={{ pointerEvents: 'none' }}>
                     {node.value.length > 12 ? node.value.slice(0, 11) + '…' : node.value}
                   </text>
                 )}
-                {/* Label sous les nœuds périphériques */}
                 {!node.central && (
-                  <text
-                    textAnchor="middle" y={r + 9}
+                  <text textAnchor="middle" y={r + 9}
                     fontSize={isL2 ? '7.5' : '8.5'}
                     fill={isL2 ? '#64748b' : '#374151'}
                     fillOpacity={isL2 ? 0.75 : 1}
-                    style={{ pointerEvents: 'none' }}
-                  >
+                    style={{ pointerEvents: 'none' }}>
                     {label}
                   </text>
                 )}
@@ -541,44 +606,23 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
         </svg>
       </div>
 
-      {/* ── Légende compacte (une seule ligne) ── */}
-      <div className="mt-1 shrink-0 flex items-center gap-x-3 px-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-        {presentTypes.map(type => (
-          <span key={type} className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: TYPE_CFG[type]?.node ?? '#94a3b8' }} />
-            {TYPE_CFG[type]?.label ?? type}
-          </span>
-        ))}
-        {depth === 2 && nL2 > 0 && (
-          <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">· ● L1 ╌ L2</span>
-        )}
-        <span className="ml-auto text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap shrink-0 pl-2">
-          <span className="hidden sm:inline">⌀ zoom · drag · clic</span>
-          <span className="sm:hidden">pince · glisse · touche</span>
-        </span>
-      </div>
-
-      {/* ── Tooltip ── */}
+      {/* Tooltip */}
       {tooltip && (
-        <div
-          className="fixed z-[200] pointer-events-none bg-slate-900 dark:bg-slate-700 text-white rounded-xl px-3 py-2 text-xs shadow-2xl border border-slate-700"
-          style={{ left: tooltip.x + 14, top: tooltip.y - 48 }}
-        >
+        <div className="fixed z-[200] pointer-events-none bg-slate-900 dark:bg-slate-700 text-white rounded-xl px-3 py-2 text-xs shadow-2xl border border-slate-700"
+          style={{ left: tooltip.x + 14, top: tooltip.y - 48 }}>
           <div className="font-semibold">{tooltip.node.value}</div>
-          <div className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">
+          <div className="text-slate-400 text-[11px] mt-0.5">
             {TYPE_CFG[tooltip.node.type]?.label ?? tooltip.node.type}
             {!tooltip.node.central && (
               <> · <span className="text-violet-300">
-                {tooltip.node.count} article{tooltip.node.count > 1 ? 's' : ''} en commun
+                {sizeByTotal
+                  ? <>{tooltip.node.total_count ?? 0} art. total</>
+                  : <>{tooltip.node.count} art. en commun</>
+                }
               </span></>
             )}
-            {tooltip.node.level === 2 && (
-              <span className="ml-1 text-slate-500"> · niveau 2</span>
-            )}
           </div>
-          {!tooltip.node.central && (
-            <div className="text-slate-400 text-[11px] mt-0.5">Cliquer pour explorer →</div>
-          )}
+          {!tooltip.node.central && <div className="text-slate-400 text-[11px] mt-0.5">Clic → explorer</div>}
         </div>
       )}
     </div>

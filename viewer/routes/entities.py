@@ -914,14 +914,25 @@ def api_entities_cooccurrences():
     sorted_l1 = sorted(cooc_l1.items(), key=lambda x: x[1], reverse=True)[:limit_l1]
     top_l1_set: set[tuple[str, str]] = {k for k, _ in sorted_l1}
 
+    # ── Helper : nombre total d'articles pour une entité (via index ou fallback) ──
+    def get_total_count(etype, ev, fallback_count):
+        if index_available and eidx is not None:
+            try:
+                return len(eidx.get_refs(etype, ev))
+            except Exception:
+                pass
+        return fallback_count
+
     # ── Construction des nœuds / arêtes L1 ───────────────────────────────────
+    central_total = len(central_articles)
     nodes = [{"type": entity_type, "value": entity_value, "count": 0,
-               "central": True, "level": 0}]
+               "central": True, "level": 0, "total_count": central_total}]
     edges = []
 
     for (etype, ev), count in sorted_l1:
         nodes.append({"type": etype, "value": ev, "count": count,
-                       "central": False, "level": 1})
+                       "central": False, "level": 1,
+                       "total_count": get_total_count(etype, ev, count)})
         edges.append({"source": node_id(entity_type, entity_value),
                        "target": node_id(etype, ev), "weight": count})
 
@@ -975,7 +986,8 @@ def api_entities_cooccurrences():
                 l2_key = (etype, ev)
                 if l2_key not in added_l2:
                     nodes.append({"type": etype, "value": ev, "count": count,
-                                   "central": False, "level": 2})
+                                   "central": False, "level": 2,
+                                   "total_count": get_total_count(etype, ev, count)})
                     added_l2.add(l2_key)
                     existing.add(l2_key)
                 edges.append({"source": node_id(l1_etype, l1_ev),

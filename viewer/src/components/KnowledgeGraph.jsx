@@ -19,6 +19,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import {
   X, Search, ZoomIn, ZoomOut, Maximize2, Minimize2,
   RefreshCw, Loader2, Network, Crosshair, ExternalLink,
+  ChevronUp, ChevronDown,
 } from 'lucide-react'
 import ArticleFullReportDialog from './ArticleFullReportDialog'
 import GraphArticlePanel from './GraphArticlePanel'
@@ -100,7 +101,15 @@ const R_ENTITY  = 6
 
 /**
  * Avance d'un pas la simulation de Fruchterman-Reingold.
- * @param {object[]} nodes   — [{id, x, y, vx, vy, r}]
+ *
+ * Stratégie anti-superposition à deux couches :
+ *   1. Répulsion FR radius-aware (distance surface-à-surface) — évite les
+ *      approches dangereuses avant qu'elles ne surviennent.
+ *   2. Correction de position directe PBD (Position-Based Dynamics) —
+ *      après l'intégration, sépare géométriquement les paires encore
+ *      superposées, 3 itérations, indépendamment de la température.
+ *
+ * @param {object[]} nodes   — [{id, x, y, vx, vy, r, pinned?}]
  * @param {number[][]} edges — [[si, ti], ...]  (indices dans nodes)
  * @param {number} W / H     — dimensions du canvas
  * @param {number} temp      — température (refroidissement)
@@ -112,44 +121,56 @@ function stepForce(nodes, edges, W, H, temp, linkMult = 1.2) {
   const fx  = new Float32Array(n)
   const fy  = new Float32Array(n)
 
-  // Répulsion O(n²) — acceptable jusqu'à ~800 nœuds
+  // ── 1. Répulsion O(n²) radius-aware ─────────────────────────────────────
+  // Utilise la distance surface-à-surface (dSurf) et un kEff élargi
+  // proportionnellement aux rayons → les gros nœuds repoussent plus loin.
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
-      const dx = nodes[i].x - nodes[j].x
-      const dy = nodes[i].y - nodes[j].y
-      const d2 = Math.max(dx * dx + dy * dy, 1)
-      const d  = Math.sqrt(d2)
-      const f  = (k * k) / d2
-      const nx = (dx / d) * f
-      const ny = (dy / d) * f
+      const dx    = nodes[i].x - nodes[j].x
+      const dy    = nodes[i].y - nodes[j].y
+      const d     = Math.sqrt(dx * dx + dy * dy) || 0.01
+      const ri    = nodes[i].r
+      const rj    = nodes[j].r
+      const kEff  = k + (ri + rj) * 0.5
+      // distance libre entre surfaces — plancher à 1 pour éviter /0
+      const dSurf = Math.max(d - ri - rj, 1)
+      const f     = (kEff * kEff) / (dSurf * dSurf)
+      const nx    = (dx / d) * f
+      const ny    = (dy / d) * f
       fx[i] += nx;  fy[i] += ny
       fx[j] -= nx;  fy[j] -= ny
     }
   }
 
-  // Attraction sur les arêtes
+  // ── 2. Attraction sur les arêtes ─────────────────────────────────────────
+  // La longueur idéale tient compte des deux rayons pour que deux gros nœuds
+  // connectés restent naturellement plus éloignés.
   for (const [si, ti] of edges) {
     const dx    = nodes[ti].x - nodes[si].x
     const dy    = nodes[ti].y - nodes[si].y
     const d     = Math.sqrt(dx * dx + dy * dy) || 0.01
-    const ideal = k * linkMult
-    const f     = (d - ideal) * 0.3
+    const ri    = nodes[si].r
+    const rj    = nodes[ti].r
+    const ideal = k * linkMult + (ri + rj) * 0.8
+    const f     = (d - ideal) * 0.25
     const nx    = (dx / d) * f
     const ny    = (dy / d) * f
     fx[si] += nx;  fy[si] += ny
     fx[ti] -= nx;  fy[ti] -= ny
   }
 
-  // Gravité vers le centre
+  // ── 3. Gravité vers le centre ────────────────────────────────────────────
+  // Valeur réduite (0.009) pour laisser les nœuds occuper plus d'espace.
   const cx = W / 2
   const cy = H / 2
   for (let i = 0; i < n; i++) {
-    fx[i] += (cx - nodes[i].x) * 0.018
-    fy[i] += (cy - nodes[i].y) * 0.018
+    fx[i] += (cx - nodes[i].x) * 0.009
+    fy[i] += (cy - nodes[i].y) * 0.009
   }
 
-  // Intégration + amortissement
+  // ── 4. Intégration + amortissement ──────────────────────────────────────
   for (let i = 0; i < n; i++) {
+    if (nodes[i].pinned) continue
     nodes[i].vx = (nodes[i].vx + fx[i]) * 0.6
     nodes[i].vy = (nodes[i].vy + fy[i]) * 0.6
     const mag   = Math.sqrt(nodes[i].vx ** 2 + nodes[i].vy ** 2) || 0.01
@@ -159,6 +180,38 @@ function stepForce(nodes, edges, W, H, temp, linkMult = 1.2) {
     const pad   = nodes[i].r + 4
     nodes[i].x  = Math.max(pad, Math.min(W - pad, nodes[i].x))
     nodes[i].y  = Math.max(pad, Math.min(H - pad, nodes[i].y))
+  }
+
+  // ── 5. Correction de position PBD (Position-Based Dynamics) ─────────────
+  // Après l'intégration, on sépare directement les paires superposées.
+  // 3 itérations convergent bien même pour les clusters denses.
+  // Indépendant de la température : garantit qu'il n'y a plus de superposition
+  // même quand temp → 0 et que les forces deviennent insuffisantes.
+  const GAP = 4  // marge minimale entre surfaces (px)
+  for (let iter = 0; iter < 3; iter++) {
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (nodes[i].pinned && nodes[j].pinned) continue
+        const dx   = nodes[i].x - nodes[j].x
+        const dy   = nodes[i].y - nodes[j].y
+        const d    = Math.sqrt(dx * dx + dy * dy) || 0.01
+        const minD = nodes[i].r + nodes[j].r + GAP
+        if (d < minD) {
+          // Chevauchement → pousse chaque nœud d'une demi-correction
+          const push = (minD - d) * 0.5
+          const nx   = (dx / d) * push
+          const ny   = (dy / d) * push
+          if (!nodes[i].pinned) { nodes[i].x += nx; nodes[i].y += ny }
+          if (!nodes[j].pinned) { nodes[j].x -= nx; nodes[j].y -= ny }
+        }
+      }
+    }
+    // Reclamper aux bords après chaque passe PBD
+    for (let i = 0; i < n; i++) {
+      const pad = nodes[i].r + 4
+      nodes[i].x = Math.max(pad, Math.min(W - pad, nodes[i].x))
+      nodes[i].y = Math.max(pad, Math.min(H - pad, nodes[i].y))
+    }
   }
 }
 
@@ -197,6 +250,7 @@ export default function KnowledgeGraph({ onClose }) {
   const canvasRef  = useRef(null)
   const rafRef     = useRef(null)
   const tempRef    = useRef(0)    // température de simulation (0 = stoppée)
+  const autoFitRef = useRef(false) // flag : fitView() à déclencher après refroidissement
   const ticksRef   = useRef(0)    // compteur d'itérations
 
   // ── Tooltip ──────────────────────────────────────────────────────────────
@@ -222,8 +276,55 @@ export default function KnowledgeGraph({ onClose }) {
   const linkMultRef = useRef(1.2)
   useEffect(() => { linkMultRef.current = linkMult }, [linkMult])
 
+  // ── Taille ∝ articles + z-order ────────────────────────────────────────
+  const [sizeByTotal, setSizeByTotal] = useState(true)
+  const sizeByTotalRef = useRef(true)
+  useEffect(() => { sizeByTotalRef.current = sizeByTotal }, [sizeByTotal])
+
+  const [typeOrder, setTypeOrder] = useState([])
+  const typeOrderRef = useRef([])
+  useEffect(() => { typeOrderRef.current = typeOrder }, [typeOrder])
+
+  const moveLegendType = useCallback((type, dir) => {
+    setTypeOrder(prev => {
+      const order = [...prev]
+      const i = order.indexOf(type)
+      if (i === -1) return order
+      const j = i + dir
+      if (j < 0 || j >= order.length) return order
+      const next = [...order]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+  }, [])
+
+  // Recalcule les rayons quand sizeByTotal est basculé
+  useEffect(() => {
+    const nodes = nodesArrRef.current
+    if (nodes.length === 0) return
+    const maxC = Math.max(...nodes.filter(n => n.kind === 'entity').map(n => n.article_count ?? 0), 1)
+    for (const n of nodes) {
+      if (n.kind === 'article') { n.r = R_ARTICLE; continue }
+      if (sizeByTotal && (n.article_count ?? 0) > 0) {
+        const t = Math.log1p(n.article_count) / Math.log1p(maxC)
+        n.r = 4 + t * 36
+      } else {
+        n.r = R_ENTITY
+      }
+    }
+    if (nodes.length > 0 && tempRef.current < 3) tempRef.current = 3
+  }, [sizeByTotal])
+
   // ── Filtrage par type d'entité ─────────────────────────────────────────
-  const [hiddenTypes,   setHiddenTypes]   = useState(new Set())
+  // Types d'entité à afficher par défaut dans la légende
+  const DEFAULT_VISIBLE_TYPES = [
+    'PERSON', 'ORG', 'GPE', 'EVENT', 'PRODUCT', 'NORP', 'LOC', 'FAC'
+  ]
+  // Initialiser hiddenTypes : tous les types présents sauf ceux de la liste ci-dessus
+  const [hiddenTypes, setHiddenTypes] = useState(() => {
+    // On ne connaît pas encore les types présents, donc on attend le premier done
+    return new Set()
+  })
   const hiddenTypesRef = useRef(new Set())
   useEffect(() => { hiddenTypesRef.current = hiddenTypes }, [hiddenTypes])
 
@@ -318,9 +419,16 @@ export default function KnowledgeGraph({ onClose }) {
     }
     ctx.stroke()
 
-    // ── Nœuds ───────────────────────────────────────────────────────────
-    for (const node of nodes) {
-      if (isHidden(node)) continue
+    // ── Nœuds (z-order : typeOrder[0] = au dessus = dessiné en dernier) ──
+    const _to = typeOrderRef.current
+    const drawOrder = nodes.filter(n => !isHidden(n)).sort((a, b) => {
+      if (a.kind === 'article' && b.kind !== 'article') return -1
+      if (b.kind === 'article' && a.kind !== 'article') return 1
+      const ai = _to.indexOf(a.ner_type ?? '')
+      const bi = _to.indexOf(b.ner_type ?? '')
+      return bi - ai
+    })
+    for (const node of drawOrder) {
       const color = node.kind === 'article'
         ? ARTICLE_COLOR
         : (TYPE_CFG[node.ner_type]?.color ?? ENTITY_DEFAULT)
@@ -408,6 +516,10 @@ export default function KnowledgeGraph({ onClose }) {
         stepForce(nodes, edges, W, H, tempRef.current, linkMultRef.current)
       }
       tempRef.current *= 0.992   // refroidissement
+    } else if (autoFitRef.current && canvas && nodes.length > 0) {
+      // Simulation stabilisée → ajuster la vue sur le graphe une seule fois
+      autoFitRef.current = false
+      fitView()
       ticksRef.current += 3
       // Maintenir les nœuds pinnés (= entité correspondant au critère) au centre
       for (const node of nodes) {
@@ -555,8 +667,45 @@ export default function KnowledgeGraph({ onClose }) {
         + `${nEntities} entité${nEntities !== 1 ? 's' : ''} · `
         + `${ev.total_edges} liaison${ev.total_edges !== 1 ? 's' : ''}`
       )
+      // Taille ∝ articles : compter les arêtes par entité pour obtenir article_count
+      const degMap = {}
+      for (const [si, ti] of edges) {
+        const s = nodes[si]; const t = nodes[ti]
+        if (s?.kind === 'entity') degMap[si] = (degMap[si] ?? 0) + 1
+        if (t?.kind === 'entity') degMap[ti] = (degMap[ti] ?? 0) + 1
+      }
+      let maxC = 1
+      for (const [i, cnt] of Object.entries(degMap)) {
+        nodes[i].article_count = cnt
+        if (cnt > maxC) maxC = cnt
+      }
+      if (sizeByTotalRef.current) {
+        for (const n of nodes) {
+          if (n.kind === 'article') { n.r = R_ARTICLE; continue }
+          const cnt = n.article_count ?? 0
+          if (cnt > 0) {
+            const t = Math.log1p(cnt) / Math.log1p(maxC)
+            n.r = 4 + t * 36
+          }
+        }
+      }
+      // Initialiser l'ordre de la légende avec les types présents
+      const presentNerTypes = [...new Set(nodes.filter(n => n.kind === 'entity').map(n => n.ner_type))]
+      setTypeOrder(prev => [
+        ...prev.filter(t => presentNerTypes.includes(t)),
+        ...presentNerTypes.filter(t => !prev.includes(t)),
+      ])
+      // À la première réception du graphe, masquer tous les types sauf la liste par défaut
+      setHiddenTypes(prev => {
+        // Si déjà customisé par l'utilisateur, ne pas écraser
+        if (prev.size > 0) return prev
+        const toHide = presentNerTypes.filter(t => !DEFAULT_VISIBLE_TYPES.includes(t))
+        return new Set(toHide)
+      })
       // Réchauffer la simulation pour la finalisation
       tempRef.current = Math.max(tempRef.current, 12)
+      // Demander un auto-fit dès que la simulation sera refroidie
+      autoFitRef.current = true
     }
   }
 
@@ -703,12 +852,16 @@ export default function KnowledgeGraph({ onClose }) {
     })
   }, [applyView])
 
-  // Types d'entités présents dans le graphe (pour la légende)
-  const presentTypes = [...new Set(
+  // Types d'entités présents dans le graphe (pour la légende, dans l'ordre z-order)
+  const allPresentTypes = [...new Set(
     nodesArrRef.current
       .filter(n => n.kind === 'entity')
       .map(n => n.ner_type)
-  )].sort()
+  )]
+  const presentTypes = [
+    ...typeOrder.filter(t => allPresentTypes.includes(t)),
+    ...allPresentTypes.filter(t => !typeOrder.includes(t)),
+  ]
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -791,6 +944,17 @@ export default function KnowledgeGraph({ onClose }) {
         </button>
 
         <div className="flex-1" />
+
+        {/* Taille ∝ articles */}
+        <label className="flex shrink-0 items-center gap-1.5 text-xs cursor-pointer font-semibold text-violet-600 dark:text-violet-400 whitespace-nowrap select-none" title="Taille des nœuds ∝ nombre d'articles qui mentionnent l'entité (log)">
+          <input
+            type="checkbox"
+            checked={sizeByTotal}
+            onChange={e => setSizeByTotal(e.target.checked)}
+            className="w-3 h-3 accent-violet-500"
+          />
+          Taille ∝
+        </label>
 
         {/* ── Contrôle longueur des liens ── */}
         <div className="flex items-center gap-1.5 shrink-0 bg-slate-100/70 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1">
@@ -885,16 +1049,35 @@ export default function KnowledgeGraph({ onClose }) {
             >
               <div className="font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Légende</div>
               <LegendItem color={ARTICLE_COLOR} label="Article" r={R_ARTICLE} />
-              {presentTypes.map(t => (
-                <LegendItem
-                  key={t}
-                  color={TYPE_CFG[t]?.color ?? ENTITY_DEFAULT}
-                  label={TYPE_CFG[t]?.label ?? t}
-                  r={R_ENTITY}
-                  isPerson={t === 'PERSON'}
-                  hidden={hiddenTypes.has(t)}
-                  onClick={() => toggleType(t)}
-                />
+              {presentTypes.map((t, idx) => (
+                <div key={t} className="flex items-center gap-0.5">
+                  <LegendItem
+                    color={TYPE_CFG[t]?.color ?? ENTITY_DEFAULT}
+                    label={TYPE_CFG[t]?.label ?? t}
+                    r={R_ENTITY}
+                    isPerson={t === 'PERSON'}
+                    hidden={hiddenTypes.has(t)}
+                    onClick={() => toggleType(t)}
+                  />
+                  <div className="flex flex-col ml-auto pl-1 shrink-0">
+                    <button
+                      onMouseDown={e => { e.stopPropagation(); moveLegendType(t, -1) }}
+                      disabled={idx === 0}
+                      className="h-3.5 flex items-center justify-center text-slate-400 hover:text-violet-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                      title="Vers le dessus (z-order)"
+                    >
+                      <ChevronUp size={10} />
+                    </button>
+                    <button
+                      onMouseDown={e => { e.stopPropagation(); moveLegendType(t, 1) }}
+                      disabled={idx === presentTypes.length - 1}
+                      className="h-3.5 flex items-center justify-center text-slate-400 hover:text-violet-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                      title="Vers le dessous (z-order)"
+                    >
+                      <ChevronDown size={10} />
+                    </button>
+                  </div>
+                </div>
               ))}
               {presentTypes.length === 0 && (
                 <span className="text-slate-400 italic">Chargez le graphe</span>
