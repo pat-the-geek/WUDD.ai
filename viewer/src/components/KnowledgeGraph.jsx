@@ -1470,25 +1470,7 @@ export default function KnowledgeGraph({ onClose }) {
           </>
         )}
 
-        {/* Checkbox L2 : relations entité↔entité */}
-        <label
-          className={`flex items-center gap-1.5 cursor-pointer select-none shrink-0 px-2 py-1 rounded-lg border transition-colors ${
-            showL2
-              ? 'bg-violet-100 dark:bg-violet-900/30 border-violet-400 dark:border-violet-600'
-              : 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600'
-          }`}
-          title="Afficher les relations L2 : liaisons directes entre entités co-citées dans les mêmes articles"
-        >
-          <input
-            type="checkbox"
-            checked={showL2}
-            onChange={e => setShowL2(e.target.checked)}
-            className="w-3.5 h-3.5 accent-violet-500 cursor-pointer"
-          />
-          <span className={`text-xs font-semibold ${showL2 ? 'text-violet-700 dark:text-violet-300' : 'text-slate-500 dark:text-slate-400'}`}>L2</span>
-        </label>
-
-        {/* Toggle Tout charger */}
+        {/* Toggle Tout charger */
         <button
           onClick={() => setLoadAll(v => !v)}
           className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors shrink-0 ${
@@ -1523,6 +1505,19 @@ export default function KnowledgeGraph({ onClose }) {
         <div className="basis-full h-0" />
         <div className="flex items-center gap-1 flex-wrap basis-full">
           <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mr-1 shrink-0">Types</span>
+          {/* Bouton L2 */}
+          <button
+            onClick={() => setShowL2(v => !v)}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border transition-colors whitespace-nowrap shrink-0 ${
+              showL2
+                ? 'bg-violet-500 text-white border-transparent'
+                : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-violet-400'
+            }`}
+            title="Afficher les relations L2 : liaisons entité↔entité co-citées dans les mêmes articles"
+          >
+            L2
+          </button>
+          <span className="text-[10px] text-slate-300 dark:text-slate-600 select-none">|</span>
           {ALL_NER_TYPES.map(t => (
             <button
               key={t}
