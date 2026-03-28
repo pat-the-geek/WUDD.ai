@@ -273,8 +273,10 @@ export default function KnowledgeGraph({ onClose }) {
   // ── Plein écran ──────────────────────────────────────────────────────────
   const [fullscreen, setFullscreen] = useState(false)
 
-  // ── Drag (pan) ───────────────────────────────────────────────────────────
-  const dragRef = useRef(null)  // {startX, startY, ox, oy}
+  // ── Drag (pan) + touch refs ──────────────────────────────────────────────
+  const dragRef       = useRef(null)  // {startX, startY, ox, oy}
+  const touchDistRef  = useRef(null)  // pinch {dist, scale}
+  const tapRef        = useRef(null)  // tap {x, y} — position touchstart
 
   // ── Légende ──────────────────────────────────────────────────────────────
   const [showLegend, setShowLegend] = useState(true)
@@ -928,49 +930,169 @@ export default function KnowledgeGraph({ onClose }) {
     }
   }, [])
 
+  // ── Détection de nœud à une position CSS ────────────────────────────────
+  // slopCss : tolérance supplémentaire en pixels CSS (au-delà du rayon visuel)
+  const getNodeAtClientPos = useCallback((clientX, clientY, slopCss = 0) => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const rect  = canvas.getBoundingClientRect()
+    const sX    = canvas.width  / rect.width
+    const sY    = canvas.height / rect.height
+    const mx    = (clientX - rect.left) * sX
+    const my    = (clientY - rect.top)  * sY
+    const v     = viewRef.current
+    const wx    = (mx - v.x) / v.scale
+    const wy    = (my - v.y) / v.scale
+    // Rayon de détection minimal en CSS = rayon visuel + 10px slop fixe + slopCss
+    // Converti en unités-monde pour la comparaison de distance
+    const BASE_SLOP_CSS = 10
+    let best = null, bestDist = Infinity
+    for (const node of nodesArrRef.current) {
+      const hitWorld = node.r + (BASE_SLOP_CSS + slopCss) / v.scale
+      const d = Math.hypot(node.x - wx, node.y - wy)
+      if (d < hitWorld && d < bestDist) { bestDist = d; best = node }
+    }
+    return best
+  }, [])
+
+  // ── Action sur un nœud cliqué ─────────────────────────────────────────────
+  const openNode = useCallback((node, modifierKey = false) => {
+    if (!node) return
+    if (node.kind === 'article') {
+      setReportArticle({
+        article: {
+          'URL':                 node.url,
+          'Sources':             node.source,
+          'Date de publication': node.date,
+          'Résumé':              node.resume,
+        },
+        filePath: node.file ?? '',
+      })
+    } else if (node.kind === 'entity') {
+      if (modifierKey) {
+        const key = `${node.ner_type}:${node.value}`
+        const next = new Set(selectedEntityKeysRef.current)
+        if (next.has(key)) { next.delete(key) } else { next.add(key) }
+        selectedEntityKeysRef.current = next
+        setSelectedEntityKeys(new Set(next))
+        setTimeout(() => loadRef.current?.(next.size > 0 ? 'articles' : 'entities'), 0)
+      } else {
+        setEntityPanel({ type: node.ner_type, value: node.value })
+      }
+    } else {
+      setSelected(node)
+    }
+  }, [])
+
   const handleMouseUp = useCallback((e) => {
     if (!dragRef.current) return
     const dx = Math.abs(e.clientX - dragRef.current.startX)
     const dy = Math.abs(e.clientY - dragRef.current.startY)
     dragRef.current = null
-
-    // Clic (pas de drag significatif)
-    if (dx < 4 && dy < 4) {
-      const node = tooltip?.node ?? null
-      if (node?.kind === 'article') {
-        setReportArticle({
-          article: {
-            'URL':                  node.url,
-            'Sources':              node.source,
-            'Date de publication':  node.date,
-            'Résumé':               node.resume,
-          },
-          filePath: node.file ?? '',
-        })
-      } else if (node?.kind === 'entity') {
-        // Clic simple : ouvrir le détail entité.
-        // Shift/Cmd/Ctrl + clic : ajouter/retirer l'entité de la sélection du graphe.
-        if (e.shiftKey || e.metaKey || e.ctrlKey) {
-          const key = `${node.ner_type}:${node.value}`
-          const next = new Set(selectedEntityKeysRef.current)
-          if (next.has(key)) next.delete(key)
-          else next.add(key)
-          selectedEntityKeysRef.current = next
-          setSelectedEntityKeys(new Set(next))
-          setTimeout(() => loadRef.current?.(next.size > 0 ? 'articles' : 'entities'), 0)
-        } else {
-          setEntityPanel({ type: node.ner_type, value: node.value })
-        }
-      } else {
-        setSelected(node)
-      }
+    if (dx < 6 && dy < 6) {
+      const node = getNodeAtClientPos(e.clientX, e.clientY)
+      openNode(node, e.shiftKey || e.metaKey || e.ctrlKey)
     }
-  }, [tooltip])
+  }, [getNodeAtClientPos, openNode])
 
   const handleMouseLeave = useCallback(() => {
     dragRef.current = null
     setTooltip(null)
   }, [])
+
+  // ── Refs stables pour fermetures dans canvasCallbackRef ──────────────────
+  const applyViewRef    = useRef(applyView)
+  const getNodeAtPosRef = useRef(getNodeAtClientPos)
+  const openNodeRef     = useRef(openNode)
+  useEffect(() => { applyViewRef.current    = applyView },         [applyView])
+  useEffect(() => { getNodeAtPosRef.current = getNodeAtClientPos }, [getNodeAtClientPos])
+  useEffect(() => { openNodeRef.current     = openNode },          [openNode])
+
+  // ── Handlers touch (callback ref — attachés synchro à l'entrée dans le DOM) ──
+  // 100% touch events — les pointer events sont supprimés par preventDefault() sur iOS.
+  const canvasCallbackRef = useCallback((el) => {
+    if (canvasRef.current?._touchCleanup) {
+      canvasRef.current._touchCleanup()
+      delete canvasRef.current._touchCleanup
+    }
+    canvasRef.current = el
+    if (!el) return
+
+    const opt = { passive: false }
+
+    const onTouchStart = (e) => {
+      e.preventDefault()
+      if (e.touches.length === 1) {
+        const t = e.touches[0]
+        dragRef.current       = { startX: t.clientX, startY: t.clientY, ox: viewRef.current.x, oy: viewRef.current.y }
+        tapRef.current        = { x: t.clientX, y: t.clientY }
+        touchDistRef.current  = null
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX
+        const dy = e.touches[0].clientY - e.touches[1].clientY
+        touchDistRef.current = { dist: Math.hypot(dx, dy), scale: viewRef.current.scale }
+        dragRef.current = null
+        tapRef.current  = null
+      }
+    }
+
+    const onTouchMove = (e) => {
+      e.preventDefault()
+      // Annuler le tap si le doigt bouge
+      if (tapRef.current && e.touches.length === 1) {
+        const t = e.touches[0]
+        if (Math.abs(t.clientX - tapRef.current.x) > 10 ||
+            Math.abs(t.clientY - tapRef.current.y) > 10) {
+          tapRef.current = null
+        }
+      }
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const sX   = canvas.width  / rect.width
+      const sY   = canvas.height / rect.height
+      if (e.touches.length === 2 && touchDistRef.current) {
+        const dx     = e.touches[0].clientX - e.touches[1].clientX
+        const dy     = e.touches[0].clientY - e.touches[1].clientY
+        const dist   = Math.hypot(dx, dy)
+        const factor = dist / touchDistRef.current.dist
+        const cx     = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) * sX
+        const cy     = ((e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top)  * sY
+        const newScale = Math.min(8, Math.max(0.1, touchDistRef.current.scale * factor))
+        const v = viewRef.current
+        const ratio = newScale / v.scale
+        applyViewRef.current({ x: cx - (cx - v.x) * ratio, y: cy - (cy - v.y) * ratio, scale: newScale })
+      } else if (e.touches.length === 1 && dragRef.current) {
+        const t  = e.touches[0]
+        const dx = (t.clientX - dragRef.current.startX) * sX
+        const dy = (t.clientY - dragRef.current.startY) * sY
+        applyViewRef.current({ ...viewRef.current, x: dragRef.current.ox + dx, y: dragRef.current.oy + dy })
+        setTooltip(null)
+      }
+    }
+
+    const onTouchEnd = (e) => {
+      e.preventDefault()
+      const tap = tapRef.current
+      dragRef.current      = null
+      tapRef.current       = null
+      touchDistRef.current = null
+      // Si tapRef est encore défini, le doigt n'a pas bougé → c'est un tap
+      if (tap && e.changedTouches.length === 1) {
+        const node = getNodeAtPosRef.current(tap.x, tap.y, 12)
+        if (node) openNodeRef.current(node)
+      }
+    }
+
+    el.addEventListener('touchstart', onTouchStart, opt)
+    el.addEventListener('touchmove',  onTouchMove,  opt)
+    el.addEventListener('touchend',   onTouchEnd,   opt)
+    el._touchCleanup = () => {
+      el.removeEventListener('touchstart', onTouchStart, opt)
+      el.removeEventListener('touchmove',  onTouchMove,  opt)
+      el.removeEventListener('touchend',   onTouchEnd,   opt)
+    }
+  }, []) // déps vides — toutes les fonctions appelées via des refs stables
 
   // ── Centrer la vue ────────────────────────────────────────────────────────
   const fitView = useCallback(() => {
@@ -1219,11 +1341,11 @@ export default function KnowledgeGraph({ onClose }) {
       {/* ── Corps ── */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Canvas */}
-        <div ref={containerRef} className="flex-1 relative overflow-hidden">
+        <div ref={containerRef} className="flex-1 relative overflow-hidden" style={{ touchAction: 'none' }}>
           <canvas
-            ref={canvasRef}
+            ref={canvasCallbackRef}
             className="absolute inset-0"
-            style={{ cursor: 'grab' }}
+            style={{ cursor: 'grab', touchAction: 'none' }}
             onWheel={handleWheel}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
