@@ -14,6 +14,7 @@ import { createPortal } from 'react-dom'
 import {
   X, Maximize2, Minimize2, Copy, Download, Printer,
   RefreshCw, FileText, Check, Terminal, BookOpen, Loader2,
+  Hash, FolderOpen,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -348,7 +349,7 @@ function buildObsidianNoteBody(article, geoData = {}) {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-export default function ArticleFullReportDialog({ article, filePath, obsidianVaultProp, onClose, onReportSaved }) {
+export default function ArticleFullReportDialog({ article, filePath, obsidianVaultProp, onClose, onReportSaved, onOpenFile }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [reportMd, setReportMd]         = useState('')
   const [isLoading, setIsLoading]       = useState(true)
@@ -370,6 +371,8 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
   const date         = article['Date de publication'] ?? ''
   const sentiment    = article['sentiment'] ?? ''
   const ton          = article['ton_editorial'] ?? ''
+  const motCle       = article['mot_cle'] ?? ''
+  const fichierSource = article['fichier_source'] ?? ''
   const mainImageUrl = (() => {
     const imgs = article['Images']
     if (!Array.isArray(imgs) || !imgs.length) return null
@@ -863,9 +866,28 @@ ${contentEl.innerHTML}
           <FileText size={17} className="text-blue-500 shrink-0" />
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{titre}</h2>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
-              {[sources, date, sentiment].filter(Boolean).join(' · ')}
-            </p>
+            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                {[sources, date, sentiment].filter(Boolean).join(' · ')}
+              </p>
+              {motCle && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800"
+                  title="Mot-clé de collecte"
+                >
+                  <Hash size={8} />{motCle}
+                </span>
+              )}
+              {fichierSource && onOpenFile && (
+                <button
+                  onClick={() => onOpenFile(fichierSource)}
+                  className="inline-flex items-center gap-1 text-[10px] text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/30 px-1.5 py-0.5 rounded-full border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors cursor-pointer"
+                  title={`Ouvrir ${fichierSource}`}
+                >
+                  <FolderOpen size={8} />{fichierSource.split('/').pop()}
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-0.5 shrink-0 flex-wrap justify-end">
             {!isLoading && cleanMd && (

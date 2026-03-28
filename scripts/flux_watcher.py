@@ -309,6 +309,8 @@ def main(dry_run: bool = False) -> None:
                 "URL": link,
                 "Résumé": resume,
                 "Images": images,
+                "mot_cle": kw,
+                "fichier_source": str(out_path.relative_to(PROJECT_ROOT)).replace("\\", "/"),
             }
             if entities:
                 article["entities"] = entities

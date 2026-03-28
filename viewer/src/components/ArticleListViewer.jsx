@@ -1543,6 +1543,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
             ...prev,
             [url]: [...(prev[url] || []), rapport]
           }))}
+          onOpenFile={onOpenFile}
         />
       )}
     </div>
