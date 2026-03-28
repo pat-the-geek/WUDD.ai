@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1a1a1a"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+
+    <!-- Rayon entrant blanc -->
+    <linearGradient id="rayIn" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="white" stop-opacity="0"/>
+      <stop offset="100%" stop-color="white" stop-opacity="1"/>
+    </linearGradient>
+
+    <!-- Spectres sortants avec fondu vers l'extérieur -->
+    <linearGradient id="sr" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ff2200" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#ff2200" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="so" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ff8800" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#ff8800" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sy" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffee00" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#ffee00" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00dd44" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#00dd44" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sb" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0099ff" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#0099ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sv" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#aa44ff" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#aa44ff" stop-opacity="0"/>
+    </linearGradient>
+
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1.2" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Fond noir -->
+  <rect width="100" height="100" fill="#000000"/>
+
+  <!-- Rayon entrant blanc, centré verticalement sur le prisme -->
+  <line x1="5" y1="50" x2="33" y2="50"
+        stroke="url(#rayIn)" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Prisme — triangle noir plein, contour blanc net -->
+  <polygon points="50,18 30,76 70,76"
+    fill="#000000"
+    stroke="white"
+    stroke-width="1.8"
+    stroke-linejoin="miter"
+  />
+
+  <!-- Spectres sortants — depuis la face droite du prisme vers la droite -->
+  <!-- Point de sortie approximatif sur la face droite: ~(60, 47 area) -->
+  <g filter="url(#glow)">
+    <line x1="60" y1="41" x2="97" y2="24" stroke="url(#sr)" stroke-width="2.0" stroke-linecap="round"/>
+    <line x1="60" y1="44" x2="97" y2="34" stroke="url(#so)" stroke-width="2.0" stroke-linecap="round"/>
+    <line x1="60" y1="47" x2="97" y2="44" stroke="url(#sy)" stroke-width="2.0" stroke-linecap="round"/>
+    <line x1="60" y1="50" x2="97" y2="54" stroke="url(#sg)" stroke-width="2.0" stroke-linecap="round"/>
+    <line x1="60" y1="53" x2="97" y2="64" stroke="url(#sb)" stroke-width="2.0" stroke-linecap="round"/>
+    <line x1="60" y1="56" x2="97" y2="74" stroke="url(#sv)" stroke-width="2.0" stroke-linecap="round"/>
+  </g>
+
+</svg>

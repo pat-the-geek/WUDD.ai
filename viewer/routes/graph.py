@@ -12,6 +12,7 @@ from pathlib import Path
 
 from viewer.helpers import PROJECT_ROOT
 from utils.article_index import get_article_index
+from utils.entity_index import EntityIndex
 
 graph_bp = Blueprint("graph", __name__)
 
@@ -633,3 +634,163 @@ def _generate_all(keyword: str = "", entity_types: set = None, selected_entities
         )
         + "\n\n"
     )
+
+
+# ── Nombre max d'entités L2 co-occurrentes retournées ──────────────────────
+_MAX_L2_ENTITIES  = 150  # nœuds L2 max au total
+_MAX_CO_PER_ENTITY = 10  # co-occurrences max par entité source
+
+
+@graph_bp.route("/api/graph/l2")
+def api_graph_l2():
+    """Retourne les co-occurrences L2 pour les entités du graphe.
+
+    Pour chaque entité fournie, cherche dans l'entity_index tous les articles
+    qui la mentionnent, puis collecte les autres entités de ces articles.
+    Retourne les nouveaux nœuds entités + arêtes entité↔entité pondérées.
+
+    Paramètres GET :
+      entities  — JSON array de clés ex. ["PERSON:Emmanuel Macron","ORG:OpenAI"]
+      date_from — filtre date début (YYYY-MM-DD) optionnel
+      date_to   — filtre date fin   (YYYY-MM-DD) optionnel
+    """
+    raw = request.args.get("entities", "").strip()
+    if not raw:
+        return jsonify({"nodes": [], "edges": []})
+
+    try:
+        entity_keys = json.loads(raw)
+        if not isinstance(entity_keys, list):
+            return jsonify({"error": "entities doit être un tableau JSON"}), 400
+    except (json.JSONDecodeError, TypeError):
+        return jsonify({"error": "JSON invalide pour entities"}), 400
+
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+
+    # Ensemble des clés normalisées des entités déjà sur le graphe
+    source_keys: set[str] = set()
+    for k in entity_keys:
+        if isinstance(k, str) and ":" in k:
+            source_keys.add(k.strip())
+
+    if not source_keys:
+        return jsonify({"nodes": [], "edges": []})
+
+    eidx = EntityIndex(PROJECT_ROOT)
+
+    # Pour chaque entité source, collecter les articles puis les co-entités
+    # co_count[source_key][co_key] = nombre d'articles en commun
+    co_count: dict[str, dict[str, int]] = {}
+    # Infos sur les entités co-occurrentes (ner_type, value)
+    co_info: dict[str, tuple[str, str]] = {}  # co_key → (ner_type, value)
+
+    # Cache des fichiers déjà lus
+    file_cache: dict[str, list] = {}
+
+    for src_key in source_keys:
+        if ":" not in src_key:
+            continue
+        ner_type, _, value = src_key.partition(":")
+        if not value:
+            continue
+
+        refs = eidx.get_refs(ner_type, value)
+
+        # Filtre par date si spécifié
+        if date_from or date_to:
+            filtered = []
+            for ref in refs:
+                d = ref.get("date", "")[:10]
+                if date_from and d and d < date_from:
+                    continue
+                if date_to and d and d > date_to:
+                    continue
+                filtered.append(ref)
+            refs = filtered
+
+        co_count[src_key] = {}
+
+        for ref in refs:
+            fpath = ref.get("file", "")
+            idx = ref.get("idx", -1)
+            if not fpath or idx < 0:
+                continue
+
+            # Charger le fichier JSON (avec cache)
+            if fpath not in file_cache:
+                full = PROJECT_ROOT / fpath
+                if not full.exists():
+                    file_cache[fpath] = []
+                    continue
+                try:
+                    file_cache[fpath] = json.loads(full.read_text(encoding="utf-8"))
+                except Exception:
+                    file_cache[fpath] = []
+                    continue
+
+            articles = file_cache[fpath]
+            if idx >= len(articles):
+                continue
+
+            article = articles[idx]
+            entities = article.get("entities", {})
+            if not isinstance(entities, dict):
+                continue
+
+            for co_type, values in entities.items():
+                if not isinstance(values, list):
+                    continue
+                for v in values:
+                    if not isinstance(v, str) or not v.strip():
+                        continue
+                    co_key = f"{co_type}:{v.strip()}"
+                    # Ne pas compter les entités déjà sur le graphe
+                    if co_key in source_keys:
+                        continue
+                    co_count[src_key][co_key] = co_count[src_key].get(co_key, 0) + 1
+                    if co_key not in co_info:
+                        co_info[co_key] = (co_type, v.strip())
+
+    # Sélectionner les top co-occurrences par entité source, puis global
+    all_candidates: dict[str, int] = {}  # co_key → total count across all sources
+    per_source_top: dict[str, list[str]] = {}  # src_key → [co_key, ...]
+    for src_key, counts in co_count.items():
+        top = sorted(counts.items(), key=lambda x: -x[1])[:_MAX_CO_PER_ENTITY]
+        per_source_top[src_key] = [k for k, _ in top]
+        for co_key, cnt in top:
+            all_candidates[co_key] = all_candidates.get(co_key, 0) + cnt
+
+    # Garder les _MAX_L2_ENTITIES entités les plus co-occurrentes globalement
+    selected_l2 = set(
+        k for k, _ in sorted(all_candidates.items(), key=lambda x: -x[1])[:_MAX_L2_ENTITIES]
+    )
+
+    # Construire les nœuds et arêtes
+    nodes = []
+    edges = []
+    for co_key in selected_l2:
+        info = co_info.get(co_key)
+        if not info:
+            continue
+        ner_type, value = info
+        nodes.append({
+            "id": f"entity:{co_key}",
+            "kind": "entity",
+            "ner_type": ner_type,
+            "value": value,
+            "l2": True,
+        })
+
+    for src_key, top_keys in per_source_top.items():
+        for co_key in top_keys:
+            if co_key not in selected_l2:
+                continue
+            weight = co_count[src_key].get(co_key, 1)
+            edges.append({
+                "source": f"entity:{src_key}",
+                "target": f"entity:{co_key}",
+                "weight": weight,
+            })
+
+    return jsonify({"nodes": nodes, "edges": edges})

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" id="theme-color" content="#ffffff" />
+    <title>WUDD.ai — Explorateur</title>
+    <script>
+      (function () {
+        var t = localStorage.getItem('wudd_theme') || 'auto';
+        var isDark = t === 'nuit' || (t === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) document.documentElement.classList.add('dark');
+        document.getElementById('theme-color').setAttribute('content', isDark ? '#1e293b' : '#ffffff');
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-BD-_ChbN.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DQ47mTU5.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

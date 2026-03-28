@@ -441,7 +441,10 @@ export default function KnowledgeGraph({ onClose }) {
   const [showL2, setShowL2] = useState(false)
   const showL2Ref = useRef(false)
   useEffect(() => { showL2Ref.current = showL2 }, [showL2])
-  const l2EdgesArrRef = useRef([]) // arêtes entité↔entité (co-occurrence dans articles)
+  const l2EdgesArrRef = useRef([]) // arêtes entité↔entité (index pairs dans nodesArr)
+  const l2NodeIdsRef  = useRef(new Set()) // IDs des nœuds L2 ajoutés au graphe
+  const l2LoadingRef  = useRef(false)
+  const [l2Loading, setL2Loading] = useState(false)
 
   // Ref stable vers la fonction load (pour appel depuis toggleType sans dépendance cyclique)
   const loadRef = useRef(null)
@@ -458,49 +461,106 @@ export default function KnowledgeGraph({ onClose }) {
     }
   }, [])
 
-  // Calcule les arêtes L2 (co-occurrences entité↔entité via articles partagés)
-  const computeL2Edges = useCallback(() => {
+  // Calcule les arêtes L2 : appel backend pour co-occurrences entité↔entité
+  const computeL2Edges = useCallback(async () => {
     if (!showL2Ref.current) {
-      l2EdgesArrRef.current = []
+      // Nettoyer les nœuds/arêtes L2 existants
+      _removeL2Nodes()
       return
     }
     const nodes = nodesArrRef.current
-    const edges = edgesArrRef.current
-    // Article → liste d'indices d'entités connectées
-    const artToEntities = {}
-    for (const [si, ti] of edges) {
-      const sNode = nodes[si]
-      const tNode = nodes[ti]
-      if (!sNode || !tNode) continue
-      let entityIdx, artIdx
-      if (sNode.kind === 'entity' && tNode.kind === 'article') {
-        entityIdx = si; artIdx = ti
-      } else if (sNode.kind === 'article' && tNode.kind === 'entity') {
-        entityIdx = ti; artIdx = si
-      } else continue
-      if (!artToEntities[artIdx]) artToEntities[artIdx] = []
-      artToEntities[artIdx].push(entityIdx)
+    if (nodes.length === 0) return
+    if (l2LoadingRef.current) return
+    l2LoadingRef.current = true
+    setL2Loading(true)
+
+    // Nettoyer les anciens nœuds L2 masqués avant d'en ajouter de nouveaux
+    _removeL2Nodes()
+
+    // Collecter les clés d'entités actuellement sur le graphe (hors L2)
+    const entityKeys = nodes
+      .filter(n => n.kind === 'entity' && !n.l2)
+      .map(n => `${n.ner_type}:${n.value}`)
+    if (entityKeys.length === 0) {
+      l2LoadingRef.current = false
+      setL2Loading(false)
+      return
     }
-    // Paires uniques d'entités qui partagent au moins un article
-    const l2EdgeSet = new Set()
-    const l2Edges   = []
-    for (const entityList of Object.values(artToEntities)) {
-      for (let i = 0; i < entityList.length; i++) {
-        for (let j = i + 1; j < entityList.length; j++) {
-          const a   = Math.min(entityList[i], entityList[j])
-          const b   = Math.max(entityList[i], entityList[j])
-          const key = `${a}-${b}`
-          if (!l2EdgeSet.has(key)) {
-            l2EdgeSet.add(key)
-            l2Edges.push([a, b])
-          }
+
+    try {
+      const params = new URLSearchParams({
+        entities: JSON.stringify(entityKeys),
+      })
+      if (dateFrom) params.set('date_from', dateFrom)
+      if (dateTo) params.set('date_to', dateTo)
+
+      const resp = await fetch(`/api/graph/l2?${params}`)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const data = await resp.json()
+
+      if (!showL2Ref.current) { l2LoadingRef.current = false; setL2Loading(false); return }
+
+      const idx = nodeIndexRef.current
+      const canvas = canvasRef.current
+      const W = canvas?.width ?? 800
+      const H = canvas?.height ?? 600
+
+      // Ajouter les nouveaux nœuds L2
+      const newNodeIds = new Set()
+      for (const nd of (data.nodes || [])) {
+        if (idx[nd.id] !== undefined) {
+          // Nœud déjà sur le graphe (non-L2) → on peut quand même ajouter des arêtes
+          continue
+        }
+        const angle = Math.random() * Math.PI * 2
+        const dist = 120 + Math.random() * Math.min(W, H) * 0.3
+        nodes.push({
+          ...nd,
+          r: R_ENTITY * 0.7, // plus petits
+          l2: true,
+          pinned: false,
+          x: W / 2 + Math.cos(angle) * dist,
+          y: H / 2 + Math.sin(angle) * dist,
+          vx: 0, vy: 0,
+        })
+        idx[nd.id] = nodes.length - 1
+        newNodeIds.add(nd.id)
+      }
+      l2NodeIdsRef.current = newNodeIds
+
+      // Construire les arêtes L2 (indices dans nodesArr)
+      const l2Edges = []
+      for (const edge of (data.edges || [])) {
+        const si = idx[edge.source]
+        const ti = idx[edge.target]
+        if (si !== undefined && ti !== undefined) {
+          l2Edges.push([si, ti])
         }
       }
+      l2EdgesArrRef.current = l2Edges
+
+      // Réchauffer la simulation
+      tempRef.current = Math.max(tempRef.current, 10)
+    } catch (err) {
+      console.error('L2 fetch error:', err)
+    } finally {
+      l2LoadingRef.current = false
+      setL2Loading(false)
     }
-    l2EdgesArrRef.current = l2Edges
+  }, [dateFrom, dateTo])
+
+  // Masque les nœuds et arêtes L2 du graphe
+  const _removeL2Nodes = useCallback(() => {
+    l2EdgesArrRef.current = []
+    // Marquer les nœuds L2 comme masqués (ils restent dans le tableau pour ne pas casser les indices)
+    for (const node of nodesArrRef.current) {
+      if (node.l2) node._hidden = true
+    }
+    l2NodeIdsRef.current = new Set()
+    tempRef.current = Math.max(tempRef.current, 5)
   }, [])
 
-  // Quand showL2 change : recalcule les arêtes L2 et relance la simulation
+  // Quand showL2 change : charge ou nettoie les arêtes L2
   useEffect(() => {
     computeL2Edges()
     if (nodesArrRef.current.length > 0) tempRef.current = Math.max(tempRef.current, 5)
@@ -613,6 +673,7 @@ export default function KnowledgeGraph({ onClose }) {
       return bi - ai
     })
     for (const node of drawOrder) {
+      if (node._hidden) continue
       const color = node.kind === 'article'
         ? ARTICLE_COLOR
         : (TYPE_CFG[node.ner_type]?.color ?? ENTITY_DEFAULT)
@@ -670,6 +731,19 @@ export default function KnowledgeGraph({ onClose }) {
         ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)'
         ctx.lineWidth = lw
         ctx.stroke()
+      }
+
+      // Anneau pointillé pour les nœuds L2 (co-occurrences ajoutées)
+      if (node.l2) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(node.x, node.y, r + 3, 0, Math.PI * 2)
+        ctx.strokeStyle = isDark ? 'rgba(167,139,250,0.70)' : 'rgba(124,58,237,0.50)'
+        ctx.lineWidth = 1.5 / scale
+        ctx.setLineDash([3 / scale, 2 / scale])
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.restore()
       }
 
       // Label : entités toujours visibles (petit texte sous le nœud),
@@ -786,6 +860,8 @@ export default function KnowledgeGraph({ onClose }) {
     nodesArrRef.current  = []
     edgesArrRef.current  = []
     nodeIndexRef.current = {}
+    l2EdgesArrRef.current = []
+    l2NodeIdsRef.current  = new Set()
     tempRef.current      = 0
     ticksRef.current     = 0
     setSelected(null)
@@ -1121,6 +1197,7 @@ export default function KnowledgeGraph({ onClose }) {
     let best = null
     let bestDist = Infinity
     for (const node of nodesArrRef.current) {
+      if (node._hidden) continue
       const d = Math.hypot(node.x - wx, node.y - wy)
       if (d < node.r + 8 && d < bestDist) {
         bestDist = d
@@ -1155,6 +1232,7 @@ export default function KnowledgeGraph({ onClose }) {
     const BASE_SLOP_CSS = 10
     let best = null, bestDist = Infinity
     for (const node of nodesArrRef.current) {
+      if (node._hidden) continue
       const hitWorld = node.r + (BASE_SLOP_CSS + slopCss) / v.scale
       const d = Math.hypot(node.x - wx, node.y - wy)
       if (d < hitWorld && d < bestDist) { bestDist = d; best = node }
@@ -1498,13 +1576,15 @@ export default function KnowledgeGraph({ onClose }) {
         {/* ── Toggle L2 (co-occurrences) ── */}
         <button
           onClick={() => setShowL2(v => !v)}
+          disabled={l2Loading}
           className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
             showL2
               ? 'bg-violet-600 text-white ring-2 ring-violet-300'
               : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500'
-          }`}
-          title="Afficher les relations L2 : liaisons directes entre entités co-citées dans les mêmes articles"
+          } ${l2Loading ? 'opacity-60 cursor-wait' : ''}`}
+          title="Afficher les relations L2 : entités co-citées dans d'autres articles des entités du graphe"
         >
+          {l2Loading ? <Loader2 size={12} className="animate-spin" /> : null}
           L2
         </button>
 
@@ -1705,13 +1785,17 @@ export default function KnowledgeGraph({ onClose }) {
               )}
               {/* Entrée L2 si activé */}
               {showL2 && l2EdgesArrRef.current.length > 0 && (
-                <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
-                  <svg width="22" height="10" className="shrink-0">
-                    <line x1="1" y1="5" x2="21" y2="5"
-                      stroke="#7c3aed" strokeWidth="1.5"
-                      strokeDasharray="3 3" strokeOpacity="0.7" />
-                  </svg>
-                  <span className="text-[10px] text-violet-600 dark:text-violet-400 font-medium">L2 co-occur.</span>
+                <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-700 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <svg width="22" height="10" className="shrink-0">
+                      <line x1="1" y1="5" x2="21" y2="5"
+                        stroke="#7c3aed" strokeWidth="1.5"
+                        strokeDasharray="3 3" strokeOpacity="0.7" />
+                    </svg>
+                    <span className="text-[10px] text-violet-600 dark:text-violet-400 font-medium">
+                      L2 · {l2NodeIdsRef.current.size} entités · {l2EdgesArrRef.current.length} liens
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
