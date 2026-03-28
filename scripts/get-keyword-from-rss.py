@@ -338,6 +338,8 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                     "Résumé": resume,
                     "Images": images,
                     "score_source": round(_credibility.get_composite_score(feed_title)),
+                    "mot_cle": kw,
+                    "fichier_source": str((OUTPUT_DIR / f"{kw.replace(' ', '-').lower()}.json").relative_to(PROJECT_ROOT)).replace("\\", "/"),
                 }
                 if entities:
                     article["entities"] = entities

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { X, FileText, Download, Loader2, ExternalLink, ChevronLeft, Network, GripHorizontal, Maximize2, Minimize2, Info, Calendar, Layers, Terminal, BookOpen } from 'lucide-react'
+import { X, FileText, Download, Loader2, ExternalLink, ChevronLeft, Network, GripHorizontal, Maximize2, Minimize2, Info, Calendar, Layers, Terminal, BookOpen, Hash, FolderOpen } from 'lucide-react'
 import EntityWorldMap from './EntityWorldMap'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -125,7 +125,7 @@ function ResizeHandle({ onMouseDown }) {
  *   entityValue {string}  — valeur initiale (ex. "OpenAI")
  *   onClose     {fn}      — ferme le panneau
  */
-export default function EntityArticlePanel({ entityType, entityValue, onClose }) {
+export default function EntityArticlePanel({ entityType, entityValue, onClose, onOpenFile }) {
   // ── Navigation ─────────────────────────────────────────────────────────────
   const [history, setHistory]   = useState([{ type: entityType, value: entityValue }])
   const current = history[history.length - 1]
@@ -876,6 +876,20 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                     {art['Date de publication'] && <span>{art['Date de publication']}</span>}
                     {art['Sources'] && (
                       <><span>·</span><span className="font-medium text-slate-700 dark:text-slate-300">{art['Sources']}</span></>
+                    )}
+                    {art['mot_cle'] && (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800" title="Mot-clé de collecte">
+                        <Hash size={9} />{art['mot_cle']}
+                      </span>
+                    )}
+                    {art['fichier_source'] && (
+                      <button
+                        onClick={e => { e.stopPropagation(); onOpenFile?.(art['fichier_source']) }}
+                        className="inline-flex items-center gap-1 text-[11px] text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/30 px-1.5 py-0.5 rounded-full border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors cursor-pointer"
+                        title={`Ouvrir ${art['fichier_source']}`}
+                      >
+                        <FolderOpen size={9} />{art['fichier_source'].split('/').pop()}
+                      </button>
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>

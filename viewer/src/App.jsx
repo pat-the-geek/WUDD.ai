@@ -808,6 +808,10 @@ export default function App() {
           mobileFilterSignal={mobileFilterSignal}
           onMobileFilterClose={() => { setMobileFiltersActive(false) }}
           onMerged={reloadFileContent}
+          onOpenFile={path => {
+            const full = files.find(f => f.path === path)
+            if (full) selectFile(full)
+          }}
         />
       </div>
 

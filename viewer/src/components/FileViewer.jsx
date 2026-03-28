@@ -193,7 +193,7 @@ function Lightbox({ images, index, onClose, onNav }) {
   )
 }
 
-export default function FileViewer({ file, content, loading, loadingProgress, onDownload, onContentSaved, onEntitySearch, onDelete, annotations, onAnnotate, sidebarOpen, availableProviders = [], articleSearchQuery = null, articleFocusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged }) {
+export default function FileViewer({ file, content, loading, loadingProgress, onDownload, onContentSaved, onEntitySearch, onDelete, annotations, onAnnotate, sidebarOpen, availableProviders = [], articleSearchQuery = null, articleFocusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged, onOpenFile }) {
   const scrollRef = useRef(null)
   const entitiesRef = useRef(null)
   const imagesRef = useRef(null)
@@ -541,7 +541,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
           <div className="text-slate-400 dark:text-slate-500 text-sm">Contenu indisponible</div>
         ) : file.type === 'json' ? (
           viewMode === 'articles' && isArticleArray ? (
-            <ArticleListViewer ref={articleListRef} content={content} annotations={annotations} onAnnotate={onAnnotate} filePath={file?.path} availableProviders={availableProviders} searchInjection={articleSearchQuery} focusSignal={articleFocusSignal} onMobileSearchClose={onMobileSearchClose} mobileFilterSignal={mobileFilterSignal} onMobileFilterClose={onMobileFilterClose} onMerged={onMerged} />
+            <ArticleListViewer ref={articleListRef} content={content} annotations={annotations} onAnnotate={onAnnotate} filePath={file?.path} availableProviders={availableProviders} searchInjection={articleSearchQuery} focusSignal={articleFocusSignal} onMobileSearchClose={onMobileSearchClose} mobileFilterSignal={mobileFilterSignal} onMobileFilterClose={onMobileFilterClose} onMerged={onMerged} onOpenFile={onOpenFile} />
           ) : (
             <>
               <div className="bg-slate-100 dark:bg-slate-950 rounded-xl p-6 border border-slate-200 dark:border-slate-800/60">

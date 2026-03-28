@@ -448,6 +448,7 @@ def _process_article(
             return None
 
     # Construction de l'article (format standard WUDD.ai)
+    _kw_slug = keyword.replace(' ', '-').lower()
     article: dict = {
         "Date de publication": pub_date_fmt,
         "Sources": title_src,
@@ -455,6 +456,8 @@ def _process_article(
         "Résumé": resume,
         "Images": page["images"],
         "score_source": round(_credibility.get_composite_score(title_src)),
+        "mot_cle": keyword,
+        "fichier_source": str((OUTPUT_DIR / f"{_kw_slug}.json").relative_to(PROJECT_ROOT)).replace("\\", "/"),
     }
     if entities:
         article["entities"] = entities
