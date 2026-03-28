@@ -1505,19 +1505,6 @@ export default function KnowledgeGraph({ onClose }) {
         <div className="basis-full h-0" />
         <div className="flex items-center gap-1 flex-wrap basis-full">
           <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mr-1 shrink-0">Types</span>
-          {/* Bouton L2 */}
-          <button
-            onClick={() => setShowL2(v => !v)}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border transition-colors whitespace-nowrap shrink-0 ${
-              showL2
-                ? 'bg-violet-500 text-white border-transparent'
-                : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-violet-400'
-            }`}
-            title="Afficher les relations L2 : liaisons entité↔entité co-citées dans les mêmes articles"
-          >
-            L2
-          </button>
-          <span className="text-[10px] text-slate-300 dark:text-slate-600 select-none">|</span>
           {ALL_NER_TYPES.map(t => (
             <button
               key={t}
@@ -1563,6 +1550,17 @@ export default function KnowledgeGraph({ onClose }) {
         </div>
 
         <div className="flex-1" />
+
+        {/* L2 co-occurrences */}
+        <label className="flex shrink-0 items-center gap-1.5 text-xs cursor-pointer font-semibold whitespace-nowrap select-none" style={{ color: showL2 ? '#7c3aed' : '#94a3b8' }} title="Afficher les relations L2 : liaisons directes entre entités co-citées dans les mêmes articles">
+          <input
+            type="checkbox"
+            checked={showL2}
+            onChange={e => setShowL2(e.target.checked)}
+            className="w-3 h-3 accent-violet-500"
+          />
+          L2
+        </label>
 
         {/* Taille ∝ articles */}
         <label className="flex shrink-0 items-center gap-1.5 text-xs cursor-pointer font-semibold text-violet-600 dark:text-violet-400 whitespace-nowrap select-none" title="Taille des nœuds ∝ nombre d'articles qui mentionnent l'entité (log)">
