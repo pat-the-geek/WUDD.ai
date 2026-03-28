@@ -1495,6 +1495,19 @@ export default function KnowledgeGraph({ onClose }) {
           Charger
         </button>
 
+        {/* ── Toggle L2 (co-occurrences) ── */}
+        <button
+          onClick={() => setShowL2(v => !v)}
+          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
+            showL2
+              ? 'bg-violet-600 text-white ring-2 ring-violet-300'
+              : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500'
+          }`}
+          title="Afficher les relations L2 : liaisons directes entre entités co-citées dans les mêmes articles"
+        >
+          L2
+        </button>
+
         {selectedEntityKeys.size > 0 && (
           <span className="text-[11px] px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-medium shrink-0">
             {selectedEntityKeys.size} entité{selectedEntityKeys.size > 1 ? 's' : ''} sélectionnée{selectedEntityKeys.size > 1 ? 's' : ''}
@@ -1526,23 +1539,7 @@ export default function KnowledgeGraph({ onClose }) {
               {TYPE_CFG[t]?.label ?? t}
             </button>
           ))}
-          {/* Checkbox L2 — toujours visible en fin de ligne Types */}
-          <label
-            className={`ml-auto flex shrink-0 items-center gap-1 text-[11px] cursor-pointer font-semibold whitespace-nowrap select-none px-1.5 py-0.5 rounded border transition-colors ${
-              showL2
-                ? 'bg-violet-500 text-white border-transparent'
-                : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400'
-            }`}
-            title="Afficher les relations L2 : liaisons directes entre entités co-citées dans les mêmes articles"
-          >
-            <input
-              type="checkbox"
-              checked={showL2}
-              onChange={e => setShowL2(e.target.checked)}
-              className="w-3 h-3 accent-violet-500 cursor-pointer"
-            />
-            L2
-          </label>
+
         </div>
 
         {/* ── Filtre article (titre + résumé) ── */}
