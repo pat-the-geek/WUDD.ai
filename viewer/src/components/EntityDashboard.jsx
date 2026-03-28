@@ -274,7 +274,7 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
             ) : (
               <>
                 {/* Statistiques globales */}
-                <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8 ${isMaximized && viewMode === 'map' ? 'shrink-0' : ''}`}>
+                <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8 ${viewMode === 'map' ? 'shrink-0' : ''}`}>
                   <StatCard icon={FileText}  value={data.total_files}          label="Fichiers analysés" />
                   <StatCard icon={Newspaper} value={data.total_articles}        label="Articles au total" />
                   <StatCard
@@ -292,7 +292,7 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
                   <EntityWorldMap
                     entities={geoEntities}
                     onEntityClick={(type, value) => setSelectedEntity({ type, value })}
-                    style={isMaximized ? { flex: 1, minHeight: 0 } : undefined}
+                    style={isMaximized ? { flex: 1, minHeight: 0 } : { height: 'clamp(220px, calc(100dvh - 22rem), 520px)' }}
                   />
                 ) : viewMode === 'gallery' ? (
                   /* ── Vue Galerie ── */

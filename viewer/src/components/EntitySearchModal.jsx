@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { X, ExternalLink, FileText, Loader2, Tag } from 'lucide-react'
+import GraphArticlePanel from './GraphArticlePanel'
 
 /**
  * EntitySearchModal — recherche cross-fichiers pour une entité nommée.
@@ -45,6 +46,7 @@ function HighlightedExcerpt({ text, query }) {
 export default function EntitySearchModal({ query, entityType, onClose, onSelectFile }) {
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
+  const [reportItem, setReportItem] = useState(null)
 
   useEffect(() => {
     setLoading(true)
@@ -72,6 +74,7 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
   }, [onClose])
 
   return (
+  <>
     <div
       className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}
@@ -145,7 +148,8 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
                     {file.items.map((item, i) => (
                       <div
                         key={i}
-                        className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-lg p-3"
+                        className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-lg p-3 cursor-pointer hover:border-[#007AFF]/40 dark:hover:border-[#0A84FF]/40 hover:shadow-sm transition-all"
+                        onClick={() => setReportItem(item)}
                       >
                         <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                           <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -173,7 +177,7 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
                               rel="noopener noreferrer"
                               className="ml-auto shrink-0 text-slate-300 dark:text-slate-600 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
                               title="Ouvrir l'article"
-                              onClick={e => e.stopPropagation()}
+                              onClick={e => { e.stopPropagation(); e.preventDefault(); window.open(item.url, '_blank', 'noopener,noreferrer') }}
                             >
                               <ExternalLink size={11} />
                             </a>
@@ -192,5 +196,14 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
         </div>
       </div>
     </div>
+
+    {reportItem && (
+      <GraphArticlePanel
+        article={{ url: reportItem.url, source: reportItem.source, date: reportItem.date }}
+        filePath={reportItem.path}
+        onClose={() => setReportItem(null)}
+      />
+    )}
+  </>
   )
 }

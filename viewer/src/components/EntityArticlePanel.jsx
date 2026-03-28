@@ -7,6 +7,7 @@ import EntityGraph from './EntityGraph'
 import EntityCalendar from './EntityCalendar'
 import TTSButton from './TTSButton'
 import EntityFullReportDialog from './EntityFullReportDialog'
+import GraphArticlePanel from './GraphArticlePanel'
 import { openInObsidian } from '../utils/obsidian'
 
 // ── Composants Markdown ────────────────────────────────────────────────────────
@@ -466,6 +467,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
 
   // ── Exports ────────────────────────────────────────────────────────────────
   const [showReportDialog, setShowReportDialog] = useState(false)
+  const [reportArticle, setReportArticle] = useState(null)
 
   // ── Splitter carte/articles (GPE · LOC) ────────────────────────────────────
   const [splitPct, setSplitPct]   = useState(50)
@@ -866,7 +868,8 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
             articles.map((art, i) => (
               <article
                 key={i}
-                className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 space-y-2"
+                className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 rounded-xl p-4 space-y-2 cursor-pointer hover:border-[#007AFF]/40 dark:hover:border-[#0A84FF]/40 hover:shadow-sm transition-all"
+                onClick={() => setReportArticle(art)}
               >
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
@@ -875,7 +878,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
                       <><span>·</span><span className="font-medium text-slate-700 dark:text-slate-300">{art['Sources']}</span></>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                     {art['Résumé'] && <TTSButton text={art['Résumé']} size={12} />}
                     {art['URL'] && (
                       <a
@@ -935,13 +938,22 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose })
         {!isMaximized && !isMobileFullscreen && <ResizeHandle onMouseDown={handleResizeMouseDown} />}
       </div>
 
-      {/* ── Dialogue rapport complet ── */}
+      {/* ── Dialogue rapport complet entité ── */}
       {showReportDialog && (
         <EntityFullReportDialog
           entityType={current.type}
           entityValue={current.value}
           articles={articles}
           onClose={() => { setShowReportDialog(false); setRapportsFetchKey(k => k + 1) }}
+        />
+      )}
+
+      {/* ── Panel article complet (image, NER, résumé enrichi) ── */}
+      {reportArticle && (
+        <GraphArticlePanel
+          article={reportArticle}
+          filePath={reportArticle._source_file ?? null}
+          onClose={() => setReportArticle(null)}
         />
       )}
     </>

@@ -19,6 +19,18 @@
     ]
   },
   {
+    "and": [
+      "intelligence artificielle",
+      "IA",
+      "génération de texte",
+      "modèle linguistique",
+      "chatbot",
+      "start-up",
+      "technologie",
+      "silicon valley",
+      "fondation",
+      "sécurité IA"
+    ],
     "keyword": "Anthropic",
     "or": [
       "Claude code",
@@ -34,18 +46,6 @@
       "Anthropic Inc",
       "Anthropic Labs",
       "Anthropic Company"
-    ],
-    "and": [
-      "intelligence artificielle",
-      "IA",
-      "génération de texte",
-      "modèle linguistique",
-      "chatbot",
-      "start-up",
-      "technologie",
-      "silicon valley",
-      "fondation",
-      "sécurité IA"
     ]
   },
   {
@@ -129,6 +129,23 @@
     ]
   },
   {
+    "and": [
+      "santé",
+      "maladie",
+      "épidémie",
+      "hygiène",
+      "médical",
+      "hôpital",
+      "traitement",
+      "vaccin",
+      "microbiologie",
+      "contamination",
+      "résistance",
+      "infectieux",
+      "laboratoire",
+      "épidémiologie",
+      "bactériologie"
+    ],
     "keyword": "bactérie",
     "or": [
       "bactéries",
@@ -146,23 +163,6 @@
       "bactérienne",
       "infection",
       "antibiotique"
-    ],
-    "and": [
-      "santé",
-      "maladie",
-      "épidémie",
-      "hygiène",
-      "médical",
-      "hôpital",
-      "traitement",
-      "vaccin",
-      "microbiologie",
-      "contamination",
-      "résistance",
-      "infectieux",
-      "laboratoire",
-      "épidémiologie",
-      "bactériologie"
     ]
   },
   {
@@ -216,6 +216,23 @@
     ]
   },
   {
+    "and": [
+      "scolaire",
+      "étudiant",
+      "classe",
+      "programme",
+      "curriculum",
+      "enseignant",
+      "réforme",
+      "diplôme",
+      "baccalauréat",
+      "apprentissage",
+      "école publique",
+      "éducation nationale",
+      "éducation inclusive",
+      "éducation numérique",
+      "éducation civique"
+    ],
     "keyword": "éducation",
     "or": [
       "Education",
@@ -233,23 +250,6 @@
       "maternelle",
       "primaire",
       "collège"
-    ],
-    "and": [
-      "scolaire",
-      "étudiant",
-      "classe",
-      "programme",
-      "curriculum",
-      "enseignant",
-      "réforme",
-      "diplôme",
-      "baccalauréat",
-      "apprentissage",
-      "école publique",
-      "éducation nationale",
-      "éducation inclusive",
-      "éducation numérique",
-      "éducation civique"
     ]
   },
   {
@@ -613,9 +613,41 @@
     ]
   },
   {
-    "and": [],
+    "and": [
+      "intelligence artificielle",
+      "analyse de données",
+      "surveillance",
+      "gouvernement",
+      "défense",
+      "sécurité nationale",
+      "logiciel",
+      "startup",
+      "technologie",
+      "données",
+      "IA",
+      "militaire",
+      "contractuel",
+      "système d'information",
+      "big data"
+    ],
     "keyword": "Palantir",
-    "or": []
+    "or": [
+      "Palantir Technologies",
+      "Palantir Tech",
+      "Palantir Inc",
+      "Palantir Corp",
+      "Palantir AI",
+      "Palantir Gov",
+      "Palantir Defense",
+      "Palantir Founders",
+      "Alex Karp",
+      "Peter Thiel",
+      "Joe Lonsdale",
+      "Palantir IPO",
+      "Palantir Stock",
+      "Palantir Contract",
+      "Palantir Software"
+    ]
   },
   {
     "and": [
@@ -707,6 +739,23 @@
     ]
   },
   {
+    "and": [
+      "technologie",
+      "industrie",
+      "fabrication",
+      "logistique",
+      "santé",
+      "agriculture",
+      "transport",
+      "militaire",
+      "recherche",
+      "innovation",
+      "start-up",
+      "prototype",
+      "développement",
+      "automobile",
+      "aérospatial"
+    ],
     "keyword": "Robotic",
     "or": [
       "Robotique",
@@ -725,23 +774,6 @@
       "robotisé",
       "automate",
       "roboticien"
-    ],
-    "and": [
-      "technologie",
-      "industrie",
-      "fabrication",
-      "logistique",
-      "santé",
-      "agriculture",
-      "transport",
-      "militaire",
-      "recherche",
-      "innovation",
-      "start-up",
-      "prototype",
-      "développement",
-      "automobile",
-      "aérospatial"
     ]
   },
   {
@@ -841,6 +873,23 @@
     ]
   },
   {
+    "and": [
+      "président",
+      "États-Unis",
+      "politique",
+      "élection",
+      "justice",
+      "affaire",
+      "procès",
+      "campagne",
+      "MAGA",
+      " Maison Blanche",
+      "congrès",
+      "impeachment",
+      "RNC",
+      "parti républicain",
+      "sénat"
+    ],
     "keyword": "Trump",
     "or": [
       "Trump",
@@ -858,23 +907,6 @@
       "Trump 2024",
       "Trump campagne",
       "Trump affaire"
-    ],
-    "and": [
-      "président",
-      "États-Unis",
-      "politique",
-      "élection",
-      "justice",
-      "affaire",
-      "procès",
-      "campagne",
-      "MAGA",
-      " Maison Blanche",
-      "congrès",
-      "impeachment",
-      "RNC",
-      "parti républicain",
-      "sénat"
     ]
   },
   {
@@ -1040,6 +1072,23 @@
     ]
   },
   {
+    "and": [
+      "informatique",
+      "sécurité",
+      "cyber",
+      "malveillant",
+      "attaque",
+      "infection",
+      "contamination",
+      "logiciel",
+      "code",
+      "réseau",
+      "données",
+      "système",
+      "ordinateur",
+      "mobile",
+      "protection"
+    ],
     "keyword": "virus",
     "or": [
       "virus informatique",
@@ -1057,23 +1106,6 @@
       "virus COVID",
       "coronavirus",
       "épidémie"
-    ],
-    "and": [
-      "informatique",
-      "sécurité",
-      "cyber",
-      "malveillant",
-      "attaque",
-      "infection",
-      "contamination",
-      "logiciel",
-      "code",
-      "réseau",
-      "données",
-      "système",
-      "ordinateur",
-      "mobile",
-      "protection"
     ]
   },
   {
