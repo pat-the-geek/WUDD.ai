@@ -550,11 +550,30 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
               </span>
             )}
             <ReadingTimeBadge article={displayArticle} />
-            {article['mot_cle'] && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800" title="Mot-clé de collecte">
-                <Hash size={9} />{article['mot_cle']}
-              </span>
-            )}
+            {article['mot_cle'] && (() => {
+              const terme = article['terme_declencheur']
+              const termeAnd = article['terme_and']
+              const isDifferent = terme && terme.toLowerCase() !== article['mot_cle'].toLowerCase()
+              const tooltip = [
+                'Mot-clé de collecte',
+                isDifferent ? `Déclenché par : ${terme}` : null,
+                termeAnd ? `Confirmé par (et) : ${termeAnd}` : null,
+              ].filter(Boolean).join('\n')
+              return (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800"
+                  title={tooltip}
+                >
+                  <Hash size={9} />{article['mot_cle']}
+                  {isDifferent && (
+                    <span className="text-emerald-500 dark:text-emerald-400 opacity-75">↳ {terme}</span>
+                  )}
+                  {termeAnd && (
+                    <span className="text-emerald-500 dark:text-emerald-400 opacity-60 italic">+{termeAnd}</span>
+                  )}
+                </span>
+              )
+            })()}
             {article['fichier_source'] && (
               <button
                 onClick={e => { e.stopPropagation(); onOpenFile?.(article['fichier_source']) }}
