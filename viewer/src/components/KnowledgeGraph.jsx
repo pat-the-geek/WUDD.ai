@@ -219,18 +219,32 @@ function stepForce(nodes, edges, W, H, temp, linkMult = 1.2) {
 
 export default function KnowledgeGraph({ onClose }) {
   // ── Filtres ──────────────────────────────────────────────────────────────
-  const today       = new Date().toISOString().slice(0, 10)
-  const weekAgo     = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10)
+  // Dates en heure locale (évite le décalage UTC)
+  const localDate = (offset = 0) => {
+    const d = new Date()
+    d.setDate(d.getDate() + offset)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+  const today       = localDate(0)
+  const yesterday   = localDate(-1)
   const [search,    setSearch]   = useState('')
-  const [dateFrom,  setDateFrom] = useState(weekAgo)
+  const [dateFrom,  setDateFrom] = useState(yesterday)
   const [dateTo,    setDateTo]   = useState(today)
   const [searchBuf, setSearchBuf] = useState('') // champ non-committée
+  const [articleQuery, setArticleQuery] = useState('')
+  const [articleQueryBuf, setArticleQueryBuf] = useState('')
   const [loadAll,   setLoadAll]   = useState(false) // mode "tout charger"
+  const [selectedEntityKeys, setSelectedEntityKeys] = useState(new Set())
+  const selectedEntityKeysRef = useRef(new Set())
+  useEffect(() => { selectedEntityKeysRef.current = selectedEntityKeys }, [selectedEntityKeys])
 
   // ── État de chargement ───────────────────────────────────────────────────
   const [loading,   setLoading]  = useState(false)
   const [status,    setStatus]   = useState(
-    'Configurez les filtres puis cliquez sur Charger.'
+    "Entrez un mot-clé pour afficher les entités correspondantes."
   )
   const [stats,     setStats]    = useState(null) // {total_nodes, total_edges}
 
@@ -315,27 +329,25 @@ export default function KnowledgeGraph({ onClose }) {
     if (nodes.length > 0 && tempRef.current < 3) tempRef.current = 3
   }, [sizeByTotal])
 
-  // ── Filtrage par type d'entité ─────────────────────────────────────────
-  // Types d'entité à afficher par défaut dans la légende
-  const DEFAULT_VISIBLE_TYPES = [
-    'PERSON', 'ORG', 'GPE', 'EVENT', 'PRODUCT', 'NORP', 'LOC', 'FAC'
-  ]
-  // Initialiser hiddenTypes : tous les types présents sauf ceux de la liste ci-dessus
-  const [hiddenTypes, setHiddenTypes] = useState(() => {
-    // On ne connaît pas encore les types présents, donc on attend le premier done
-    return new Set()
-  })
-  const hiddenTypesRef = useRef(new Set())
-  useEffect(() => { hiddenTypesRef.current = hiddenTypes }, [hiddenTypes])
+  // ── Types d'entité actifs (filtre positif — envoyé au serveur) ───────────
+  const ALL_NER_TYPES = ['PERSON', 'ORG', 'GPE', 'LOC', 'EVENT', 'PRODUCT', 'NORP', 'FAC', 'DATE', 'MONEY']
+  const [activeTypes, setActiveTypes] = useState(new Set())
+  const activeTypesRef = useRef(new Set())
+  useEffect(() => { activeTypesRef.current = activeTypes }, [activeTypes])
+
+  // Ref stable vers la fonction load (pour appel depuis toggleType sans dépendance cyclique)
+  const loadRef = useRef(null)
 
   const toggleType = useCallback((type) => {
-    setHiddenTypes(prev => {
-      const next = new Set(prev)
-      if (next.has(type)) next.delete(type)
-      else next.add(type)
-      hiddenTypesRef.current = next
-      return next
-    })
+    const next = new Set(activeTypesRef.current)
+    if (next.has(type)) next.delete(type)
+    else next.add(type)
+    activeTypesRef.current = next
+    setActiveTypes(new Set(next))
+    // Les types servent à enrichir les articles issus des entités sélectionnées
+    if (selectedEntityKeysRef.current.size > 0) {
+      loadRef.current?.('articles')
+    }
   }, [])
 
   // Calcule automatiquement le multiplicateur idéal selon densité du graphe
@@ -402,9 +414,6 @@ export default function KnowledgeGraph({ onClose }) {
 
     const lw = Math.max(0.3, 0.8 / scale)
 
-    const hidden = hiddenTypesRef.current
-    const isHidden = (n) => n.kind === 'entity' && hidden.has(n.ner_type)
-
     // ── Arêtes ──────────────────────────────────────────────────────────
     ctx.strokeStyle = isDark ? 'rgba(148,163,184,0.25)' : 'rgba(100,116,139,0.20)'
     ctx.lineWidth   = lw
@@ -413,7 +422,6 @@ export default function KnowledgeGraph({ onClose }) {
       const s = nodes[si]
       const t = nodes[ti]
       if (!s || !t) continue
-      if (isHidden(s) || isHidden(t)) continue
       ctx.moveTo(s.x, s.y)
       ctx.lineTo(t.x, t.y)
     }
@@ -421,7 +429,7 @@ export default function KnowledgeGraph({ onClose }) {
 
     // ── Nœuds (z-order : typeOrder[0] = au dessus = dessiné en dernier) ──
     const _to = typeOrderRef.current
-    const drawOrder = nodes.filter(n => !isHidden(n)).sort((a, b) => {
+    const drawOrder = [...nodes].sort((a, b) => {
       if (a.kind === 'article' && b.kind !== 'article') return -1
       if (b.kind === 'article' && a.kind !== 'article') return 1
       const ai = _to.indexOf(a.ner_type ?? '')
@@ -434,6 +442,7 @@ export default function KnowledgeGraph({ onClose }) {
         : (TYPE_CFG[node.ner_type]?.color ?? ENTITY_DEFAULT)
       const r     = node.r
       const isSelected = selected && selected.id === node.id
+      const isSeed = node.kind === 'entity' && selectedEntityKeysRef.current.has(`${node.ner_type}:${node.value}`)
 
       // Anneau de mise en avant pour le nœud dont le nom = critère de recherche
       if (node.pinned) {
@@ -459,6 +468,15 @@ export default function KnowledgeGraph({ onClose }) {
         ctx.fill()
       }
 
+      // Halo des entités pilotes (sélectionnées pour le filtrage articles)
+      if (isSeed) {
+        ctx.beginPath()
+        ctx.arc(node.x, node.y, r + 7, 0, Math.PI * 2)
+        ctx.strokeStyle = isDark ? 'rgba(16,185,129,0.85)' : 'rgba(5,150,105,0.9)'
+        ctx.lineWidth = 2.4 / scale
+        ctx.stroke()
+      }
+
       // Cercle principal (ou silhouette pour PERSON)
       if (node.kind === 'entity' && node.ner_type === 'PERSON') {
         drawPersonNode(ctx, node.x, node.y, r, color, lw, isDark)
@@ -478,21 +496,26 @@ export default function KnowledgeGraph({ onClose }) {
         ctx.stroke()
       }
 
-      // Label : toujours visible pour le nœud pinné, sinon seulement à fort zoom
-      if (node.pinned || scale > 1.4 || (scale > 0.8 && node.kind === 'article')) {
+      // Label : entités toujours visibles (petit texte sous le nœud),
+      // articles visibles à partir d'un certain zoom.
+      const showEntityLabel = node.kind === 'entity'
+      const showArticleLabel = node.kind === 'article' && (node.pinned || scale > 1.4 || scale > 0.8)
+      if (showEntityLabel || showArticleLabel) {
         const label = node.kind === 'article'
           ? (node.source || '').slice(0, 18)
-          : (node.value  || '').slice(0, 20)
+          : (node.value  || '').slice(0, 24)
         if (label) {
-          const fs = node.pinned
-            ? Math.max(10, Math.min(16, 14 / scale))
-            : Math.max(7, Math.min(11, 10 / scale))
+          const fs = node.kind === 'entity'
+            ? Math.max(7, Math.min(9, 8 / scale))
+            : (node.pinned
+              ? Math.max(10, Math.min(16, 14 / scale))
+              : Math.max(7, Math.min(11, 10 / scale)))
           ctx.font      = node.pinned
             ? `bold ${fs}px system-ui, sans-serif`
             : `${fs}px system-ui, sans-serif`
           ctx.fillStyle = node.pinned
             ? color
-            : (isDark ? 'rgba(226,232,240,0.9)' : 'rgba(30,41,59,0.9)')
+            : (isDark ? 'rgba(226,232,240,0.92)' : 'rgba(30,41,59,0.9)')
           ctx.textAlign = 'center'
           ctx.fillText(label, node.x, node.y + r + fs + 2)
         }
@@ -551,7 +574,32 @@ export default function KnowledgeGraph({ onClose }) {
   }, [animate])
 
   // ── Chargement SSE ────────────────────────────────────────────────────────
-  const load = useCallback(() => {
+  const load = useCallback((forcedMode = null, forcedKeyword = null, forcedArticleQuery = null) => {
+    const keyword = (forcedKeyword ?? search).trim()
+    const articleQueryNow = (forcedArticleQuery ?? articleQuery).trim()
+    const activeTypesNow = activeTypesRef.current
+    const selectedNow = selectedEntityKeysRef.current
+    const mode = forcedMode ?? (selectedNow.size > 0 ? 'articles' : 'entities')
+
+    if (!keyword) {
+      if (abortRef.current) abortRef.current.abort()
+      nodesArrRef.current  = []
+      edgesArrRef.current  = []
+      nodeIndexRef.current = {}
+      tempRef.current      = 0
+      setSelected(null)
+      setTooltip(null)
+      setStats(null)
+      setLoading(false)
+      setStatus("Entrez un mot-clé pour afficher les entités correspondantes.")
+      return
+    }
+
+    if (mode === 'articles' && selectedNow.size === 0) {
+      setStatus("Sélectionnez au moins une entité pour charger les articles.")
+      return
+    }
+
     // Annule un chargement précédent
     if (abortRef.current) abortRef.current.abort()
 
@@ -571,14 +619,21 @@ export default function KnowledgeGraph({ onClose }) {
     abortRef.current = ctrl
 
     const params = new URLSearchParams()
-    if (loadAll) {
-      params.set('all', 'true')
-    } else {
-      if (dateFrom) params.set('date_from', dateFrom)
-      if (dateTo)   params.set('date_to',   dateTo)
-      params.set('max_articles', '200')
+    params.set('mode', mode)
+    params.set('keyword', keyword)
+
+    if (mode === 'articles') {
+      if (loadAll) {
+        params.set('all', 'true')
+      } else {
+        if (dateFrom) params.set('date_from', dateFrom)
+        if (dateTo)   params.set('date_to',   dateTo)
+        params.set('max_articles', '500')
+      }
+      params.set('selected_entities', JSON.stringify([...selectedNow]))
+      if (activeTypesNow.size > 0) params.set('entity_types', [...activeTypesNow].join(','))
+      if (articleQueryNow) params.set('article_query', articleQueryNow)
     }
-    if (search)   params.set('search', search)
 
     const url    = `/api/graph/knowledge?${params}`
     const canvas = canvasRef.current
@@ -604,7 +659,7 @@ export default function KnowledgeGraph({ onClose }) {
               if (!line.startsWith('data: ')) continue
               try {
                 const ev = JSON.parse(line.slice(6))
-                handleEvent(ev, canvas, search)
+                handleEvent(ev, canvas, keyword, mode)
               } catch { /* ignore */ }
             }
             readChunk()
@@ -623,9 +678,50 @@ export default function KnowledgeGraph({ onClose }) {
           setStatus(`Erreur : ${e.message}`)
         }
       })
-  }, [dateFrom, dateTo, search, loadAll])
+  }, [dateFrom, dateTo, search, articleQuery, loadAll])
 
-  function handleEvent(ev, canvas, searchTerm = '') {
+  // Maintient loadRef à jour pour les appels depuis toggleType
+  useEffect(() => { loadRef.current = load }, [load])
+
+  const runSearchOrReload = useCallback(() => {
+    const nextKeyword = searchBuf.trim()
+    const nextArticleQuery = articleQueryBuf.trim()
+    const keywordChanged = nextKeyword !== search
+    const articleFilterChanged = nextArticleQuery !== articleQuery
+    if (keywordChanged) {
+      setSearch(nextKeyword)
+      setArticleQuery(nextArticleQuery)
+      setSelectedEntityKeys(new Set())
+      selectedEntityKeysRef.current = new Set()
+      setActiveTypes(new Set())
+      activeTypesRef.current = new Set()
+      setTimeout(() => loadRef.current?.('entities', nextKeyword, nextArticleQuery), 0)
+      return
+    }
+    if (articleFilterChanged) {
+      setArticleQuery(nextArticleQuery)
+      if (selectedEntityKeysRef.current.size > 0) {
+        setTimeout(() => loadRef.current?.('articles', nextKeyword, nextArticleQuery), 0)
+      } else {
+        setTimeout(() => loadRef.current?.('entities', nextKeyword, nextArticleQuery), 0)
+      }
+      return
+    }
+    if (selectedEntityKeysRef.current.size > 0) {
+      setTimeout(() => loadRef.current?.('articles'), 0)
+    } else {
+      setTimeout(() => loadRef.current?.('entities'), 0)
+    }
+  }, [search, searchBuf, articleQuery, articleQueryBuf])
+
+  // Si des entités sont déjà sélectionnées, changer la plage de dates relance les articles.
+  useEffect(() => {
+    if (selectedEntityKeysRef.current.size > 0) {
+      loadRef.current?.('articles')
+    }
+  }, [dateFrom, dateTo, loadAll])
+
+  function handleEvent(ev, canvas, searchTerm = '', mode = 'articles') {
     const nodes = nodesArrRef.current
     const edges = edgesArrRef.current
     const idx   = nodeIndexRef.current
@@ -668,11 +764,42 @@ export default function KnowledgeGraph({ onClose }) {
       setStats({ total_nodes: ev.total_nodes, total_edges: ev.total_edges })
       const nArticles  = nodes.filter(n => n.kind === 'article').length
       const nEntities  = nodes.filter(n => n.kind === 'entity').length
-      setStatus(
-        `${nArticles} article${nArticles !== 1 ? 's' : ''} · `
-        + `${nEntities} entité${nEntities !== 1 ? 's' : ''} · `
-        + `${ev.total_edges} liaison${ev.total_edges !== 1 ? 's' : ''}`
-      )
+      const filteredTotal = ev.filtered_total ?? nArticles
+
+      if (mode === 'entities') {
+        if (nEntities === 0) {
+          setSelectedEntityKeys(new Set())
+          setStatus(`Aucune entité trouvée pour "${searchTerm}".`)
+        } else {
+          const autoSelected = new Set(
+            nodes
+              .filter(n => n.kind === 'entity')
+              .map(n => `${n.ner_type}:${n.value}`)
+          )
+          selectedEntityKeysRef.current = autoSelected
+          setSelectedEntityKeys(autoSelected)
+          setStatus(`${nEntities} entités trouvées · chargement des articles liés…`)
+          setTimeout(() => loadRef.current?.('articles'), 0)
+        }
+      } else if (nEntities === 0 && searchTerm.trim().length > 0) {
+        const scope = loadAll
+          ? 'dans toutes les données'
+          : 'dans la plage de dates sélectionnée'
+        setStatus(`Aucune entité trouvée pour "${searchTerm}" ${scope}. Essayez d'élargir les dates ou d'activer "Tout".`)
+      } else {
+        const articleLabel = filteredTotal > nArticles
+          ? `${nArticles} / ${filteredTotal} articles`
+          : `${nArticles} article${nArticles !== 1 ? 's' : ''}`
+        const allShownHint = ev.date_limited === false && (ev.matched_total ?? 0) < 20
+          ? ' · affichage complet (<20)'
+          : ''
+        setStatus(
+          `${articleLabel} · `
+          + `${nEntities} entité${nEntities !== 1 ? 's' : ''} · `
+          + `${ev.total_edges} liaison${ev.total_edges !== 1 ? 's' : ''}`
+          + allShownHint
+        )
+      }
       // Taille ∝ articles : compter les arêtes par entité pour obtenir article_count
       const degMap = {}
       for (const [si, ti] of edges) {
@@ -701,26 +828,12 @@ export default function KnowledgeGraph({ onClose }) {
         ...prev.filter(t => presentNerTypes.includes(t)),
         ...presentNerTypes.filter(t => !prev.includes(t)),
       ])
-      // À la première réception du graphe, masquer tous les types sauf la liste par défaut
-      setHiddenTypes(prev => {
-        // Si déjà customisé par l'utilisateur, ne pas écraser
-        if (prev.size > 0) return prev
-        const toHide = presentNerTypes.filter(t => !DEFAULT_VISIBLE_TYPES.includes(t))
-        return new Set(toHide)
-      })
       // Réchauffer la simulation pour la finalisation
       tempRef.current = Math.max(tempRef.current, 12)
       // Demander un auto-fit dès que la simulation sera refroidie
       autoFitRef.current = true
     }
   }
-
-  // Chargement automatique à l'ouverture
-  useEffect(() => {
-    load()
-    return () => { if (abortRef.current) abortRef.current.abort() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // ── Zoom ─────────────────────────────────────────────────────────────────
   const applyView = useCallback((v) => {
@@ -821,7 +934,7 @@ export default function KnowledgeGraph({ onClose }) {
     const dy = Math.abs(e.clientY - dragRef.current.startY)
     dragRef.current = null
 
-    // Clic (pas de drag significatif) → sélection ou ouverture dialog article
+    // Clic (pas de drag significatif)
     if (dx < 4 && dy < 4) {
       const node = tooltip?.node ?? null
       if (node?.kind === 'article') {
@@ -835,7 +948,19 @@ export default function KnowledgeGraph({ onClose }) {
           filePath: node.file ?? '',
         })
       } else if (node?.kind === 'entity') {
-        setEntityPanel({ type: node.ner_type, value: node.value })
+        // Clic simple : ouvrir le détail entité.
+        // Shift/Cmd/Ctrl + clic : ajouter/retirer l'entité de la sélection du graphe.
+        if (e.shiftKey || e.metaKey || e.ctrlKey) {
+          const key = `${node.ner_type}:${node.value}`
+          const next = new Set(selectedEntityKeysRef.current)
+          if (next.has(key)) next.delete(key)
+          else next.add(key)
+          selectedEntityKeysRef.current = next
+          setSelectedEntityKeys(new Set(next))
+          setTimeout(() => loadRef.current?.(next.size > 0 ? 'articles' : 'entities'), 0)
+        } else {
+          setEntityPanel({ type: node.ner_type, value: node.value })
+        }
       } else {
         setSelected(node)
       }
@@ -895,7 +1020,7 @@ export default function KnowledgeGraph({ onClose }) {
       style={{ overflow: 'hidden' }}
     >
       {/* ── En-tête ── */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/80 backdrop-blur-sm shrink-0 flex-wrap gap-y-2">
+      <div className="relative flex items-center gap-2 px-4 py-2.5 pr-14 border-b border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/80 backdrop-blur-sm shrink-0 flex-wrap gap-y-2">
         <Network size={17} className="text-violet-500 shrink-0" />
         <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 shrink-0">
           Graphe de connaissances
@@ -906,13 +1031,12 @@ export default function KnowledgeGraph({ onClose }) {
           <Search size={13} className="text-slate-400 shrink-0" />
           <input
             type="text"
-            placeholder="Recherche plein texte…"
+            placeholder="Mot-clé entité…"
             value={searchBuf}
             onChange={e => setSearchBuf(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') {
-                setSearch(searchBuf)
-                setTimeout(load, 0)
+                runSearchOrReload()
               }
             }}
             className="w-full text-xs bg-transparent outline-none text-slate-700 dark:text-slate-200 placeholder-slate-400"
@@ -955,7 +1079,7 @@ export default function KnowledgeGraph({ onClose }) {
 
         {/* Charger */}
         <button
-          onClick={() => { setSearch(searchBuf); setTimeout(load, 0) }}
+          onClick={runSearchOrReload}
           disabled={loading}
           className="flex items-center gap-1 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
         >
@@ -964,6 +1088,55 @@ export default function KnowledgeGraph({ onClose }) {
             : <RefreshCw size={12} />}
           Charger
         </button>
+
+        {selectedEntityKeys.size > 0 && (
+          <span className="text-[11px] px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-medium shrink-0">
+            {selectedEntityKeys.size} entité{selectedEntityKeys.size > 1 ? 's' : ''} sélectionnée{selectedEntityKeys.size > 1 ? 's' : ''}
+          </span>
+        )}
+
+        {/* ── Sélecteur de types d'entité (2e ligne) ── */}
+        <div className="basis-full h-0" />
+        <div className="flex items-center gap-1 flex-wrap basis-full">
+          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mr-1 shrink-0">Types</span>
+          {ALL_NER_TYPES.map(t => (
+            <button
+              key={t}
+              onClick={() => {
+                if (selectedEntityKeys.size === 0) return
+                toggleType(t)
+              }}
+              disabled={selectedEntityKeys.size === 0}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors whitespace-nowrap ${
+                activeTypes.has(t)
+                  ? 'text-white border-transparent'
+                  : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed'
+              }`}
+              style={activeTypes.has(t) ? { background: TYPE_CFG[t]?.color ?? '#8b5cf6', borderColor: 'transparent' } : {}}
+              title={selectedEntityKeys.size === 0
+                ? 'Sélectionnez d\'abord une ou plusieurs entités'
+                : (activeTypes.has(t) ? `Retirer ${t} du graphe` : `Ajouter ${t} au graphe`)}
+            >
+              {TYPE_CFG[t]?.label ?? t}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Filtre article (titre + résumé) ── */}
+        <div className="flex items-center gap-2 basis-full">
+          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0">Article</span>
+          <input
+            type="text"
+            placeholder="Filtre titre / résumé…"
+            value={articleQueryBuf}
+            onChange={e => setArticleQueryBuf(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') runSearchOrReload()
+            }}
+            className="flex-1 min-w-[220px] text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 outline-none"
+            title="Filtrer les articles sur le titre et le résumé"
+          />
+        </div>
 
         <div className="flex-1" />
 
@@ -1029,14 +1202,14 @@ export default function KnowledgeGraph({ onClose }) {
         </button>
         <button
           onClick={() => setFullscreen(f => !f)}
-          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+          className="absolute top-2 right-11 z-10 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
           title={fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
         >
           {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </button>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+          className="absolute top-2 right-2 z-10 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
           title="Fermer"
         >
           <X size={16} />
@@ -1078,7 +1251,8 @@ export default function KnowledgeGraph({ onClose }) {
                     label={TYPE_CFG[t]?.label ?? t}
                     r={R_ENTITY}
                     isPerson={t === 'PERSON'}
-                    hidden={hiddenTypes.has(t)}
+                    hidden={false}
+                    active={activeTypes.has(t)}
                     onClick={() => toggleType(t)}
                   />
                   <div className="flex flex-col ml-auto pl-1 shrink-0">
@@ -1179,9 +1353,11 @@ export default function KnowledgeGraph({ onClose }) {
               <span className="font-semibold text-slate-800 dark:text-slate-100 text-[13px]">
                 {selected.kind === 'article'
                   ? <span className="flex items-center gap-1.5"><span className="text-base">📰</span> Article</span>
-                  : <span className="flex items-center gap-1.5">
+                  : <span className="flex items-center gap-1.5 min-w-0">
                       <span className="w-2 h-2 rounded-full inline-block" style={{ background: TYPE_CFG[selected.ner_type]?.color ?? ENTITY_DEFAULT }} />
-                      {TYPE_CFG[selected.ner_type]?.label ?? selected.ner_type}
+                      <span className="truncate">
+                        {selected.value} · {TYPE_CFG[selected.ner_type]?.label ?? selected.ner_type}
+                      </span>
                     </span>
                 }
               </span>
@@ -1317,7 +1493,7 @@ export default function KnowledgeGraph({ onClose }) {
 }
 
 // ── Légende item ─────────────────────────────────────────────────────────────
-function LegendItem({ color, label, r, isPerson, hidden, onClick }) {
+function LegendItem({ color, label, r, isPerson, hidden, active, onClick }) {
   const cx = r + 1
   const cy = r + 1
   return (
@@ -1328,10 +1504,11 @@ function LegendItem({ color, label, r, isPerson, hidden, onClick }) {
         hidden  ? 'opacity-40' : '',
       ].join(' ')}
       onClick={onClick}
-      title={onClick ? (hidden ? `Afficher ${label}` : `Masquer ${label}`) : undefined}
+      title={onClick ? (active ? `Retirer ${label} du filtre` : `Ajouter ${label} au filtre`) : undefined}
     >
       <svg width={r * 2 + 2} height={r * 2 + 2}>
         <circle cx={cx} cy={cy} r={r} fill={color} opacity={hidden ? 0.35 : 0.9} />
+        {active && <circle cx={cx} cy={cy} r={r} fill="none" stroke="white" strokeWidth="1.5" opacity="0.7" />}
         {isPerson && !hidden && (
           <>
             {/* Tête */}

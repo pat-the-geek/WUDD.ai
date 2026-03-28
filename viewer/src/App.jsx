@@ -905,10 +905,19 @@ export default function App() {
         </div>
       </nav>
 
+      {/* ── Bouton flottant Graphe de connaissances — mobile ── */}
+      <button
+        onClick={() => setGraphOpen(true)}
+        className="md:hidden fixed bottom-[calc(12.5rem+env(safe-area-inset-bottom))] left-4 z-40 w-11 h-11 rounded-full bg-violet-600 hover:bg-violet-500 shadow-lg flex items-center justify-center text-white transition-colors"
+        title="Graphe de connaissances"
+      >
+        <Network size={18} />
+      </button>
+
       {/* ── Bouton flottant Chatbot — mobile ── */}
       <button
         onClick={() => setChatOpen(true)}
-        className="md:hidden fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] right-4 z-40 w-11 h-11 rounded-full bg-green-700 hover:bg-green-600 shadow-lg flex items-center justify-center text-white transition-colors"
+        className="md:hidden fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] left-4 z-40 w-11 h-11 rounded-full bg-green-700 hover:bg-green-600 shadow-lg flex items-center justify-center text-white transition-colors"
         title="Chatbot IA"
       >
         <MessageSquare size={18} />

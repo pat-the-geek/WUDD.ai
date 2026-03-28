@@ -571,6 +571,21 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose, o
             )}
           </div>
 
+          {/* Titre — mobile */}
+          <div className="flex md:hidden items-center gap-1.5 min-w-0 w-full pointer-events-none">
+            <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm truncate">
+              {current.value}
+            </span>
+            <span className="text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0">
+              {current.type}
+            </span>
+            {!loading && (
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0 ml-auto">
+                {articles.length} article{articles.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
           {/* Badge rapports générés — mobile uniquement */}
           {entityRapports.length > 0 && (
             <span className="flex md:hidden items-center gap-1.5 w-full pointer-events-auto">

@@ -5,6 +5,7 @@ Routes :
   GET /api/graph/knowledge — flux SSE de nœuds (entités + articles) et arêtes
 """
 import json
+import unicodedata
 
 from flask import Blueprint, request, Response, stream_with_context, jsonify
 from pathlib import Path
@@ -60,9 +61,18 @@ _MAX_RESUME_LENGTH = 300
 _DEFAULT_MAX_ARTICLES = 200
 _HARD_MAX_ARTICLES    = 500
 _ALL_MAX_ARTICLES     = 10_000   # plafond de sécurité mode "tout charger"
+_HARD_MAX_ENTITIES    = 500
 
 # Répertoires à scanner en mode "tout charger"
 _ARTICLE_DIRS = ["data/articles", "data/articles-from-rss"]
+
+
+def _norm_text(value: str) -> str:
+    """Normalise un texte pour recherche tolérante aux accents/casse."""
+    if not isinstance(value, str):
+        return ""
+    normalized = unicodedata.normalize("NFKD", value.lower())
+    return "".join(ch for ch in normalized if not unicodedata.combining(ch))
 
 
 @graph_bp.route("/api/graph/knowledge")
@@ -84,7 +94,30 @@ def api_graph_knowledge():
     """
     date_from   = request.args.get("date_from",  "").strip()
     date_to     = request.args.get("date_to",    "").strip()
-    search      = request.args.get("search",     "").strip().lower()
+    mode        = request.args.get("mode", "articles").strip().lower()
+    keyword     = _norm_text(request.args.get("keyword", "").strip())  # recherche dans noms d'entités
+    article_query = _norm_text(request.args.get("article_query", "").strip())  # filtre titre + résumé
+    entity_types_raw = request.args.get("entity_types", "").strip()
+    entity_types = {t.strip().upper() for t in entity_types_raw.split(",") if t.strip()} if entity_types_raw else set()
+    selected_entities_raw = request.args.get("selected_entities", "").strip()
+    selected_entities: set[str] = set()
+    if selected_entities_raw:
+        try:
+            raw_items = json.loads(selected_entities_raw)
+            if isinstance(raw_items, list):
+                for item in raw_items:
+                    if isinstance(item, str) and item.strip():
+                        normalized = item.strip()
+                        if normalized.startswith("entity:"):
+                            normalized = normalized[len("entity:"):]
+                        selected_entities.add(normalized)
+        except Exception:
+            for item in selected_entities_raw.split("|"):
+                normalized = item.strip()
+                if normalized.startswith("entity:"):
+                    normalized = normalized[len("entity:"):]
+                if normalized:
+                    selected_entities.add(normalized)
     load_all    = request.args.get("all", "").lower() in ("true", "1", "yes")
     try:
         max_articles = min(int(request.args.get("max_articles", _DEFAULT_MAX_ARTICLES)),
@@ -92,14 +125,33 @@ def api_graph_knowledge():
     except (ValueError, TypeError):
         max_articles = _DEFAULT_MAX_ARTICLES
 
+    if mode == "entities":
+        return Response(
+            stream_with_context(_generate_matching_entities(keyword)),
+            content_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     if load_all:
         return Response(
-            stream_with_context(_generate_all(search)),
+            stream_with_context(_generate_all(keyword, entity_types, selected_entities, article_query)),
             content_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
     def generate():
+        # ── Sans entité sélectionnée → graphe vide ─────────────────────────
+        if not selected_entities:
+            yield (
+                "data: "
+                + json.dumps(
+                    {"type": "done", "total_nodes": 0, "total_edges": 0, "filtered_total": 0},
+                    ensure_ascii=False,
+                )
+                + "\n\n"
+            )
+            return
+
         seen_entities: dict[str, str] = {}  # "TYPE:valeur" → identifiant du nœud
         total_nodes   = 0
         total_edges   = 0
@@ -111,30 +163,20 @@ def api_graph_knowledge():
         except Exception:
             metas = []
 
-        # ── 2. Filtrage par date ─────────────────────────────────────────────
-        filtered: list[dict] = []
-        for meta in metas:
-            date_iso = meta.get("date_iso") or meta.get("date", "")
-            day = date_iso[:10] if date_iso else ""
-            if date_from and day and day < date_from:
-                continue
-            if date_to and day and day > date_to:
-                continue
-            filtered.append(meta)
+        # Tri par date décroissante pour un ordre stable
+        metas.sort(key=lambda m: m.get("date_iso", ""), reverse=True)
 
-        # Tri par date décroissante, limitation
-        filtered.sort(key=lambda m: m.get("date_iso", ""), reverse=True)
-        filtered = filtered[:max_articles]
-
-        # ── 3. Regroupement par fichier pour limiter les I/O ─────────────────
+        # ── 2. Regroupement par fichier (scan complet des correspondances) ───
         by_file: dict[str, list[tuple[int, dict]]] = {}
-        for meta in filtered:
+        for meta in metas:
             f   = meta.get("file", "")
             idx = meta.get("idx", -1)
             if f and idx >= 0:
                 by_file.setdefault(f, []).append((idx, meta))
 
-        # ── 4. Lecture des fichiers et streaming des nœuds/arêtes ────────────
+        # Candidats retenus par entités sélectionnées (avant règle <20)
+        candidates: list[dict] = []
+
         for file_path, meta_list in by_file.items():
             full_path = PROJECT_ROOT / file_path
             if not full_path.exists():
@@ -155,88 +197,151 @@ def api_graph_knowledge():
 
                 source   = article.get("Sources",              meta.get("source", ""))
                 date     = article.get("Date de publication",  meta.get("date", ""))
+                titre    = article.get("Titre", "")
                 resume   = article.get("Résumé", "")
                 entities = article.get("entities", {})
 
-                # ── Filtre plein-texte ───────────────────────────────────────
-                if search:
-                    blob = f"{url} {source} {date} {resume} {json.dumps(entities)}".lower()
-                    if search not in blob:
+                # Filtre texte article : titre + résumé
+                if article_query:
+                    text_blob = _norm_text(f"{titre} {resume}")
+                    if article_query not in text_blob:
                         continue
 
-                # ── Nœud article ─────────────────────────────────────────────
-                article_id = f"article:{url}"
+                article_entities: list[tuple[str, str]] = []
+                if isinstance(entities, dict):
+                    for ner_type, values in entities.items():
+                        if not isinstance(values, list):
+                            continue
+                        for value in values:
+                            if isinstance(value, str) and value.strip():
+                                article_entities.append((ner_type, value.strip()))
+
+                article_entity_keys = {f"{ner_type}:{value}" for ner_type, value in article_entities}
+                if not (article_entity_keys & selected_entities):
+                    continue
+
+                matched_entities: list[tuple[str, str]] = []
+                for ner_type, value in article_entities:
+                    key = f"{ner_type}:{value}"
+                    if key in selected_entities or (entity_types and ner_type.upper() in entity_types):
+                        matched_entities.append((ner_type, value))
+
+                if not matched_entities:
+                    continue
+
+                candidates.append(
+                    {
+                        "file_path": file_path,
+                        "meta": meta,
+                        "url": url,
+                        "source": source,
+                        "date": date,
+                        "title": titre,
+                        "resume": resume,
+                        "matched_entities": matched_entities,
+                    }
+                )
+
+        # ── 3. Règle métier : < 20 => tout afficher, sinon plage de dates ───
+        matched_total = len(candidates)
+        date_limited = matched_total >= 20
+
+        if date_limited:
+            filtered_candidates: list[dict] = []
+            for cand in candidates:
+                meta = cand.get("meta", {})
+                date_iso = meta.get("date_iso") or meta.get("date", "")
+                day = date_iso[:10] if date_iso else ""
+                if date_from and day and day < date_from:
+                    continue
+                if date_to and day and day > date_to:
+                    continue
+                filtered_candidates.append(cand)
+        else:
+            filtered_candidates = candidates
+
+        filtered_candidates.sort(
+            key=lambda c: (c.get("meta", {}) or {}).get("date_iso", ""),
+            reverse=True,
+        )
+        filtered_total = len(filtered_candidates)
+        filtered_candidates = filtered_candidates[:max_articles]
+
+        # ── 4. Streaming des nœuds/arêtes ────────────────────────────────────
+        for cand in filtered_candidates:
+            file_path = cand["file_path"]
+            url = cand["url"]
+            source = cand["source"]
+            date = cand["date"]
+            resume = cand["resume"]
+            matched_entities = cand["matched_entities"]
+
+            article_id = f"article:{url}"
+            yield (
+                "data: "
+                + json.dumps(
+                    {
+                        "type":   "node",
+                        "kind":   "article",
+                        "id":     article_id,
+                        "url":    url,
+                        "source": source,
+                        "date":   date,
+                        "resume": resume[:_MAX_RESUME_LENGTH] if resume else "",
+                        "file":   file_path,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n\n"
+            )
+            total_nodes += 1
+
+            for ner_type, value in matched_entities:
+                entity_key = f"{ner_type}:{value}"
+                if entity_key not in seen_entities:
+                    entity_id = f"entity:{entity_key}"
+                    seen_entities[entity_key] = entity_id
+                    yield (
+                        "data: "
+                        + json.dumps(
+                            {
+                                "type":     "node",
+                                "kind":     "entity",
+                                "id":       entity_id,
+                                "ner_type": ner_type,
+                                "value":    value,
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n\n"
+                    )
+                    total_nodes += 1
+
                 yield (
                     "data: "
                     + json.dumps(
                         {
-                            "type":   "node",
-                            "kind":   "article",
-                            "id":     article_id,
-                            "url":    url,
-                            "source": source,
-                            "date":   date,
-                            "resume": resume[:_MAX_RESUME_LENGTH] if resume else "",                            "file":   file_path,                        },
+                            "type":   "edge",
+                            "source": seen_entities[entity_key],
+                            "target": article_id,
+                        },
                         ensure_ascii=False,
                     )
                     + "\n\n"
                 )
-                total_nodes += 1
-
-                # ── Nœuds entités + arêtes ────────────────────────────────────
-                if not isinstance(entities, dict):
-                    continue
-
-                for ner_type, values in entities.items():
-                    if not isinstance(values, list):
-                        continue
-                    for value in values:
-                        if not isinstance(value, str) or not value.strip():
-                            continue
-
-                        entity_key = f"{ner_type}:{value}"
-                        if entity_key not in seen_entities:
-                            entity_id = f"entity:{entity_key}"
-                            seen_entities[entity_key] = entity_id
-                            yield (
-                                "data: "
-                                + json.dumps(
-                                    {
-                                        "type":     "node",
-                                        "kind":     "entity",
-                                        "id":       entity_id,
-                                        "ner_type": ner_type,
-                                        "value":    value,
-                                    },
-                                    ensure_ascii=False,
-                                )
-                                + "\n\n"
-                            )
-                            total_nodes += 1
-
-                        # Arête entité → article
-                        yield (
-                            "data: "
-                            + json.dumps(
-                                {
-                                    "type":   "edge",
-                                    "source": seen_entities[entity_key],
-                                    "target": article_id,
-                                },
-                                ensure_ascii=False,
-                            )
-                            + "\n\n"
-                        )
-                        total_edges += 1
+                total_edges += 1
 
         # ── 5. Événement de fin ───────────────────────────────────────────────
         yield (
             "data: "
             + json.dumps(
                 {
-                    "type":        "done",
-                    "total_nodes": total_nodes,
-                    "total_edges": total_edges,
+                    "type":          "done",
+                    "total_nodes":   total_nodes,
+                    "total_edges":   total_edges,
+                    "filtered_total": filtered_total,
+                    "matched_total": matched_total,
+                    "date_limited": date_limited,
                 },
                 ensure_ascii=False,
             )
@@ -253,14 +358,115 @@ def api_graph_knowledge():
     )
 
 
-def _generate_all(search: str = ""):
+def _generate_matching_entities(keyword: str):
+    """Retourne uniquement les nœuds entités correspondant au mot-clé."""
+    seen: set[str] = set()
+    total_nodes = 0
+
+    if not keyword:
+        yield (
+            "data: "
+            + json.dumps({"type": "done", "total_nodes": 0, "total_edges": 0}, ensure_ascii=False)
+            + "\n\n"
+        )
+        return
+
+    json_files: list[Path] = []
+    for dir_name in _ARTICLE_DIRS:
+        d = PROJECT_ROOT / dir_name
+        if d.exists():
+            json_files.extend(sorted(d.rglob("*.json")))
+
+    for json_path in json_files:
+        name = json_path.name
+        if name in (
+            "article_index.json", "entity_index.json", "quota_state.json", "alertes.json",
+            "entity_timeline.json", "synthesis_cache.json", "web_watcher_state.json", "entity_reports_index.json",
+        ):
+            continue
+        if "cache" in json_path.parts:
+            continue
+
+        try:
+            articles = json.loads(json_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+
+        if not isinstance(articles, list):
+            continue
+
+        for article in articles:
+            if not isinstance(article, dict):
+                continue
+            entities = article.get("entities", {})
+            if not isinstance(entities, dict):
+                continue
+
+            for ner_type, values in entities.items():
+                if not isinstance(values, list):
+                    continue
+                for value in values:
+                    if not isinstance(value, str):
+                        continue
+                    val = value.strip()
+                    if not val:
+                        continue
+                    if keyword not in _norm_text(val):
+                        continue
+                    key = f"{ner_type}:{val}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    yield (
+                        "data: "
+                        + json.dumps(
+                            {
+                                "type": "node",
+                                "kind": "entity",
+                                "id": f"entity:{key}",
+                                "ner_type": ner_type,
+                                "value": val,
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n\n"
+                    )
+                    total_nodes += 1
+                    if total_nodes >= _HARD_MAX_ENTITIES:
+                        break
+                if total_nodes >= _HARD_MAX_ENTITIES:
+                    break
+            if total_nodes >= _HARD_MAX_ENTITIES:
+                break
+        if total_nodes >= _HARD_MAX_ENTITIES:
+            break
+
+    yield (
+        "data: "
+        + json.dumps(
+            {
+                "type": "done",
+                "total_nodes": total_nodes,
+                "total_edges": 0,
+                "filtered_total": 0,
+            },
+            ensure_ascii=False,
+        )
+        + "\n\n"
+    )
+
+
+def _generate_all(keyword: str = "", entity_types: set = None, selected_entities: set = None, article_query: str = ""):
     """Générateur SSE qui scanne TOUS les fichiers JSON d'articles sans filtre de date.
 
     Parcourt récursivement _ARTICLE_DIRS, lit chaque fichier JSON valide et
-    émet les nœuds/arêtes pour tous les articles qui contiennent des entités.
-    Les articles sans entités sont également inclus.
+    émet les nœuds/arêtes pour les articles dont les entités correspondent au critère.
     Plafond de sécurité : _ALL_MAX_ARTICLES articles.
     """
+    if entity_types is None:
+        entity_types = set()
+    if selected_entities is None:
+        selected_entities = set()
     seen_entities: dict[str, str] = {}
     total_nodes  = 0
     total_edges  = 0
@@ -308,14 +514,41 @@ def _generate_all(search: str = ""):
 
             source   = article.get("Sources",             article.get("source", ""))
             date     = article.get("Date de publication", article.get("date", ""))
+            titre    = article.get("Titre", article.get("title", ""))
             resume   = article.get("Résumé", article.get("resume", ""))
             entities = article.get("entities", {})
 
-            # Filtre plein-texte optionnel
-            if search:
-                blob = f"{url} {source} {date} {resume} {json.dumps(entities)}".lower()
-                if search not in blob:
+            # Filtre texte article : titre + résumé
+            if article_query:
+                text_blob = _norm_text(f"{titre} {resume}")
+                if article_query not in text_blob:
                     continue
+
+            # Entités de l'article
+            article_entities: list[tuple[str, str]] = []
+            if isinstance(entities, dict):
+                for ner_type, values in entities.items():
+                    if not isinstance(values, list):
+                        continue
+                    for value in values:
+                        if not isinstance(value, str) or not value.strip():
+                            continue
+                        article_entities.append((ner_type, value.strip()))
+
+            # Conserver uniquement les articles qui contiennent au moins une entité sélectionnée
+            article_entity_keys = {f"{ner_type}:{value}" for ner_type, value in article_entities}
+            if selected_entities and not (article_entity_keys & selected_entities):
+                continue
+
+            # Entités à afficher : sélectionnées + types actifs
+            matched_entities: list[tuple[str, str]] = []
+            for ner_type, value in article_entities:
+                key = f"{ner_type}:{value}"
+                if key in selected_entities or (entity_types and ner_type.upper() in entity_types):
+                    matched_entities.append((ner_type, value))
+
+            if selected_entities and not matched_entities:
+                continue
 
             article_id = f"article:{url}"
             # Chemin relatif pour le frontend (depuis PROJECT_ROOT)
@@ -340,49 +573,49 @@ def _generate_all(search: str = ""):
             total_nodes   += 1
             article_count += 1
 
-            if not isinstance(entities, dict):
-                continue
+            # Entités filtrées uniquement
+            entities_to_stream = matched_entities if (keyword or entity_types) else []
+            if not (keyword or entity_types) and isinstance(entities, dict):
+                for ner_type, values in entities.items():
+                    if isinstance(values, list):
+                        for value in values:
+                            if isinstance(value, str) and value.strip():
+                                entities_to_stream.append((ner_type, value))
 
-            for ner_type, values in entities.items():
-                if not isinstance(values, list):
-                    continue
-                for value in values:
-                    if not isinstance(value, str) or not value.strip():
-                        continue
-
-                    entity_key = f"{ner_type}:{value}"
-                    if entity_key not in seen_entities:
-                        entity_id = f"entity:{entity_key}"
-                        seen_entities[entity_key] = entity_id
-                        yield (
-                            "data: "
-                            + json.dumps(
-                                {
-                                    "type":     "node",
-                                    "kind":     "entity",
-                                    "id":       entity_id,
-                                    "ner_type": ner_type,
-                                    "value":    value,
-                                },
-                                ensure_ascii=False,
-                            )
-                            + "\n\n"
-                        )
-                        total_nodes += 1
-
+            for ner_type, value in entities_to_stream:
+                entity_key = f"{ner_type}:{value}"
+                if entity_key not in seen_entities:
+                    entity_id = f"entity:{entity_key}"
+                    seen_entities[entity_key] = entity_id
                     yield (
                         "data: "
                         + json.dumps(
                             {
-                                "type":   "edge",
-                                "source": seen_entities[entity_key],
-                                "target": article_id,
+                                "type":     "node",
+                                "kind":     "entity",
+                                "id":       entity_id,
+                                "ner_type": ner_type,
+                                "value":    value,
                             },
                             ensure_ascii=False,
                         )
                         + "\n\n"
                     )
-                    total_edges += 1
+                    total_nodes += 1
+
+                yield (
+                    "data: "
+                    + json.dumps(
+                        {
+                            "type":   "edge",
+                            "source": seen_entities[entity_key],
+                            "target": article_id,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n\n"
+                )
+                total_edges += 1
 
         if article_count >= _ALL_MAX_ARTICLES:
             break
