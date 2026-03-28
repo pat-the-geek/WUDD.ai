@@ -461,42 +461,91 @@ export default function KnowledgeGraph({ onClose }) {
     }
   }, [])
 
+  // Masque les nœuds et arêtes L2 du graphe
+  const _removeL2Nodes = useCallback(() => {
+    l2EdgesArrRef.current = []
+    const idx = nodeIndexRef.current
+    for (const node of nodesArrRef.current) {
+      if (node.l2) {
+        node._hidden = true
+        // Retirer du nodeIndex pour qu'un re-toggle puisse les recréer
+        if (node.id && idx[node.id] !== undefined) {
+          delete idx[node.id]
+        }
+      }
+    }
+    l2NodeIdsRef.current = new Set()
+    tempRef.current = Math.max(tempRef.current, 5)
+  }, [])
+
   // Calcule les arêtes L2 : appel backend pour co-occurrences entité↔entité
+  // L2 = pour chaque entité NON-seed du graphe, trouver les entités qui leur
+  // sont reliées via des articles AUTRES que ceux déjà sur le graphe.
   const computeL2Edges = useCallback(async () => {
+    console.log('[L2] computeL2Edges called, showL2=', showL2Ref.current)
     if (!showL2Ref.current) {
-      // Nettoyer les nœuds/arêtes L2 existants
       _removeL2Nodes()
       return
     }
     const nodes = nodesArrRef.current
-    if (nodes.length === 0) return
-    if (l2LoadingRef.current) return
+    if (nodes.length === 0) {
+      console.log('[L2] graph is empty, nothing to do')
+      return
+    }
+    if (l2LoadingRef.current) {
+      console.log('[L2] already loading, skipping')
+      return
+    }
     l2LoadingRef.current = true
     setL2Loading(true)
 
     // Nettoyer les anciens nœuds L2 masqués avant d'en ajouter de nouveaux
     _removeL2Nodes()
 
-    // Collecter les clés d'entités actuellement sur le graphe (hors L2)
-    const entityKeys = nodes
-      .filter(n => n.kind === 'entity' && !n.l2)
+    // Séparer les entités seed (principales) des entités secondaires
+    const seedKeys = selectedEntityKeysRef.current
+    const nonSeedEntities = nodes
+      .filter(n => n.kind === 'entity' && !n.l2 && !n._hidden && !seedKeys.has(`${n.ner_type}:${n.value}`))
       .map(n => `${n.ner_type}:${n.value}`)
-    if (entityKeys.length === 0) {
+    const seedEntities = nodes
+      .filter(n => n.kind === 'entity' && !n.l2 && !n._hidden && seedKeys.has(`${n.ner_type}:${n.value}`))
+      .map(n => `${n.ner_type}:${n.value}`)
+
+    console.log('[L2] non-seed entities:', nonSeedEntities.length, nonSeedEntities.slice(0, 5))
+    console.log('[L2] seed entities:', seedEntities.length, seedEntities.slice(0, 5))
+
+    if (nonSeedEntities.length === 0) {
+      console.log('[L2] no non-seed entity nodes on graph')
       l2LoadingRef.current = false
       setL2Loading(false)
       return
     }
 
-    try {
-      const params = new URLSearchParams({
-        entities: JSON.stringify(entityKeys),
-      })
-      if (dateFrom) params.set('date_from', dateFrom)
-      if (dateTo) params.set('date_to', dateTo)
+    // Collecter les URLs des articles déjà sur le graphe
+    const articleUrls = nodes
+      .filter(n => n.kind === 'article' && n.url)
+      .map(n => n.url)
+    console.log('[L2] excluding', articleUrls.length, 'article URLs already on graph')
 
-      const resp = await fetch(`/api/graph/l2?${params}`)
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    try {
+      const body = {
+        entities: nonSeedEntities,
+        seed_entities: seedEntities,
+        exclude_urls: articleUrls,
+      }
+
+      console.log('[L2] POST /api/graph/l2, body:', nonSeedEntities.length, 'entities,', articleUrls.length, 'excluded URLs')
+      const resp = await fetch('/api/graph/l2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!resp.ok) {
+        const text = await resp.text()
+        throw new Error(`HTTP ${resp.status}: ${text.slice(0, 200)}`)
+      }
       const data = await resp.json()
+      console.log('[L2] response:', (data.nodes || []).length, 'nodes,', (data.edges || []).length, 'edges')
 
       if (!showL2Ref.current) { l2LoadingRef.current = false; setL2Loading(false); return }
 
@@ -507,16 +556,17 @@ export default function KnowledgeGraph({ onClose }) {
 
       // Ajouter les nouveaux nœuds L2
       const newNodeIds = new Set()
+      let skipped = 0
       for (const nd of (data.nodes || [])) {
         if (idx[nd.id] !== undefined) {
-          // Nœud déjà sur le graphe (non-L2) → on peut quand même ajouter des arêtes
+          skipped++
           continue
         }
         const angle = Math.random() * Math.PI * 2
         const dist = 120 + Math.random() * Math.min(W, H) * 0.3
         nodes.push({
           ...nd,
-          r: R_ENTITY * 0.7, // plus petits
+          r: R_ENTITY * 0.7,
           l2: true,
           pinned: false,
           x: W / 2 + Math.cos(angle) * dist,
@@ -527,42 +577,36 @@ export default function KnowledgeGraph({ onClose }) {
         newNodeIds.add(nd.id)
       }
       l2NodeIdsRef.current = newNodeIds
+      console.log('[L2] added', newNodeIds.size, 'L2 nodes, skipped', skipped, '(already on graph)')
 
       // Construire les arêtes L2 (indices dans nodesArr)
       const l2Edges = []
+      let edgeSkipped = 0
       for (const edge of (data.edges || [])) {
         const si = idx[edge.source]
         const ti = idx[edge.target]
         if (si !== undefined && ti !== undefined) {
           l2Edges.push([si, ti])
+        } else {
+          edgeSkipped++
         }
       }
       l2EdgesArrRef.current = l2Edges
+      console.log('[L2] built', l2Edges.length, 'edges, skipped', edgeSkipped, '(missing nodes)')
 
       // Réchauffer la simulation
       tempRef.current = Math.max(tempRef.current, 10)
     } catch (err) {
-      console.error('L2 fetch error:', err)
+      console.error('[L2] fetch error:', err)
     } finally {
       l2LoadingRef.current = false
       setL2Loading(false)
     }
-  }, [dateFrom, dateTo])
-
-  // Masque les nœuds et arêtes L2 du graphe
-  const _removeL2Nodes = useCallback(() => {
-    l2EdgesArrRef.current = []
-    // Marquer les nœuds L2 comme masqués (ils restent dans le tableau pour ne pas casser les indices)
-    for (const node of nodesArrRef.current) {
-      if (node.l2) node._hidden = true
-    }
-    l2NodeIdsRef.current = new Set()
-    tempRef.current = Math.max(tempRef.current, 5)
-  }, [])
+  }, [_removeL2Nodes])
 
   // Quand showL2 change : charge ou nettoie les arêtes L2
   useEffect(() => {
-    computeL2Edges()
+    computeL2Edges().catch(err => console.error('[L2] useEffect error:', err))
     if (nodesArrRef.current.length > 0) tempRef.current = Math.max(tempRef.current, 5)
   }, [showL2, computeL2Edges])
 

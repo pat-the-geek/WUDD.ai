@@ -641,34 +641,40 @@ _MAX_L2_ENTITIES  = 150  # nœuds L2 max au total
 _MAX_CO_PER_ENTITY = 10  # co-occurrences max par entité source
 
 
-@graph_bp.route("/api/graph/l2")
+@graph_bp.route("/api/graph/l2", methods=["POST"])
 def api_graph_l2():
-    """Retourne les co-occurrences L2 pour les entités du graphe.
+    """Retourne les co-occurrences L2 pour les entités secondaires du graphe.
 
-    Pour chaque entité fournie, cherche dans l'entity_index tous les articles
-    qui la mentionnent, puis collecte les autres entités de ces articles.
-    Retourne les nouveaux nœuds entités + arêtes entité↔entité pondérées.
+    Pour chaque entité non-seed sur le graphe, cherche dans l'entity_index
+    les articles qui la mentionnent MAIS qui ne sont PAS déjà sur le graphe,
+    puis collecte les entités co-occurrentes de ces autres articles.
 
-    Paramètres GET :
-      entities  — JSON array de clés ex. ["PERSON:Emmanuel Macron","ORG:OpenAI"]
-      date_from — filtre date début (YYYY-MM-DD) optionnel
-      date_to   — filtre date fin   (YYYY-MM-DD) optionnel
+    Body JSON :
+      entities      — array : entités non-seed du graphe (ex. ["ORG:OpenAI","GPE:France"])
+      seed_entities — array : entités principales/seed (ex. ["PERSON:Sam Altman"])
+      exclude_urls  — array : URLs des articles déjà sur le graphe
+      date_from     — filtre date début (YYYY-MM-DD) optionnel
+      date_to       — filtre date fin   (YYYY-MM-DD) optionnel
     """
-    raw = request.args.get("entities", "").strip()
-    if not raw:
+    body = request.get_json(silent=True) or {}
+
+    entity_keys = body.get("entities", [])
+    if not isinstance(entity_keys, list) or not entity_keys:
         return jsonify({"nodes": [], "edges": []})
 
-    try:
-        entity_keys = json.loads(raw)
-        if not isinstance(entity_keys, list):
-            return jsonify({"error": "entities doit être un tableau JSON"}), 400
-    except (json.JSONDecodeError, TypeError):
-        return jsonify({"error": "JSON invalide pour entities"}), 400
+    # Entités seed (principales) à exclure des résultats
+    seed_list = body.get("seed_entities", [])
+    seed_keys: set[str] = set()
+    if isinstance(seed_list, list):
+        seed_keys = {k.strip() for k in seed_list if isinstance(k, str) and ":" in k}
 
-    date_from = request.args.get("date_from", "").strip()
-    date_to = request.args.get("date_to", "").strip()
+    # URLs des articles déjà sur le graphe à exclure
+    urls_list = body.get("exclude_urls", [])
+    exclude_urls: set[str] = set()
+    if isinstance(urls_list, list):
+        exclude_urls = {u.strip() for u in urls_list if isinstance(u, str)}
 
-    # Ensemble des clés normalisées des entités déjà sur le graphe
+    # Entités non-seed à explorer (celles envoyées dans "entities")
     source_keys: set[str] = set()
     for k in entity_keys:
         if isinstance(k, str) and ":" in k:
@@ -677,15 +683,15 @@ def api_graph_l2():
     if not source_keys:
         return jsonify({"nodes": [], "edges": []})
 
+    # Toutes les entités déjà sur le graphe = source + seed → à exclure des résultats
+    all_graph_keys = source_keys | seed_keys
+
     eidx = EntityIndex(PROJECT_ROOT)
 
     # Pour chaque entité source, collecter les articles puis les co-entités
-    # co_count[source_key][co_key] = nombre d'articles en commun
     co_count: dict[str, dict[str, int]] = {}
-    # Infos sur les entités co-occurrentes (ner_type, value)
-    co_info: dict[str, tuple[str, str]] = {}  # co_key → (ner_type, value)
+    co_info: dict[str, tuple[str, str]] = {}
 
-    # Cache des fichiers déjà lus
     file_cache: dict[str, list] = {}
 
     for src_key in source_keys:
@@ -696,18 +702,6 @@ def api_graph_l2():
             continue
 
         refs = eidx.get_refs(ner_type, value)
-
-        # Filtre par date si spécifié
-        if date_from or date_to:
-            filtered = []
-            for ref in refs:
-                d = ref.get("date", "")[:10]
-                if date_from and d and d < date_from:
-                    continue
-                if date_to and d and d > date_to:
-                    continue
-                filtered.append(ref)
-            refs = filtered
 
         co_count[src_key] = {}
 
@@ -734,6 +728,12 @@ def api_graph_l2():
                 continue
 
             article = articles[idx]
+
+            # Exclure les articles déjà sur le graphe
+            article_url = article.get("URL", "")
+            if article_url and article_url in exclude_urls:
+                continue
+
             entities = article.get("entities", {})
             if not isinstance(entities, dict):
                 continue
@@ -745,16 +745,16 @@ def api_graph_l2():
                     if not isinstance(v, str) or not v.strip():
                         continue
                     co_key = f"{co_type}:{v.strip()}"
-                    # Ne pas compter les entités déjà sur le graphe
-                    if co_key in source_keys:
+                    # Ne pas compter les entités déjà sur le graphe (source + seed)
+                    if co_key in all_graph_keys:
                         continue
                     co_count[src_key][co_key] = co_count[src_key].get(co_key, 0) + 1
                     if co_key not in co_info:
                         co_info[co_key] = (co_type, v.strip())
 
     # Sélectionner les top co-occurrences par entité source, puis global
-    all_candidates: dict[str, int] = {}  # co_key → total count across all sources
-    per_source_top: dict[str, list[str]] = {}  # src_key → [co_key, ...]
+    all_candidates: dict[str, int] = {}
+    per_source_top: dict[str, list[str]] = {}
     for src_key, counts in co_count.items():
         top = sorted(counts.items(), key=lambda x: -x[1])[:_MAX_CO_PER_ENTITY]
         per_source_top[src_key] = [k for k, _ in top]
