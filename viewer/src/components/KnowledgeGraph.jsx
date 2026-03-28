@@ -521,7 +521,13 @@ export default function KnowledgeGraph({ onClose }) {
       autoFitRef.current = false
       fitView()
       ticksRef.current += 3
-      // Maintenir les nœuds pinnés (= entité correspondant au critère) au centre
+    }
+
+    // Maintenir les nœuds pinnés (= entité correspondant au critère) au centre
+    // Note : W et H sont lus ici pour être disponibles dans tous les cas
+    if (canvas) {
+      const W = canvas.width
+      const H = canvas.height
       for (const node of nodes) {
         if (node.pinned) {
           node.x  = W / 2
@@ -734,10 +740,13 @@ export default function KnowledgeGraph({ onClose }) {
 
   const handleWheel = useCallback((e) => {
     e.preventDefault()
-    const rect   = canvasRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const cx = e.clientX - rect.left
-    const cy = e.clientY - rect.top
+    const canvas = canvasRef.current
+    const rect   = canvas?.getBoundingClientRect()
+    if (!rect || !canvas) return
+    const scaleX = canvas.width  / rect.width
+    const scaleY = canvas.height / rect.height
+    const cx = (e.clientX - rect.left) * scaleX
+    const cy = (e.clientY - rect.top ) * scaleY
     zoom(e.deltaY < 0 ? 1.12 : 1 / 1.12, cx, cy)
   }, [zoom])
 
@@ -753,8 +762,13 @@ export default function KnowledgeGraph({ onClose }) {
 
   const handleMouseMove = useCallback((e) => {
     if (dragRef.current) {
-      const dx = e.clientX - dragRef.current.startX
-      const dy = e.clientY - dragRef.current.startY
+      // Correction scaleX/scaleY pour panning exact
+      const canvas = canvasRef.current
+      const rect   = canvas ? canvas.getBoundingClientRect() : null
+      const sX     = (canvas && rect) ? canvas.width  / rect.width  : 1
+      const sY     = (canvas && rect) ? canvas.height / rect.height : 1
+      const dx = (e.clientX - dragRef.current.startX) * sX
+      const dy = (e.clientY - dragRef.current.startY) * sY
       applyView({
         ...viewRef.current,
         x: dragRef.current.ox + dx,
@@ -768,8 +782,16 @@ export default function KnowledgeGraph({ onClose }) {
     const canvas = canvasRef.current
     if (!canvas) return
     const rect  = canvas.getBoundingClientRect()
-    const mx    = e.clientX - rect.left
-    const my    = e.clientY - rect.top
+    // scaleX/scaleY : corrige toute divergence entre taille CSS et attribut canvas
+    // (Flexbox peut donner des tailles CSS fractionnaires, DPR peut laisser un écart)
+    const scaleX = canvas.width  / rect.width
+    const scaleY = canvas.height / rect.height
+    // Coordonnées CSS pour positionner le tooltip dans le DOM
+    const mxCss = e.clientX - rect.left
+    const myCss = e.clientY - rect.top
+    // Coordonnées canvas pour la conversion monde (hit detection)
+    const mx    = mxCss * scaleX
+    const my    = myCss * scaleY
     const v     = viewRef.current
     const wx    = (mx - v.x) / v.scale
     const wy    = (my - v.y) / v.scale
@@ -785,7 +807,7 @@ export default function KnowledgeGraph({ onClose }) {
     }
 
     if (best) {
-      setTooltip({ x: mx, y: my, node: best })
+      setTooltip({ x: mxCss, y: myCss, node: best })
       canvas.style.cursor = 'pointer'
     } else {
       setTooltip(null)
@@ -1098,8 +1120,8 @@ export default function KnowledgeGraph({ onClose }) {
             <div
               className="absolute pointer-events-none z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg px-3 py-2 text-xs max-w-xs"
               style={{
-                left: Math.min(tooltip.x + 12, (canvasRef.current?.width ?? 800) - 200),
-                top:  Math.min(tooltip.y + 12, (canvasRef.current?.height ?? 600) - 80),
+                left: Math.min(tooltip.x + 12, (canvasRef.current?.getBoundingClientRect().width  ?? 800) - 200),
+                top:  Math.min(tooltip.y + 12, (canvasRef.current?.getBoundingClientRect().height ?? 600) - 80),
               }}
             >
               {tooltip.node.kind === 'article' ? (
