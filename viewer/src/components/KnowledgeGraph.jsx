@@ -1470,7 +1470,7 @@ export default function KnowledgeGraph({ onClose }) {
           </>
         )}
 
-        {/* Toggle Tout charger */
+        {/* Toggle Tout charger */}
         <button
           onClick={() => setLoadAll(v => !v)}
           className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors shrink-0 ${
