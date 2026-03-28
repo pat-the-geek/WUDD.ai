@@ -3,7 +3,7 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
   Download, LayoutGrid, AlignLeft, LayoutList, Maximize2, Clock,
-  Star, Eye, EyeOff, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge,
+  Star, Eye, EyeOff, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge, FolderOpen, Hash,
 } from 'lucide-react'
 import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
@@ -425,7 +425,7 @@ function hasObsidianReport(article, localReportsByUrl) {
 }
 
 /** Carte article complète (vue grille / large) — style Liquid Glass. */
-function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged, localRapports = [] }) {
+function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged, localRapports = [], onOpenFile }) {
   const [expanded, setExpanded]                   = useState(index < 3)
   const [lightbox, setLightbox]                   = useState(false)
   const [noteOpen, setNoteOpen]                   = useState(false)
@@ -550,6 +550,39 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
               </span>
             )}
             <ReadingTimeBadge article={displayArticle} />
+            {article['mot_cle'] && (() => {
+              const terme = article['terme_declencheur']
+              const termeAnd = article['terme_and']
+              const isDifferent = terme && terme.toLowerCase() !== article['mot_cle'].toLowerCase()
+              const tooltip = [
+                'Mot-clé de collecte',
+                isDifferent ? `Déclenché par : ${terme}` : null,
+                termeAnd ? `Confirmé par (et) : ${termeAnd}` : null,
+              ].filter(Boolean).join('\n')
+              return (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800"
+                  title={tooltip}
+                >
+                  <Hash size={9} />{article['mot_cle']}
+                  {isDifferent && (
+                    <span className="text-emerald-500 dark:text-emerald-400 opacity-75">↳ {terme}</span>
+                  )}
+                  {termeAnd && (
+                    <span className="text-emerald-500 dark:text-emerald-400 opacity-60 italic">+{termeAnd}</span>
+                  )}
+                </span>
+              )
+            })()}
+            {article['fichier_source'] && (
+              <button
+                onClick={e => { e.stopPropagation(); onOpenFile?.(article['fichier_source']) }}
+                className="inline-flex items-center gap-1 text-[11px] text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/30 px-2 py-0.5 rounded-full border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors cursor-pointer"
+                title={`Ouvrir ${article['fichier_source']}`}
+              >
+                <FolderOpen size={9} />{article['fichier_source'].split('/').pop()}
+              </button>
+            )}
           </div>
           <SentimentBadge article={displayArticle} />
           {titre && (
@@ -760,7 +793,7 @@ function TimelineItem({ article }) {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annotations, onAnnotate, filePath, availableProviders, searchInjection = null, focusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged }, ref) {
+const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annotations, onAnnotate, filePath, availableProviders, searchInjection = null, focusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged, onOpenFile }, ref) {
   const [searchQuery, setSearchQuery]         = useState(searchInjection?.query || '')
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [mobileFilterMode, setMobileFilterMode] = useState(null) // null | 'star' | 'source' | 'entity' | 'obsidian' | 'hidden'
@@ -1465,6 +1498,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
                 isLarge
                 localRapports={localReports[article['URL']] || []}
                 onMerged={url => { pendingScrollUrlRef.current = url; onMerged?.() }}
+                onOpenFile={onOpenFile}
               />
             </div>
           ))}
@@ -1484,6 +1518,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
               obsidianVault={obsidianVault}
               localRapports={localReports[article['URL']] || []}
               onMerged={url => { pendingScrollUrlRef.current = url; onMerged?.() }}
+              onOpenFile={onOpenFile}
             />
           ))}
         </div>
@@ -1494,6 +1529,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           entityType={selectedEntity.type}
           entityValue={selectedEntity.value}
           onClose={() => setSelectedEntity(null)}
+          onOpenFile={onOpenFile}
         />
       )}
 

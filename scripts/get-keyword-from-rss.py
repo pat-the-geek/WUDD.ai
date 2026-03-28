@@ -248,15 +248,27 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                 title_lower = title.lower()
 
                 # 1. Correspondance sur le mot-clé principal (frontière de mot pour éviter les faux positifs)
-                matched = bool(re.search(r'\b' + re.escape(kw.lower()) + r'\b', title_lower))
+                trigger_term = None
+                if re.search(r'\b' + re.escape(kw.lower()) + r'\b', title_lower):
+                    trigger_term = kw
 
                 # 2. Si pas trouvé, tester les mots de la collection "or" (frontière de mot)
-                if not matched and or_words:
-                    matched = any(re.search(r'\b' + re.escape(w.lower()) + r'\b', title_lower) for w in or_words)
+                if trigger_term is None and or_words:
+                    trigger_term = next(
+                        (w for w in or_words if re.search(r'\b' + re.escape(w.lower()) + r'\b', title_lower)),
+                        None,
+                    )
+
+                matched = trigger_term is not None
 
                 # 3. Si correspondance, vérifier la contrainte "and" (au moins un mot présent, frontière de mot)
+                and_term = None
                 if matched and and_words:
-                    matched = any(re.search(r'\b' + re.escape(w.lower()) + r'\b', title_lower) for w in and_words)
+                    and_term = next(
+                        (w for w in and_words if re.search(r'\b' + re.escape(w.lower()) + r'\b', title_lower)),
+                        None,
+                    )
+                    matched = and_term is not None
 
                 if not matched:
                     continue
@@ -338,7 +350,12 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                     "Résumé": resume,
                     "Images": images,
                     "score_source": round(_credibility.get_composite_score(feed_title)),
+                    "mot_cle": kw,
+                    "terme_declencheur": trigger_term,
+                    "fichier_source": str((OUTPUT_DIR / f"{kw.replace(' ', '-').lower()}.json").relative_to(PROJECT_ROOT)).replace("\\", "/"),
                 }
+                if and_term:
+                    article["terme_and"] = and_term
                 if entities:
                     article["entities"] = entities
                 # Sentiment + ton éditorial depuis l'appel combiné (sans coût supplémentaire)

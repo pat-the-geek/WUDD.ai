@@ -413,7 +413,9 @@ def _process_article(
 
     # Filtre par mot-clé sur le titre
     keyword_filter = source.get("keyword_filter") or [keyword]
-    if not any(kw.lower() in page["title"].lower() for kw in keyword_filter):
+    title_lower_ww = page["title"].lower()
+    trigger_term_ww = next((kw for kw in keyword_filter if kw.lower() in title_lower_ww), None)
+    if trigger_term_ww is None:
         print_console(
             f"    ✗ Hors sujet (aucun mot-clé parmi {keyword_filter[:3]} dans le titre) — ignoré"
         )
@@ -448,6 +450,7 @@ def _process_article(
             return None
 
     # Construction de l'article (format standard WUDD.ai)
+    _kw_slug = keyword.replace(' ', '-').lower()
     article: dict = {
         "Date de publication": pub_date_fmt,
         "Sources": title_src,
@@ -455,6 +458,9 @@ def _process_article(
         "Résumé": resume,
         "Images": page["images"],
         "score_source": round(_credibility.get_composite_score(title_src)),
+        "mot_cle": keyword,
+        "terme_declencheur": trigger_term_ww,
+        "fichier_source": str((OUTPUT_DIR / f"{_kw_slug}.json").relative_to(PROJECT_ROOT)).replace("\\", "/"),
     }
     if entities:
         article["entities"] = entities
