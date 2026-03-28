@@ -455,7 +455,7 @@ def api_article_full_report():
         "Génère un rapport complet en Markdown français avec ces sections dans l'ordre :\n"
         f"1. Titre H1{(' + ' + image_md.strip()) if image_url else ''} + métadonnées (source · date) + accroche\n"
         "2. ## Contexte et enjeux — 2-4 paragraphes, **entités en gras**\n"
-        "3. ## Analyse détaillée — sous-sections H3, **entités en gras**, faits et chiffres\n"
+        "3. ## Analyse détaillée — sous-sections en ### (Markdown), **entités en gras**, faits et chiffres\n"
         "4. ## Acteurs impliqués — tableau | Entité | Type | Rôle |\n"
         "5. ## Diagrammes (si pertinent) — bloc ```mermaid avec flowchart TD, timeline ou xychart. "
         "IMPORTANT : le mot-clé du type (graph/flowchart/timeline/xychart) doit être la 1ère ligne du bloc, "
