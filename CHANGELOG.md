@@ -1,3 +1,52 @@
+# 28/03/2026 — Contrôle d'accès au Viewer (issue #213)
+
+## Évaluation de l'approche MAC address (issue #213)
+
+L'approche proposée (authentification par adresse MAC) n'est **pas réalisable** au
+niveau applicatif HTTP/Flask :
+
+- Les adresses MAC opèrent à la **couche 2 (Ethernet/Data Link)** et ne sont pas
+  incluses dans les requêtes HTTP.
+- Flask ne voit que l'**adresse IP** du client, jamais son adresse MAC.
+- Les adresses MAC changent à chaque saut de routeur (NAT, proxy, Docker bridge).
+- Les adresses MAC sont trivialement contournables par spoofing.
+
+## Solution implémentée — Contrôle d'accès simple et effectif
+
+Trois mécanismes configurables via `.env`, sans dépendance supplémentaire :
+
+### 1. Mot de passe (`ACCESS_PASSWORD`)
+- Page de connexion affichée avant tout accès si `ACCESS_PASSWORD` est défini
+- Session Flask persistante (30 jours) avec cookie `HttpOnly + SameSite=Lax`
+- Comparaison en temps constant (`hmac.compare_digest`) pour résister aux timing attacks
+- Bouton de déconnexion dans le header du viewer
+
+### 2. Whitelist IP (`ALLOWED_IPS`)
+- Liste d'IPs séparées par des virgules autorisées sans mot de passe
+- Utile pour accès direct depuis la machine hôte ou un réseau de confiance
+- `X-Forwarded-For` n'est pris en compte que si l'IP source est dans `TRUSTED_PROXIES`
+  (protection contre le spoofing d'IP via l'en-tête HTTP)
+
+### 3. Clé de session (`SECRET_KEY`)
+- Si définie, les sessions persistent entre redémarrages du serveur
+- Si absente, une clé aléatoire est générée à chaque démarrage (sessions éphémères)
+  avec un warning dans les logs
+
+## Fichiers modifiés
+
+- `viewer/routes/auth.py` *(nouveau)* — Blueprint Flask avec 3 endpoints :
+  - `GET  /api/auth/status`
+  - `POST /api/auth/login`
+  - `POST /api/auth/logout`
+- `viewer/app.py` — Clé de session Flask, configuration cookies sécurisés,
+  hook `before_request` avec exemption des assets statiques
+- `viewer/src/components/LoginPage.jsx` *(nouveau)* — Page de connexion React
+- `viewer/src/App.jsx` — Vérification auth au démarrage, bouton déconnexion
+- `.env.example` — Nouvelles variables `ACCESS_PASSWORD`, `SECRET_KEY`, `ALLOWED_IPS`, `TRUSTED_PROXIES`
+- `docs/security/SECURITY.md` — Section contrôle d'accès et explication MAC
+
+---
+
 # 25/03/2026 — Détection des silences + refactoring web_watcher (v2.6.0)
 
 ## `scripts/trend_detector.py` — Détection des silences (optimisation 3.7)

@@ -175,8 +175,30 @@ chmod +x .git/hooks/pre-commit
 - ✅ Utiliser des tokens avec permissions minimales
 - ✅ Activer l'authentification à deux facteurs sur GitHub
 - ✅ Configurer des secret scanning alerts sur GitHub
+- ✅ Configurer `ACCESS_PASSWORD` pour protéger le viewer sur un réseau partagé
+- ✅ Définir `SECRET_KEY` en production pour des sessions persistantes
+- ✅ Utiliser `ALLOWED_IPS` pour limiter l'accès à des adresses IP connues
 
 ---
 
-**Dernière mise à jour** : 23 janvier 2026  
+## 🔐 Contrôle d'accès au Viewer
+
+Le viewer WUDD.ai supporte trois mécanismes d'accès configurables via `.env` :
+
+| Mécanisme | Variable | Comportement |
+|-----------|----------|--------------|
+| Mot de passe | `ACCESS_PASSWORD` | Page de connexion affichée si non authentifié |
+| Whitelist IP | `ALLOWED_IPS` | IPs autorisées sans mot de passe |
+| Clé de session | `SECRET_KEY` | Persistance des sessions entre redémarrages |
+| Proxies de confiance | `TRUSTED_PROXIES` | IPs des proxies autorisés à définir `X-Forwarded-For` |
+
+**Pourquoi PAS les adresses MAC :**  
+Les adresses MAC (couche 2 / Ethernet) ne sont pas transmises dans les requêtes HTTP.
+Le serveur Flask ne voit que l'adresse IP du client. Les adresses MAC sont locales
+à chaque segment réseau et changent à chaque saut routeur — elles ne peuvent donc
+pas servir de mécanisme d'identification fiable au niveau applicatif.
+
+---
+
+**Dernière mise à jour** : 28 mars 2026  
 **Responsable sécurité** : Patrick Ostertag

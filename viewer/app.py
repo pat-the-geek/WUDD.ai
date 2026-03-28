@@ -3,6 +3,9 @@ WUDD.ai Viewer — Flask backend
 Sert l'API de navigation de fichiers et le frontend React compilé.
 """
 
+import datetime
+import os
+import secrets
 import subprocess
 import threading
 from pathlib import Path
@@ -43,14 +46,33 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory
 
 from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
 
 app = Flask(__name__)
 
+# ── Clé secrète de session ────────────────────────────────────────────────────
+# Utilise SECRET_KEY depuis .env si disponible, sinon génère une clé éphémère.
+# Pour des sessions persistantes entre redémarrages, définir SECRET_KEY dans .env.
+_secret_key = os.environ.get("SECRET_KEY", "").strip()
+if not _secret_key:
+    import warnings
+    warnings.warn(
+        "[WUDD.ai] SECRET_KEY non défini — une clé aléatoire est utilisée. "
+        "Les sessions seront invalidées à chaque redémarrage. "
+        "Définissez SECRET_KEY dans .env pour des sessions persistantes.",
+        stacklevel=2,
+    )
+    _secret_key = secrets.token_hex(32)
+app.secret_key = _secret_key
+app.config["PERMANENT_SESSION_LIFETIME"] = datetime.timedelta(days=30)
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
 # ── Enregistrement des blueprints ─────────────────────────────────────────────
+from viewer.routes.auth            import auth_bp, is_access_protected, is_request_allowed
 from viewer.routes.files           import files_bp
 from viewer.routes.entities        import entities_bp
 from viewer.routes.analytics       import analytics_bp
@@ -64,6 +86,7 @@ from viewer.routes.rss_direct      import rss_direct_bp
 from viewer.routes.self_learning   import self_learning_bp
 from viewer.routes.graph           import graph_bp
 
+app.register_blueprint(auth_bp)
 app.register_blueprint(files_bp)
 app.register_blueprint(entities_bp)
 app.register_blueprint(analytics_bp)
@@ -76,6 +99,32 @@ app.register_blueprint(merge_bp)
 app.register_blueprint(rss_direct_bp)
 app.register_blueprint(self_learning_bp)
 app.register_blueprint(graph_bp)
+
+
+# ── Contrôle d'accès global ───────────────────────────────────────────────────
+@app.before_request
+def check_access():
+    """Vérifie que la requête est autorisée si une protection est configurée."""
+    if not is_access_protected():
+        return  # Pas de protection → accès libre
+
+    # Toujours autoriser les endpoints d'auth
+    if request.path.startswith("/api/auth"):
+        return
+
+    # Autoriser les assets statiques (fonts, icônes, manifest…)
+    # Le frontend React a besoin de se charger pour afficher la page de connexion.
+    static_exts = (".js", ".css", ".svg", ".png", ".ico", ".woff", ".woff2",
+                   ".ttf", ".map", ".webmanifest", ".json")
+    if request.path.startswith("/assets/") or request.path.endswith(static_exts):
+        return
+
+    # Autoriser la racine "/" et "index.html" pour que la SPA se charge
+    if request.path in ("/", "/index.html"):
+        return
+
+    if not is_request_allowed():
+        return jsonify({"error": "Non authentifié", "protected": True}), 401
 
 
 # ── Rebuild des indexes au démarrage ─────────────────────────────────────────

@@ -6,7 +6,7 @@ import SettingsPanel from './components/SettingsPanel'
 import EntitySearchModal from './components/EntitySearchModal'
 import EntityDashboard from './components/EntityDashboard'
 import ScriptConsolePanel from './components/ScriptConsolePanel'
-import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, EyeOff, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, ChevronRight, MoreHorizontal, MessageSquare, Newspaper, Filter, Tag, BookOpen, Network } from 'lucide-react'
+import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, EyeOff, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, ChevronRight, MoreHorizontal, MessageSquare, Newspaper, Filter, Tag, BookOpen, Network, LogOut } from 'lucide-react'
 import AlertsPanel from './components/AlertsPanel'
 import ExportPanel from './components/ExportPanel'
 import TopArticlesPanel from './components/TopArticlesPanel'
@@ -16,6 +16,7 @@ import EntityWatchPanel from './components/EntityWatchPanel'
 import ClusterView from './components/ClusterView'
 import ChatbotPanel from './components/ChatbotPanel'
 import KnowledgeGraph from './components/KnowledgeGraph'
+import LoginPage from './components/LoginPage'
 import wuddLogo from './assets/wudd-prism-floyd.svg'
 
 // Heures de passage du cron get-keyword-from-rss.py (Europe/Paris)
@@ -258,6 +259,32 @@ export default function App() {
   // sans créer de dépendances cycliques)
   const selectedFileRef = useRef(null)
   useEffect(() => { selectedFileRef.current = selectedFile }, [selectedFile])
+
+  // ── Authentification ───────────────────────────────────────────────────────
+  // null = vérification en cours, false = non authentifié, true = authentifié (ou pas de protection)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authRequired, setAuthRequired] = useState(false)
+  const [authenticated, setAuthenticated] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/status')
+      .then(r => r.ok ? r.json() : { protected: false, authenticated: false, ip_allowed: false })
+      .then(d => {
+        setAuthRequired(d.protected && !d.ip_allowed)
+        setAuthenticated(!d.protected || d.authenticated || d.ip_allowed)
+        setAuthChecked(true)
+      })
+      .catch(() => {
+        // En cas d'erreur réseau, autoriser l'accès (fail open pour ne pas bloquer l'usage local)
+        setAuthenticated(true)
+        setAuthChecked(true)
+      })
+  }, [])
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    setAuthenticated(false)
+  }
 
   // ── Thème ──────────────────────────────────────────────────────────────────
   const [theme, setTheme] = useState(() => localStorage.getItem('wudd_theme') || 'auto')
@@ -587,6 +614,13 @@ export default function App() {
   })
 
   return (
+    <>
+      {/* ── Page de connexion ── */}
+      {authChecked && authRequired && !authenticated && (
+        <LoginPage onAuthenticated={() => setAuthenticated(true)} />
+      )}
+      {/* ── Application principale ── */}
+      {(!authChecked || !authRequired || authenticated) && (
     <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden">
       {/* ── Barre de navigation desktop ── */}
       <header
@@ -764,6 +798,17 @@ export default function App() {
         >
           <Search size={16} />
         </button>
+
+        {/* Déconnexion — visible seulement si protection active */}
+        {authRequired && (
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-red-900/20 border border-slate-200 dark:border-slate-600 hover:border-red-300 dark:hover:border-red-700 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+            title="Se déconnecter"
+          >
+            <LogOut size={16} />
+          </button>
+        )}
       </header>
 
       {/* ── Corps principal ── */}
@@ -1192,5 +1237,7 @@ export default function App() {
         />
       )}
     </div>
+      )}
+    </>
   )
 }
