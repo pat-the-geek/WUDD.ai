@@ -210,3 +210,4 @@ viewer/dist/
 
 # Runner GitHub Actions (installé localement, ne pas versionner)
 actions-runner/
+viewer/dist/
