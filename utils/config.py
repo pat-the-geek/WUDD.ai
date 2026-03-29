@@ -41,11 +41,20 @@ class Config:
         
         # Charger les variables d'environnement
         env_file = self.project_root / ".env"
-        if env_file.exists():
+        try:
+            env_exists = env_file.exists()
+        except PermissionError:
+            env_exists = False
+            default_logger.warning(
+                f"Permission refusée lors de l'accès à {env_file}, "
+                "utilisation des variables d'environnement système."
+            )
+        if env_exists:
             load_dotenv(env_file)
             default_logger.info(f"Configuration chargée depuis {env_file}")
         else:
-            default_logger.warning(f"Fichier .env non trouvé: {env_file}")
+            load_dotenv()  # charge depuis les variables d'environnement système
+            default_logger.warning(f"Fichier .env non trouvé ou inaccessible: {env_file}")
         
         # Charger et valider les variables
         self._load_config()
