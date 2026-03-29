@@ -363,7 +363,10 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                     if _field in combined:
                         article[_field] = combined[_field]
                 results[kw][link] = article
-                quota.record_article(kw, feed_title, entities if entities else None)
+                # Pour les flux bypassQuota, on n'incrémente pas les compteurs
+                # afin de ne pas consommer le quota des autres flux.
+                if not bypass_quota:
+                    quota.record_article(kw, feed_title, entities if entities else None)
                 _progress["articles_added"] += 1
                 _progress["last_action"] = f"Article ajouté '{kw}' — {feed_title}"
                 _write_progress(_progress)

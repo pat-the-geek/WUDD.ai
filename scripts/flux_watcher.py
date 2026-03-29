@@ -153,7 +153,14 @@ def main(dry_run: bool = False) -> None:
         tree = ET.parse(f)
         root = tree.getroot()
         outlines = root.findall(".//outline[@type='rss']")
-        feeds = [(o.attrib["xmlUrl"], o.attrib.get("title", "Unknown")) for o in outlines]
+        feeds = [
+            (
+                o.attrib["xmlUrl"],
+                o.attrib.get("title", "Unknown"),
+                o.attrib.get("bypassQuota", "false").lower() == "true",
+            )
+            for o in outlines
+        ]
 
     total = len(feeds)
     if total == 0:
@@ -162,7 +169,7 @@ def main(dry_run: bool = False) -> None:
 
     state = _load_state()
     next_idx = (state.get("last_feed_idx", -1) + 1) % total
-    feed_url, feed_title = feeds[next_idx]
+    feed_url, feed_title, bypass_quota = feeds[next_idx]
 
     print_console(f"[flux_watcher] Flux [{next_idx + 1}/{total}] : {feed_title}")
     print_console(f"  URL : {feed_url}")
@@ -185,11 +192,13 @@ def main(dry_run: bool = False) -> None:
                       f"par mot-clé: {quota._config.get('per_keyword_daily_limit')}/j, "
                       f"par source: {quota._config.get('per_source_daily_limit')}/source")
 
-    # Arrêt immédiat si le plafond global est déjà atteint
-    if quota.is_global_exhausted():
+    # Arrêt immédiat si le plafond global est déjà atteint (sauf pour les flux bypassQuota)
+    if not bypass_quota and quota.is_global_exhausted():
         print_console("Plafond global de quota atteint — flux_watcher ignoré.", level="warning")
         _save_state(next_idx, total, feed_title, 0)
         return
+    if bypass_quota:
+        print_console(f"  ⚡ Quota ignoré pour ce flux (bypassQuota activé).", level="info")
 
     now = datetime.utcnow()
     one_week_ago = now - timedelta(days=7)
@@ -221,8 +230,8 @@ def main(dry_run: bool = False) -> None:
         if pub_dt < one_week_ago:
             continue
 
-        # Arrêt global si quota épuisé
-        if quota.is_global_exhausted():
+        # Arrêt global si quota épuisé (sauf pour les flux bypassQuota)
+        if not bypass_quota and quota.is_global_exhausted():
             print_console("Plafond global de quota atteint — arrêt du traitement.", level="warning")
             break
 
@@ -271,8 +280,8 @@ def main(dry_run: bool = False) -> None:
                 print_console(f"  Article masqué, ignoré pour '{kw}' : {link[:60]}...", level="debug")
                 continue
 
-            # Vérifier le quota (global + par mot-clé + par source)
-            if not quota.can_process(kw, feed_title):
+            # Vérifier le quota (global + par mot-clé + par source) — sauf si bypassQuota activé
+            if not bypass_quota and not quota.can_process(kw, feed_title):
                 print_console(f"  Quota atteint pour '{kw}' / '{feed_title}', ignoré.", level="debug")
                 continue
 
@@ -292,8 +301,8 @@ def main(dry_run: bool = False) -> None:
                 continue
 
             entities = api_client.generate_entities(resume)
-            # Vérifier le quota par entité (après détection, avant ajout)
-            if entities:
+            # Vérifier le quota par entité (après détection, avant ajout) — sauf si bypassQuota activé
+            if entities and not bypass_quota:
                 ok, saturated = quota.can_process_entities(entities)
                 if not ok:
                     print_console(f"  Quota entité atteint pour '{saturated}', article ignoré.", level="debug")
@@ -327,10 +336,13 @@ def main(dry_run: bool = False) -> None:
             existing_list.append(article)
             _write_atomic(out_path, existing_list)
             print_console(f"  ✓ Ajouté dans {out_path.name}")
-            quota.record_article(kw, feed_title, entities if entities else None)
+            # Pour les flux bypassQuota, on n'incrémente pas les compteurs
+            # afin de ne pas consommer le quota des autres flux.
+            if not bypass_quota:
+                quota.record_article(kw, feed_title, entities if entities else None)
             new_articles_all.append(article)
             # Si quota global atteint après cet ajout, sortir de la boucle mots-clés
-            if quota.is_global_exhausted():
+            if not bypass_quota and quota.is_global_exhausted():
                 print_console("Plafond global atteint après ajout.", level="warning")
                 break
 
