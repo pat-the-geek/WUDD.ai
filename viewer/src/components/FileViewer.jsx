@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { Download, FileText, Calendar, HardDrive, ChevronRight, ChevronDown, Images, ArrowUp, Tag, Braces, LayoutList, Trash2, AlertTriangle, Printer, BookOpen, BookMarked } from 'lucide-react'
+import { Download, FileText, Calendar, HardDrive, ChevronRight, ChevronDown, Images, ArrowUp, Tag, Braces, LayoutList, Trash2, AlertTriangle, Printer, BookOpen, BookMarked, Network, MessageSquare } from 'lucide-react'
 import JsonViewer from './JsonViewer'
 import MarkdownViewer from './MarkdownViewer'
 import EntityPanel from './EntityPanel'
@@ -193,7 +193,7 @@ function Lightbox({ images, index, onClose, onNav }) {
   )
 }
 
-export default function FileViewer({ file, content, loading, loadingProgress, onDownload, onContentSaved, onEntitySearch, onDelete, annotations, onAnnotate, sidebarOpen, availableProviders = [], articleSearchQuery = null, articleFocusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged, onOpenFile }) {
+export default function FileViewer({ file, content, loading, loadingProgress, onDownload, onContentSaved, onEntitySearch, onDelete, annotations, onAnnotate, sidebarOpen, availableProviders = [], articleSearchQuery = null, articleFocusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged, onOpenFile, onOpenGraph, onOpenChat }) {
   const scrollRef = useRef(null)
   const entitiesRef = useRef(null)
   const imagesRef = useRef(null)
@@ -328,10 +328,10 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
     <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900 relative">
       {/* ── Barre de fichier ── */}
       <div
-        className={`flex items-center gap-2 px-3 py-2 backdrop-blur-xl border-t border-white/30 dark:border-slate-700/40 md:border-t-0 md:border-b shrink-0 fixed left-0 right-0 md:static md:z-auto transition-all duration-200 ${
+        className={`flex items-center gap-2 px-3 py-2 border-t border-white/40 dark:border-white/[0.10] md:border-t-0 md:border-b shrink-0 fixed left-0 right-0 md:static md:z-auto transition-all duration-200 ${
           sidebarOpen
-            ? 'z-[15] bg-white/25 dark:bg-slate-800/25'
-            : 'z-40 bg-white/60 dark:bg-slate-800/60'
+            ? 'z-[15] bg-white/20 dark:bg-slate-900/20 backdrop-blur-2xl'
+            : 'z-40 bg-white/55 dark:bg-slate-900/55 backdrop-blur-2xl'
         }`}
         style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
       >
@@ -368,6 +368,28 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
 
         {/* ── Spacer mobile : pousse les boutons à droite ── */}
         <div className="flex-1 md:hidden" />
+
+        {/* Boutons Terminal IA et Graphe de connaissances — mobile uniquement */}
+        {onOpenGraph && (
+          <button
+            onClick={onOpenGraph}
+            title="Graphe de connaissances"
+            aria-label="Graphe de connaissances"
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg bg-violet-600/90 hover:bg-violet-500 active:bg-violet-700 text-white transition-colors shrink-0"
+          >
+            <Network size={16} />
+          </button>
+        )}
+        {onOpenChat && (
+          <button
+            onClick={onOpenChat}
+            title="Terminal IA"
+            aria-label="Terminal IA"
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg bg-green-700/90 hover:bg-green-600 active:bg-green-800 text-white transition-colors shrink-0"
+          >
+            <MessageSquare size={16} />
+          </button>
+        )}
 
         {/* Toggle Articles / JSON (uniquement pour les tableaux d'articles) */}
         {isArticleArray && (
@@ -605,7 +627,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
       )}
 
       {scrollTop > 50 && (
-        <div className="fixed bottom-[calc(11rem+env(safe-area-inset-bottom))] md:bottom-5 right-5 flex flex-col gap-2 z-50">
+        <div className="fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] md:bottom-5 right-5 flex flex-col gap-2 z-50">
           {hasImages && (
             <button
               onClick={scrollToImages}
