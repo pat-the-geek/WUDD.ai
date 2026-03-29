@@ -18,7 +18,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  X, Search, ZoomIn, ZoomOut, Maximize2, Minimize2,
+  X, Search, ZoomIn, ZoomOut,
   RefreshCw, Loader2, Network, Crosshair, ExternalLink,
   ChevronUp, ChevronDown,
 } from 'lucide-react'
@@ -371,7 +371,7 @@ export default function KnowledgeGraph({ onClose }) {
   const [tooltip, setTooltip] = useState(null) // {x, y, node}
 
   // ── Plein écran ──────────────────────────────────────────────────────────
-  const [fullscreen, setFullscreen] = useState(false)
+  const [fullscreen, setFullscreen] = useState(true)
 
   // ── Drag (pan) + touch refs ──────────────────────────────────────────────
   const dragRef       = useRef(null)  // {startX, startY, ox, oy}
@@ -1748,13 +1748,6 @@ export default function KnowledgeGraph({ onClose }) {
           title="Ajuster la vue"
         >
           <Crosshair size={14} />
-        </button>
-        <button
-          onClick={() => setFullscreen(f => !f)}
-          className="absolute top-2 right-11 z-10 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
-          title={fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
-        >
-          {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </button>
         <button
           onClick={onClose}
