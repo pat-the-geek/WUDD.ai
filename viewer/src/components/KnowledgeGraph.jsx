@@ -15,7 +15,7 @@
  *   - Tooltip au survol d'un nœud
  *   - Légende
  */
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import {
   X, Search, ZoomIn, ZoomOut,
@@ -103,12 +103,14 @@ const R_ENTITY  = 6
 /**
  * Avance d'un pas la simulation de Fruchterman-Reingold.
  *
- * Stratégie anti-superposition à deux couches :
- *   1. Répulsion FR radius-aware (distance surface-à-surface) — évite les
- *      approches dangereuses avant qu'elles ne surviennent.
- *   2. Correction de position directe PBD (Position-Based Dynamics) —
- *      après l'intégration, sépare géométriquement les paires encore
- *      superposées, 3 itérations, indépendamment de la température.
+ * Stratégie topologie-aware :
+ *   1. Répulsion O(n²) radius-aware — 2.8× plus forte entre nœuds NON connectés.
+ *   2. Attraction renforcée sur les arêtes directes (coefficient 0.40).
+ *   3. Attraction douce entité↔entité via articles partagés (clustering).
+ *   4. Gravité centre.
+ *   5. Répulsion nœud↔arête (réduit les croisements).
+ *   6. Intégration + amortissement.
+ *   7. Correction PBD (séparation géométrique).
  *
  * @param {object[]} nodes   — [{id, x, y, vx, vy, r, pinned?}]
  * @param {number[][]} edges — [[si, ti], ...]  (indices dans nodes)
@@ -122,9 +124,26 @@ function stepForce(nodes, edges, W, H, temp, linkMult = 1.2) {
   const fx  = new Float32Array(n)
   const fy  = new Float32Array(n)
 
-  // ── 1. Répulsion O(n²) radius-aware ─────────────────────────────────────
-  // Utilise la distance surface-à-surface (dSurf) et un kEff élargi
-  // proportionnellement aux rayons → les gros nœuds repoussent plus loin.
+  // ── 0. Pré-calcul : ensemble des paires directement connectées ───────────
+  // Utilisé pour moduler la répulsion selon la connectivité.
+  const connected = new Set()
+  // articles de chaque entité (pour attraction co-article entité↔entité)
+  const entityArticles = {}   // index → Set<articleIndex>
+  for (const [si, ti] of edges) {
+    connected.add(si < ti ? si * n + ti : ti * n + si)
+    const S = nodes[si]; const T = nodes[ti]
+    if (S?.kind === 'entity' && T?.kind === 'article') {
+      if (!entityArticles[si]) entityArticles[si] = new Set()
+      entityArticles[si].add(ti)
+    } else if (T?.kind === 'entity' && S?.kind === 'article') {
+      if (!entityArticles[ti]) entityArticles[ti] = new Set()
+      entityArticles[ti].add(si)
+    }
+  }
+
+  // ── 1. Répulsion O(n²) radius-aware, renforcée entre non-connectés ───────
+  // Connectés : répulsion atténuée (0.7×) — ils peuvent se rapprocher.
+  // Non-connectés : répulsion amplifiée (2.8×) — ils s'écartent naturellement.
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       const dx    = nodes[i].x - nodes[j].x
@@ -133,9 +152,10 @@ function stepForce(nodes, edges, W, H, temp, linkMult = 1.2) {
       const ri    = nodes[i].r
       const rj    = nodes[j].r
       const kEff  = k + (ri + rj) * 0.5
-      // distance libre entre surfaces — plancher à 1 pour éviter /0
       const dSurf = Math.max(d - ri - rj, 1)
-      const f     = (kEff * kEff) / (dSurf * dSurf)
+      const key   = i < j ? i * n + j : j * n + i
+      const repMult = connected.has(key) ? 0.7 : 2.8
+      const f     = (kEff * kEff) / (dSurf * dSurf) * repMult
       const nx    = (dx / d) * f
       const ny    = (dy / d) * f
       fx[i] += nx;  fy[i] += ny
@@ -143,9 +163,8 @@ function stepForce(nodes, edges, W, H, temp, linkMult = 1.2) {
     }
   }
 
-  // ── 2. Attraction sur les arêtes ─────────────────────────────────────────
-  // La longueur idéale tient compte des deux rayons pour que deux gros nœuds
-  // connectés restent naturellement plus éloignés.
+  // ── 2. Attraction sur les arêtes (renforcée) ─────────────────────────────
+  // Coefficient 0.40 (au lieu de 0.25) pour rapprocher les nœuds connectés.
   for (const [si, ti] of edges) {
     const dx    = nodes[ti].x - nodes[si].x
     const dy    = nodes[ti].y - nodes[si].y
@@ -153,15 +172,40 @@ function stepForce(nodes, edges, W, H, temp, linkMult = 1.2) {
     const ri    = nodes[si].r
     const rj    = nodes[ti].r
     const ideal = k * linkMult + (ri + rj) * 0.8
-    const f     = (d - ideal) * 0.25
+    const f     = (d - ideal) * 0.40
     const nx    = (dx / d) * f
     const ny    = (dy / d) * f
     fx[si] += nx;  fy[si] += ny
     fx[ti] -= nx;  fy[ti] -= ny
   }
 
-  // ── 3. Gravité vers le centre ────────────────────────────────────────────
-  // Valeur réduite (0.009) pour laisser les nœuds occuper plus d'espace.
+  // ── 3. Attraction entité↔entité via articles partagés ────────────────────
+  // Deux entités mentionnées dans les mêmes articles sont attirées l'une vers
+  // l'autre → elles se regroupent naturellement en clusters thématiques.
+  // Limité aux 60 premiers indices pour rester O(60² × |articles|).
+  const entIdxs = Object.keys(entityArticles).map(Number).slice(0, 60)
+  const idealCoArticle = k * linkMult * 0.55
+  for (let a = 0; a < entIdxs.length; a++) {
+    const ia   = entIdxs[a]
+    const setA = entityArticles[ia]
+    for (let b = a + 1; b < entIdxs.length; b++) {
+      const ib   = entIdxs[b]
+      const setB = entityArticles[ib]
+      let shared = 0
+      for (const art of setA) { if (setB.has(art)) { shared++; if (shared >= 5) break } }
+      if (shared === 0) continue
+      const dx = nodes[ib].x - nodes[ia].x
+      const dy = nodes[ib].y - nodes[ia].y
+      const d  = Math.sqrt(dx * dx + dy * dy) || 0.01
+      // Attraction proportionnelle au nombre d'articles partagés (plafonné à 4)
+      const f  = (d - idealCoArticle) * 0.10 * Math.min(shared, 4)
+      const nx = (dx / d) * f; const ny = (dy / d) * f
+      if (!nodes[ia].pinned) { fx[ia] += nx; fy[ia] += ny }
+      if (!nodes[ib].pinned) { fx[ib] -= nx; fy[ib] -= ny }
+    }
+  }
+
+  // ── 4. Gravité vers le centre ────────────────────────────────────────────
   const cx = W / 2
   const cy = H / 2
   for (let i = 0; i < n; i++) {
@@ -169,7 +213,34 @@ function stepForce(nodes, edges, W, H, temp, linkMult = 1.2) {
     fy[i] += (cy - nodes[i].y) * 0.009
   }
 
-  // ── 4. Intégration + amortissement ──────────────────────────────────────
+  // ── 5. Répulsion nœud↔arête (réduit les croisements) ─────────────────────
+  const edgeRepDist = k * 1.1
+  const edgeRepStr  = k * k * 0.55
+  const maxEdgesRep = Math.min(edges.length, 250)
+  for (let ei = 0; ei < maxEdgesRep; ei++) {
+    const [si, ti] = edges[ei]
+    const A = nodes[si]; const B = nodes[ti]
+    if (!A || !B) continue
+    const abx = B.x - A.x; const aby = B.y - A.y
+    const abLen2 = abx * abx + aby * aby
+    if (abLen2 < 1) continue
+    for (let i = 0; i < n; i++) {
+      if (i === si || i === ti) continue
+      const N = nodes[i]; if (N._hidden) continue
+      const t  = Math.max(0.05, Math.min(0.95, ((N.x - A.x) * abx + (N.y - A.y) * aby) / abLen2))
+      const px = A.x + t * abx; const py = A.y + t * aby
+      const dx = N.x - px;      const dy = N.y - py
+      const d  = Math.sqrt(dx * dx + dy * dy) || 0.01
+      if (d >= edgeRepDist + N.r) continue
+      const f  = edgeRepStr / (d * d)
+      const ux = dx / d; const uy = dy / d
+      if (!N.pinned) { fx[i] += ux * f; fy[i] += uy * f }
+      if (!A.pinned) { fx[si] -= ux * t * f * 0.25;       fy[si] -= uy * t * f * 0.25 }
+      if (!B.pinned) { fx[ti] -= ux * (1 - t) * f * 0.25; fy[ti] -= uy * (1 - t) * f * 0.25 }
+    }
+  }
+
+  // ── 6. Intégration + amortissement ──────────────────────────────────────
   for (let i = 0; i < n; i++) {
     if (nodes[i].pinned) continue
     nodes[i].vx = (nodes[i].vx + fx[i]) * 0.6
@@ -183,7 +254,7 @@ function stepForce(nodes, edges, W, H, temp, linkMult = 1.2) {
     nodes[i].y  = Math.max(pad, Math.min(H - pad, nodes[i].y))
   }
 
-  // ── 5. Correction de position PBD (Position-Based Dynamics) ─────────────
+  // ── 6. Correction de position PBD (Position-Based Dynamics) ─────────────
   // Après l'intégration, on sépare directement les paires superposées.
   // 3 itérations convergent bien même pour les clusters denses.
   // Indépendant de la température : garantit qu'il n'y a plus de superposition
@@ -276,7 +347,7 @@ export default function KnowledgeGraph({ onClose }) {
             flat.push({ value: item.value, type: t.type, count: item.count })
           }
         }
-        flat.sort((a, b) => b.count - a.count)
+        flat.sort((a, b) => (a.value ?? '').localeCompare(b.value ?? '', 'fr', { sensitivity: 'base' }))
         const top = flat.slice(0, 20)
         setSuggestions(top)
         setShowSuggestions(false) // sera rouvert via openSuggestDropdown si focus
@@ -445,6 +516,10 @@ export default function KnowledgeGraph({ onClose }) {
   const l2NodeIdsRef  = useRef(new Set()) // IDs des nœuds L2 ajoutés au graphe
   const l2LoadingRef  = useRef(false)
   const [l2Loading, setL2Loading] = useState(false)
+
+  // ── Liste NER (panneau latéral Desktop) ──────────────────────────────────
+  const [showNerList, setShowNerList] = useState(false)
+  const [nerListSelectedId, setNerListSelectedId] = useState(null)
 
   // Ref stable vers la fonction load (pour appel depuis toggleType sans dépendance cyclique)
   const loadRef = useRef(null)
@@ -721,7 +796,12 @@ export default function KnowledgeGraph({ onClose }) {
       const color = node.kind === 'article'
         ? ARTICLE_COLOR
         : (TYPE_CFG[node.ner_type]?.color ?? ENTITY_DEFAULT)
-      const r     = node.r
+      const now   = Date.now()
+      const bumpRemaining = node.bumpUntil ? node.bumpUntil - now : 0
+      // Courbe en cloche : monte rapidement, redescend doucement
+      const bumpT = bumpRemaining > 0 ? bumpRemaining / 1200 : 0  // 0→1
+      const bumpPhase = bumpT > 0 ? Math.sin(bumpT * Math.PI) : 0  // 0→1→0
+      const r     = node.r * (1 + bumpPhase * 1.4)  // jusqu'à +140% de rayon
       const isSelected = selected && selected.id === node.id
       const isSeed = node.kind === 'entity' && selectedEntityKeysRef.current.has(`${node.ner_type}:${node.value}`)
 
@@ -787,6 +867,26 @@ export default function KnowledgeGraph({ onClose }) {
         ctx.setLineDash([3 / scale, 2 / scale])
         ctx.stroke()
         ctx.setLineDash([])
+        ctx.restore()
+      }
+
+      // Halo bump (effet visuel 1er clic liste NER)
+      if (bumpPhase > 0) {
+        // Anneau externe qui se dilate
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(node.x, node.y, r + 14 * bumpPhase, 0, Math.PI * 2)
+        ctx.strokeStyle = color
+        ctx.globalAlpha = bumpPhase * 0.55
+        ctx.lineWidth = (3 + 3 * bumpPhase) / scale
+        ctx.stroke()
+        // 2ème anneau intérieur
+        ctx.beginPath()
+        ctx.arc(node.x, node.y, r + 5 * bumpPhase, 0, Math.PI * 2)
+        ctx.globalAlpha = bumpPhase * 0.35
+        ctx.lineWidth = (1.5) / scale
+        ctx.stroke()
+        ctx.globalAlpha = 1.0
         ctx.restore()
       }
 
@@ -1253,10 +1353,36 @@ export default function KnowledgeGraph({ onClose }) {
       setTooltip({ x: mxCss, y: myCss, node: best })
       canvas.style.cursor = 'pointer'
     } else {
-      setTooltip(null)
-      canvas.style.cursor = dragRef.current ? 'grabbing' : 'grab'
+      // Détection d'arête : cherche l'arête la plus proche du curseur (seuil 8px)
+      const nodes = nodesArrRef.current
+      const allEdges = [
+        ...edgesArrRef.current,
+        ...(showL2Ref.current ? l2EdgesArrRef.current : []),
+      ]
+      const EDGE_SLOP = 8 / viewRef.current.scale  // seuil en unités-monde
+      let bestEdge = null
+      let bestEdgeDist = EDGE_SLOP
+      for (const [si, ti] of allEdges) {
+        const A = nodes[si]; const B = nodes[ti]
+        if (!A || !B || A._hidden || B._hidden) continue
+        const abx = B.x - A.x; const aby = B.y - A.y
+        const abLen2 = abx * abx + aby * aby
+        if (abLen2 < 1) continue
+        const t   = Math.max(0, Math.min(1, ((wx - A.x) * abx + (wy - A.y) * aby) / abLen2))
+        const px  = A.x + t * abx; const py = A.y + t * aby
+        const d   = Math.hypot(wx - px, wy - py)
+        if (d < bestEdgeDist) { bestEdgeDist = d; bestEdge = [si, ti] }
+      }
+      if (bestEdge) {
+        const [si, ti] = bestEdge
+        setTooltip({ x: mxCss, y: myCss, edge: { source: nodes[si], target: nodes[ti] } })
+        canvas.style.cursor = 'crosshair'
+      } else {
+        setTooltip(null)
+        canvas.style.cursor = dragRef.current ? 'grabbing' : 'grab'
+      }
     }
-  }, [])
+  }, [showL2])
 
   // ── Détection de nœud à une position CSS ────────────────────────────────
   // slopCss : tolérance supplémentaire en pixels CSS (au-delà du rayon visuel)
@@ -1461,6 +1587,61 @@ export default function KnowledgeGraph({ onClose }) {
     ...allPresentTypes.filter(t => !typeOrder.includes(t)),
   ]
 
+  // ── Entités du graphe pour la Liste NER (triées alphabétiquement) ─────────
+  const nerListEntities = useMemo(() => {
+    if (!showNerList) return []
+    return nodesArrRef.current
+      .filter(n =>
+        n.kind === 'entity' && !n._hidden &&
+        (activeTypes.size === 0 || activeTypes.has(n.ner_type))
+      )
+      .sort((a, b) => (a.value ?? '').localeCompare(b.value ?? '', 'fr', { sensitivity: 'base' }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats, l2Loading, showNerList, activeTypes])
+
+  // ── Sélection depuis la Liste NER ─────────────────────────────────────────
+  // 1er clic  → bump visuel + centrage de la vue sur le nœud
+  // 2ème clic → réorganisation complète autour de ce nœud (pivot)
+  const selectNerEntity = useCallback((node) => {
+    const canvas = canvasRef.current
+    const W = canvas?.width  ?? 800
+    const H = canvas?.height ?? 600
+
+    if (nerListSelectedId !== node.id) {
+      // ── 1er clic : bump + centrage vue ──────────────────────────────────
+      setNerListSelectedId(node.id)
+      // Déclenche l'animation bump sur le nœud (1200 ms)
+      node.bumpUntil = Date.now() + 1200
+      const s = viewRef.current.scale
+      applyView({
+        x: W / 2 - node.x * s,
+        y: H / 2 - node.y * s,
+        scale: s,
+      })
+    } else {
+      // ── 2ème clic : réorganisation autour du nœud sélectionné ───────────
+      setNerListSelectedId(null)
+      // Dépingler tous les nœuds
+      for (const n of nodesArrRef.current) { n.pinned = false }
+      // Épingler le nœud cible au centre
+      node.pinned = true
+      node.x  = W / 2
+      node.y  = H / 2
+      node.vx = 0
+      node.vy = 0
+      // Secouer tous les autres nœuds
+      for (const n of nodesArrRef.current) {
+        if (!n.pinned && !n._hidden) {
+          n.vx = (Math.random() - 0.5) * 30
+          n.vy = (Math.random() - 0.5) * 30
+        }
+      }
+      tempRef.current = 80
+      autoFitRef.current = true
+      autoLinkMult()
+    }
+  }, [nerListSelectedId, applyView, autoLinkMult])
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
@@ -1630,6 +1811,19 @@ export default function KnowledgeGraph({ onClose }) {
         >
           {l2Loading ? <Loader2 size={12} className="animate-spin" /> : null}
           L2
+        </button>
+
+        {/* ── Toggle Liste NER (Desktop uniquement) ── */}
+        <button
+          onClick={() => setShowNerList(v => !v)}
+          className={`hidden md:flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
+            showNerList
+              ? 'bg-teal-600 text-white ring-2 ring-teal-300'
+              : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500'
+          }`}
+          title="Afficher la liste des entités NER du graphe (Desktop uniquement)"
+        >
+          Liste NER
         </button>
 
         {selectedEntityKeys.size > 0 && (
@@ -1851,11 +2045,64 @@ export default function KnowledgeGraph({ onClose }) {
             <div
               className="absolute pointer-events-none z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg px-3 py-2 text-xs max-w-xs"
               style={{
-                left: Math.min(tooltip.x + 12, (canvasRef.current?.getBoundingClientRect().width  ?? 800) - 200),
-                top:  Math.min(tooltip.y + 12, (canvasRef.current?.getBoundingClientRect().height ?? 600) - 80),
+                left: Math.min(tooltip.x + 12, (canvasRef.current?.getBoundingClientRect().width  ?? 800) - 220),
+                top:  Math.min(tooltip.y + 12, (canvasRef.current?.getBoundingClientRect().height ?? 600) - 100),
               }}
             >
-              {tooltip.node.kind === 'article' ? (
+              {tooltip.edge ? (
+                // ── Tooltip arête ──
+                (() => {
+                  const { source: S, target: T } = tooltip.edge
+                  const isEntityArticle = (S.kind === 'entity' && T.kind === 'article') || (S.kind === 'article' && T.kind === 'entity')
+                  const entity  = S.kind === 'entity' ? S : T
+                  const article = S.kind === 'article' ? S : T
+                  const isL2    = S.l2 || T.l2
+                  return isEntityArticle ? (
+                    <>
+                      <div className="font-semibold text-slate-500 dark:text-slate-400 mb-1.5 text-[10px] uppercase tracking-wide">
+                        {isL2 ? '🔗 Lien L2 — co-occurrence' : '🔗 Mention'}
+                      </div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className="inline-block w-2 h-2 rounded-full shrink-0"
+                          style={{ background: TYPE_CFG[entity.ner_type]?.color ?? ENTITY_DEFAULT }}
+                        />
+                        <span className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[150px]">{entity.value}</span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white shrink-0"
+                          style={{ background: TYPE_CFG[entity.ner_type]?.color ?? ENTITY_DEFAULT }}>
+                          {TYPE_CFG[entity.ner_type]?.label ?? entity.ner_type}
+                        </span>
+                      </div>
+                      <div className="text-slate-400 text-[10px] mb-0.5">↓ mentionné(e) dans</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base">📰</span>
+                        <div>
+                          <div className="font-medium text-slate-700 dark:text-slate-200 truncate max-w-[160px]">{article.source}</div>
+                          <div className="text-slate-400 text-[10px]">{article.date}</div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    // Lien entité ↔ entité (L2)
+                    <>
+                      <div className="font-semibold text-violet-500 dark:text-violet-400 mb-1.5 text-[10px] uppercase tracking-wide">
+                        🔗 Co-occurrence L2
+                      </div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="inline-block w-2 h-2 rounded-full shrink-0"
+                          style={{ background: TYPE_CFG[S.ner_type]?.color ?? ENTITY_DEFAULT }} />
+                        <span className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[130px]">{S.value}</span>
+                      </div>
+                      <div className="text-slate-400 text-[10px] my-0.5 text-center">↔ co-cité(e)s</div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 rounded-full shrink-0"
+                          style={{ background: TYPE_CFG[T.ner_type]?.color ?? ENTITY_DEFAULT }} />
+                        <span className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[130px]">{T.value}</span>
+                      </div>
+                    </>
+                  )
+                })()
+              ) : tooltip.node.kind === 'article' ? (
                 <>
                   <div className="font-semibold text-blue-600 dark:text-blue-400 mb-0.5">📰 Article</div>
                   <div className="font-medium text-slate-700 dark:text-slate-200 mb-0.5 truncate max-w-[200px]">
@@ -2022,6 +2269,63 @@ export default function KnowledgeGraph({ onClose }) {
                 </div>
               </>
             )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Liste NER (Desktop uniquement) ── */}
+        {showNerList && (
+          <div className="hidden md:flex md:flex-col w-64 border-l border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800 shrink-0">
+            <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Entités du graphe</span>
+              <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded-full tabular-nums">
+                {nerListEntities.length}
+              </span>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {nerListEntities.length === 0 ? (
+                <div className="px-3 py-6 text-xs text-slate-400 italic text-center">
+                  {nodesArrRef.current.filter(n => n.kind === 'entity').length === 0
+                    ? 'Chargez d\'abord le graphe'
+                    : 'Aucune entité visible'}
+                </div>
+              ) : (
+                nerListEntities.map((node, i) => {
+                  const cfg      = TYPE_CFG[node.ner_type]
+                  const isRound  = node.ner_type === 'PERSON'
+                  const initials = (node.value ?? '').split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
+                  return (
+                    <button
+                      key={`${node.ner_type}:${node.value}:${i}`}
+                      onClick={() => selectNerEntity(node)}
+                      className={`flex items-center gap-2.5 w-full px-3 py-2 text-left transition-colors border-b border-slate-100/60 dark:border-slate-700/40 last:border-0 ${
+                        nerListSelectedId === node.id
+                          ? 'bg-teal-50 dark:bg-teal-900/30 hover:bg-teal-100 dark:hover:bg-teal-800/40'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-700/60'
+                      }`}
+                      title={nerListSelectedId === node.id ? 'Cliquez à nouveau pour réorganiser le graphe autour de cette entité' : 'Centrer la vue sur cette entité'}
+                    >
+                      {/* Avatar */}
+                      <div
+                        className={`shrink-0 overflow-hidden border border-slate-200 dark:border-slate-600 flex items-center justify-center ${isRound ? 'rounded-full' : 'rounded-md'}`}
+                        style={{ width: 28, height: 28, background: `${cfg?.color ?? ENTITY_DEFAULT}22` }}
+                      >
+                        <span
+                          className="font-semibold"
+                          style={{ fontSize: 9, color: cfg?.color ?? ENTITY_DEFAULT }}
+                        >{initials || '?'}</span>
+                      </div>
+                      {/* Nom */}
+                      <span className="flex-1 text-xs text-slate-800 dark:text-slate-100 truncate">{node.value}</span>
+                      {/* Badge type */}
+                      <span
+                        className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white"
+                        style={{ background: cfg?.color ?? ENTITY_DEFAULT }}
+                      >{cfg?.label ?? node.ner_type}</span>
+                    </button>
+                  )
+                })
+              )}
             </div>
           </div>
         )}
