@@ -372,6 +372,9 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
   const sentiment    = article['sentiment'] ?? ''
   const ton          = article['ton_editorial'] ?? ''
   const motCle       = article['mot_cle'] ?? ''
+  const termeDeclencheur = article['terme_declencheur'] ?? ''
+  const motCleLabel   = (termeDeclencheur && termeDeclencheur.toLowerCase() !== motCle.toLowerCase()) ? termeDeclencheur : motCle
+  const motCleTooltip = (termeDeclencheur && termeDeclencheur.toLowerCase() !== motCle.toLowerCase()) ? `Mot-clé parent : ${motCle}` : 'Mot-clé de collecte'
   const fichierSource = article['fichier_source'] ?? ''
   const mainImageUrl = (() => {
     const imgs = article['Images']
@@ -870,12 +873,12 @@ ${contentEl.innerHTML}
               <p className="text-[11px] text-slate-400 dark:text-slate-500">
                 {[sources, date, sentiment].filter(Boolean).join(' · ')}
               </p>
-              {motCle && (
+              {motCleLabel && (
                 <span
                   className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800"
-                  title="Mot-clé de collecte"
+                  title={motCleTooltip}
                 >
-                  <Hash size={8} />{motCle}
+                  <Hash size={8} />{motCleLabel}
                 </span>
               )}
               {fichierSource && onOpenFile && (

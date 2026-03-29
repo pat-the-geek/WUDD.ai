@@ -593,14 +593,15 @@ function KeywordsTab() {
           }}
         />
       )}
+      {/* Texte explicatif — masqué sur mobile pour ne pas agrandir la toolbar */}
+      <p className="hidden sm:block text-xs text-slate-400 dark:text-slate-500 px-5 pt-3 pb-1 shrink-0">
+        Mots-clés extraits des flux RSS.{' '}
+        <span className="text-[#007AFF] dark:text-[#0A84FF] font-medium">OU</span> élargit la recherche,{' '}
+        <span className="text-[#1a7a34] dark:text-[#30D158] font-medium">ET</span> la restreint.
+        Appuyez sur <kbd className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1 rounded text-[11px]">Entrée</kbd> pour valider un terme.
+      </p>
       {/* Barre d'outils */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-200/50 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl shrink-0">
-        <p className="text-xs text-slate-400 dark:text-slate-500 flex-1">
-          Mots-clés extraits des flux RSS.{' '}
-          <span className="text-[#007AFF] dark:text-[#0A84FF] font-medium">OU</span> élargit la recherche,{' '}
-          <span className="text-[#1a7a34] dark:text-[#30D158] font-medium">ET</span> la restreint.
-          Appuyez sur <kbd className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1 rounded text-[11px]">Entrée</kbd> pour valider un terme.
-        </p>
         <button
           onClick={() => setShowMindmap(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-800/40 border border-indigo-200 dark:border-indigo-700/50 rounded-lg text-xs text-indigo-700 dark:text-indigo-300 transition-colors shrink-0"

@@ -554,9 +554,9 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
               const terme = article['terme_declencheur']
               const termeAnd = article['terme_and']
               const isDifferent = terme && terme.toLowerCase() !== article['mot_cle'].toLowerCase()
+              const label = isDifferent ? terme : article['mot_cle']
               const tooltip = [
-                'Mot-clé de collecte',
-                isDifferent ? `Déclenché par : ${terme}` : null,
+                isDifferent ? `Mot-clé parent : ${article['mot_cle']}` : 'Mot-clé de collecte',
                 termeAnd ? `Confirmé par (et) : ${termeAnd}` : null,
               ].filter(Boolean).join('\n')
               return (
@@ -564,10 +564,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
                   className="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800"
                   title={tooltip}
                 >
-                  <Hash size={9} />{article['mot_cle']}
-                  {isDifferent && (
-                    <span className="text-emerald-500 dark:text-emerald-400 opacity-75">↳ {terme}</span>
-                  )}
+                  <Hash size={9} />{label}
                   {termeAnd && (
                     <span className="text-emerald-500 dark:text-emerald-400 opacity-60 italic">+{termeAnd}</span>
                   )}

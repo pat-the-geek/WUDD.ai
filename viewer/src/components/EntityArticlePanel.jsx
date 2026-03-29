@@ -896,9 +896,9 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose, o
                       const terme = art['terme_declencheur']
                       const termeAnd = art['terme_and']
                       const isDifferent = terme && terme.toLowerCase() !== art['mot_cle'].toLowerCase()
+                      const label = isDifferent ? terme : art['mot_cle']
                       const tooltip = [
-                        'Mot-clé de collecte',
-                        isDifferent ? `Déclenché par : ${terme}` : null,
+                        isDifferent ? `Mot-clé parent : ${art['mot_cle']}` : 'Mot-clé de collecte',
                         termeAnd ? `Confirmé par (et) : ${termeAnd}` : null,
                       ].filter(Boolean).join('\n')
                       return (
@@ -906,10 +906,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose, o
                           className="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800"
                           title={tooltip}
                         >
-                          <Hash size={9} />{art['mot_cle']}
-                          {isDifferent && (
-                            <span className="text-emerald-500 dark:text-emerald-400 opacity-75">↳ {terme}</span>
-                          )}
+                          <Hash size={9} />{label}
                           {termeAnd && (
                             <span className="text-emerald-500 dark:text-emerald-400 opacity-60 italic">+{termeAnd}</span>
                           )}

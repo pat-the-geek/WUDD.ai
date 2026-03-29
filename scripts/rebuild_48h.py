@@ -30,7 +30,7 @@ def parse_date(date_str: str) -> datetime | None:
     date_str = date_str.strip()
     for fmt in FORMATS:
         try:
-            dt = datetime.strptime(date_str[:len(fmt) + 5], fmt)
+            dt = datetime.strptime(date_str, fmt)
             if dt.tzinfo is not None:
                 dt = dt.replace(tzinfo=None)
             return dt
