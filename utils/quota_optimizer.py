@@ -64,8 +64,9 @@ def archive_today(dry_run: bool = False) -> bool:
 
     # Vérifier que c'est bien la date d'hier (le reset vient de tourner)
     state_date = state.get("date", "")
-    # On archive l'état de la veille (avant le reset)
-    if state_date != yesterday and state_date != str(date.today()):
+    # On n'archive que l'état daté d'hier — les compteurs du jour courant
+    # (après reset minuit) ne doivent pas être archivés car ils sont à zéro.
+    if state_date != yesterday:
         return False
 
     _QUOTA_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
@@ -110,6 +111,17 @@ def _load_config() -> dict:
     return dict(DEFAULT_CONFIG)
 
 
+def _backup_config(config: dict) -> None:
+    """Sauvegarde l'ancienne config dans data/quota_history/ avant écrasement."""
+    _QUOTA_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+    backup_path = _QUOTA_HISTORY_DIR / f"quota_config_{date.today()}.json"
+    if not backup_path.exists():
+        backup_path.write_text(
+            json.dumps(config, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+
 def _save_config(config: dict) -> None:
     _QUOTA_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     _QUOTA_CONFIG_PATH.write_text(
@@ -151,6 +163,9 @@ def optimize(dry_run: bool = False) -> dict:
             keyword_days.setdefault(kw, []).append(ratio)
 
     new_kw_limit = kw_limit
+    any_kw_saturated = False
+    underused_keywords: list[str] = []
+
     for kw, ratios in keyword_days.items():
         if len(ratios) < 3:
             continue
@@ -158,15 +173,26 @@ def optimize(dry_run: bool = False) -> dict:
         saturated_days = sum(1 for r in ratios if r >= 0.95)
 
         if saturated_days >= _SATURATION_DAYS_THRESHOLD:
-            # Ce keyword est presque toujours saturé → augmenter le budget global
-            # (on agit sur la limite globale car per_keyword est partagée)
-            suggestion = f"Keyword '{kw}' saturé {saturated_days}/{len(ratios)} jours"
-            if suggestion not in adjustments:
-                adjustments.append(suggestion)
-                new_kw_limit = min(_KW_MAX, int(new_kw_limit * 1.20))
+            # Mémorise les keywords saturés — l'ajustement (+20%) est appliqué
+            # une seule fois après la boucle pour éviter un effet cumulatif.
+            adjustments.append(f"Keyword '{kw}' saturé {saturated_days}/{len(ratios)} jours")
+            any_kw_saturated = True
         elif avg_ratio < _UNDERUSE_RATIO_THRESHOLD:
-            suggestion = f"Keyword '{kw}' sous-utilisé (ratio moyen {avg_ratio:.0%})"
-            adjustments.append(suggestion)
+            adjustments.append(f"Keyword '{kw}' sous-utilisé (ratio moyen {avg_ratio:.0%})")
+            underused_keywords.append(kw)
+
+    # Un seul ajustement global +20% si au moins un keyword est saturé
+    if any_kw_saturated:
+        new_kw_limit = min(_KW_MAX, int(kw_limit * 1.20))
+
+    # Réduction pour les keywords systématiquement sous-utilisés :
+    # on diminue de 15% mais seulement si aucun keyword n'est saturé
+    # (priorité à l'augmentation si les deux cas coexistent)
+    if underused_keywords and not any_kw_saturated:
+        new_kw_limit = max(_KW_MIN, int(kw_limit * 0.85))
+        adjustments.append(
+            f"per_keyword_daily_limit réduit pour sous-utilisation : {', '.join(underused_keywords)}"
+        )
 
     if new_kw_limit != kw_limit:
         new_config["per_keyword_daily_limit"] = new_kw_limit
@@ -219,6 +245,7 @@ def optimize(dry_run: bool = False) -> dict:
     }
 
     if not dry_run and adjustments:
+        _backup_config(old_config)
         _save_config(new_config)
 
     return result

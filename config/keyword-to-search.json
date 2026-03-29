@@ -19,18 +19,7 @@
     ]
   },
   {
-    "and": [
-      "intelligence artificielle",
-      "IA",
-      "génération de texte",
-      "modèle linguistique",
-      "chatbot",
-      "start-up",
-      "technologie",
-      "silicon valley",
-      "fondation",
-      "sécurité IA"
-    ],
+    "and": [],
     "keyword": "Anthropic",
     "or": [
       "Claude code",
@@ -49,27 +38,7 @@
     ]
   },
   {
-    "and": [
-      "LLM",
-      "modèle",
-      "EPFZ",
-      "EPFL",
-      "Modèle de langage",
-      "IA",
-      "intelligence artificielle",
-      "modèle linguistique",
-      "open source",
-      "génération de texte",
-      "chatbot",
-      "NLP",
-      "apprentissage automatique",
-      "langage naturel",
-      "grand modèle",
-      "IA générative",
-      "API",
-      "données",
-      "recherche"
-    ],
+    "and": [],
     "keyword": "Apertus LLM",
     "or": [
       "Apertus",
@@ -105,7 +74,17 @@
       "conférence",
       "WWDC",
       "iPhone",
-      "iOS"
+      "iOS",
+      "Mac",
+      "MacBook",
+      "iPad",
+      "AirPods",
+      "Apple",
+      "iMac",
+      "macOS",
+      "iPadOS",
+      "Apple TV",
+      "Apple Watch"
     ],
     "keyword": "Apple",
     "or": [
@@ -330,14 +309,7 @@
     ]
   },
   {
-    "and": [
-      "AI",
-      "IA",
-      "xAI",
-      "chatbot",
-      "modèle",
-      "Elon Musk"
-    ],
+    "and": [],
     "keyword": "Grok",
     "or": []
   },
@@ -357,7 +329,18 @@
       "bataille",
       "conflit armé",
       "victime",
-      "casualité"
+      "guerre",
+      "paix",
+      "territoire",
+      "conflit",
+      "attaque",
+      "crise",
+      "diplomatie",
+      "accord",
+      "sanctions",
+      "obus",
+      "roquette",
+      "assaut"
     ],
     "keyword": "Guerre",
     "or": [
@@ -479,6 +462,7 @@
   },
   {
     "and": [
+      "Meta",
       "Facebook",
       "Instagram",
       "WhatsApp",
@@ -486,7 +470,14 @@
       "Llama",
       "réseau social",
       "Quest",
-      "Ray-Ban"
+      "Ray-Ban",
+      "IA",
+      "AI",
+      "modèle",
+      "lunettes",
+      "glasses",
+      "intelligence artificielle",
+      "social"
     ],
     "keyword": "Meta",
     "or": []
@@ -538,7 +529,16 @@
       "station spatiale",
       "recherche spatiale",
       "astronomie",
-      "vol spatial"
+      "vol spatial",
+      "space",
+      "orbit",
+      "Moon",
+      "lunar",
+      "rocket",
+      "launch",
+      "spacecraft",
+      "asteroid",
+      "crew"
     ],
     "keyword": "Nasa",
     "or": [
@@ -548,15 +548,14 @@
       "CNES",
       "ESA",
       "SpaceX",
-      "Elon Musk",
-      "Mars",
       "Lune",
       "ISS",
       "Hubble",
       "James Webb",
       "Voyager",
       "Apollo",
-      "Orion"
+      "Orion",
+      "Artemis"
     ]
   },
   {
@@ -650,14 +649,7 @@
     ]
   },
   {
-    "and": [
-      "AI",
-      "IA",
-      "moteur de recherche",
-      "chatbot",
-      "recherche",
-      "Aravind Srinivas"
-    ],
+    "and": [],
     "keyword": "Perplexity",
     "or": []
   },
@@ -671,34 +663,29 @@
       "écologie",
       "environnement",
       "réchauffement",
-      "biodiversité",
-      "océan",
-      "forêt",
-      "faune",
-      "flore",
-      "écosystème",
-      "santé de la planète"
+      "spatial",
+      "mission",
+      "exploration",
+      "satellite",
+      "space",
+      "orbit",
+      "launch",
+      "Moon",
+      "NASA",
+      "ESA"
     ],
     "keyword": "Planète",
     "or": [
       "Planet",
       "moon",
-      "lune",
-      "mars",
       "planète",
       "planètes",
-      "terre",
-      "vénus",
-      "jupiter",
-      "saturne",
-      "uranus",
-      "neptune",
-      "mercure",
-      "pluton",
       "exoplanète",
       "système solaire",
       "astre",
-      "cosmos"
+      "cosmos",
+      "lune",
+      "corps céleste"
     ]
   },
   {
@@ -717,7 +704,12 @@
       "science",
       "expérimental",
       "développement",
-      "industrie"
+      "industrie",
+      "quantum",
+      "computer",
+      "computers",
+      "computing",
+      "quanta"
     ],
     "keyword": "Quantique",
     "or": [
@@ -754,7 +746,18 @@
       "prototype",
       "développement",
       "automobile",
-      "aérospatial"
+      "aérospatial",
+      "autonome",
+      "humanoïde",
+      "intelligence artificielle",
+      "IA",
+      "drone",
+      "service",
+      "clients",
+      "livraison",
+      "entrepôt",
+      "usine",
+      "chirurgie"
     ],
     "keyword": "Robotic",
     "or": [
@@ -777,23 +780,7 @@
     ]
   },
   {
-    "and": [
-      "technologie",
-      "innovation",
-      "réalité augmentée",
-      "réalité virtuelle",
-      "wearable",
-      "écran",
-      "capteur",
-      "IA",
-      "lunettes",
-      "connecté",
-      "affichage",
-      "utilisateur",
-      "design",
-      "lancement",
-      "prototype"
-    ],
+    "and": [],
     "keyword": "Smart glasses",
     "or": [
       "lunettes intelligentes",
@@ -888,7 +875,23 @@
       "impeachment",
       "RNC",
       "parti républicain",
-      "sénat"
+      "sénat",
+      "White House",
+      "administration",
+      "tariff",
+      "tarifs",
+      "droits de douane",
+      "GOP",
+      "Donald",
+      "décision",
+      "veto",
+      "executive",
+      "américain",
+      "américains",
+      "sanctions",
+      "mesure",
+      "loi",
+      "taxe"
     ],
     "keyword": "Trump",
     "or": [
@@ -1010,7 +1013,21 @@
       "origine",
       "formation",
       "évolution",
-      "modèle"
+      "modèle",
+      "spatial",
+      "mission",
+      "exploration",
+      "lancement",
+      "astronaute",
+      "fusée",
+      "space",
+      "orbit",
+      "astronautes",
+      "missions",
+      "lancements",
+      "lunaire",
+      "spatial",
+      "satellites"
     ],
     "keyword": "univers",
     "or": [
@@ -1032,23 +1049,7 @@
     ]
   },
   {
-    "and": [
-      "streaming",
-      "séries",
-      "films",
-      "abonnement",
-      "plateforme",
-      "contenu",
-      "visionnage",
-      "dématérialisé",
-      "on-demand",
-      "catalogue",
-      "épisodes",
-      "diffusion",
-      "vidéo",
-      "service",
-      "utilisateur"
-    ],
+    "and": [],
     "keyword": "Vidéo à la demande",
     "or": [
       "Netflix",
@@ -1072,23 +1073,7 @@
     ]
   },
   {
-    "and": [
-      "informatique",
-      "sécurité",
-      "cyber",
-      "malveillant",
-      "attaque",
-      "infection",
-      "contamination",
-      "logiciel",
-      "code",
-      "réseau",
-      "données",
-      "système",
-      "ordinateur",
-      "mobile",
-      "protection"
-    ],
+    "and": [],
     "keyword": "virus",
     "or": [
       "virus informatique",

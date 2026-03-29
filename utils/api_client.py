@@ -1554,6 +1554,9 @@ class FallbackClient:
     def generate_report(self, *args, **kwargs):
         return self._call("generate_report", *args, **kwargs)
 
+    def generate_summary_with_sentiment(self, *args, **kwargs):
+        return self._call("generate_summary_with_sentiment", *args, **kwargs)
+
     def ask(self, *args, **kwargs):
         return self._call("ask", *args, **kwargs)
 
