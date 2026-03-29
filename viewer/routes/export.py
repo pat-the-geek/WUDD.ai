@@ -29,7 +29,7 @@ export_bp = Blueprint("export", __name__)
 # Paramètres du chatbot
 _CHAT_MAX_CONTEXT_FILES   = 10     # Nombre maximum de fichiers de contexte par requête
 _CHAT_MAX_CONTEXT_CHARS   = 100000 # Taille maximale (caractères) par fichier de contexte (brut)
-_CHAT_MAX_ARTICLES_JSON   = 100    # Nombre max d'articles inclus depuis un fichier JSON d'articles
+_CHAT_MAX_ARTICLES_JSON   = 9999   # Nombre max d'articles inclus depuis un fichier JSON d'articles (pas de limite effective)
 _CHAT_MAX_ENTITIES_TYPE   = 5      # Nombre max d'entités par type dans le contexte article compact
 
 
