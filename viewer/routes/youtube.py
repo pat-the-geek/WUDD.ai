@@ -10,13 +10,17 @@ Stratégie :
   - Filtre langue FR/EN, tri FR d'abord
   - Score de pertinence : chevauchement token Jaccard + bonus entités nommées
   - Quota : search.list = 100 unités | videos.list = 1 unité (sur 10 000/jour gratuits)
+  - Cache mémoire TTL 1h — évite les appels redondants pour le même article
 
 Prérequis : YOUTUBE_API_KEY dans .env
 """
+import hashlib
 import json
 import os
 import re
 import ssl
+import time
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,6 +28,12 @@ import urllib.request
 from flask import Blueprint, jsonify, request
 
 youtube_bp = Blueprint("youtube", __name__)
+
+# ── Cache mémoire TTL ─────────────────────────────────────────────────────────
+# Clé : MD5(query + max), valeur : {"ts": float, "data": dict}
+_CACHE_TTL = 3600          # 1 heure
+_cache: dict = {}
+_cache_lock = threading.Lock()
 
 # ── SSL — compatible avec les environnements sans certifi (Docker, macOS system Python) ──
 _ssl_ctx = ssl.create_default_context()
@@ -256,13 +266,20 @@ def api_youtube_videos():
     if not query:
         return jsonify({"error": "Impossible de construire une requête"}), 400
 
+    # ── Vérification du cache ─────────────────────────────────────────────────
+    cache_key = hashlib.md5(f"{query}|{max_res}".encode()).hexdigest()
+    with _cache_lock:
+        entry = _cache.get(cache_key)
+        if entry and (time.time() - entry["ts"]) < _CACHE_TTL:
+            return jsonify({**entry["data"], "cached": True})
+
     try:
         # Étape 1 : recherche FR
         videos_fr = _yt_search(query, api_key, max_results=max_res * 2, language="fr")
 
-        # Étape 2 : compléter avec EN si besoin
+        # Étape 2 : EN uniquement si FR renvoie moins de 3 résultats pertinents
         videos_en = []
-        if len(videos_fr) < max_res:
+        if len(videos_fr) < 3:
             videos_en = _yt_search(query, api_key, max_results=max_res * 2, language="en")
 
         # Déduplique
@@ -301,7 +318,13 @@ def api_youtube_videos():
         # Tri final par score décroissant (maintient FR avant EN à score égal)
         result.sort(key=lambda x: -x["score"])
 
-        return jsonify({"query": query, "videos": result})
+        payload = {"query": query, "videos": result}
+
+        # ── Mise en cache ─────────────────────────────────────────────────────
+        with _cache_lock:
+            _cache[cache_key] = {"ts": time.time(), "data": payload}
+
+        return jsonify(payload)
 
     except urllib.error.HTTPError as e:
         body_err = e.read().decode(errors="replace")[:300]
