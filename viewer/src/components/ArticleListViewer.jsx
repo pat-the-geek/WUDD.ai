@@ -3,8 +3,9 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
   Download, LayoutGrid, AlignLeft, LayoutList, Maximize2, Clock,
-  Star, Eye, EyeOff, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge, FolderOpen, Hash,
+  Star, Eye, EyeOff, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge, FolderOpen, Hash, Youtube,
 } from 'lucide-react'
+import YouTubePanel from './YouTubePanel'
 import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
 import { openInObsidian } from '../utils/obsidian'
@@ -434,6 +435,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
   const [showIAPicker, setShowIAPicker]           = useState(false)
   const [showContradiction, setShowContradiction] = useState(false)
   const [showSimilar, setShowSimilar]             = useState(false)
+  const [youtubeOpen, setYoutubeOpen]             = useState(false)
 
   const displayArticle = localEnrichment ? { ...article, ...localEnrichment } : article
 
@@ -503,6 +505,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
   }, [availableProviders, handleRefreshResume])
 
   return (
+  <>
     <article ref={cardRef} data-article-url={url} {...(isFirstUnread ? { 'data-first-unread': '' } : {})} className="bg-white/60 dark:bg-slate-800/50 backdrop-blur-2xl border border-white/70 dark:border-white/10 rounded-3xl overflow-hidden shadow-xl shadow-black/8 dark:shadow-black/30 hover:shadow-2xl hover:shadow-black/12 dark:hover:shadow-black/40 transition-all duration-300">
       {showIAPicker && (
         <IAPickerModal providers={availableProviders} onPick={handleRefreshResume} onClose={() => setShowIAPicker(false)} />
@@ -665,13 +668,22 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
         {(url || resume.length > 300) && (
           <div className="mt-2 flex items-center justify-end gap-3">
             {url && (
-              <button
-                onClick={() => onFullReport?.(article)}
-                className="flex items-center gap-1 text-xs text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
-                title="Générer un rapport complet"
-              >
-                <FileText size={12} /> Rapport
-              </button>
+              <>
+                <button
+                  onClick={() => setYoutubeOpen(true)}
+                  className="flex items-center gap-1 text-xs text-rose-400 hover:text-[#FF0000] dark:hover:text-[#FF453A] transition-colors"
+                  title="Vidéos YouTube liées"
+                >
+                  <Youtube size={12} /> Vidéos
+                </button>
+                <button
+                  onClick={() => onFullReport?.(article)}
+                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
+                  title="Générer un rapport complet"
+                >
+                  <FileText size={12} /> Rapport
+                </button>
+              </>
             )}
             {resume.length > 300 && (
               <button onClick={() => setExpanded(v => !v)}
@@ -730,6 +742,13 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
         )}
       </div>
     </article>
+    {youtubeOpen && (
+      <YouTubePanel
+        article={{ titre: article['Titre'] ?? '', entities: article.entities ?? {}, Sources: article['Sources'] ?? '' }}
+        onClose={() => setYoutubeOpen(false)}
+      />
+    )}
+  </>
   )
 }
 

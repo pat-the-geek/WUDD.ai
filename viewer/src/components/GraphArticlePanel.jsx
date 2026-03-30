@@ -11,10 +11,11 @@
  */
 import { useState, useEffect } from 'react'
 import {
-  X, Tag, Clock, ExternalLink, FileText, Maximize2, ChevronUp, ChevronDown, Loader2,
+  X, Tag, Clock, ExternalLink, FileText, Maximize2, ChevronUp, ChevronDown, Loader2, Youtube,
 } from 'lucide-react'
 import EntityHighlighter from './EntityHighlighter'
 import ArticleFullReportDialog from './ArticleFullReportDialog'
+import YouTubePanel from './YouTubePanel'
 
 // ── Utilitaires date ──────────────────────────────────────────────────────────
 function parseArticleDate(raw) {
@@ -124,6 +125,7 @@ export default function GraphArticlePanel({ article: partialArticle, filePath, o
   const [lightbox,   setLightbox]   = useState(false)
   const [expanded,   setExpanded]   = useState(true)
   const [reportOpen, setReportOpen] = useState(false)
+  const [youtubeOpen, setYoutubeOpen] = useState(false)
 
   // URL canonique : le nœud graphe envoie soit la clé française 'URL' soit 'url'
   const canonicalUrl = partialArticle?.['URL'] ?? partialArticle?.url ?? ''
@@ -302,12 +304,20 @@ export default function GraphArticlePanel({ article: partialArticle, filePath, o
               {/* Pied de carte */}
               <div className="mt-3 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-700 pt-3">
                 {url && (
-                  <button
-                    onClick={() => setReportOpen(true)}
-                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
-                  >
-                    <FileText size={13} /> Rapport
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setYoutubeOpen(true)}
+                      className="flex items-center gap-1 text-xs text-rose-400 hover:text-[#FF0000] dark:hover:text-[#FF453A] transition-colors"
+                    >
+                      <Youtube size={13} /> Vidéos
+                    </button>
+                    <button
+                      onClick={() => setReportOpen(true)}
+                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
+                    >
+                      <FileText size={13} /> Rapport
+                    </button>
+                  </>
                 )}
                 {resume.length > 300 && (
                   <button
@@ -333,6 +343,18 @@ export default function GraphArticlePanel({ article: partialArticle, filePath, o
         article={article ?? partialArticle}
         filePath={filePath}
         onClose={() => setReportOpen(false)}
+      />
+    )}
+
+    {/* Panel YouTube */}
+    {youtubeOpen && (
+      <YouTubePanel
+        article={{
+          titre:    (article ?? partialArticle)?.['Titre'] ?? (article ?? partialArticle)?.['Sources'] ?? '',
+          entities: (article ?? partialArticle)?.entities ?? {},
+          Sources:  (article ?? partialArticle)?.['Sources'] ?? '',
+        }}
+        onClose={() => setYoutubeOpen(false)}
       />
     )}
     </>

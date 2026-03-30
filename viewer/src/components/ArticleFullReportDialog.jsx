@@ -14,8 +14,9 @@ import { createPortal } from 'react-dom'
 import {
   X, Maximize2, Minimize2, Copy, Download, Printer,
   RefreshCw, FileText, Check, Terminal, BookOpen, Loader2,
-  Hash, FolderOpen,
+  Hash, FolderOpen, Youtube,
 } from 'lucide-react'
+import YouTubePanel from './YouTubePanel'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
@@ -357,6 +358,7 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
   const [copied, setCopied]             = useState(false)
   const [exportState, setExportState]   = useState({ local: null, obsidian: null })
   const [obsidianVault, setObsidianVault] = useState(obsidianVaultProp ?? null)
+  const [youtubeOpen, setYoutubeOpen]   = useState(false)
   // frozenMd : snapshot du markdown au moment où le stream se termine.
   // La FinalReportView est montée avec ce snapshot et ne change plus jamais.
   const [frozenMd,  setFrozenMd]        = useState(null)
@@ -850,7 +852,7 @@ ${contentEl.innerHTML}
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────────
-  return createPortal(
+  const portal = createPortal(
     <div
       id="article-report-portal"
       className="hig-overlay-enter fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 print:p-0"
@@ -895,6 +897,14 @@ ${contentEl.innerHTML}
           <div className="flex items-center gap-0.5 shrink-0 flex-wrap justify-end">
             {!isLoading && cleanMd && (
               <>
+                <button
+                  onClick={() => setYoutubeOpen(true)}
+                  className="flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors"
+                  title="Vidéos YouTube liées à cet article"
+                >
+                  <Youtube size={12} />
+                  <span className="hidden sm:inline">Vidéos</span>
+                </button>
                 <button
                   onClick={handleOpenChatbot}
                   className="flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors"
@@ -1088,5 +1098,17 @@ ${contentEl.innerHTML}
       </div>
     </div>,
     document.body
+  )
+
+  return (
+    <>
+      {portal}
+      {youtubeOpen && (
+        <YouTubePanel
+          article={{ titre, entities, Sources: sources }}
+          onClose={() => setYoutubeOpen(false)}
+        />
+      )}
+    </>
   )
 }
