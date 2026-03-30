@@ -3,8 +3,7 @@
  * Style : cartes article identiques à la vue JSON, grille 2 colonnes, modal large.
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, VolumeX, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut, Terminal, Youtube } from 'lucide-react'
-import YouTubePanel from './YouTubePanel'
+import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, VolumeX, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut, Terminal } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -298,7 +297,6 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
   const [lightbox, setLightbox]           = useState(false)
   const [noteOpen, setNoteOpen]           = useState(false)
   const [refreshing, setRefreshing]       = useState(false)
-  const [youtubeOpen, setYoutubeOpen]     = useState(false)
   const [localEnrichment, setLocalEnrichment] = useState(null)
   const [showIAPicker, setShowIAPicker]   = useState(false)
 
@@ -361,7 +359,6 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
   }, [availableProviders, handleRefreshResume])
 
   return (
-  <>
     <article ref={cardRef} className={`bg-white/60 dark:bg-slate-800/50 backdrop-blur-2xl border rounded-3xl overflow-hidden shadow-xl shadow-black/8 dark:shadow-black/30 hover:shadow-2xl hover:shadow-black/12 dark:hover:shadow-black/40 transition-all duration-300 flex flex-col ${
       isCurrentPodcast
         ? 'border-violet-400 dark:border-violet-500 ring-2 ring-violet-300/50 dark:ring-violet-700/50'
@@ -487,20 +484,12 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
         {(url !== '#' || resume.length > 280) && (
           <div className="mt-1.5 flex items-center justify-end gap-3">
             {url && url !== '#' && (
-              <>
-                <button
-                  onClick={() => setYoutubeOpen(true)}
-                  className="flex items-center gap-1 text-xs text-rose-400 hover:text-[#FF0000] dark:hover:text-[#FF453A] transition-colors"
-                  title="Vidéos YouTube liées">
-                  <Youtube size={12} /> Vidéos
-                </button>
-                <button
-                  onClick={() => onReport?.(article)}
-                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
-                  title="Générer un rapport complet">
-                  <FileText size={12} /> Rapport
-                </button>
-              </>
+              <button
+                onClick={() => onReport?.(article)}
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
+                title="Générer un rapport complet">
+                <FileText size={12} /> Rapport
+              </button>
             )}
             {resume.length > 280 && (
               <button onClick={() => setExpanded(v => !v)}
@@ -541,13 +530,6 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
         </div>
       </div>
     </article>
-    {youtubeOpen && (
-      <YouTubePanel
-        article={{ titre: article['Titre'] ?? article['Sources'] ?? '', entities: article.entities ?? {}, Sources: article['Sources'] ?? '' }}
-        onClose={() => setYoutubeOpen(false)}
-      />
-    )}
-  </>
   )
 }
 
