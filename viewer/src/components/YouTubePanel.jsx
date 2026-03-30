@@ -9,7 +9,7 @@
  * - Props : article {titre, entities, Résumé, Sources} + onClose
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Youtube, Loader2, AlertTriangle, ExternalLink, SlidersHorizontal } from 'lucide-react'
 
@@ -171,9 +171,16 @@ export default function YouTubePanel({ article, onClose }) {
   const entities = article?.entities ?? {}
   const source   = article?.['Sources'] ?? article?.source ?? ''
 
+  // ── Clé stable — ne change que si le contenu réel change (pas la référence objet) ──
+  const stableKey = useMemo(
+    () => JSON.stringify({ titre, entities }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [titre, JSON.stringify(entities)]
+  )
+
   // ── Chargement des vidéos ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!article) return
+    if (!titre && !Object.keys(entities).length) return
     setLoading(true)
     setError(null)
     setVideos([])
@@ -192,7 +199,7 @@ export default function YouTubePanel({ article, onClose }) {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [article])
+  }, [stableKey])  // ← dépend du contenu, pas de la référence objet
 
   // ── Fermeture Échap ────────────────────────────────────────────────────────
   useEffect(() => {
