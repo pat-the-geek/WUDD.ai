@@ -63,6 +63,7 @@ from viewer.routes.merge           import merge_bp
 from viewer.routes.rss_direct      import rss_direct_bp
 from viewer.routes.self_learning   import self_learning_bp
 from viewer.routes.graph           import graph_bp
+from viewer.routes.youtube         import youtube_bp
 
 app.register_blueprint(files_bp)
 app.register_blueprint(entities_bp)
@@ -76,6 +77,7 @@ app.register_blueprint(merge_bp)
 app.register_blueprint(rss_direct_bp)
 app.register_blueprint(self_learning_bp)
 app.register_blueprint(graph_bp)
+app.register_blueprint(youtube_bp)
 
 
 # ── Rebuild des indexes au démarrage ─────────────────────────────────────────

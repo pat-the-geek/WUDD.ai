@@ -330,8 +330,8 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
       <div
         className={`flex items-center gap-2 px-3 py-2 border-t border-white/40 dark:border-white/[0.10] md:border-t-0 md:border-b shrink-0 fixed left-0 right-0 md:static md:z-auto transition-all duration-200 ${
           sidebarOpen
-            ? 'z-[15] bg-white/20 dark:bg-slate-900/20 backdrop-blur-2xl'
-            : 'z-40 bg-white/55 dark:bg-slate-900/55 backdrop-blur-2xl'
+            ? 'z-[15] bg-white/10 dark:bg-slate-900/10 backdrop-blur-2xl'
+            : 'z-40 bg-white/30 dark:bg-slate-900/30 backdrop-blur-2xl'
         }`}
         style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
       >
@@ -375,7 +375,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             onClick={onOpenGraph}
             title="Graphe de connaissances"
             aria-label="Graphe de connaissances"
-            className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg bg-violet-600/90 hover:bg-violet-500 active:bg-violet-700 text-white transition-colors shrink-0"
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg bg-violet-600/60 hover:bg-violet-500/60 active:bg-violet-700/60 text-white transition-colors shrink-0"
           >
             <Network size={16} />
           </button>
@@ -385,7 +385,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             onClick={onOpenChat}
             title="Terminal IA"
             aria-label="Terminal IA"
-            className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg bg-green-700/90 hover:bg-green-600 active:bg-green-800 text-white transition-colors shrink-0"
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg bg-green-700/60 hover:bg-green-600/60 active:bg-green-800/60 text-white transition-colors shrink-0"
           >
             <MessageSquare size={16} />
           </button>
@@ -522,7 +522,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
         <button
           onClick={() => window.print()}
           title="Imprimer / Exporter en PDF"
-          className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
+          className="flex items-center justify-center gap-2 px-3 h-9 bg-purple-600/60 md:bg-purple-600 hover:bg-purple-500/60 md:hover:bg-purple-500 active:bg-purple-700/60 md:active:bg-purple-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
         >
           <Printer size={12} />
           <span className="hidden sm:inline">PDF</span>
@@ -533,7 +533,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
           <button
             onClick={() => { setDeleteConfirm(true); setDeleteError(null) }}
             title="Supprimer ce fichier"
-            className="flex items-center justify-center p-2 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-lg transition-colors shrink-0"
+            className="flex items-center justify-center h-9 w-9 bg-red-100/60 md:bg-red-100 dark:bg-red-900/20 md:dark:bg-red-900/30 hover:bg-red-200/60 md:hover:bg-red-200 dark:hover:bg-red-900/40 md:dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 rounded-lg transition-colors shrink-0"
           >
             <Trash2 size={14} />
           </button>
