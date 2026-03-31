@@ -172,11 +172,15 @@ _credibility = CredibilityEngine(PROJECT_ROOT)
 
 # Initialiser le gestionnaire de quotas
 quota = get_quota_manager()
+# Compteur d'articles ajoutés dans ce passage (per_run_limit)
+_run_article_count = 0
 if quota.enabled:
     print_console(f"Quotas activés — global: {quota._config.get('global_daily_limit')}/j, "
                   f"par mot-clé: {quota._config.get('per_keyword_daily_limit')}/j, "
                   f"par source: {quota._config.get('per_source_daily_limit')}/source, "
-                  f"par entité: {quota._config.get('per_entity_daily_limit', 10)}/entité")
+                  f"par entité: {quota._config.get('per_entity_daily_limit', 10)}/entité, "
+                  f"par passage: {quota.per_run_limit or 'illimité'}, "
+                  f"source cross-keyword: {quota._config.get('global_source_daily_limit', 15)}/source/j")
 else:
     print_console("Quotas désactivés.")
 
@@ -236,9 +240,17 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
             if not bypass_quota and quota.is_global_exhausted():
                 print_console("Plafond global de quota atteint — traitement interrompu.", level="warning")
                 break
+            # Arrêt si le plafond par passage est atteint
+            if not bypass_quota and quota.per_run_limit > 0 and _run_article_count >= quota.per_run_limit:
+                print_console(
+                    f"Limite par passage atteinte ({quota.per_run_limit} articles) — traitement interrompu.",
+                    level="warning",
+                )
+                break
             # Tri adaptatif : traiter en priorité les mots-clés les moins consommés
             kw_names = [k["keyword"] for k in keywords]
-            sorted_kw_names = quota.sort_by_priority(kw_names)
+            kw_limits = {k["keyword"]: k["quota_override"] for k in keywords if k.get("quota_override")}
+            sorted_kw_names = quota.sort_by_priority(kw_names, keyword_limits=kw_limits if kw_limits else None)
             kw_map = {k["keyword"]: k for k in keywords}
             sorted_keywords = [kw_map[n] for n in sorted_kw_names]
             for kw_obj in sorted_keywords:
@@ -289,7 +301,8 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                     print_console(f"    [Article {idx}] Article masqué, ignoré pour '{kw}'.", level="debug")
                     continue
                 # Vérifier le quota (global + par mot-clé + par source) — sauf si bypassQuota activé
-                if not bypass_quota and not quota.can_process(kw, feed_title):
+                kw_limit_override = kw_obj.get("quota_override") or None
+                if not bypass_quota and not quota.can_process(kw, feed_title, keyword_limit=kw_limit_override):
                     print_console(f"    [Article {idx}] Quota atteint pour '{kw}' / '{feed_title}', ignoré.", level="debug")
                     continue
                 print_console(f"    [Article {idx}] Mot-clé '{kw}' trouvé dans le titre.")
@@ -367,6 +380,7 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                 # afin de ne pas consommer le quota des autres flux.
                 if not bypass_quota:
                     quota.record_article(kw, feed_title, entities if entities else None)
+                    _run_article_count += 1
                 _progress["articles_added"] += 1
                 _progress["last_action"] = f"Article ajouté '{kw}' — {feed_title}"
                 _write_progress(_progress)

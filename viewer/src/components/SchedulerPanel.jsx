@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { X, Clock, Calendar, RefreshCw, CheckCircle2, HelpCircle } from 'lucide-react'
+import { X, Clock, Calendar, RefreshCw, CheckCircle2, HelpCircle, PauseCircle } from 'lucide-react'
 
 const CRON_CATEGORIES = [
   { id: "Surveillance en continu",   label: "Surveillance en continu",   desc: "Tâches fréquentes : chaque 5 min, 10 min ou toutes les 2h" },
@@ -28,6 +28,14 @@ function formatRelative(isoStr) {
 }
 
 function StatusBadge({ task }) {
+  if (task.disabled) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+        <PauseCircle size={12} />
+        Désactivé
+      </span>
+    )
+  }
   const nextMs = task.next_run ? new Date(task.next_run) - Date.now() : null
   const isSoon = nextMs !== null && nextMs > 0 && nextMs < 3_600_000
 
@@ -200,12 +208,19 @@ function TaskSection({ title, desc, tasks }) {
           {tasks.map((task, i) => (
             <tr
               key={i}
-              className="border-b border-slate-700/40 last:border-0 hover:bg-slate-700/20 transition-colors"
+              className={`border-b border-slate-700/40 last:border-0 transition-colors ${
+                task.disabled
+                  ? 'opacity-40'
+                  : 'hover:bg-slate-700/20'
+              }`}
             >
               <td className="px-5 py-3">
                 <div className="font-medium text-slate-200 text-sm">{task.name}</div>
                 <div className="text-[11px] text-slate-500 font-mono mt-0.5">{task.script}</div>
-                {task.detail && (
+                {task.disabled_reason && (
+                  <div className="text-[11px] text-amber-500/80 mt-1">{task.disabled_reason}</div>
+                )}
+                {!task.disabled && task.detail && (
                   <div className="text-[11px] text-blue-400 mt-1">{task.detail}</div>
                 )}
               </td>

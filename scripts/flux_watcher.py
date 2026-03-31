@@ -370,7 +370,7 @@ def main(dry_run: bool = False) -> None:
             print_console(f"  Mise à jour article_index ignorée : {e}", level="warning")
         try:
             ent_idx = get_entity_index(PROJECT_ROOT)
-            ent_idx.update(new_articles_all, source_file=wudd_path_rel)
+            ent_idx.update(_wudd_articles, source_file=wudd_path_rel)
             print_console(f"  entity_index.json mis à jour")
         except Exception as e:
             print_console(f"  Mise à jour entity_index ignorée : {e}", level="warning")

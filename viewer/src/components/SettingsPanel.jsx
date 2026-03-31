@@ -1503,7 +1503,7 @@ function QuotaTab() {
                 <span className="text-xs text-slate-400">articles / entité nommée / jour</span>
               </div>
               <input
-                type="range" min="1" max="20" step="1"
+                type="range" min="1" max="50" step="1"
                 value={config.per_entity_daily_limit ?? 10}
                 onChange={e => setConfig(c => ({ ...c, per_entity_daily_limit: +e.target.value }))}
                 className="w-full accent-amber-500"
@@ -1511,7 +1511,7 @@ function QuotaTab() {
               <div className="flex justify-between text-xs text-slate-400">
                 <span>1</span>
                 <span className="font-semibold text-slate-700 dark:text-slate-200">⬦ {config.per_entity_daily_limit ?? 10} articles</span>
-                <span>20</span>
+                <span>50</span>
               </div>
             </div>
 
@@ -1531,6 +1531,48 @@ function QuotaTab() {
                   ? <ToggleRight size={24} className="text-green-500 dark:text-green-400" />
                   : <ToggleLeft  size={24} />}
               </button>
+            </div>
+
+            {/* Par passage */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-slate-700 dark:text-slate-300">Par passage</label>
+                <span className="text-xs text-slate-400">articles / exécution (0 = illimité)</span>
+              </div>
+              <input
+                type="range" min="0" max="100" step="5"
+                value={config.per_run_limit ?? 30}
+                onChange={e => setConfig(c => ({ ...c, per_run_limit: +e.target.value }))}
+                className="w-full accent-orange-500"
+              />
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>0</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  ⬦ {(config.per_run_limit ?? 30) === 0 ? 'illimité' : ((config.per_run_limit ?? 30) + ' articles')}
+                </span>
+                <span>100</span>
+              </div>
+            </div>
+
+            {/* Source cross-keyword */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-slate-700 dark:text-slate-300">Source cross-keyword</label>
+                <span className="text-xs text-slate-400">articles / source / jour tous mots-clés (0 = illimité)</span>
+              </div>
+              <input
+                type="range" min="0" max="50" step="1"
+                value={config.global_source_daily_limit ?? 15}
+                onChange={e => setConfig(c => ({ ...c, global_source_daily_limit: +e.target.value }))}
+                className="w-full accent-teal-500"
+              />
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>0</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  ⬦ {(config.global_source_daily_limit ?? 15) === 0 ? 'illimité' : ((config.global_source_daily_limit ?? 15) + ' articles')}
+                </span>
+                <span>50</span>
+              </div>
             </div>
           </div>
         )}
@@ -1621,6 +1663,30 @@ function QuotaTab() {
             </p>
           )}
         </div>
+
+        {/* ── Sources cross-keyword ── */}
+        {stats && Object.keys(stats.global_sources ?? {}).length > 0 && (
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Sources cross-keyword — top {Object.keys(stats.global_sources).length}
+            </p>
+            <div className="flex flex-col gap-2">
+              {Object.entries(stats.global_sources).map(([src, info]) => (
+                <div key={src} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate max-w-[70%]">{src}</span>
+                    {info.saturated && (
+                      <span className="text-xs font-semibold text-rose-500 dark:text-rose-400 flex items-center gap-1">
+                        <AlertTriangle size={10} /> Saturée
+                      </span>
+                    )}
+                  </div>
+                  <QuotaBar count={info.count} limit={info.limit} color="teal" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

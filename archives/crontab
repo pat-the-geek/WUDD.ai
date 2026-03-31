@@ -21,7 +21,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Génère le radar thématique le dernier jour du mois à 5h00
 0 5 28-31 * * root [ "$(date -d tomorrow +\%d)" = "01" ] && cd /app && python3 scripts/radar_wudd.py 2>&1 | tee -a /app/rapports/cron_radar.log
 # Convertit les articles-from-rss en Markdown (nouveau format) le dernier jour du mois à 5h30
-30 5 28-31 * * root [ "$(date -d tomorrow +\%d)" = "01" ] && cd /app && python3 scripts/articles_rss_to_markdown.py 2>&1 | tee -a /app/rapports/cron_rss_markdown.log
+# DÉSACTIVÉ 2026-03-31 : génère des doublons avec generate_keyword_reports.py (format Keyword_rapport_YYYY-MM-DD.md)
+# 30 5 28-31 * * root [ "$(date -d tomorrow +\%d)" = "01" ] && cd /app && python3 scripts/articles_rss_to_markdown.py 2>&1 | tee -a /app/rapports/cron_rss_markdown.log
 # Génère le rapport quotidien Top 10 entités des 48h à 23h00 (après la dernière collecte RSS de 22h00)
 0 23 * * * root cd /app && python3 scripts/generate_48h_report.py 2>&1 | tee -a /app/rapports/cron_48h_report.log
 # Détecte les tendances et génère data/alertes.json chaque matín à 7h00

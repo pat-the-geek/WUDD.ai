@@ -30,12 +30,18 @@ def api_save_quota_config():
         abort(400, "Format invalide : objet attendu")
     # Validation basique des types
     for int_key in ("global_daily_limit", "per_keyword_daily_limit", "per_source_daily_limit",
-                    "per_entity_daily_limit", "summary_max_lines"):
+                    "per_entity_daily_limit", "per_run_limit", "global_source_daily_limit",
+                    "summary_max_lines"):
         if int_key in data:
             try:
-                data[int_key] = max(1, int(data[int_key]))
+                data[int_key] = max(0, int(data[int_key]))
             except (ValueError, TypeError):
                 abort(400, f"Valeur invalide pour {int_key}")
+    # Validation de la liste des types d'entités ignorés
+    if "ignored_entity_types" in data:
+        if not isinstance(data["ignored_entity_types"], list):
+            abort(400, "ignored_entity_types doit être une liste")
+        data["ignored_entity_types"] = [str(t).upper() for t in data["ignored_entity_types"]]
     get_quota_manager().save_config(data)
     # Invalider le singleton Config pour que summary_max_lines soit rechargé
     try:

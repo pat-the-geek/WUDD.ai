@@ -234,6 +234,8 @@ def api_scheduler():
             "category": "Pipeline mensuel",
             "data_dir": None,
             "log_file": PROJECT_ROOT / "rapports" / "cron_rss_markdown.log",
+            "disabled": True,
+            "disabled_reason": "Désactivé le 2026-03-31 — doublon avec generate_keyword_reports.py",
         },
         {
             "name": "Rapports mensuels par mot-clé",
@@ -310,7 +312,8 @@ def api_scheduler():
             last_run = datetime.datetime.fromtimestamp(t["log_file"].stat().st_mtime)
         else:
             last_run = None
-        next_run = next_cron_occurrence(t["cron"], now)
+        is_disabled = t.get("disabled", False)
+        next_run = None if is_disabled else next_cron_occurrence(t["cron"], now)
         tasks.append({
             "name": t["name"],
             "script": t["script"],
@@ -321,6 +324,8 @@ def api_scheduler():
             "next_run": next_run.isoformat() if next_run else None,
             "flux": None,
             "detail": t.get("detail"),
+            "disabled": is_disabled,
+            "disabled_reason": t.get("disabled_reason"),
         })
 
     # Tâches par flux (flux_json_sources.json)

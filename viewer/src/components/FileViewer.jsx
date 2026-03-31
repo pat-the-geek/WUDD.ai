@@ -328,10 +328,8 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
     <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900 relative">
       {/* ── Barre de fichier ── */}
       <div
-        className={`flex items-center gap-2 px-3 py-2 border-t border-white/40 dark:border-white/[0.10] md:border-t-0 md:border-b shrink-0 fixed left-0 right-0 md:static md:z-auto transition-all duration-200 ${
-          sidebarOpen
-            ? 'z-[15] bg-white/10 dark:bg-slate-900/10 backdrop-blur-2xl'
-            : 'z-40 bg-white/30 dark:bg-slate-900/30 backdrop-blur-2xl'
+        className={`flex items-center gap-2 px-3 py-2 md:border-b md:border-slate-200/60 md:dark:border-white/[0.10] shrink-0 fixed left-0 right-0 md:static md:z-auto transition-all duration-200 glass-toolbar-mobile ${
+          sidebarOpen ? 'z-[15]' : 'z-40'
         }`}
         style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
       >
@@ -375,7 +373,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             onClick={onOpenGraph}
             title="Graphe de connaissances"
             aria-label="Graphe de connaissances"
-            className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg bg-violet-600/60 hover:bg-violet-500/60 active:bg-violet-700/60 text-white transition-colors shrink-0"
+            className="md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab text-violet-400 dark:text-violet-300 hover:text-violet-300 dark:hover:text-violet-200 transition-all active:scale-95 shrink-0"
           >
             <Network size={16} />
           </button>
@@ -385,7 +383,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             onClick={onOpenChat}
             title="Terminal IA"
             aria-label="Terminal IA"
-            className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg bg-green-700/60 hover:bg-green-600/60 active:bg-green-800/60 text-white transition-colors shrink-0"
+            className="md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab text-emerald-500 dark:text-emerald-400 hover:text-emerald-400 dark:hover:text-emerald-300 transition-all active:scale-95 shrink-0"
           >
             <MessageSquare size={16} />
           </button>
@@ -627,12 +625,12 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
       )}
 
       {scrollTop > 50 && (
-        <div className="fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] md:bottom-5 right-5 flex flex-col gap-2 z-50">
+        <div className="fixed bottom-[calc(7.75rem+env(safe-area-inset-bottom))] md:bottom-5 right-2.5 md:right-5 flex flex-col gap-2 z-50">
           {hasImages && (
             <button
               onClick={scrollToImages}
               title="Aller aux images"
-              className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:border-[#007AFF] dark:hover:border-[#0A84FF] hover:shadow-blue-500/20 transition-all"
+              className="w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:border-[#007AFF]/40 dark:hover:border-[#0A84FF]/30 hover:shadow-blue-500/20 transition-all"
             >
               <Images size={16} />
             </button>
@@ -641,7 +639,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             <button
               onClick={scrollToEntities}
               title="Aller aux entités nommées"
-              className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#5856D6] dark:hover:text-[#5E5CE6] hover:border-[#5856D6] dark:hover:border-[#5E5CE6] hover:shadow-violet-500/20 transition-all"
+              className="w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#5856D6] dark:hover:text-[#5E5CE6] hover:border-[#5856D6]/40 dark:hover:border-[#5E5CE6]/30 hover:shadow-violet-500/20 transition-all"
             >
               <Tag size={16} />
             </button>
@@ -651,7 +649,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
               onClick={() => articleListRef.current?.scrollToFirstUnread()}
               title="Aller au premier article non lu"
               aria-label="Aller au premier article non lu"
-              className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400 dark:hover:border-emerald-500 hover:shadow-emerald-500/20 transition-all"
+              className="w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400/40 dark:hover:border-emerald-500/30 hover:shadow-emerald-500/20 transition-all"
             >
               <BookMarked size={16} />
             </button>
@@ -659,7 +657,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
           <button
             onClick={scrollToTop}
             title="Retour en haut"
-            className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:border-[#007AFF] dark:hover:border-[#0A84FF] hover:shadow-blue-500/20 transition-all"
+          className="w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:border-[#007AFF]/40 dark:hover:border-[#0A84FF]/30 hover:shadow-blue-500/20 transition-all"
           >
             <ArrowUp size={16} />
           </button>
