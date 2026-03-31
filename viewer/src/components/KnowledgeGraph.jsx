@@ -520,6 +520,7 @@ export default function KnowledgeGraph({ onClose }) {
   // ── Liste NER (panneau latéral Desktop) ──────────────────────────────────
   const [showNerList, setShowNerList] = useState(false)
   const [nerListSelectedId, setNerListSelectedId] = useState(null)
+  const nerListSelectedIdRef = useRef(null)  // ref pour accès dans draw() sans re-créer le callback
 
   // Ref stable vers la fonction load (pour appel depuis toggleType sans dépendance cyclique)
   const loadRef = useRef(null)
@@ -780,6 +781,32 @@ export default function KnowledgeGraph({ onClose }) {
       ctx.stroke()
       ctx.setLineDash([])
       ctx.restore()
+    }
+
+    // ── Arêtes surlignées (entité sélectionnée depuis la Liste NER) ─────────
+    const highlightedId = nerListSelectedIdRef.current
+    if (highlightedId !== null) {
+      const hlNode = nodes.find(n => n.id === highlightedId)
+      if (hlNode) {
+        const hlColor = TYPE_CFG[hlNode.ner_type]?.color ?? ENTITY_DEFAULT
+        ctx.save()
+        ctx.strokeStyle = hlColor
+        ctx.lineWidth   = Math.max(0.8, 2 / scale)
+        ctx.globalAlpha = 0.85
+        ctx.beginPath()
+        for (const [si, ti] of edges) {
+          const s = nodes[si]
+          const t = nodes[ti]
+          if (!s || !t) continue
+          if (s.id === highlightedId || t.id === highlightedId) {
+            ctx.moveTo(s.x, s.y)
+            ctx.lineTo(t.x, t.y)
+          }
+        }
+        ctx.stroke()
+        ctx.globalAlpha = 1.0
+        ctx.restore()
+      }
     }
 
     // ── Nœuds (z-order : typeOrder[0] = au dessus = dessiné en dernier) ──
@@ -1608,8 +1635,9 @@ export default function KnowledgeGraph({ onClose }) {
     const H = canvas?.height ?? 600
 
     if (nerListSelectedId !== node.id) {
-      // ── 1er clic : bump + centrage vue ──────────────────────────────────
+      // ── 1er clic : bump + centrage vue + surlignage des liens ───────────
       setNerListSelectedId(node.id)
+      nerListSelectedIdRef.current = node.id
       // Déclenche l'animation bump sur le nœud (1200 ms)
       node.bumpUntil = Date.now() + 1200
       const s = viewRef.current.scale
@@ -1621,6 +1649,7 @@ export default function KnowledgeGraph({ onClose }) {
     } else {
       // ── 2ème clic : réorganisation autour du nœud sélectionné ───────────
       setNerListSelectedId(null)
+      nerListSelectedIdRef.current = null
       // Dépingler tous les nœuds
       for (const n of nodesArrRef.current) { n.pinned = false }
       // Épingler le nœud cible au centre
