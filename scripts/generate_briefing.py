@@ -445,27 +445,7 @@ def build_podcast_markdown(
 
 
 
-    # ── Top Articles (2 max, résumé 200 chars) ────────────────────────────────
-    if top_articles:
-        lines += ["## Articles à la une", ""]
-        for i, article in enumerate(top_articles[:2], 1):
-            source = article.get("Sources") or article.get("source") or "Source inconnue"
-            date   = article.get("Date de publication") or ""
-            resume = (article.get("Résumé") or "")[:200]
-            if len(article.get("Résumé") or "") > 200:
-                resume += "…"
-            date_str = f", {_date_fr(date)}" if date else ""
-            lines += [f"**{i}. {source}{date_str}.** {resume}", ""]
-        lines.append("")
-
-    # ── En bref (une ligne) ───────────────────────────────────────────────────
-    bref_parts = [f"{total} articles"]
-    if sent_total:
-        bref_parts.append(f"tonalité : {_pct(pos)} positive, {_pct(neu)} neutre, {_pct(neg)} négative")
-    sources = _source_stats(articles, top_n=3)
-    if sources:
-        bref_parts.append("sources : " + ", ".join(s for s, _ in sources))
-    lines += ["## En bref", "", " — ".join(bref_parts) + ".", "", f"*Généré par What's up doc ! le {now_str}.*"]
+    lines.append(f"*Généré par What's up doc ! le {now_str}.*")
 
     result = "\n".join(lines)
 

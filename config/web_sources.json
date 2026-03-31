@@ -57,12 +57,23 @@
     "url_pattern": "/decouvrir/vie-du-musee/"
   },
   {
-    "name": "nature-news-comment",
-    "title": "Nature News & Comment",
+    "actif": true,
     "base_url": "https://www.nature.com",
-    "sitemap_url": "https://www.nature.com/sitemap.xml",
-    "url_pattern": "/articles/",
     "keyword": "Nature",
+    "langue": "fr",
+    "max_per_run": 5,
+    "name": "nature-news-comment",
+    "sitemap_url": "https://www.nature.com/sitemap.xml",
+    "title": "Nature News & Comment",
+    "url_pattern": "/articles/"
+  },
+  {
+    "name": "ap-news",
+    "title": "AP News",
+    "base_url": "https://apnews.com",
+    "sitemap_url": "https://apnews.com/sitemap.xml",
+    "url_pattern": "/article/",
+    "keyword": "APNews",
     "langue": "fr",
     "max_per_run": 5,
     "actif": true

@@ -92,6 +92,19 @@ const BUCKET_ORDER = [
   "Il y a 1 à 3 mois", "Plus ancien", "Date inconnue",
 ]
 
+// ── Pagination progressive (infinite scroll) ──────────────────────────────────
+// Taille de page adaptée à l'écran : mobile = 50 articles, desktop = 200.
+// Réduit la pression mémoire sur iOS/Android qui crashe avec de gros arbres DOM.
+const PAGE_SIZE_DESKTOP = 200
+const PAGE_SIZE_MOBILE  = 50
+function getPageSize() {
+  return typeof window !== 'undefined' && window.innerWidth < 768
+    ? PAGE_SIZE_MOBILE
+    : PAGE_SIZE_DESKTOP
+}
+// Déclenche le chargement suivant quand le sentinel entre dans le viewport.
+const SENTINEL_ROOT_MARGIN = '200px'
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Parse DD/MM/YYYY (standard projet), ISO 8601 ou RFC 822.
@@ -825,8 +838,12 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   const [sourcesOpen, setSourcesOpen]         = useState(false)
   const [annotFilter, setAnnotFilter]         = useState('tous') // 'tous' | 'importants' | 'non-lus' | 'masqués'
   const [obsidianVault, setObsidianVault]     = useState(null)
+  // pageSize calculé une seule fois au montage — stable pour toute la session.
+  const pageSize = useRef(getPageSize()).current
+  const [visibleCount, setVisibleCount]       = useState(pageSize)
   const searchRef = useRef(null)
   const mobileSearchRef = useRef(null)
+  const sentinelRef = useRef(null)
 
   // Nom du vault Obsidian — chargé une seule fois pour tous les ArticleCard
   useEffect(() => {
@@ -1000,10 +1017,17 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
     return result
   }, [articles, searchQuery, selectedTypes, selectedSources, sortBy, annotFilter, annotations, filterObsidian, localReports])
 
-  // Groupes timeline (toujours triés date-desc)
+  // Tranche visible dans le DOM — limitée à visibleCount pour réduire les nœuds DOM
+  // Les filtres/tris/stats portent toujours sur displayedArticles (liste complète).
+  const visibleArticles = useMemo(
+    () => displayedArticles.slice(0, visibleCount),
+    [displayedArticles, visibleCount]
+  )
+
+  // Groupes timeline (toujours triés date-desc) — calculés sur visibleArticles
   const timelineGroups = useMemo(() => {
     if (viewStyle !== 'timeline') return null
-    const sorted = [...displayedArticles].sort(
+    const sorted = [...visibleArticles].sort(
       (a, b) => toTimestamp(b['Date de publication']) - toTimestamp(a['Date de publication'])
     )
     const groups = {}
@@ -1013,7 +1037,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
       groups[bucket].push(article)
     }
     return groups
-  }, [displayedArticles, viewStyle])
+  }, [visibleArticles, viewStyle])
 
   // Calcule l'URL du premier article non lu à l'ouverture du fichier.
   // Dépend de [articles, annotations] : on attend que les annotations soient chargées
@@ -1039,6 +1063,33 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
     setSelectedSources(new Set())
     setSearchQuery('')
   }, [filePath]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Remet la pagination à 0 quand les filtres/tri changent ou quand on change de fichier
+  useEffect(() => {
+    setVisibleCount(pageSize)
+  }, [filePath, searchQuery, selectedTypes, selectedSources, sortBy, annotFilter, filterObsidian, pageSize]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Charge la tranche suivante quand le sentinel approche du viewport (infinite scroll).
+  // Guard « triggered » local : empêche plusieurs déclenchements par cycle React avant
+  // que le cleanup (disconnect) ne s'exécute — évite la cascade de setVisibleCount
+  // qui crashe la page sur iOS ("A problem repeatedly occurred").
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || visibleCount >= displayedArticles.length) return
+    let triggered = false
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !triggered) {
+          triggered = true
+          observer.disconnect() // déconnexion immédiate pour couper tout déclenchement suivant
+          setVisibleCount(prev => Math.min(prev + pageSize, displayedArticles.length))
+        }
+      },
+      { rootMargin: SENTINEL_ROOT_MARGIN }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [visibleCount, displayedArticles.length, pageSize])
 
   // Après une fusion : scroll vers l'article source dès que le contenu est rechargé
   useEffect(() => {
@@ -1496,11 +1547,21 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
               </div>
             </div>
           ))}
+          {/* Sentinel infinite scroll — timeline */}
+          {visibleCount < displayedArticles.length && (
+            <div ref={sentinelRef} className="py-6 flex flex-col items-center gap-1 text-xs text-slate-400 dark:text-slate-500" aria-hidden="true">
+              <span className="inline-flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 animate-pulse" />
+                Chargement des articles suivants…
+              </span>
+              <span className="tabular-nums">{visibleCount} / {displayedArticles.length} affichés</span>
+            </div>
+          )}
         </div>
       ) : viewStyle === 'large' ? (
         /* Vue large — 1 article/ligne, centré à 80% */
         <div ref={gridRef} className="flex flex-col items-center gap-6">
-          {displayedArticles.map((article, i) => (
+          {visibleArticles.map((article, i) => (
             <div key={article['URL'] ?? i} className="w-full" style={{ maxWidth: '80%' }}>
               <ArticleCard article={article} index={i} highlight={searchQuery.trim()}
                 onEntityClick={(type, value) => setSelectedEntity({ type, value })}
@@ -1518,11 +1579,21 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
               />
             </div>
           ))}
+          {/* Sentinel infinite scroll — vue large */}
+          {visibleCount < displayedArticles.length && (
+            <div ref={sentinelRef} className="py-6 flex flex-col items-center gap-1 text-xs text-slate-400 dark:text-slate-500" aria-hidden="true">
+              <span className="inline-flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 animate-pulse" />
+                Chargement des articles suivants…
+              </span>
+              <span className="tabular-nums">{visibleCount} / {displayedArticles.length} affichés</span>
+            </div>
+          )}
         </div>
       ) : (
         /* Vue grille */
         <div ref={gridRef} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {displayedArticles.map((article, i) => (
+          {visibleArticles.map((article, i) => (
             <ArticleCard key={article['URL'] ?? i} article={article} index={i} highlight={searchQuery.trim()}
               onEntityClick={(type, value) => setSelectedEntity({ type, value })}
               onFullReport={a => setReportArticle(a)}
@@ -1537,6 +1608,16 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
               onOpenFile={onOpenFile}
             />
           ))}
+          {/* Sentinel infinite scroll — vue grille */}
+          {visibleCount < displayedArticles.length && (
+            <div ref={sentinelRef} className="col-span-full py-6 flex flex-col items-center gap-1 text-xs text-slate-400 dark:text-slate-500" aria-hidden="true">
+              <span className="inline-flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 animate-pulse" />
+                Chargement des articles suivants…
+              </span>
+              <span className="tabular-nums">{visibleCount} / {displayedArticles.length} affichés</span>
+            </div>
+          )}
         </div>
       )}
 
