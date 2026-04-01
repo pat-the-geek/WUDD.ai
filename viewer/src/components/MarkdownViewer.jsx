@@ -87,6 +87,13 @@ function sanitizeMermaid(code) {
   //     (supporte plusieurs lignes de preamble + xychart-beta + stateDiagram-v2)
   const m11 = s.match(/^(?:xychart-beta|graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|gantt|pie|mindmap|gitGraph|erDiagram|journey|quadrantChart|xychart|block|packet|architecture|timeline|sankey|zenuml)/im)
   if (m11 && m11.index > 0) s = s.slice(m11.index)
+  // 12. Pour les diagrammes timeline : le « : » dans un titre de section est
+  //     interprété comme séparateur d'événement par Mermaid → crash interne
+  //     "undefined is not an object (.events)". On remplace « : » par « - ».
+  //     Ex: "section 2004-2015 : Debut" → "section 2004-2015 - Debut"
+  if (/^timeline\s*$/im.test(s)) {
+    s = s.replace(/^(\s*section\s+[^:\n]+)\s*:\s*(.+)/gim, '$1 - $2')
+  }
   return s.trim()
 }
 
