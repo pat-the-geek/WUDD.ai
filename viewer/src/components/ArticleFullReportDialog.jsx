@@ -874,7 +874,7 @@ ${contentEl.innerHTML}
         } overflow-hidden`}
       >
         {/* ── Title bar ─────────────────────────────────────────────────────── */}
-        <div className="no-print flex items-center gap-3 px-5 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-900">
+        <div className="no-print flex items-start gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-slate-200 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-900">
           <FileText size={17} className="text-blue-500 shrink-0" />
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{titre}</h2>
@@ -901,12 +901,12 @@ ${contentEl.innerHTML}
               )}
             </div>
           </div>
-          <div className="flex items-center gap-0.5 shrink-0 flex-wrap justify-end">
+          <div className="flex items-center gap-0.5 shrink-0 justify-end">
             {!isLoading && cleanMd && (
               <>
                 <button
                   onClick={() => setYoutubeOpen(true)}
-                  className="flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors"
+                  className="hidden sm:flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors"
                   title="Vidéos YouTube liées à cet article"
                 >
                   <Youtube size={12} />
@@ -914,7 +914,7 @@ ${contentEl.innerHTML}
                 </button>
                 <button
                   onClick={handleOpenChatbot}
-                  className="flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors"
+                  className="hidden sm:flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors"
                   title="Ouvrir le Terminal IA avec ce rapport en contexte"
                 >
                   <Terminal size={12} />
@@ -941,7 +941,7 @@ ${contentEl.innerHTML}
                   )}
                 </div>
                 {/* Export Obsidian — icône seule */}
-                <div className="relative group">
+                <div className="relative group hidden sm:block">
                   <button
                     onClick={() => handleExport('obsidian')}
                     disabled={exportState.obsidian === 'saving'}
@@ -974,7 +974,7 @@ ${contentEl.innerHTML}
             <button onClick={handleDownload} className={btnCls} title="Télécharger .md">
               <Download size={14} />
             </button>
-            <button onClick={handlePrint} className={btnCls} title="Imprimer / Exporter PDF">
+            <button onClick={handlePrint} className={`${btnCls} hidden sm:block`} title="Imprimer / Exporter PDF">
               <Printer size={14} />
             </button>
             <button
@@ -987,7 +987,7 @@ ${contentEl.innerHTML}
             </button>
             <button
               onClick={() => setIsFullscreen(v => !v)}
-              className={btnCls}
+              className={`${btnCls} hidden sm:block`}
               title={isFullscreen ? 'Quitter le plein écran' : 'Plein écran'}
             >
               {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
