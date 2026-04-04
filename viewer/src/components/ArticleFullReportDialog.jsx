@@ -914,7 +914,7 @@ ${contentEl.innerHTML}
                 </button>
                 <button
                   onClick={handleOpenChatbot}
-                  className="hidden sm:flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 transition-colors"
                   title="Ouvrir le Terminal IA avec ce rapport en contexte"
                 >
                   <Terminal size={12} />
@@ -941,7 +941,7 @@ ${contentEl.innerHTML}
                   )}
                 </div>
                 {/* Export Obsidian — icône seule */}
-                <div className="relative group hidden sm:block">
+                <div className="relative group">
                   <button
                     onClick={() => handleExport('obsidian')}
                     disabled={exportState.obsidian === 'saving'}
