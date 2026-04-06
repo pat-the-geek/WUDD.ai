@@ -502,12 +502,16 @@ def api_article_full_report():
                     stream=True, timeout=300,
                 )
                 r.raise_for_status()
-                for line in r.iter_lines():
-                    if line:
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data:"):
-                            decoded = "data: " + decoded
-                        yield decoded + "\n\n"
+                for line in r.iter_lines(decode_unicode=True):
+                    if not line:
+                        continue
+                    # Normaliser le préfixe SSE : s'assurer que la ligne commence
+                    # par "data: " (avec espace) pour que le frontend puisse la parser.
+                    if line.startswith("data:"):
+                        line = "data: " + line[5:].lstrip()
+                    else:
+                        line = "data: " + line
+                    yield line + "\n\n"
             except Exception as exc:
                 yield f'data: {json.dumps({"error": str(exc)})}\n\n'
 
