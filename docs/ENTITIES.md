@@ -15,6 +15,7 @@
 7. [Dashboard Entités — Vue Galerie](#7-dashboard-entités--vue-galerie)
 8. [Panneau de détail d'une entité](#8-panneau-de-détail-dune-entité)
 9. [Données techniques](#9-données-techniques)
+10. [API Export — accès par application tierce](#10-api-export--accès-par-application-tierce)
 
 ---
 
@@ -327,3 +328,119 @@ docker exec analyse-actualites rm -f /app/data/geocode_cache.json
 # Forcer le re-téléchargement de toutes les images
 docker exec analyse-actualites rm -f /app/data/images_cache.json
 ```
+
+---
+
+## 10. API Export — accès par application tierce
+
+> Version 2.4 · Avril 2026
+
+Le endpoint `GET /api/entities/export` permet à n'importe quelle application externe de consommer les entités NER de WUDD.ai en un seul appel HTTP, sans authentification.
+
+### URL
+
+```
+GET http://<hôte>:5050/api/entities/export
+```
+
+### Paramètres de requête
+
+| Paramètre | Type | Défaut | Description |
+|-----------|------|--------|-------------|
+| `q` | string | — | Filtre textuel partiel sur le nom de l'entité (insensible à la casse) |
+| `type` | string | — | Filtre sur le type NER : `PERSON`, `ORG`, `GPE`, `LOC`, `PRODUCT`, `EVENT`, `NORP`, `FAC`… |
+| `limit` | int | `200` | Nombre max d'entités retournées (min 1, max 5000) |
+| `sort` | string | `mentions` | Tri : `mentions` (plus cité en premier) ou `value` (ordre alphabétique) |
+| `images` | bool | `true` | Inclure les images depuis le cache disque (`data/images_cache.json`) |
+| `synthesis` | bool | `false` | Inclure les synthèses IA depuis `data/synthesis_cache.json` (TTL 24h) |
+
+### Exemples d'appels
+
+```bash
+# Toutes les entités top 200, triées par nombre de mentions, avec images
+curl http://localhost:5050/api/entities/export
+
+# Rechercher « Macron » avec la synthèse IA
+curl "http://localhost:5050/api/entities/export?q=macron&synthesis=true"
+
+# Toutes les organisations, sans images, triées alphabétiquement, max 1000
+curl "http://localhost:5050/api/entities/export?type=ORG&images=false&sort=value&limit=1000"
+
+# Top 5 entités pour un widget externe
+curl "http://localhost:5050/api/entities/export?limit=5&sort=mentions"
+```
+
+### Format de réponse
+
+```json
+{
+  "generated_at": "2026-04-06T10:30:00+00:00",
+  "total":    1234,
+  "returned": 200,
+  "params": {
+    "q":         null,
+    "type":      null,
+    "limit":     200,
+    "sort":      "mentions",
+    "images":    true,
+    "synthesis": false
+  },
+  "entities": [
+    {
+      "type":     "PERSON",
+      "value":    "Emmanuel Macron",
+      "mentions": 42,
+      "image": {
+        "url":    "https://upload.wikimedia.org/…/macron.jpg",
+        "width":  200,
+        "height": 200
+      }
+    },
+    {
+      "type":     "ORG",
+      "value":    "OpenAI",
+      "mentions": 38,
+      "image": {
+        "url":    "https://upload.wikimedia.org/…/openai.png",
+        "width":  200,
+        "height": 200
+      }
+    },
+    {
+      "type":     "GPE",
+      "value":    "France",
+      "mentions": 21,
+      "image":    null
+    }
+  ]
+}
+```
+
+### Description des champs de réponse
+
+| Champ | Description |
+|-------|-------------|
+| `generated_at` | Horodatage ISO-8601 UTC de la génération de la réponse |
+| `total` | Nombre total d'entités correspondant aux filtres (avant `limit`) |
+| `returned` | Nombre d'entités effectivement retournées dans `entities` |
+| `params` | Rappel des paramètres effectifs utilisés pour la requête |
+| `entities[].type` | Type NER (PERSON, ORG, GPE, LOC, PRODUCT…) |
+| `entities[].value` | Nom de l'entité dans sa forme d'affichage canonique (majuscules préservées) |
+| `entities[].mentions` | Nombre total de références dans l'index |
+| `entities[].image` | Objet `{url, width, height}` depuis le cache Wikimedia, ou `null` si non disponible |
+| `entities[].synthesis` | Texte Markdown de la synthèse IA (uniquement si `synthesis=true`) |
+
+### Headers de réponse
+
+| Header | Valeur |
+|--------|--------|
+| `Access-Control-Allow-Origin` | `*` (CORS ouvert pour toutes les origines) |
+| `Cache-Control` | `no-cache` |
+| `Content-Type` | `application/json` |
+
+### Notes d'intégration
+
+- **Images** : proviennent de `data/images_cache.json` (cache disque constitué progressivement par `POST /api/entities/images`). Si une entité n'a pas encore été recherchée, son champ `image` vaut `null`.
+- **Synthèses** : proviennent de `data/synthesis_cache.json` avec une TTL de 24h. Elles sont générées à la demande via le panneau d'entité de l'interface, ou par `GET /api/entities/info`.
+- **Fallback** : si `data/entity_index.json` est indisponible ou corrompu, l'endpoint bascule automatiquement sur un scan rglob des répertoires `data/articles/` et `data/articles-from-rss/`.
+- **Tests** : couverture complète dans `tests/test_entity_export.py` (36 tests, 0 appel API réel).

@@ -11,6 +11,7 @@ Routes :
   POST /api/entities/images
   GET  /api/entities/info
   GET  /api/entities/timeline
+  GET  /api/entities/export         ← export consolidé NER + images + synthèses (app tierces)
   GET/POST/DELETE /api/annotations
   GET/POST/DELETE /api/watched-entities
 """
@@ -2123,3 +2124,212 @@ def api_watched_delete():
         _save_watched(watched)
 
     return jsonify({"ok": True, "removed": len(watched) < before})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Export consolidé des entités NER (consommable par des applications tierces)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@entities_bp.route("/api/entities/export")
+def api_entities_export():
+    """Exporte toutes les entités NER en JSON consolidé avec images et synthèses.
+
+    Paramètres de requête :
+      q          — Filtre textuel partiel sur le nom de l'entité (insensible à la casse)
+      type       — Filtre sur le type NER (PERSON, ORG, GPE, LOC, PRODUCT, EVENT, NORP, FAC…)
+      limit      — Nombre max d'entités retournées (défaut 200, max 5000)
+      sort       — Tri : « mentions » (défaut) ou « value » (ordre alphabétique)
+      images     — Inclure les images depuis le cache disque : « true » (défaut) / « false »
+      synthesis  — Inclure les synthèses IA depuis synthesis_cache : « true » / « false » (défaut)
+
+    Réponse :
+    {
+      "generated_at": "<ISO-8601>",
+      "total":        <int>,         # nombre d'entités retournées après filtrage
+      "params": { ... },             # paramètres effectifs de la requête
+      "entities": [
+        {
+          "type":      "PERSON",
+          "value":     "Emmanuel Macron",
+          "mentions":  42,
+          "image":     { "url": "https://...", "width": 200, "height": 200 } | null,
+          "synthesis": "<texte markdown>" | null
+        },
+        ...
+      ]
+    }
+    """
+    # ── Paramètres ─────────────────────────────────────────────────────────
+    q_raw         = request.args.get("q", "").strip()
+    type_filter   = request.args.get("type", "").strip().upper()
+    try:
+        limit = min(max(1, int(request.args.get("limit", 200))), 5000)
+    except (ValueError, TypeError):
+        limit = 200
+    sort_by       = request.args.get("sort", "mentions").lower()
+    include_images    = request.args.get("images",    "true").lower()  != "false"
+    include_synthesis = request.args.get("synthesis", "false").lower() == "true"
+    q_lower = q_raw.lower() if q_raw else ""
+
+    # ── 1. Lecture de l'entity_index ────────────────────────────────────────
+    raw_entities: list[dict] = []  # [{type, value, caps, mentions}]
+    try:
+        eidx = get_entity_index(PROJECT_ROOT)
+        all_entries = eidx.get_all_entries()   # {"TYPE:value": [{file,idx,date}, ...]}
+        caps_map: dict[str, str] = {}
+        try:
+            caps_map = eidx.get_caps_map() or {}   # {"TYPE:value (lower)": "Display Form"}
+        except AttributeError:
+            # Fallback : lire directement le fichier JSON de l'index
+            _idx_file = PROJECT_ROOT / "data" / "entity_index.json"
+            if _idx_file.exists():
+                try:
+                    _raw = json.loads(_idx_file.read_text(encoding="utf-8"))
+                    caps_map = _raw.get("caps", {})
+                except Exception:
+                    pass
+
+        for key, refs in all_entries.items():
+            parts = key.split(":", 1)
+            if len(parts) != 2:
+                continue
+            etype, value = parts[0], parts[1].strip()
+            if not value:
+                continue
+            # Filtres
+            if type_filter and etype != type_filter:
+                continue
+            if q_lower and q_lower not in value.lower():
+                continue
+
+            raw_entities.append({
+                "type":     etype,
+                "value":    caps_map.get(key, value),   # forme affichable (majuscules)
+                "_key":     key,                         # clé interne (pour synthesis_cache)
+                "mentions": len(refs),
+            })
+
+    except Exception:
+        # Fallback rglob si l'entity_index est indisponible
+        counts: dict[str, int] = {}
+        type_vals: dict[str, tuple[str, str]] = {}   # key → (type, display_value)
+        for data_dir in [
+            PROJECT_ROOT / "data" / "articles",
+            PROJECT_ROOT / "data" / "articles-from-rss",
+        ]:
+            if not data_dir.exists():
+                continue
+            for json_file in sorted(data_dir.rglob("*.json")):
+                if "cache" in json_file.relative_to(data_dir).parts:
+                    continue
+                try:
+                    arts = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
+                    if not isinstance(arts, list):
+                        continue
+                except (json.JSONDecodeError, OSError):
+                    continue
+                for article in arts:
+                    ents = article.get("entities")
+                    if not isinstance(ents, dict):
+                        continue
+                    for etype, values in ents.items():
+                        if type_filter and etype != type_filter:
+                            continue
+                        if not isinstance(values, list):
+                            continue
+                        for v in values:
+                            if not isinstance(v, str) or not v.strip():
+                                continue
+                            if q_lower and q_lower not in v.lower():
+                                continue
+                            k = f"{etype}:{v.lower()}"
+                            counts[k] = counts.get(k, 0) + 1
+                            type_vals[k] = (etype, v)
+
+        for k, cnt in counts.items():
+            etype, value = type_vals[k]
+            raw_entities.append({
+                "type":     etype,
+                "value":    value,
+                "_key":     k,
+                "mentions": cnt,
+            })
+
+    # ── 2. Tri ──────────────────────────────────────────────────────────────
+    if sort_by == "value":
+        raw_entities.sort(key=lambda e: e["value"].lower())
+    else:
+        raw_entities.sort(key=lambda e: e["mentions"], reverse=True)
+
+    # ── 3. Pagination ───────────────────────────────────────────────────────
+    total_before_limit = len(raw_entities)
+    raw_entities = raw_entities[:limit]
+
+    # ── 4. Images (depuis le cache disque) ──────────────────────────────────
+    images_map: dict[str, dict | None] = {}
+    if include_images:
+        cache_path = PROJECT_ROOT / "data" / "images_cache.json"
+        global _images_cache_mem
+        with _images_cache_mem_lock:
+            if _images_cache_mem is None:
+                _tmp: dict = {}
+                if cache_path.exists():
+                    try:
+                        _tmp = json.loads(cache_path.read_text(encoding="utf-8"))
+                    except Exception:
+                        pass
+                _images_cache_mem = _tmp
+            images_map = dict(_images_cache_mem)
+
+    # ── 5. Synthèses IA (depuis synthesis_cache) ────────────────────────────
+    synthesis_map: dict[str, str] = {}
+    if include_synthesis:
+        try:
+            from utils.synthesis_cache import get_synthesis_cache as _get_scache
+            _scache = _get_scache(PROJECT_ROOT)
+            for ent in raw_entities:
+                etype = ent["type"]
+                # La valeur affichable peut différer de la clé originale — essayer les deux
+                for candidate in [ent["value"], ent["_key"].split(":", 1)[-1]]:
+                    cached = _scache.get(etype, candidate)
+                    if cached:
+                        text = cached.get("info_text") or cached.get("rag_text") or ""
+                        if text:
+                            synthesis_map[ent["_key"]] = text
+                        break
+        except Exception:
+            pass
+
+    # ── 6. Assemblage de la réponse ─────────────────────────────────────────
+    entities_out = []
+    for ent in raw_entities:
+        item: dict = {
+            "type":     ent["type"],
+            "value":    ent["value"],
+            "mentions": ent["mentions"],
+        }
+        if include_images:
+            item["image"] = images_map.get(ent["value"])
+        if include_synthesis:
+            item["synthesis"] = synthesis_map.get(ent["_key"])
+        entities_out.append(item)
+
+    response_body = {
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "total":        total_before_limit,
+        "returned":     len(entities_out),
+        "params": {
+            "q":         q_raw or None,
+            "type":      type_filter or None,
+            "limit":     limit,
+            "sort":      sort_by,
+            "images":    include_images,
+            "synthesis": include_synthesis,
+        },
+        "entities": entities_out,
+    }
+
+    resp = jsonify(response_body)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
