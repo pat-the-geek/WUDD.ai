@@ -43,7 +43,7 @@ La sémantique référentielle identifie des acteurs. La sémantique relationnel
 
 WUDD.ai matérialise cette couche relationnelle via un **graphe de co-occurrences interactif**, accessible depuis le panneau de détail de chaque entité (onglet *Graphe*).
 
-![Graphe de co-occurrences — Vue relationnelle](Screen-captures/WWUD.ai-Viewer-entities-relations.png)
+![Graphe de co-occurrences — Vue relationnelle](Screen-captures/Entité-map-relations.png)
 
 **Principe de construction :**
 
@@ -153,7 +153,7 @@ Seuls les types effectivement détectés sont présents. Les types avec zéro en
 
 La vue Liste offre une lecture transversale de toutes les entités extraites de l'ensemble des fichiers JSON analysés.
 
-![Dashboard Entités — Vue Liste](Screen-captures/WWUD.ai-Viewer-entities.png)
+![Dashboard Entités — Vue Liste](Screen-captures/Dashboard-entités.png)
 
 ### En-tête de statistiques
 
@@ -184,9 +184,7 @@ Cliquer sur n'importe quelle entité ouvre le [panneau de détail](#8-panneau-de
 
 La vue Carte géolocalise les entités de type `GPE` (lieux géopolitiques : pays, villes, régions) et `LOC` (lieux géographiques : chaînes de montagnes, fleuves, zones) sur un planisphère interactif.
 
-![Dashboard Entités — Vue Carte mondiale](Screen-captures/WWUD.ai-Viewer-entities-map-world.png)
-
-![Dashboard Entités — Vue Carte zoomée (Europe centrale)](Screen-captures/WWUD.ai-Viewer-entities-map-zoom.png)
+![Dashboard Entités — Vue Carte](Screen-captures/Cartographie-articles.png)
 
 ### Encodage visuel
 
@@ -216,8 +214,6 @@ Les coordonnées géographiques sont récupérées via l'API Wikipedia (`action=
 **Accès** : bouton `Galerie` dans le Dashboard Entités.
 
 La vue Galerie affiche une représentation visuelle des entités de type `PERSON`, `ORG` et `PRODUCT`, organisée en trois sections alphabétiques avec images récupérées depuis Wikimedia.
-
-![Dashboard Entités — Vue Galerie](Screen-captures/WWUD.ai-Viewer-entities-galerie.png)
 
 ### Organisation de la galerie
 
@@ -270,7 +266,7 @@ Les images acceptées sont mises en cache dans `data/images_cache.json` (TTL ill
 
 **Accès** : cliquer sur n'importe quelle entité dans les trois vues (Liste, Carte, Galerie).
 
-![Panneau de détail — Digital Services Act](Screen-captures/WWUD.ai-Viewer-entity-detail.png)
+![Panneau de détail — liste des articles d'une entité](Screen-captures/Entité-articles.png)
 
 Le panneau latéral affiche la liste de tous les articles mentionnant l'entité sélectionnée, avec :
 
