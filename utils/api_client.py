@@ -405,6 +405,8 @@ class EurIAClient:
         model: Nom du modèle IA à utiliser
         enable_web_search: Active la recherche web pour le contexte
     """
+
+    _provider_label: str = "EurIA"
     
     def __init__(
         self,
@@ -515,7 +517,7 @@ class EurIAClient:
                 usage = json_data.get("usage", {})
                 if usage:
                     default_logger.info(
-                        f"[EurIA] Usage — prompt: {usage.get('prompt_tokens', '?')} tokens, "
+                        f"[{self._provider_label}] Usage — prompt: {usage.get('prompt_tokens', '?')} tokens, "
                         f"completion: {usage.get('completion_tokens', '?')} tokens, "
                         f"total: {usage.get('total_tokens', '?')} tokens"
                     )
@@ -1579,6 +1581,7 @@ class OllamaClient(EurIAClient):
     """
 
     _DEFAULT_MODEL = "qwen2.5:7b"
+    _provider_label: str = "Ollama"
 
     @staticmethod
     def _ollama_host() -> str:
