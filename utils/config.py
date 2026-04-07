@@ -121,9 +121,11 @@ class Config:
         elif self.ai_provider == "claude":
             if not self.anthropic_api_key:
                 errors.append("Variable d'environnement manquante: ANTHROPIC_API_KEY (requis pour AI_PROVIDER=claude)")
+        elif self.ai_provider == "ollama":
+            pass  # Ollama local — pas de credentials requis
         else:
             errors.append(
-                f"AI_PROVIDER invalide: '{self.ai_provider}'. Valeurs acceptées: 'euria', 'claude'"
+                f"AI_PROVIDER invalide: '{self.ai_provider}'. Valeurs acceptées: 'euria', 'claude', 'ollama'"
             )
         
         # Validation des timeouts

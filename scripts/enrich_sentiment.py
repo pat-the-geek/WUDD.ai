@@ -34,7 +34,7 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from utils.config import get_config
-from utils.api_client import get_ai_client
+from utils.api_client import get_ai_client, get_ner_client
 from utils.logging import default_logger
 from utils.article_index import get_article_index
 
@@ -248,7 +248,7 @@ def main():
         print(f"  Cycle complet estimé  : {total} jour(s)")
         return
 
-    client = get_ai_client()
+    client = get_ner_client()
 
     default_logger.info("=== Enrichissement sentiment WUDD.ai ===")
     if args.dry_run:

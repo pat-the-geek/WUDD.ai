@@ -18,6 +18,9 @@ Routes :
   DELETE        /api/env/<key>
   GET           /api/ai-providers
   POST          /api/ai-check
+  GET           /api/ollama/status
+  POST          /api/ollama/check
+  GET           /api/ollama/models
   POST          /api/backup/check-dir
 """
 import json
@@ -667,17 +670,17 @@ def api_ai_providers():
 def api_ai_check():
     """Vérifie la connexion à un fournisseur IA en envoyant un prompt minimal.
 
-    Body JSON : { "provider": "euria" | "claude" }
+    Body JSON : { "provider": "euria" | "claude" | "ollama" }
     Retourne  : { ok: bool, message: str, latency_ms: int }
     """
     import time as _time
     body = request.get_json(force=True, silent=True) or {}
     provider = (body.get("provider") or "").strip().lower()
-    if provider not in ("euria", "claude"):
-        return jsonify({"error": "provider doit être 'euria' ou 'claude'"}), 400
+    if provider not in ("euria", "claude", "ollama"):
+        return jsonify({"error": "provider doit être 'euria', 'claude' ou 'ollama'"}), 400
 
     try:
-        from utils.api_client import EurIAClient, ClaudeClient
+        from utils.api_client import EurIAClient, ClaudeClient, OllamaClient
     except ImportError as e:
         return jsonify({"ok": False, "message": f"Import impossible : {e}", "latency_ms": 0}), 500
 
@@ -691,12 +694,18 @@ def api_ai_check():
                 return jsonify({"ok": False, "message": "URL ou bearer non configuré.", "latency_ms": 0})
             client = EurIAClient(url=url, bearer=bearer)
             result = client.ask(prompt, timeout=10)
-        else:
+        elif provider == "claude":
             api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
             if not api_key:
                 return jsonify({"ok": False, "message": "ANTHROPIC_API_KEY non configurée.", "latency_ms": 0})
             client = ClaudeClient(api_key=api_key)
             result = client.ask(prompt, max_tokens=16, timeout=10)
+        else:  # ollama
+            if not OllamaClient.is_available():
+                return jsonify({"ok": False, "message": "Serveur Ollama injoignable (localhost:11434). Démarrez-le : brew services start ollama", "latency_ms": 0})
+            model = os.environ.get("OLLAMA_MODEL", OllamaClient._DEFAULT_MODEL).strip()
+            client = OllamaClient(model=model)
+            result = client.ask(prompt, max_tokens=16, timeout=30)
 
         latency_ms = int((_time.monotonic() - t0) * 1000)
         ok = bool(result and len(result.strip()) > 0)
@@ -705,6 +714,42 @@ def api_ai_check():
     except Exception as exc:
         latency_ms = int((_time.monotonic() - t0) * 1000)
         return jsonify({"ok": False, "message": str(exc), "latency_ms": latency_ms})
+
+
+@settings_bp.route("/api/ollama/status", methods=["GET"])
+def api_ollama_status():
+    """Retourne le statut du serveur Ollama et la liste des modèles disponibles.
+
+    Retourne : { available: bool, models: [str], active_model: str, ner_provider: str }
+    """
+    try:
+        from utils.api_client import OllamaClient
+        available = OllamaClient.is_available()
+        models = OllamaClient.list_models() if available else []
+    except Exception:
+        available = False
+        models = []
+
+    ner_provider  = os.environ.get("AI_PROVIDER_NER", "").strip().lower()
+    active_model  = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b").strip()
+    return jsonify({
+        "available": available,
+        "models":    models,
+        "active_model": active_model,
+        "ner_provider": ner_provider,
+    })
+
+
+@settings_bp.route("/api/ollama/models", methods=["GET"])
+def api_ollama_models():
+    """Retourne uniquement la liste des modèles Ollama disponibles localement."""
+    try:
+        from utils.api_client import OllamaClient
+        if OllamaClient.is_available():
+            return jsonify({"models": OllamaClient.list_models()})
+    except Exception:
+        pass
+    return jsonify({"models": []})
 
 
 @settings_bp.route("/api/backup/check-dir", methods=["POST"])

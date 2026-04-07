@@ -199,6 +199,10 @@ python3 scripts/web_watcher.py --dry-run
 
 **Description** : Enrichit les fichiers JSON d'articles existants avec les **entités nommées (NER)** extraites via l'API IA. Ajoute le champ `entities` (18 types : PERSON, ORG, GPE, LOC, PRODUCT, EVENT, etc.) à chaque article disposant d'un `Résumé`.
 
+Le provider utilisé est déterminé par `AI_PROVIDER_NER` dans `.env` (via `get_ner_client()`) :
+- Vide ou absent : même provider que `AI_PROVIDER` (EurIA ou Claude)
+- `ollama` : inférence locale Ollama (aucun token API consommé) — fallback automatique sur cloud si Ollama injoignable
+
 **Arguments** :
 
 | Argument | Description | Défaut |
@@ -228,6 +232,8 @@ python3 scripts/enrich_entities.py --force
 ### 7. enrich_sentiment.py
 
 **Description** : Enrichit les articles avec l'**analyse de sentiment** et le **ton éditorial** via l'API IA. Ajoute 4 champs : `sentiment` (positif/neutre/négatif), `score_sentiment` (1–5), `ton_editorial` (factuel/engagé/polémique…), `score_ton` (1–5). Mode round-robin : 1 fichier par exécution.
+
+Le provider utilisé est déterminé par `AI_PROVIDER_NER` (via `get_ner_client()`) — même logique que `enrich_entities.py`.
 
 **Arguments** :
 

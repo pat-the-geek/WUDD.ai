@@ -1,3 +1,70 @@
+# 07/04/2026 — Inférence NER/sentiment locale via Ollama (v2.7.0)
+
+## Option A — Ollama local pour NER et sentiment batch
+
+Ajout d'un troisième provider IA dédié aux tâches structurées batch (NER et
+sentiment), exploitant les GPU/NPU locaux (Metal/Neural Engine sur Apple Silicon)
+sans consommer de tokens API cloud.
+
+### `utils/api_client.py` — `OllamaClient` + `get_ner_client()`
+
+- Nouveau classe `OllamaClient(EurIAClient)` : endpoint `http://{OLLAMA_HOST}:11434/v1/chat/completions`, sans credentials    
+  - Tous les appels sont tracés dans les logs avec le préfixe `[Ollama/<modèle>]`
+  - `OllamaClient._ollama_host()` lit la variable `OLLAMA_HOST` (défaut `localhost`, mettre `host.docker.internal` dans Docker sur macOS)
+  - `OllamaClient.is_available()` et `OllamaClient.list_models()` — sondes sans authentification
+- Nouvelle fonction `get_ner_client()` : retourne `OllamaClient` si `AI_PROVIDER_NER=ollama` et serveur joignable, sinon bascule transparente sur le client cloud principal — aucune modification requise dans les scripts appelants
+- `get_ai_client()` étendu : branche `AI_PROVIDER=ollama` (utilisation directe d'Ollama comme provider principal)
+
+### `utils/config.py` — Validation étendue
+
+- `AI_PROVIDER=ollama` désormais accepté sans erreur de validation (aucun credentials requis)
+- Message d'erreur mis à jour : `Valeurs acceptées: 'euria', 'claude', 'ollama'`
+
+### `scripts/enrich_entities.py` + `scripts/enrich_sentiment.py`
+
+- Import de `get_ner_client` ajouté
+- Appel `get_ai_client()` remplacé par `get_ner_client()` — routage automatique selon `AI_PROVIDER_NER`
+
+### `docker-compose.yml`
+
+- Variable d'environnement `OLLAMA_HOST=host.docker.internal` injectée automatiquement — le conteneur Docker peut joindre Ollama sur l'hôte macOS sans configuration supplémentaire
+
+### `.env.example`
+
+Nouvelles variables documentées :
+
+```env
+# IA Locale — Ollama (Option A : NER + sentiment batch uniquement)
+AI_PROVIDER_NER=ollama
+OLLAMA_MODEL=qwen2.5:7b
+```
+
+### `viewer/routes/settings.py`
+
+- `POST /api/ai-check` : supporte désormais `"provider": "ollama"`
+- `GET /api/ollama/status` : retourne `{ available, models, active_model, ner_provider }`
+- `GET /api/ollama/models` : retourne la liste des modèles installés localement
+
+### `viewer/src/components/SettingsPanel.jsx`
+
+- Panneau **Réglages → Config IA** étendu avec une section « NER · Sentiment batch »
+  - Pill de statut live (vert/orange selon disponibilité du serveur)
+  - Bascule Cloud ↔ Ollama avec mémorisation dans `.env`
+  - Chips de sélection du modèle Ollama (depuis `GET /api/ollama/models`)
+  - Instructions de démarrage `brew services start ollama` affichées si hors ligne
+- Bouton *Check* adapté : appelle `loadOllamaStatus()` pour le groupe Ollama
+
+### Tests — `tests/test_api_client_pure.py`
+
+20 nouveaux tests unitaires (sans requête réseau) :
+- `TestOllamaClient` (12) : `_ollama_host`, `_default_url`, `__init__`, `is_available`, `list_models`
+- `TestGetAiClientOllama` (2) : branche `AI_PROVIDER=ollama` de `get_ai_client()`
+- `TestGetNerClient` (6) : routage NER selon `AI_PROVIDER_NER`, fallback si hors ligne, modèle custom
+
+**Économies estimées :** ~165 000 tokens/jour (21% de la consommation totale) en déchargeant le NER batch sur Ollama `qwen2.5:7b` (4.7 GB, ~35–45 tok/s sur M4, 6 GB RAM unifiée).
+
+---
+
 # 25/03/2026 — Détection des silences + refactoring web_watcher (v2.6.0)
 
 ## `scripts/trend_detector.py` — Détection des silences (optimisation 3.7)

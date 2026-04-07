@@ -1561,6 +1561,105 @@ class FallbackClient:
         return self._call("ask", *args, **kwargs)
 
 
+# ── Client Ollama (local) ─────────────────────────────────────────────────────
+
+class OllamaClient(EurIAClient):
+    """Client Ollama — API OpenAI-compatible, inférence locale.
+
+    Hérite de EurIAClient car Ollama expose exactement la même interface
+    /v1/chat/completions. Seules différences :
+      - Endpoint local  : http://localhost:11434/v1/chat/completions
+      - Pas d'authentification (bearer="ollama" factice)
+      - enable_web_search forcé à False (pas d'accès internet)
+      - Marqueur "ollama" dans tous les logs pour identification claire
+
+    Utilisation recommandée : generate_entities() et generate_sentiment()
+    (tâches NER/structured-output, ~21% des tokens journaliers).
+    Les synthèses encyclopédiques et rapports restent sur le cloud.
+    """
+
+    _DEFAULT_MODEL = "qwen2.5:7b"
+
+    @staticmethod
+    def _ollama_host() -> str:
+        """Retourne l'hôte Ollama depuis OLLAMA_HOST (défaut localhost).
+        Dans Docker sur macOS, positionner OLLAMA_HOST=host.docker.internal."""
+        import os as _os
+        return _os.environ.get("OLLAMA_HOST", "localhost")
+
+    @classmethod
+    def _default_url(cls) -> str:
+        return f"http://{cls._ollama_host()}:11434/v1/chat/completions"
+
+    def __init__(self, model: str = _DEFAULT_MODEL):
+        url = self._default_url()
+        # Initialise EurIAClient avec l'endpoint Ollama local
+        super().__init__(
+            url=url,
+            bearer="ollama",           # Ollama n'authentifie pas — valeur factice
+            enable_web_search=False,   # Pas d'internet local
+            model=model,
+        )
+        self._ollama_model = model
+        default_logger.info(f"[OllamaClient] Initialisé — modèle={model}, endpoint={url}")
+
+    # ── Surcharge ask() pour tracer les appels dans les logs ─────────────────
+
+    def ask(
+        self,
+        prompt: str,
+        max_attempts: int = 3,
+        timeout: int = 60,
+        max_tokens: int = 800,
+        enable_web_search: Optional[bool] = None,
+    ) -> str:
+        default_logger.info(
+            f"[Ollama/{self._ollama_model}] ask() — {len(prompt)} cars, "
+            f"max_tokens={max_tokens}, timeout={timeout}s"
+        )
+        result = super().ask(
+            prompt,
+            max_attempts=max_attempts,
+            timeout=timeout,
+            max_tokens=max_tokens,
+            enable_web_search=False,   # Toujours False pour Ollama
+        )
+        default_logger.info(
+            f"[Ollama/{self._ollama_model}] Réponse reçue — {len(result)} cars"
+        )
+        return result
+
+    def generate_entities(self, resume: str, timeout: int = 60) -> Optional[dict]:
+        default_logger.info(f"[Ollama/{self._ollama_model}] generate_entities() — NER local")
+        return super().generate_entities(resume, timeout=timeout)
+
+    def generate_sentiment(self, resume: str, timeout: int = 30) -> Optional[dict]:
+        default_logger.info(f"[Ollama/{self._ollama_model}] generate_sentiment() — sentiment local")
+        return super().generate_sentiment(resume, timeout=timeout)
+
+    @classmethod
+    def is_available(cls) -> bool:
+        """Vérifie que le serveur Ollama répond (hôte défini par OLLAMA_HOST)."""
+        import requests as _req
+        try:
+            r = _req.get(f"http://{cls._ollama_host()}:11434/api/tags", timeout=3)
+            return r.status_code == 200
+        except Exception:
+            return False
+
+    @classmethod
+    def list_models(cls) -> list[str]:
+        """Retourne la liste des modèles disponibles localement."""
+        import requests as _req
+        try:
+            r = _req.get(f"http://{cls._ollama_host()}:11434/api/tags", timeout=5)
+            if r.status_code == 200:
+                return [m["name"] for m in r.json().get("models", [])]
+        except Exception:
+            pass
+        return []
+
+
 # ── Factory ───────────────────────────────────────────────────────────────────
 
 def get_ai_client(fallback: bool = True):
@@ -1574,24 +1673,57 @@ def get_ai_client(fallback: bool = True):
     Returns:
         FallbackClient si les deux IA sont configurées et fallback=True,
         EurIAClient si AI_PROVIDER=euria (ou non défini),
-        ClaudeClient si AI_PROVIDER=claude.
+        ClaudeClient si AI_PROVIDER=claude,
+        OllamaClient si AI_PROVIDER=ollama.
     """
     config = get_config()
     provider = config.ai_provider
 
-    # Vérifier la disponibilité des credentials
     import os as _os
-    euria_ok = bool(_os.environ.get("URL", "").strip() and _os.environ.get("bearer", "").strip())
+    euria_ok  = bool(_os.environ.get("URL", "").strip() and _os.environ.get("bearer", "").strip())
     claude_ok = bool(_os.environ.get("ANTHROPIC_API_KEY", "").strip())
 
+    # Ollama local — pas de credentials, juste le serveur qui tourne
+    if provider == "ollama":
+        model = _os.environ.get("OLLAMA_MODEL", OllamaClient._DEFAULT_MODEL).strip()
+        default_logger.info(f"[get_ai_client] Fournisseur=Ollama (local), modèle={model}")
+        return OllamaClient(model=model)
+
     if fallback and euria_ok and claude_ok:
-        # Les deux IAs sont configurées : activer le fallback
         if provider == "claude":
             return FallbackClient(ClaudeClient(), EurIAClient())
         else:
             return FallbackClient(EurIAClient(), ClaudeClient())
 
-    # Un seul fournisseur disponible
     if provider == "claude":
         return ClaudeClient()
     return EurIAClient()
+
+
+def get_ner_client():
+    """Retourne le client IA dédié au NER/sentiment batch (Option A Ollama).
+
+    Si AI_PROVIDER_NER=ollama et que le serveur Ollama est disponible,
+    retourne un OllamaClient. Sinon, bascule sur le client principal
+    (EurIA ou Claude selon AI_PROVIDER).
+
+    Cette séparation permet d'utiliser Ollama uniquement pour les tâches
+    structurées (NER, sentiment) tout en conservant le cloud pour les
+    résumés, rapports et synthèses encyclopédiques.
+    """
+    import os as _os
+    ner_provider = _os.environ.get("AI_PROVIDER_NER", "").strip().lower()
+
+    if ner_provider == "ollama":
+        if OllamaClient.is_available():
+            model = _os.environ.get("OLLAMA_MODEL", OllamaClient._DEFAULT_MODEL).strip()
+            default_logger.info(f"[get_ner_client] NER → Ollama local (modèle={model})")
+            return OllamaClient(model=model)
+        else:
+            default_logger.warning(
+                "[get_ner_client] AI_PROVIDER_NER=ollama mais serveur Ollama injoignable "
+                "— bascule sur le client cloud principal."
+            )
+
+    # Fallback transparent sur le client cloud principal
+    return get_ai_client(fallback=True)

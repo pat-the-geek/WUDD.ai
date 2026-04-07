@@ -5,7 +5,7 @@ import {
   Maximize2, Minimize2, ExternalLink, Database, Clipboard, BarChart2,
   ToggleLeft, ToggleRight, RotateCcw, ShieldOff,
   Sun, Moon, Monitor, Terminal, TrendingUp, Eye, Lock, EyeOff, Pencil,
-  BookOpen, Network, Layers, Sparkles,
+  BookOpen, Network, Layers, Sparkles, Cpu,
 } from 'lucide-react'
 import KeywordForceGraph from './KeywordForceGraph'
 
@@ -1896,8 +1896,12 @@ function EnvTab() {
   const [error, setError]         = useState(null)
   const [showMasked, setShowMasked] = useState({})   // {key: bool}
 
-  // Check IA : { euria: null | 'checking' | {ok, message, latency_ms}, claude: ... }
-  const [aiCheck, setAiCheck]     = useState({ euria: null, claude: null })
+  // Check IA : { euria: null | 'checking' | {ok, message, latency_ms}, claude: ..., ollama: ... }
+  const [aiCheck, setAiCheck]     = useState({ euria: null, claude: null, ollama: null })
+
+  // Ollama local
+  const [ollamaStatus, setOllamaStatus] = useState(null) // null | {available, models, active_model, ner_provider}
+  const [ollamaLoading, setOllamaLoading] = useState(false)
 
   // Check répertoires backup
   const [backupCheck, setBackupCheck] = useState({ l1: null, l2: null }) // null | 'checking' | {ok, message}
@@ -1918,7 +1922,15 @@ function EnvTab() {
       .catch(() => { setError('Impossible de charger le fichier .env'); setLoading(false) })
   }, [])
 
-  useEffect(() => { load() }, [load])
+  const loadOllamaStatus = useCallback(() => {
+    setOllamaLoading(true)
+    fetch('/api/ollama/status')
+      .then(r => r.json())
+      .then(d => { setOllamaStatus(d); setOllamaLoading(false) })
+      .catch(() => { setOllamaStatus({ available: false, models: [], active_model: '', ner_provider: '' }); setOllamaLoading(false) })
+  }, [])
+
+  useEffect(() => { load(); loadOllamaStatus() }, [load, loadOllamaStatus])
 
   const saveVar = async (key, value) => {
     setSaving(true)
@@ -2016,6 +2028,7 @@ function EnvTab() {
 
   // Fournisseur IA actif
   const currentProvider = vars.find(v => v.key === 'AI_PROVIDER')?.value || 'euria'
+  const currentNerProvider = vars.find(v => v.key === 'AI_PROVIDER_NER')?.value || ''
 
   // Alerte si configuration incomplète
   const missingConfig = (() => {
@@ -2033,6 +2046,7 @@ function EnvTab() {
   const ENV_GROUPS = [
     { label: 'IA EurIA (Infomaniak)', keys: ['URL', 'bearer'], provider: 'euria' },
     { label: 'IA Claude (Anthropic)', keys: ['ANTHROPIC_API_KEY', 'CLAUDE_MODEL_BATCH', 'CLAUDE_MODEL_SYNTHESIS'], provider: 'claude' },
+    { label: 'IA Locale — Ollama (NER/Sentiment batch)', keys: ['AI_PROVIDER_NER', 'OLLAMA_MODEL'], provider: 'ollama' },
   ]
   // AI_PROVIDER est géré par le sélecteur — exclure de la table générique
   const groupedKeys = [...ENV_GROUPS.flatMap(g => g.keys), 'AI_PROVIDER']
@@ -2128,6 +2142,81 @@ function EnvTab() {
             </button>
           ))}
         </div>
+
+        {/* Sélecteur NER local (Ollama) */}
+        <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Cpu size={11} /> NER · Sentiment batch
+              <span className="text-[10px] font-normal text-slate-400 normal-case tracking-normal">(enrich_entities / enrich_sentiment)</span>
+            </p>
+            {/* Pill statut Ollama */}
+            <div className="flex items-center gap-1.5">
+              {ollamaLoading
+                ? <span className="text-[11px] text-slate-400 flex items-center gap-1"><RefreshCw size={10} className="animate-spin" /> …</span>
+                : ollamaStatus?.available
+                  ? <span className="text-[11px] text-[#1a7a34] dark:text-[#30D158] flex items-center gap-1"><CheckCircle2 size={11} /> Ollama actif · {ollamaStatus.models.length} modèle{ollamaStatus.models.length !== 1 ? 's' : ''}</span>
+                  : <span className="text-[11px] text-orange-500 flex items-center gap-1"><AlertTriangle size={11} /> Ollama hors ligne</span>
+              }
+              <button
+                onClick={loadOllamaStatus}
+                disabled={ollamaLoading}
+                title="Rafraîchir le statut Ollama"
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-40 rounded transition-colors"
+              >
+                <RefreshCw size={10} className={ollamaLoading ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {[
+              { value: '',       label: 'Cloud (AI_PROVIDER)', desc: 'Utilise EurIA ou Claude' },
+              { value: 'ollama', label: 'Ollama local', desc: ollamaStatus?.available ? `${ollamaStatus.active_model}` : 'Serveur non détecté' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => saveVar('AI_PROVIDER_NER', opt.value)}
+                disabled={saving || (opt.value === 'ollama' && !ollamaStatus?.available)}
+                title={opt.desc}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                  currentNerProvider === opt.value
+                    ? opt.value === 'ollama'
+                      ? 'bg-emerald-600 dark:bg-emerald-500 text-white border-emerald-600 shadow-sm'
+                      : 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF] shadow-sm'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-slate-400'
+                }`}
+              >
+                {currentNerProvider === opt.value && <span className="mr-1">●</span>}
+                {opt.value === 'ollama' && <Cpu size={10} className="inline mr-1" />}
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {/* Modèles disponibles */}
+          {ollamaStatus?.available && ollamaStatus.models.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {ollamaStatus.models.map(m => (
+                <button
+                  key={m}
+                  onClick={() => saveVar('OLLAMA_MODEL', m)}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-mono border transition-colors ${
+                    (ollamaStatus.active_model === m || vars.find(v => v.key === 'OLLAMA_MODEL')?.value === m)
+                      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-slate-400'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+          {!ollamaStatus?.available && (
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 flex items-start gap-1">
+              <AlertTriangle size={10} className="mt-0.5 shrink-0 text-orange-400" />
+              Pour activer : <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">brew services start ollama</code> puis <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">ollama pull qwen2.5:7b</code>
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Contenu scrollable — alertes, variables, backup, obsidian, footer */}
@@ -2169,8 +2258,15 @@ function EnvTab() {
                 const groupVars = group.keys.map(k =>
                   vars.find(v => v.key === k) ?? { key: k, value: '', masked: isSensitiveFront(k), _missing: true }
                 )
-                const isActive = group.provider === currentProvider
-                const checkState = aiCheck[group.provider]
+                // Le groupe Ollama est "actif" si AI_PROVIDER_NER=ollama
+                const isActive = group.provider === 'ollama'
+                  ? currentNerProvider === 'ollama'
+                  : group.provider === currentProvider
+                // Pour Ollama : statut disponibilité au lieu du simple check
+                const isOllama  = group.provider === 'ollama'
+                const checkState = isOllama
+                  ? (ollamaStatus ? (ollamaStatus.available ? { ok: true, message: `${ollamaStatus.models.length} modèle(s)` } : { ok: false, message: 'Serveur hors ligne' }) : null)
+                  : aiCheck[group.provider]
                 return (
                   <Fragment key={group.label}>
                     <tr className={isActive
@@ -2185,7 +2281,7 @@ function EnvTab() {
                           </span>
                           {/* Bouton Check IA */}
                           <div className="flex items-center gap-2">
-                            {checkState && checkState !== 'checking' && (
+                            {checkState && checkState !== 'checking' && !isOllama && (
                               <span className={`text-[11px] flex items-center gap-1 ${checkState.ok ? 'text-[#1a7a34] dark:text-[#30D158]' : 'text-red-500 dark:text-red-400'}`}>
                                 {checkState.ok
                                   ? <><CheckCircle2 size={11} /> OK {checkState.latency_ms > 0 ? `· ${checkState.latency_ms}ms` : ''}</>
@@ -2193,12 +2289,20 @@ function EnvTab() {
                                 }
                               </span>
                             )}
+                            {isOllama && ollamaStatus && (
+                              <span className={`text-[11px] flex items-center gap-1 ${ollamaStatus.available ? 'text-[#1a7a34] dark:text-[#30D158]' : 'text-orange-500 dark:text-orange-400'}`}>
+                                {ollamaStatus.available
+                                  ? <><CheckCircle2 size={11} /> Actif · {ollamaStatus.active_model}</>
+                                  : <><AlertTriangle size={11} /> Hors ligne</>
+                                }
+                              </span>
+                            )}
                             <button
-                              onClick={() => checkAI(group.provider)}
-                              disabled={checkState === 'checking'}
+                              onClick={() => isOllama ? loadOllamaStatus() : checkAI(group.provider)}
+                              disabled={isOllama ? ollamaLoading : checkState === 'checking'}
                               className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-[#007AFF] hover:text-[#007AFF] dark:hover:text-[#0A84FF] disabled:opacity-50 transition-colors"
                             >
-                              {checkState === 'checking'
+                              {(isOllama ? ollamaLoading : checkState === 'checking')
                                 ? <><RefreshCw size={10} className="animate-spin" /> Test…</>
                                 : <><Check size={10} /> Check</>
                               }

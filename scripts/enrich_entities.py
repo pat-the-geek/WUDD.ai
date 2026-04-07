@@ -37,7 +37,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.logging import print_console, setup_logger
 from utils.config import get_config
-from utils.api_client import get_ai_client
+from utils.api_client import get_ai_client, get_ner_client
 from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
 
@@ -277,7 +277,7 @@ def main():
         print_console("[MODE DRY-RUN — aucun appel API, aucune sauvegarde]", level="info")
     print_console("", level="info")
 
-    api_client = None if args.dry_run else get_ai_client()
+    api_client = None if args.dry_run else get_ner_client()
 
     totaux = {"total": 0, "enrichis": 0, "deja_presents": 0, "erreurs": 0, "ignores": 0}
 

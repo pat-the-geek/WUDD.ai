@@ -581,3 +581,196 @@ class TestGetAiClient:
             finally:
                 cfg_mod._config_instance = None
         assert isinstance(client, EurIAClient)
+
+
+# ─────────────────────────────────────────────────────────────
+# OllamaClient
+# ─────────────────────────────────────────────────────────────
+
+
+class TestOllamaClient:
+    """Tests unitaires pour OllamaClient — sans requête réseau réelle."""
+
+    def test_import(self):
+        from utils.api_client import OllamaClient
+        assert OllamaClient is not None
+
+    def test_ollama_host_default(self):
+        from utils.api_client import OllamaClient
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("OLLAMA_HOST", None)
+            assert OllamaClient._ollama_host() == "localhost"
+
+    def test_ollama_host_from_env(self):
+        from utils.api_client import OllamaClient
+        with patch.dict(os.environ, {"OLLAMA_HOST": "host.docker.internal"}):
+            assert OllamaClient._ollama_host() == "host.docker.internal"
+
+    def test_default_url_uses_host(self):
+        from utils.api_client import OllamaClient
+        with patch.dict(os.environ, {"OLLAMA_HOST": "myhost"}):
+            url = OllamaClient._default_url()
+        assert "myhost" in url
+        assert "11434" in url
+        assert url.endswith("/v1/chat/completions")
+
+    def test_init_default_model(self):
+        from utils.api_client import OllamaClient
+        client = OllamaClient()
+        assert client._ollama_model == "qwen2.5:7b"
+
+    def test_init_custom_model(self):
+        from utils.api_client import OllamaClient
+        client = OllamaClient(model="qwen2.5:14b")
+        assert client._ollama_model == "qwen2.5:14b"
+
+    def test_is_available_returns_true_on_200(self):
+        from utils.api_client import OllamaClient
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        with patch("requests.get", return_value=mock_resp):
+            assert OllamaClient.is_available() is True
+
+    def test_is_available_returns_false_on_non_200(self):
+        from utils.api_client import OllamaClient
+        mock_resp = MagicMock()
+        mock_resp.status_code = 503
+        with patch("requests.get", return_value=mock_resp):
+            assert OllamaClient.is_available() is False
+
+    def test_is_available_returns_false_on_exception(self):
+        from utils.api_client import OllamaClient
+        with patch("requests.get", side_effect=ConnectionError("refused")):
+            assert OllamaClient.is_available() is False
+
+    def test_list_models_returns_names(self):
+        from utils.api_client import OllamaClient
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"models": [{"name": "qwen2.5:7b"}, {"name": "mistral:7b"}]}
+        with patch("requests.get", return_value=mock_resp):
+            models = OllamaClient.list_models()
+        assert models == ["qwen2.5:7b", "mistral:7b"]
+
+    def test_list_models_returns_empty_on_error(self):
+        from utils.api_client import OllamaClient
+        with patch("requests.get", side_effect=ConnectionError("down")):
+            assert OllamaClient.list_models() == []
+
+    def test_list_models_returns_empty_on_non_200(self):
+        from utils.api_client import OllamaClient
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        with patch("requests.get", return_value=mock_resp):
+            assert OllamaClient.list_models() == []
+
+
+# ─────────────────────────────────────────────────────────────
+# get_ai_client — branche ollama
+# ─────────────────────────────────────────────────────────────
+
+
+class TestGetAiClientOllama:
+    """Tests pour get_ai_client() avec AI_PROVIDER=ollama."""
+
+    def test_provider_ollama_returns_ollama_client(self):
+        from utils.api_client import OllamaClient
+        import utils.config as cfg_mod
+
+        with patch.dict(os.environ, {**_ENV_BASE, "AI_PROVIDER": "ollama", "OLLAMA_MODEL": "qwen2.5:7b"}):
+            cfg_mod._config_instance = None
+            try:
+                client = get_ai_client(fallback=False)
+            finally:
+                cfg_mod._config_instance = None
+        assert isinstance(client, OllamaClient)
+
+    def test_provider_ollama_uses_ollama_model_env(self):
+        from utils.api_client import OllamaClient
+        import utils.config as cfg_mod
+
+        with patch.dict(os.environ, {**_ENV_BASE, "AI_PROVIDER": "ollama", "OLLAMA_MODEL": "qwen2.5:14b"}):
+            cfg_mod._config_instance = None
+            try:
+                client = get_ai_client(fallback=False)
+            finally:
+                cfg_mod._config_instance = None
+        assert isinstance(client, OllamaClient)
+        assert client._ollama_model == "qwen2.5:14b"
+
+
+# ─────────────────────────────────────────────────────────────
+# get_ner_client
+# ─────────────────────────────────────────────────────────────
+
+
+class TestGetNerClient:
+    """Tests pour get_ner_client() — routage NER vers Ollama ou cloud."""
+
+    def test_import(self):
+        from utils.api_client import get_ner_client
+        assert callable(get_ner_client)
+
+    def test_ner_provider_ollama_available_returns_ollama(self):
+        from utils.api_client import OllamaClient, get_ner_client
+        with patch.dict(os.environ, {"AI_PROVIDER_NER": "ollama", "OLLAMA_MODEL": "qwen2.5:7b"}):
+            with patch.object(OllamaClient, "is_available", return_value=True):
+                client = get_ner_client()
+        assert isinstance(client, OllamaClient)
+        assert client._ollama_model == "qwen2.5:7b"
+
+    def test_ner_provider_ollama_unavailable_falls_back_to_cloud(self):
+        from utils.api_client import EurIAClient, OllamaClient, get_ner_client
+        import utils.config as cfg_mod
+
+        with patch.dict(
+            os.environ,
+            {**_ENV_BASE, "AI_PROVIDER_NER": "ollama", "ANTHROPIC_API_KEY": ""},
+            clear=False,
+        ):
+            cfg_mod._config_instance = None
+            with patch.object(OllamaClient, "is_available", return_value=False):
+                try:
+                    client = get_ner_client()
+                finally:
+                    cfg_mod._config_instance = None
+        assert isinstance(client, EurIAClient)
+
+    def test_ner_provider_empty_returns_cloud(self):
+        from utils.api_client import EurIAClient, get_ner_client
+        import utils.config as cfg_mod
+
+        with patch.dict(
+            os.environ,
+            {**_ENV_BASE, "AI_PROVIDER_NER": "", "ANTHROPIC_API_KEY": ""},
+            clear=False,
+        ):
+            cfg_mod._config_instance = None
+            try:
+                client = get_ner_client()
+            finally:
+                cfg_mod._config_instance = None
+        assert isinstance(client, EurIAClient)
+
+    def test_ner_provider_not_set_returns_cloud(self):
+        from utils.api_client import EurIAClient, get_ner_client
+        import utils.config as cfg_mod
+
+        env = {**_ENV_BASE, "ANTHROPIC_API_KEY": ""}
+        env.pop("AI_PROVIDER_NER", None)
+        with patch.dict(os.environ, env, clear=False):
+            os.environ.pop("AI_PROVIDER_NER", None)
+            cfg_mod._config_instance = None
+            try:
+                client = get_ner_client()
+            finally:
+                cfg_mod._config_instance = None
+        assert isinstance(client, EurIAClient)
+
+    def test_ner_provider_ollama_custom_model(self):
+        from utils.api_client import OllamaClient, get_ner_client
+        with patch.dict(os.environ, {"AI_PROVIDER_NER": "ollama", "OLLAMA_MODEL": "qwen2.5:14b"}):
+            with patch.object(OllamaClient, "is_available", return_value=True):
+                client = get_ner_client()
+        assert isinstance(client, OllamaClient)
+        assert client._ollama_model == "qwen2.5:14b"

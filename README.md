@@ -82,6 +82,7 @@ Elle collecte des articles depuis des flux JSON et RSS, les enrichit via une API
 |---|---|
 | EurIA / Qwen3 (Infomaniak) | Provider IA par défaut — résumés, NER, sentiments, rapports via API REST |
 | Claude (Anthropic) | Provider IA alternatif — sélectionnable via `AI_PROVIDER=claude` dans `.env` |
+| Ollama (local) | Provider NER/sentiment batch local — Option A : `AI_PROVIDER_NER=ollama`, aucun token consommé, Metal/Neural Engine sur Apple Silicon |
 
 ### HTTP & Parsing web
 
@@ -290,6 +291,7 @@ WUDD.ai/
 
 - Python 3.10+
 - Compte Infomaniak avec accès à l'API EurIA **et/ou** clé API Claude (Anthropic) — au moins l'une des deux est requise
+- *(Optionnel)* [Ollama](https://ollama.com) installé localement pour décharger le NER/sentiment batch sur GPU/NPU local (Apple Silicon recommandé)
 - Docker (pour l'orchestration automatisée)
 
 ### Dépendances
@@ -316,6 +318,10 @@ Le fichier `.env` n'est jamais commité (`.gitignore`). Référez-vous à `.env.
 | `URL` | Endpoint API EurIA |
 | `bearer` | Token Bearer EurIA |
 | `REEDER_JSON_URL` | URL du flux JSON source |
+| `AI_PROVIDER` | Provider IA principal : `euria` (défaut), `claude`, `ollama` |
+| `AI_PROVIDER_NER` | Provider dédié NER/sentiment batch : `ollama` pour l'inférence locale, vide = idem `AI_PROVIDER` |
+| `OLLAMA_MODEL` | Modèle Ollama à utiliser (défaut : `qwen2.5:7b`) |
+| `OLLAMA_HOST` | Hôte Ollama (défaut : `localhost`, mettre `host.docker.internal` dans Docker) |
 | `OBSIDIAN_DIR` | Chemin absolu vers le vault Obsidian (export de notes, optionnel) |
 | `BACKUP_L1` / `BACKUP_L2` | Chemins de sauvegarde incrémentale de `data/` |
 
@@ -440,7 +446,7 @@ python3 scripts/enrich_entities.py --flux Intelligence-artificielle
 python3 scripts/enrich_entities.py --dry-run
 ```
 
-Ajoute un champ `entities` à chaque article possédant un champ `Résumé`, en interrogeant l'API EurIA ou Claude (selon le provider configuré dans `.env`). Le champ contient un dictionnaire de 18 types d'entités nommées :
+Ajoute un champ `entities` à chaque article possédant un champ `Résumé`, en interrogeant le provider NER configuré : EurIA, Claude, ou **Ollama local** (si `AI_PROVIDER_NER=ollama` dans `.env`). Ollama permet de traiter le NER entièrement en local, sans consommer de tokens API. Le champ contient un dictionnaire de 18 types d'entités nommées :
 
 | Types | Exemples |
 |---|---|
