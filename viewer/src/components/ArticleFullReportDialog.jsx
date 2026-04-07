@@ -465,13 +465,17 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
       .then(async r => {
         if (!r.ok) {
           const d = await r.json().catch(() => ({}))
-          setError(d.error ?? `Erreur HTTP ${r.status}`)
+          const errMsg = d.error
+          setError(typeof errMsg === 'string' ? errMsg : (errMsg?.message ?? `Erreur HTTP ${r.status}`))
           setIsLoading(false)
           return
         }
         const reader  = r.body.getReader()
         const decoder = new TextDecoder()
         let buffer    = ''
+        // Filtrage inline des blocs <think>…</think> émis par les modèles IA
+        // (approche stateful identique à EntityFullReportDialog.consumeSse)
+        let inThink = false
 
         while (true) {
           const { done, value } = await reader.read()
@@ -487,11 +491,31 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
             try {
               const parsed = JSON.parse(raw)
               if (parsed.choices?.[0]?.delta?.content) {
-                setReportMd(prev => prev + parsed.choices[0].delta.content)
+                // Filtrer les blocs <think> inline pour éviter qu'ils
+                // n'apparaissent dans le markdown final (notamment dans
+                // les diagrammes Mermaid où ils génèrent des erreurs de syntaxe)
+                let rem = parsed.choices[0].delta.content
+                let toAppend = ''
+                while (rem.length > 0) {
+                  if (!inThink) {
+                    const s = rem.indexOf('<think>')
+                    if (s === -1) { toAppend += rem; break }
+                    if (s > 0) toAppend += rem.slice(0, s)
+                    rem = rem.slice(s + 7)
+                    inThink = true
+                  } else {
+                    const e = rem.indexOf('</think>')
+                    if (e === -1) break   // bloc <think> non fermé dans ce chunk
+                    rem = rem.slice(e + 8)
+                    inThink = false
+                  }
+                }
+                if (toAppend) setReportMd(prev => prev + toAppend)
               } else if (parsed.error) {
-                setError(parsed.error)
+                const errMsg = parsed.error
+                setError(typeof errMsg === 'string' ? errMsg : (errMsg?.message ?? JSON.stringify(errMsg)))
               }
-            } catch { /* skip malformed chunk */ }
+            } catch { /* ignorer les chunks malformés */ }
           }
         }
         setIsLoading(false)
@@ -537,11 +561,11 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
   }, [onClose, isFullscreen])
 
   // ── Derived state ─────────────────────────────────────────────────────────────
-  // Strip <think>…</think> blocks emitted by Qwen3
-  // Filtre les blocs <think> fermés ET les blocs ouverts non fermés (stream coupé en cours de pensée)
+  // Les blocs <think> sont filtrés inline dans startStream (approche stateful).
+  // Ce filet de sécurité supprime tout résidu éventuel (case-insensitive + blocs non fermés).
   const cleanMd = reportMd
-    .replace(/<think>[\s\S]*?<\/think>/g, '')
-    .replace(/<think>[\s\S]*/g, '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think>[\s\S]*/gi, '')
     .trim()
 
   // Build entity chip list (all types, PERSON/ORG/PRODUCT first)
