@@ -1659,7 +1659,8 @@ class FallbackClient:
         return self._call("generate_report", *args, **kwargs)
 
     def generate_summary_with_sentiment(self, *args, **kwargs):
-        return self._call("generate_summary_with_sentiment", *args, **kwargs)
+        # fallback_on_none=True : si Ollama retourne None (JSON absent), retry cloud
+        return self._call("generate_summary_with_sentiment", *args, fallback_on_none=True, **kwargs)
 
     def ask(self, *args, **kwargs):
         return self._call("ask", *args, **kwargs)
@@ -1863,6 +1864,42 @@ def get_ner_client():
         else:
             default_logger.warning(
                 "[get_ner_client] AI_PROVIDER_NER=ollama mais serveur Ollama injoignable "
+                "— bascule sur le client cloud principal."
+            )
+
+    # Fallback transparent sur le client cloud principal
+    return get_ai_client(fallback=True)
+
+
+def get_summary_client():
+    """Retourne le client IA dédié à la génération de résumés (Option B Ollama).
+
+    Si AI_PROVIDER_SUMMARY=ollama et que le serveur Ollama est disponible,
+    retourne un FallbackClient(OllamaClient, cloud) pour les résumés.
+    Sinon, retourne le client cloud principal.
+
+    Différence avec get_ner_client() : les résumés sont du texte libre —
+    le fallback sur None n'est pas activé pour generate_summary() car
+    une réponse brute reste acceptable. Il l'est pour
+    generate_summary_with_sentiment() car le format JSON est attendu.
+    """
+    import os as _os
+    summary_provider = _os.environ.get("AI_PROVIDER_SUMMARY", "").strip().lower()
+
+    if summary_provider == "ollama":
+        if OllamaClient.is_available():
+            model = _os.environ.get("OLLAMA_MODEL", OllamaClient._DEFAULT_MODEL).strip()
+            default_logger.info(
+                f"[get_summary_client] Résumés → Ollama local (modèle={model}) "
+                f"avec fallback cloud sur exception"
+            )
+            # FallbackClient : bascule sur cloud si exception (Ollama crash, timeout…)
+            # Note : fallback_on_none=False pour generate_summary (texte brut OK)
+            #        fallback_on_none=True  pour generate_summary_with_sentiment (JSON attendu)
+            return FallbackClient(OllamaClient(model=model), get_ai_client(fallback=False))
+        else:
+            default_logger.warning(
+                "[get_summary_client] AI_PROVIDER_SUMMARY=ollama mais serveur Ollama injoignable "
                 "— bascule sur le client cloud principal."
             )
 

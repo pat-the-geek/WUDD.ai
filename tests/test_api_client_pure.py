@@ -813,3 +813,76 @@ class TestGetNerClient:
         assert isinstance(client, FallbackClient)
         assert isinstance(client._primary, OllamaClient)
         assert client._primary._ollama_model == "qwen2.5:14b"
+
+
+# ─────────────────────────────────────────────────────────────
+# get_summary_client
+# ─────────────────────────────────────────────────────────────
+
+class TestGetSummaryClient:
+    """Tests pour get_summary_client() — Option B résumés via Ollama."""
+
+    def test_summary_provider_ollama_available_returns_fallback_client(self):
+        from utils.api_client import OllamaClient, FallbackClient, get_summary_client
+        with patch.dict(os.environ, {"AI_PROVIDER_SUMMARY": "ollama", "OLLAMA_MODEL": "qwen2.5:7b"}):
+            with patch.object(OllamaClient, "is_available", return_value=True):
+                client = get_summary_client()
+        assert isinstance(client, FallbackClient)
+        assert isinstance(client._primary, OllamaClient)
+        assert client._primary._ollama_model == "qwen2.5:7b"
+
+    def test_summary_provider_ollama_unavailable_falls_back_to_cloud(self):
+        from utils.api_client import EurIAClient, OllamaClient, get_summary_client
+        import utils.config as cfg_mod
+        with patch.dict(
+            os.environ,
+            {**_ENV_BASE, "AI_PROVIDER_SUMMARY": "ollama", "ANTHROPIC_API_KEY": ""},
+            clear=False,
+        ):
+            cfg_mod._config_instance = None
+            with patch.object(OllamaClient, "is_available", return_value=False):
+                try:
+                    client = get_summary_client()
+                finally:
+                    cfg_mod._config_instance = None
+        assert isinstance(client, EurIAClient)
+
+    def test_summary_provider_empty_returns_cloud(self):
+        from utils.api_client import EurIAClient, get_summary_client
+        import utils.config as cfg_mod
+        with patch.dict(
+            os.environ,
+            {**_ENV_BASE, "AI_PROVIDER_SUMMARY": "", "ANTHROPIC_API_KEY": ""},
+            clear=False,
+        ):
+            cfg_mod._config_instance = None
+            try:
+                client = get_summary_client()
+            finally:
+                cfg_mod._config_instance = None
+        assert isinstance(client, EurIAClient)
+
+    def test_summary_generate_summary_with_sentiment_none_triggers_fallback(self):
+        """generate_summary_with_sentiment None depuis Ollama → fallback cloud."""
+        from utils.api_client import FallbackClient, OllamaClient, get_summary_client
+        with patch.dict(os.environ, {"AI_PROVIDER_SUMMARY": "ollama"}):
+            with patch.object(OllamaClient, "is_available", return_value=True):
+                client = get_summary_client()
+        cloud_result = {"resume": "résumé cloud", "sentiment": "neutre"}
+        with patch.object(client._primary, "generate_summary_with_sentiment", return_value=None), \
+             patch.object(client._secondary, "generate_summary_with_sentiment", return_value=cloud_result) as mock_cloud:
+            result = client.generate_summary_with_sentiment("texte")
+        assert result == cloud_result
+        mock_cloud.assert_called_once()
+
+    def test_summary_generate_summary_none_no_fallback(self):
+        """generate_summary None depuis Ollama → pas de fallback (texte brut OK)."""
+        from utils.api_client import FallbackClient, OllamaClient, get_summary_client
+        with patch.dict(os.environ, {"AI_PROVIDER_SUMMARY": "ollama"}):
+            with patch.object(OllamaClient, "is_available", return_value=True):
+                client = get_summary_client()
+        with patch.object(client._primary, "generate_summary", return_value=None), \
+             patch.object(client._secondary, "generate_summary", return_value="résumé cloud") as mock_cloud:
+            result = client.generate_summary("texte")
+        assert result is None
+        mock_cloud.assert_not_called()

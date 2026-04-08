@@ -54,7 +54,8 @@ TOKEN_PATTERN_CLAUDE = re.compile(
 )
 USAGE_LINE_EURIA  = re.compile(r"\[EurIA\]\s*Usage", re.IGNORECASE)
 USAGE_LINE_CLAUDE = re.compile(r"\[Claude[^\]]*\]\s*Usage", re.IGNORECASE)
-USAGE_LINE_PATTERN = re.compile(r"\[(?:EurIA|Claude[^\]]*)\]\s*Usage", re.IGNORECASE)
+USAGE_LINE_OLLAMA = re.compile(r"\[Ollama[^\]]*\]\s*Usage", re.IGNORECASE)
+USAGE_LINE_PATTERN = re.compile(r"\[(?:EurIA|Claude[^\]]*|Ollama[^\]]*)]\s*Usage", re.IGNORECASE)
 
 MOIS_FR = [
     "janvier", "février", "mars", "avril", "mai", "juin",
@@ -140,6 +141,7 @@ def parse_tokens_from_logs(project_root: Path, date_str: str | None = None) -> d
         service_key = log_name.replace("cron_", "").replace(".log", "")
         euria  = _empty_provider()
         claude = _empty_provider()
+        ollama = _empty_provider()
 
         try:
             text = log_path.read_text(encoding="utf-8", errors="ignore")
@@ -167,16 +169,25 @@ def parse_tokens_from_logs(project_root: Path, date_str: str | None = None) -> d
                         claude["completion"] += c
                         claude["total"]      += p + c
                         claude["calls"]      += 1
+                elif USAGE_LINE_OLLAMA.search(line):
+                    # Pattern Ollama : même format que EurIA (prompt + completion + total)
+                    m3 = TOKEN_PATTERN_EURIA.search(line)
+                    if m3:
+                        ollama["prompt"]     += int(m3.group(1))
+                        ollama["completion"] += int(m3.group(2))
+                        ollama["total"]      += int(m3.group(3))
+                        ollama["calls"]      += 1
 
         except Exception:
             pass
 
-        total_calls = euria["calls"] + claude["calls"]
+        total_calls = euria["calls"] + claude["calls"] + ollama["calls"]
         if total_calls > 0:
             stats[service_key] = {
                 "euria":  euria,
                 "claude": claude,
-                "total":  euria["total"] + claude["total"],
+                "ollama": ollama,
+                "total":  euria["total"] + claude["total"] + ollama["total"],
                 "calls":  total_calls,
             }
 
@@ -476,10 +487,10 @@ def build_keyword_table(today_entry: dict) -> str:
 
 
 def _provider_totals(token_stats: dict, provider: str) -> dict:
-    """Agrège les compteurs d'un provider (euria|claude) sur tous les services."""
+    """Agrège les compteurs d'un provider (euria|claude|ollama) sur tous les services."""
     t = _empty_provider()
     for s in token_stats.values():
-        p = s[provider]
+        p = s.get(provider, _empty_provider())
         t["prompt"]     += p["prompt"]
         t["completion"] += p["completion"]
         t["total"]      += p["total"]
@@ -498,46 +509,55 @@ def build_token_table(token_stats: dict) -> str:
         "| Service / opération "
         "| EurIA appels | EurIA tokens "
         "| Claude appels | Claude tokens "
+        "| Ollama appels | Ollama tokens "
         "| Total tokens |"
     )
-    sep = "|---|---|---|---|---|---|"
+    sep = "|---|---|---|---|---|---|---|---|"
     lines = [header, sep]
 
-    gt_euria_calls = gt_euria_tok = gt_claude_calls = gt_claude_tok = gt_all = 0
+    gt_euria_calls = gt_euria_tok = gt_claude_calls = gt_claude_tok = 0
+    gt_ollama_calls = gt_ollama_tok = gt_all = 0
     for key, s in rows:
         e = s["euria"]
         c = s["claude"]
+        o = s.get("ollama", _empty_provider())
         e_calls = f"{e['calls']}" if e["calls"] else "—"
         e_tok   = f"{e['total']:,}" if e["total"] else "—"
         c_calls = f"{c['calls']}" if c["calls"] else "—"
         c_tok   = f"{c['total']:,}" if c["total"] else "—"
+        o_calls = f"{o['calls']}" if o["calls"] else "—"
+        o_tok   = f"{o['total']:,}" if o["total"] else "—"
         lines.append(
-            f"| `{key}` | {e_calls} | {e_tok} | {c_calls} | {c_tok} | {s['total']:,} |"
+            f"| `{key}` | {e_calls} | {e_tok} | {c_calls} | {c_tok} | {o_calls} | {o_tok} | {s['total']:,} |"
         )
-        gt_euria_calls  += e["calls"]
-        gt_euria_tok    += e["total"]
-        gt_claude_calls += c["calls"]
-        gt_claude_tok   += c["total"]
-        gt_all          += s["total"]
+        gt_euria_calls   += e["calls"]
+        gt_euria_tok     += e["total"]
+        gt_claude_calls  += c["calls"]
+        gt_claude_tok    += c["total"]
+        gt_ollama_calls  += o["calls"]
+        gt_ollama_tok    += o["total"]
+        gt_all           += s["total"]
 
     lines.append(
         f"| **Total** "
         f"| **{gt_euria_calls}** | **{gt_euria_tok:,}** "
         f"| **{gt_claude_calls}** | **{gt_claude_tok:,}** "
+        f"| **{gt_ollama_calls}** | **{gt_ollama_tok:,}** "
         f"| **{gt_all:,}** |"
     )
 
     table_detail = "\n".join(lines)
 
-    # ── Synthèse comparative EurIA vs Claude ────────────────────────────────────
+    # ── Synthèse comparative EurIA vs Claude vs Ollama ──────────────────────────
     synth_lines = [
         "| Provider | Appels API | Tokens prompt | Tokens réponse | Total tokens | Part |",
         "|---|---|---|---|---|---|",
     ]
-    total_all = max(gt_euria_tok + gt_claude_tok, 1)
+    total_all = max(gt_euria_tok + gt_claude_tok + gt_ollama_tok, 1)
     for provider_label, provider_key, calls, tok in [
         ("EurIA (Infomaniak)", "euria",  gt_euria_calls,  gt_euria_tok),
         ("Claude (Anthropic)", "claude", gt_claude_calls, gt_claude_tok),
+        ("Ollama (local)",     "ollama", gt_ollama_calls, gt_ollama_tok),
     ]:
         pt = _provider_totals(token_stats, provider_key)
         pct = round(tok / total_all * 100)
@@ -691,7 +711,7 @@ type: ai-consumption
 {token_table}
 
 > ⚠️ Les tokens sont extraits des fichiers de log cron.
-> Seules les lignes `[EurIA] Usage` et `[Claude/...] Usage` du jour courant sont comptabilisées.
+> Seules les lignes `[EurIA] Usage`, `[Claude/...] Usage` et `[Ollama/...] Usage` du jour courant sont comptabilisées.
 
 ---
 

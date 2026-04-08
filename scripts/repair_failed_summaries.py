@@ -22,7 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from utils.api_client import get_ai_client
+from utils.api_client import get_ai_client, get_summary_client
 from utils.http_utils import fetch_and_extract_text
 from utils.logging import print_console
 
@@ -164,7 +164,7 @@ def main():
         return
 
     # Initialiser le client
-    client = get_ai_client()
+    client = get_summary_client()
 
     total_repaired = 0
     total_failed = 0

@@ -28,7 +28,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from utils.api_client import get_ai_client
+from utils.api_client import get_ai_client, get_summary_client
 from utils.article_index import get_article_index
 from utils.deduplication import Deduplicator
 from utils.entity_index import get_entity_index
@@ -165,7 +165,7 @@ print_console(f"Fenêtre temporelle : {one_week_ago.date()} à {now.date()}")
 
 # Initialiser le client IA
 print_console("Initialisation du client IA...")
-api_client = get_ai_client()
+api_client = get_summary_client()
 
 # Initialiser la crédibilité sources (proposition 3)
 _credibility = CredibilityEngine(PROJECT_ROOT)

@@ -37,7 +37,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from utils.api_client import get_ai_client
+from utils.api_client import get_ai_client, get_summary_client
 from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
 from utils.logging import print_console
@@ -626,7 +626,7 @@ def main(dry_run: bool = False, source_filter: str | None = None) -> None:
         print_console("Quota global épuisé — web_watcher ignoré.", level="warning")
         return
 
-    api_client = None if dry_run else get_ai_client()
+    api_client = None if dry_run else get_summary_client()
     state = _load_state()
 
     total = 0
