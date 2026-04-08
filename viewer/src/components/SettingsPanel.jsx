@@ -2029,6 +2029,7 @@ function EnvTab() {
   // Fournisseur IA actif
   const currentProvider = vars.find(v => v.key === 'AI_PROVIDER')?.value || 'euria'
   const currentNerProvider = vars.find(v => v.key === 'AI_PROVIDER_NER')?.value || ''
+  const currentSummaryProvider = vars.find(v => v.key === 'AI_PROVIDER_SUMMARY')?.value || ''
 
   // Alerte si configuration incomplète
   const missingConfig = (() => {
@@ -2047,6 +2048,7 @@ function EnvTab() {
     { label: 'IA EurIA (Infomaniak)', keys: ['URL', 'bearer'], provider: 'euria' },
     { label: 'IA Claude (Anthropic)', keys: ['ANTHROPIC_API_KEY', 'CLAUDE_MODEL_BATCH', 'CLAUDE_MODEL_SYNTHESIS'], provider: 'claude' },
     { label: 'IA Locale — Ollama (NER/Sentiment batch)', keys: ['AI_PROVIDER_NER', 'OLLAMA_MODEL'], provider: 'ollama' },
+    { label: 'IA Locale — Ollama (Résumés d’articles)', keys: ['AI_PROVIDER_SUMMARY'], provider: 'ollama' },
   ]
   // AI_PROVIDER est géré par le sélecteur — exclure de la table générique
   const groupedKeys = [...ENV_GROUPS.flatMap(g => g.keys), 'AI_PROVIDER']
@@ -2214,6 +2216,46 @@ function EnvTab() {
             <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 flex items-start gap-1">
               <AlertTriangle size={10} className="mt-0.5 shrink-0 text-orange-400" />
               Pour activer : <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">brew services start ollama</code> puis <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">ollama pull qwen2.5:7b</code>
+            </p>
+          )}
+        </div>
+
+        {/* Sélecteur Résumés d'articles (Ollama) */}
+        <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Cpu size={11} /> Résumés d'articles
+              <span className="text-[10px] font-normal text-slate-400 normal-case tracking-normal">(flux_watcher / get-keyword-from-rss / web_watcher)</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {[
+              { value: '',       label: 'Cloud (AI_PROVIDER)', desc: 'Utilise EurIA ou Claude' },
+              { value: 'ollama', label: 'Ollama local', desc: ollamaStatus?.available ? `${ollamaStatus.active_model}` : 'Serveur non détecté' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => saveVar('AI_PROVIDER_SUMMARY', opt.value)}
+                disabled={saving || (opt.value === 'ollama' && !ollamaStatus?.available)}
+                title={opt.desc}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                  currentSummaryProvider === opt.value
+                    ? opt.value === 'ollama'
+                      ? 'bg-emerald-600 dark:bg-emerald-500 text-white border-emerald-600 shadow-sm'
+                      : 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF] shadow-sm'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-slate-400'
+                }`}
+              >
+                {currentSummaryProvider === opt.value && <span className="mr-1">●</span>}
+                {opt.value === 'ollama' && <Cpu size={10} className="inline mr-1" />}
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {!ollamaStatus?.available && (
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 flex items-start gap-1">
+              <AlertTriangle size={10} className="mt-0.5 shrink-0 text-orange-400" />
+              Ollama requis — <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">brew services start ollama</code>
             </p>
           )}
         </div>
