@@ -82,7 +82,7 @@ Elle collecte des articles depuis des flux JSON et RSS, les enrichit via une API
 |---|---|
 | EurIA / Qwen3 (Infomaniak) | Provider IA par défaut — résumés, NER, sentiments, rapports via API REST |
 | Claude (Anthropic) | Provider IA alternatif — sélectionnable via `AI_PROVIDER=claude` dans `.env` |
-| Ollama (local) | Provider NER/sentiment batch local — Option A : `AI_PROVIDER_NER=ollama`, aucun token consommé, Metal/Neural Engine sur Apple Silicon |
+| Ollama (local) | Provider NER/sentiment batch local (Option A : `AI_PROVIDER_NER=ollama`) et résumés d'articles (Option B : `AI_PROVIDER_SUMMARY=ollama`) — aucun token consommé, Metal/Neural Engine sur Apple Silicon |
 
 ### HTTP & Parsing web
 
@@ -320,6 +320,7 @@ Le fichier `.env` n'est jamais commité (`.gitignore`). Référez-vous à `.env.
 | `REEDER_JSON_URL` | URL du flux JSON source |
 | `AI_PROVIDER` | Provider IA principal : `euria` (défaut), `claude`, `ollama` |
 | `AI_PROVIDER_NER` | Provider dédié NER/sentiment batch : `ollama` pour l'inférence locale, vide = idem `AI_PROVIDER` |
+| `AI_PROVIDER_SUMMARY` | Provider dédié aux résumés d'articles : `ollama` pour l'inférence locale, vide = idem `AI_PROVIDER` |
 | `OLLAMA_MODEL` | Modèle Ollama à utiliser (défaut : `qwen2.5:7b`) |
 | `OLLAMA_HOST` | Hôte Ollama (défaut : `localhost`, mettre `host.docker.internal` dans Docker) |
 | `OBSIDIAN_DIR` | Chemin absolu vers le vault Obsidian (export de notes, optionnel) |

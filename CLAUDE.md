@@ -49,7 +49,7 @@ WUDD.ai/
 |---|---|
 | EurIA / Qwen3 (Infomaniak) | Provider IA par défaut — résumés, NER, sentiments, rapports via API REST |
 | Claude (Anthropic) | Provider IA alternatif — sélectionnable via `AI_PROVIDER=claude` dans `.env` |
-| Ollama (local) | Provider NER/sentiment batch local (Option A) — `AI_PROVIDER_NER=ollama`, modèle `qwen2.5:7b`, ~35–45 tok/s sur Apple Silicon, 0 token API consommé |
+| Ollama (local) | Provider NER/sentiment batch local (Option A) — `AI_PROVIDER_NER=ollama`, modèle `qwen2.5:7b`, ~35–45 tok/s sur Apple Silicon, 0 token API consommé. Provider résumés d'articles (Option B) — `AI_PROVIDER_SUMMARY=ollama` |
 
 ### HTTP & Parsing web
 
@@ -139,6 +139,7 @@ Required variables:
 | `BACKUP_L2` | Absolute path for secondary backup destination (optional — copy of `BACKUP_L1`) |
 | `AI_PROVIDER` | Main AI provider: `euria` (default), `claude`, `ollama` |
 | `AI_PROVIDER_NER` | Dedicated provider for NER/sentiment batch: `ollama` for local inference, empty = same as `AI_PROVIDER` |
+| `AI_PROVIDER_SUMMARY` | Dedicated provider for article summaries: `ollama` for local inference, empty = same as `AI_PROVIDER` |
 | `OLLAMA_MODEL` | Ollama model to use (default: `qwen2.5:7b`) |
 | `OLLAMA_HOST` | Ollama server host (default: `localhost`; use `host.docker.internal` inside Docker on macOS) |
 
@@ -296,7 +297,7 @@ All utility modules are importable as `from utils.X import Y`. They are the corr
 | Module | Purpose |
 |---|---|
 | `utils/config.py` | Singleton `Config` class — loads `.env`, validates vars, provides typed paths |
-| `utils/api_client.py` | Triple-provider AI client (EurIA, Claude, Ollama) with retry/backoff logic — `generate_summary()`, `generate_entities()` (NER), `generate_sentiment()`, `generate_report()`. Provider selected via `AI_PROVIDER` env var. `get_ner_client()` factory routes NER/sentiment to `OllamaClient` when `AI_PROVIDER_NER=ollama` and server is available, falls back to cloud automatically. |
+| `utils/api_client.py` | Triple-provider AI client (EurIA, Claude, Ollama) with retry/backoff logic — `generate_summary()`, `generate_entities()` (NER), `generate_sentiment()`, `generate_report()`. Provider selected via `AI_PROVIDER` env var. `get_ner_client()` factory routes NER/sentiment to `OllamaClient` when `AI_PROVIDER_NER=ollama`; `get_summary_client()` factory routes article summaries to `OllamaClient` when `AI_PROVIDER_SUMMARY=ollama`. Both fall back to cloud automatically. |
 | `utils/http_utils.py` | HTTP session with `urllib3` retry adapter |
 | `utils/date_utils.py` | Multi-format date parsing and validation |
 | `utils/logging.py` | Centralized timestamped logging (`print_console()`) |
@@ -530,6 +531,8 @@ Coverage targets: `utils/` ≥ 80%, `scripts/` ≥ 60%, critical functions 100%.
 10. **Credibility-weighted scoring** — `utils/source_credibility.py` loads `config/sources_credibility.json` and provides a multiplier (0.0–1.0) per source. `utils/scoring.py` applies this multiplier to relevance scores so that highly-credible sources rank higher. Add new sources to `sources_credibility.json` rather than hardcoding scores in scripts.
 
 11. **NER provider separation (Option A)** — `get_ner_client()` in `utils/api_client.py` decouples NER/sentiment batch calls from the main AI provider. When `AI_PROVIDER_NER=ollama`, NER runs on local Ollama (no API cost, Metal/NPU acceleration on Apple Silicon); summaries, reports and synthesis remain on the cloud provider. Fallback to cloud is automatic if Ollama is unreachable. In Docker on macOS, set `OLLAMA_HOST=host.docker.internal` (already injected via `docker-compose.yml`). Never call `get_ai_client()` directly in enrichment scripts — use `get_ner_client()` instead.
+
+12. **Summary provider separation (Option B)** — `get_summary_client()` in `utils/api_client.py` decouples article summary generation from the main AI provider. When `AI_PROVIDER_SUMMARY=ollama`, summaries run on local Ollama (no API cost). Returns `FallbackClient(OllamaClient, EurIAClient)` — fallback to cloud is automatic on exception or `None` result. Used by `flux_watcher.py`, `get-keyword-from-rss.py`, `web_watcher.py`, `repair_failed_summaries.py`, and `Get_data_from_JSONFile_AskSummary_v2.py`. Never call `get_ai_client()` directly in summarisation scripts — use `get_summary_client()` instead.
 
 ---
 

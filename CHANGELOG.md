@@ -1,3 +1,49 @@
+# 08/04/2026 — Résumés d'articles via Ollama local (v2.8.0)
+
+## Option B — Ollama local pour les résumés d'articles
+
+Décharge la génération des résumés d'articles sur Ollama local (`qwen2.5:7b`)
+en complément de l'Option A (NER/sentiment). Économie estimée : ~789 000 tokens/jour
+supplémentaires selon le flux d'articles.
+
+### `utils/api_client.py` — `get_summary_client()`
+
+- Nouvelle factory `get_summary_client()` : lit `AI_PROVIDER_SUMMARY` ; si `ollama` et
+  serveur joignable → `FallbackClient(OllamaClient, EurIAClient)` ; sinon cloud seul
+- `FallbackClient.generate_summary_with_sentiment()` : `fallback_on_none=True` — bascule
+  automatiquement sur EurIA si Ollama retourne `None`
+- `OllamaClient.generate_summary_with_sentiment()` : override dédié avec `max_tokens=800`
+  et `timeout=90` pour gérer les articles longs
+
+### 5 scripts mis à jour
+
+Tous utilisent désormais `get_summary_client()` au lieu de `get_ai_client()` :
+`flux_watcher.py`, `get-keyword-from-rss.py`, `web_watcher.py`,
+`repair_failed_summaries.py`, `Get_data_from_JSONFile_AskSummary_v2.py`
+
+### `scripts/generate_ai_consumption_report.py`
+
+- Tracking de la consommation Ollama dans les logs (`[Ollama] Usage`)
+- Regex `USAGE_LINE_OLLAMA`, compteurs par service, agrégation dans `_provider_totals()`
+
+### `tests/test_api_client_pure.py`
+
+5 nouveaux tests `TestGetSummaryClient` (total : 97 tests) :
+- Routage Ollama disponible → `FallbackClient(OllamaClient)`
+- Fallback cloud si Ollama injoignable
+- `AI_PROVIDER_SUMMARY` vide → client cloud
+- `generate_summary_with_sentiment` → `None` déclenche fallback cloud
+- `generate_summary` → `None` sans fallback (comportement normal)
+
+### `.env.example`
+
+```env
+# IA Locale — Ollama (Option B : résumés d'articles)
+AI_PROVIDER_SUMMARY=ollama  # ~789K tokens/j économisés
+```
+
+---
+
 # 07/04/2026 — Inférence NER/sentiment locale via Ollama (v2.7.0)
 
 ## Option A — Ollama local pour NER et sentiment batch
