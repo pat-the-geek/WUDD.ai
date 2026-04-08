@@ -406,7 +406,7 @@ function ContradictionDialog({ article, onClose }) {
 
 /** Modal de choix du fournisseur IA pour rafraîchir un résumé. */
 function IAPickerModal({ providers, onPick, onClose }) {
-  const LABELS = { euria: 'EurIA — Infomaniak', claude: 'Claude — Anthropic' }
+  const LABELS = { euria: 'EurIA — Infomaniak', claude: 'Claude — Anthropic', ollama: 'Ollama — Local' }
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>

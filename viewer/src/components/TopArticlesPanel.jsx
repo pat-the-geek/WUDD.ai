@@ -270,7 +270,7 @@ function AnnotationPanel({ annotation, onSave, onClose }) {
 // ── Modal choix fournisseur IA ────────────────────────────────────────────────
 
 function IAPickerModal({ providers, onPick, onClose }) {
-  const LABELS = { euria: 'EurIA — Infomaniak', claude: 'Claude — Anthropic' }
+  const LABELS = { euria: 'EurIA — Infomaniak', claude: 'Claude — Anthropic', ollama: 'Ollama — Local' }
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>

@@ -662,6 +662,11 @@ def api_ai_providers():
         available.append("euria")
     if os.environ.get("ANTHROPIC_API_KEY", "").strip():
         available.append("claude")
+    # Ollama : inclus si configuré explicitement comme provider principal ou pour les résumés
+    ai_provider = os.environ.get("AI_PROVIDER", "").strip().lower()
+    ai_summary  = os.environ.get("AI_PROVIDER_SUMMARY", "").strip().lower()
+    if ai_provider == "ollama" or ai_summary == "ollama":
+        available.append("ollama")
     active = os.environ.get("AI_PROVIDER", "euria").strip().lower()
     return jsonify({"providers": available, "active": active})
 

@@ -299,6 +299,11 @@ def api_article_refresh_resume():
             if not api_key:
                 return jsonify({"error": "ANTHROPIC_API_KEY non configurée"}), 400
             client = ClaudeClient(api_key=api_key)
+        elif provider == "ollama":
+            from utils.api_client import OllamaClient
+            if not OllamaClient.is_available():
+                return jsonify({"error": "Serveur Ollama injoignable. Démarrez-le : brew services start ollama"}), 503
+            client = OllamaClient()
         else:
             url_env = os.environ.get("URL", "").strip()
             bearer = os.environ.get("bearer", "").strip()
