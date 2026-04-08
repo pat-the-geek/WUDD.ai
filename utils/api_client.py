@@ -1516,7 +1516,7 @@ File contents:
 
 class FallbackClient:
     """Client IA avec fallback automatique : tente le client primaire,
-    puis le secondaire si le primaire échoue avec une RuntimeError.
+    puis le secondaire si le primaire échoue avec une RuntimeError ou retourne None.
 
     Les deux clients doivent exposer les mêmes méthodes publiques :
     generate_summary, generate_entities, generate_sentiment,
@@ -1530,9 +1530,17 @@ class FallbackClient:
         _name_s = type(secondary).__name__
         default_logger.info(f"[FallbackClient] primaire={_name_p}, secondaire={_name_s}")
 
-    def _call(self, method_name: str, *args, **kwargs):
+    def _call(self, method_name: str, *args, fallback_on_none: bool = False, **kwargs):
+        """Appelle method_name sur le client primaire, bascule sur le secondaire
+        en cas d'exception ou (si fallback_on_none=True) si le résultat est None."""
         try:
             result = getattr(self._primary, method_name)(*args, **kwargs)
+            if fallback_on_none and result is None:
+                default_logger.warning(
+                    f"[FallbackClient] {type(self._primary).__name__}.{method_name} "
+                    f"a retourné None (JSON invalide ?) — bascule sur {type(self._secondary).__name__}"
+                )
+                return getattr(self._secondary, method_name)(*args, **kwargs)
             return result
         except (RuntimeError, Exception) as exc:
             default_logger.warning(
@@ -1545,10 +1553,12 @@ class FallbackClient:
         return self._call("generate_summary", *args, **kwargs)
 
     def generate_entities(self, *args, **kwargs):
-        return self._call("generate_entities", *args, **kwargs)
+        # fallback_on_none=True : si Ollama retourne None (JSON absent), retry cloud
+        return self._call("generate_entities", *args, fallback_on_none=True, **kwargs)
 
     def generate_sentiment(self, *args, **kwargs):
-        return self._call("generate_sentiment", *args, **kwargs)
+        # fallback_on_none=True : si Ollama retourne None (JSON absent), retry cloud
+        return self._call("generate_sentiment", *args, fallback_on_none=True, **kwargs)
 
     def synthesize_topic(self, *args, **kwargs):
         return self._call("synthesize_topic", *args, **kwargs)
@@ -1720,8 +1730,13 @@ def get_ner_client():
     if ner_provider == "ollama":
         if OllamaClient.is_available():
             model = _os.environ.get("OLLAMA_MODEL", OllamaClient._DEFAULT_MODEL).strip()
-            default_logger.info(f"[get_ner_client] NER → Ollama local (modèle={model})")
-            return OllamaClient(model=model)
+            default_logger.info(
+                f"[get_ner_client] NER → Ollama local (modèle={model}) "
+                f"avec fallback cloud si résultat None ou exception"
+            )
+            # FallbackClient : bascule automatique sur cloud si Ollama retourne
+            # None (JSON invalide) ou lève une exception inattendue.
+            return FallbackClient(OllamaClient(model=model), get_ai_client(fallback=False))
         else:
             default_logger.warning(
                 "[get_ner_client] AI_PROVIDER_NER=ollama mais serveur Ollama injoignable "

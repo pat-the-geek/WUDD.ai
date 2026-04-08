@@ -463,6 +463,36 @@ class TestFallbackClient:
         fc.ask("ma question", context="ctx", temperature=0.5)
         secondary.ask.assert_called_once_with("ma question", context="ctx", temperature=0.5)
 
+    def test_generate_entities_none_triggers_fallback(self):
+        """generate_entities retourne None → fallback cloud (JSON invalide depuis Ollama)."""
+        primary, secondary = self._make_clients()
+        primary.generate_entities.return_value = None
+        secondary.generate_entities.return_value = {"ORG": ["OpenAI"]}
+        fc = FallbackClient(primary, secondary)
+        result = fc.generate_entities("texte")
+        assert result == {"ORG": ["OpenAI"]}
+        secondary.generate_entities.assert_called_once()
+
+    def test_generate_sentiment_none_triggers_fallback(self):
+        """generate_sentiment retourne None → fallback cloud (JSON invalide depuis Ollama)."""
+        primary, secondary = self._make_clients()
+        primary.generate_sentiment.return_value = None
+        secondary.generate_sentiment.return_value = {"sentiment": "neutre", "score_sentiment": 3}
+        fc = FallbackClient(primary, secondary)
+        result = fc.generate_sentiment("texte")
+        assert result == {"sentiment": "neutre", "score_sentiment": 3}
+        secondary.generate_sentiment.assert_called_once()
+
+    def test_generate_summary_none_no_fallback(self):
+        """generate_summary retourne None → pas de fallback (résumé brut acceptable)."""
+        primary, secondary = self._make_clients()
+        primary.generate_summary.return_value = None
+        secondary.generate_summary.return_value = "résumé cloud"
+        fc = FallbackClient(primary, secondary)
+        result = fc.generate_summary("texte")
+        assert result is None  # None propagé sans déclencher le secondaire
+        secondary.generate_summary.assert_not_called()
+
 
 # ─────────────────────────────────────────────────────────────
 # get_ai_client
@@ -712,12 +742,14 @@ class TestGetNerClient:
         assert callable(get_ner_client)
 
     def test_ner_provider_ollama_available_returns_ollama(self):
-        from utils.api_client import OllamaClient, get_ner_client
+        from utils.api_client import OllamaClient, FallbackClient, get_ner_client
         with patch.dict(os.environ, {"AI_PROVIDER_NER": "ollama", "OLLAMA_MODEL": "qwen2.5:7b"}):
             with patch.object(OllamaClient, "is_available", return_value=True):
                 client = get_ner_client()
-        assert isinstance(client, OllamaClient)
-        assert client._ollama_model == "qwen2.5:7b"
+        # get_ner_client retourne FallbackClient(OllamaClient, cloud) pour le fallback qualité
+        assert isinstance(client, FallbackClient)
+        assert isinstance(client._primary, OllamaClient)
+        assert client._primary._ollama_model == "qwen2.5:7b"
 
     def test_ner_provider_ollama_unavailable_falls_back_to_cloud(self):
         from utils.api_client import EurIAClient, OllamaClient, get_ner_client
@@ -768,9 +800,11 @@ class TestGetNerClient:
         assert isinstance(client, EurIAClient)
 
     def test_ner_provider_ollama_custom_model(self):
-        from utils.api_client import OllamaClient, get_ner_client
+        from utils.api_client import OllamaClient, FallbackClient, get_ner_client
         with patch.dict(os.environ, {"AI_PROVIDER_NER": "ollama", "OLLAMA_MODEL": "qwen2.5:14b"}):
             with patch.object(OllamaClient, "is_available", return_value=True):
                 client = get_ner_client()
-        assert isinstance(client, OllamaClient)
-        assert client._ollama_model == "qwen2.5:14b"
+        # FallbackClient wraps OllamaClient — le modèle est accessible via _primary
+        assert isinstance(client, FallbackClient)
+        assert isinstance(client._primary, OllamaClient)
+        assert client._primary._ollama_model == "qwen2.5:14b"
