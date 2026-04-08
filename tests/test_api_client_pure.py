@@ -264,16 +264,21 @@ class TestParseSummarySentimentResponse:
         result = _parse_summary_sentiment_response(raw)
         assert result["resume"] == "OK."
 
-    def test_no_json_returns_none(self):
-        """Aucun JSON possible → retour None (line 367)."""
+    def test_no_json_returns_resume_as_text(self):
+        """Texte brut sans JSON — depuis la réécriture du parser markdown,
+        le texte est retourné comme résumé (comportement plus robuste que None)."""
         result = _parse_summary_sentiment_response("Voici un résumé sans JSON.")
-        assert result is None
+        # Ne retourne plus None — le parser markdown capture le texte comme résumé
+        assert result is not None
+        assert result.get("resume") == "Voici un résumé sans JSON."
 
-    def test_malformed_json_after_extraction_returns_none(self):
-        """JSON invalide après extraction regex → retour None (lines 370-372)."""
+    def test_malformed_json_after_extraction_returns_resume(self):
+        """JSON invalide après extraction — depuis la réécriture du parser markdown,
+        le parser tente d'extraire le résumé plutôt que retourner None."""
         raw = "résumé: {resume: sans guillemets}"
         result = _parse_summary_sentiment_response(raw)
-        assert result is None
+        # Ne retourne plus None — le parser markdown extrait ce qu'il peut
+        assert result is not None
 
     def test_non_dict_json_returns_none(self):
         """JSON valide mais pas un dict → retour None (lines 373-374)."""

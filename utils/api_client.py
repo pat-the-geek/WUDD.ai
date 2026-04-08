@@ -363,11 +363,21 @@ def _parse_summary_sentiment_response(raw: str) -> Optional[dict]:
     except json.JSONDecodeError:
         obj = re.search(r"\{[\s\S]*\}", text)
         if not obj:
+            # Dernier recours : format markdown bullet (ex. qwen2.5:7b sur texte long)
+            md_result = _parse_summary_sentiment_from_markdown(text)
+            if md_result:
+                default_logger.debug("Réponse résumé+sentiment au format markdown bullet — parsé avec succès")
+                return md_result
             default_logger.warning("Impossible d'extraire du JSON depuis la réponse résumé+sentiment")
             return None
         try:
             data = json.loads(obj.group(0))
         except json.JSONDecodeError:
+            # JSON tronqué : tenter le format markdown bullet
+            md_result = _parse_summary_sentiment_from_markdown(text)
+            if md_result:
+                default_logger.debug("JSON résumé+sentiment tronqué — fallback markdown bullet réussi")
+                return md_result
             default_logger.warning("JSON résumé+sentiment invalide après extraction")
             return None
     if not isinstance(data, dict):
@@ -391,6 +401,90 @@ def _parse_summary_sentiment_response(raw: str) -> Optional[dict]:
     if isinstance(score_t, (int, float)) and 1 <= score_t <= 5:
         result["score_ton"] = int(score_t)
     return result
+
+
+def _extract_resume_from_raw(raw: str) -> str:
+    """Extrait la valeur du champ 'resume' depuis un texte brut ou JSON partiel.
+
+    Utilisé comme dernier recours quand tous les parsers structurés ont échoué.
+    Tente d'extraire uniquement le texte du résumé (sans les métadonnées).
+    """
+    # Format JSON : chercher "resume": "valeur" (JSON tronqué ou mal formaté)
+    json_match = re.search(r'"resume"\s*:\s*"((?:[^"\\]|\\.)*)"', raw, re.DOTALL)
+    if json_match:
+        return json_match.group(1).replace('\\"', '"').replace('\\n', '\n').strip()
+
+    # Déléguer au parser markdown/mixed qui est plus robuste
+    parsed = _parse_summary_sentiment_from_markdown(raw)
+    if parsed and parsed.get("resume"):
+        return parsed["resume"]
+
+    # Dernier recours : retourner le texte brut nettoyé
+    return raw.strip()
+
+
+def _parse_summary_sentiment_from_markdown(text: str) -> Optional[dict]:
+    """Extrait résumé+sentiment depuis un texte non-JSON (markdown bullet ou format mixte).
+
+    Gère 3 formats courants produits par des LLM locaux (ex. qwen2.5:7b) :
+    1. Markdown bullet strict : - "resume" : texte\\n- "sentiment" : neutre
+    2. Format mixte           : {génère un résumé... : texte\\n\\n- "sentiment": neutre
+    3. Texte libre suivi de bullets de métadonnées
+
+    Stratégie : détecter où commencent les champs de métadonnées, extraire
+    tout ce qui précède comme résumé, nettoyer le préfixe.
+    """
+    result: dict = {}
+
+    # Trouver le début du premier champ de métadonnée (sentiment / score_* / ton_editorial)
+    _META_PATTERN = re.compile(
+        r'(?:^|\n)\s*[-*]?\s*["\']?(?:sentiment|score_sentiment|ton_editorial|score_ton)["\']?\s*[:\-]',
+        re.IGNORECASE
+    )
+    meta_m = _META_PATTERN.search(text)
+
+    if meta_m:
+        resume_raw = text[:meta_m.start()].strip()
+        meta_text = text[meta_m.start():]
+    else:
+        resume_raw = text.strip()
+        meta_text = text
+
+    # Nettoyer le préfixe du résumé
+    # 1. Supprimer le { d'ouverture JSON suivi d'un texte avant ':' (format mixte)
+    resume_raw = re.sub(r'^\{[^:"]{0,80}:\s*', '', resume_raw).strip()
+    # 2. Supprimer - "resume" : ou resume :
+    resume_raw = re.sub(r'^[-*]?\s*["\']?resume["\']?\s*[:\-]\s*', '', resume_raw, flags=re.IGNORECASE)
+    # 3. Supprimer les guillemets entourants et artefacts de fin
+    resume_raw = resume_raw.strip('"\'').rstrip(',').strip()
+    # 4. Supprimer les titres Résumé/Resume en début
+    resume_raw = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', resume_raw).strip()
+
+    if resume_raw:
+        result["resume"] = resume_raw
+
+    # Extraire les champs de métadonnées (recherche globale dans tout le texte)
+    sent_m = re.search(r'["\']?sentiment["\']?\s*[:\-]\s*["\']?(positif|neutre|négatif)["\']?', meta_text, re.IGNORECASE)
+    if sent_m:
+        result["sentiment"] = sent_m.group(1).lower()
+
+    ss_m = re.search(r'score_sentiment["\']?\s*[:\-]\s*(\d)', meta_text, re.IGNORECASE)
+    if ss_m:
+        v = int(ss_m.group(1))
+        if 1 <= v <= 5:
+            result["score_sentiment"] = v
+
+    ton_m = re.search(r'ton_editorial["\']?\s*[:\-]\s*["\']?(factuel|alarmiste|promotionnel|critique|analytique)["\']?', meta_text, re.IGNORECASE)
+    if ton_m:
+        result["ton_editorial"] = ton_m.group(1).lower()
+
+    st_m = re.search(r'score_ton["\']?\s*[:\-]\s*(\d)', meta_text, re.IGNORECASE)
+    if st_m:
+        v = int(st_m.group(1))
+        if 1 <= v <= 5:
+            result["score_ton"] = v
+
+    return result if result else None
 
 
 class EurIAClient:
@@ -710,13 +804,12 @@ class EurIAClient:
         raw = self.ask(prompt, timeout=timeout, max_tokens=600)
         result = _parse_summary_sentiment_response(raw)
         if not result or "resume" not in result:
-            # Fallback : réponse brute comme résumé (comportement sûr)
+            # Fallback : extraire intelligemment la valeur 'resume' depuis le texte brut
             default_logger.warning(
-                "Parsing JSON combiné échoué — usage de la réponse brute comme résumé"
+                "Parsing JSON combiné échoué — extraction du champ resume depuis réponse brute"
             )
-            raw_clean = re.sub(
-                r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', raw
-            ).strip()
+            raw_clean = _extract_resume_from_raw(raw)
+            raw_clean = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', raw_clean).strip()
             return {"resume": raw_clean}
         return result
 
@@ -1169,11 +1262,10 @@ class ClaudeClient:
             result = _parse_summary_sentiment_response(raw)
             if not result or "resume" not in result:
                 default_logger.warning(
-                    "[Claude] Parsing JSON combiné échoué — usage de la réponse brute comme résumé"
+                    "[Claude] Parsing JSON combiné échoué — extraction du champ resume depuis réponse brute"
                 )
-                raw_clean = re.sub(
-                    r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', raw
-                ).strip()
+                raw_clean = _extract_resume_from_raw(raw)
+                raw_clean = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', raw_clean).strip()
                 return {"resume": raw_clean}
             return result
         except Exception as e:
@@ -1649,6 +1741,37 @@ class OllamaClient(EurIAClient):
     def generate_sentiment(self, resume: str, timeout: int = 30) -> Optional[dict]:
         default_logger.info(f"[Ollama/{self._ollama_model}] generate_sentiment() — sentiment local")
         return super().generate_sentiment(resume, timeout=timeout)
+
+    def generate_summary_with_sentiment(
+        self,
+        text: str,
+        max_lines: Optional[int] = None,
+        language: str = "français",
+        timeout: int = 90,
+    ) -> dict:
+        """Surcharge avec max_tokens=800 (Ollama local, pas de coût API) et timeout 90s."""
+        default_logger.info(f"[Ollama/{self._ollama_model}] generate_summary_with_sentiment() — local")
+        if max_lines is None:
+            max_lines = get_config().summary_max_lines
+        text_truncated = text[:15000]
+        prompt = (
+            f"{_COMBINED_SYSTEM_INSTRUCTIONS}\n\n"
+            f"Résumé en maximum {max_lines} lignes en {language}.\n\n"
+            f"Texte à analyser :\n{text_truncated}"
+        )
+        # max_tokens=800 au lieu de 600 : Ollama est local, pas de surcoût
+        raw = EurIAClient.ask(self, prompt, timeout=timeout, max_tokens=800)
+        default_logger.info(f"[Ollama/{self._ollama_model}] Réponse brute résumé+sentiment — {len(raw)} cars")
+        result = _parse_summary_sentiment_response(raw)
+        if not result or "resume" not in result:
+            default_logger.warning(
+                f"[Ollama/{self._ollama_model}] Parsing JSON combiné échoué "
+                "— extraction du champ resume depuis réponse brute"
+            )
+            raw_clean = _extract_resume_from_raw(raw)
+            raw_clean = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', raw_clean).strip()
+            return {"resume": raw_clean}
+        return result
 
     @classmethod
     def is_available(cls) -> bool:
