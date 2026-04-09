@@ -28,8 +28,9 @@ export_bp = Blueprint("export", __name__)
 
 # Paramètres du chatbot
 _CHAT_MAX_CONTEXT_FILES   = 10     # Nombre maximum de fichiers de contexte par requête
-_CHAT_MAX_CONTEXT_CHARS   = 100000 # Taille maximale (caractères) par fichier de contexte (brut)
-_CHAT_MAX_ARTICLES_JSON   = 9999   # Nombre max d'articles inclus depuis un fichier JSON d'articles (pas de limite effective)
+_CHAT_MAX_CONTEXT_CHARS   = 60000  # Taille maximale (caractères) par fichier de contexte (brut)
+_CHAT_MAX_ARTICLES_JSON   = 80     # Nombre max d'articles inclus depuis un fichier JSON d'articles
+_CHAT_MAX_CONTEXT_TOTAL   = 80000  # Taille maximale totale du contexte injecté dans le system prompt
 _CHAT_MAX_ENTITIES_TYPE   = 5      # Nombre max d'entités par type dans le contexte article compact
 
 
@@ -177,13 +178,22 @@ def _format_articles_for_context(articles: list, max_articles: int = 100) -> str
     Returns:
         Texte Markdown prêt à être inséré dans le contexte système.
     """
+    # Trier par date décroissante pour conserver les articles les plus récents
+    from utils.date_utils import parse_article_date as _parse_article_date
+    def _sort_key(a: dict):
+        try:
+            return _parse_article_date(a.get("Date de publication", "")) or ""
+        except Exception:
+            return ""
+    sorted_articles = sorted(articles, key=_sort_key, reverse=True)
+
     total = len(articles)
     shown = min(total, max_articles)
     lines: list[str] = [
-        f"*{total} article(s) au total — {shown} inclus dans le contexte.*",
+        f"*{total} article(s) au total — {shown} les plus récents inclus dans le contexte.*",
         "",
     ]
-    for i, art in enumerate(articles[:max_articles], 1):
+    for i, art in enumerate(sorted_articles[:max_articles], 1):
         date    = art.get("Date de publication", "?")
         src     = art.get("Sources", "?")
         url     = art.get("URL", "")
@@ -588,6 +598,8 @@ def api_chat_stream():
                         and "Résumé" in data[0]
                     ):
                         formatted = _format_articles_for_context(data, _CHAT_MAX_ARTICLES_JSON)
+                        if len(formatted) > _CHAT_MAX_CONTEXT_CHARS:
+                            formatted = formatted[:_CHAT_MAX_CONTEXT_CHARS] + "\n…[tronqué]"
                         context_blocks.append(f"### Fichier : {rel}\n{formatted}")
                         continue
                 except (json.JSONDecodeError, IndexError, KeyError):
@@ -635,6 +647,10 @@ def api_chat_stream():
         system_parts.extend(context_blocks)
 
     system_prompt = "\n".join(system_parts)
+
+    # Tronquer le system prompt si trop volumineux pour l'API (limite ~20K tokens)
+    if len(system_prompt) > _CHAT_MAX_CONTEXT_TOTAL:
+        system_prompt = system_prompt[:_CHAT_MAX_CONTEXT_TOTAL] + "\n…[contexte tronqué pour respecter la limite de l'API]"
 
     # Nettoyer les messages
     clean_messages = [
@@ -714,8 +730,10 @@ def api_chat_stream():
             "messages": full_messages,
             "model": "qwen3",
             "stream": True,
-            "enable_web_search": web_search,
         }
+        # enable_web_search n'est supporté que par l'ancien endpoint /euria/v1/
+        if "/euria/" in api_url and web_search:
+            payload["enable_web_search"] = True
         api_headers = {
             "Authorization": f"Bearer {bearer}",
             "Content-Type": "application/json",

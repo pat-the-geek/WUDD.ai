@@ -530,8 +530,8 @@ def api_rss_direct_article():
     # ── 2. Résumé IA ──────────────────────────────────────────────────────────
     resume = ""
     try:
-        from utils.api_client import get_ai_client
-        client = get_ai_client()
+        from utils.api_client import get_summary_client
+        client = get_summary_client()
         resume = client.generate_summary(page_text or title) or ""
     except Exception:
         resume = description or ""
@@ -540,8 +540,8 @@ def api_rss_direct_article():
     entities = {}
     if resume:
         try:
-            from utils.api_client import get_ai_client
-            client = get_ai_client()
+            from utils.api_client import get_ner_client
+            client = get_ner_client()
             entities = client.generate_entities(resume) or {}
         except Exception:
             pass

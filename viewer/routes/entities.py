@@ -1855,8 +1855,10 @@ def api_entities_info():
             "messages": [{"role": "user", "content": prompt}],
             "model": "qwen3",
             "stream": True,
-            "enable_web_search": True,
         }
+        # enable_web_search n'est supporté que par l'ancien endpoint /euria/v1/
+        if "/euria/" in api_url:
+            payload["enable_web_search"] = True
         api_headers = {
             "Authorization": f"Bearer {bearer}",
             "Content-Type": "application/json",

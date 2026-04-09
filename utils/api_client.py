@@ -567,11 +567,14 @@ class EurIAClient:
             default_logger.error("Prompt invalide ou vide")
             return "Erreur: Prompt invalide"
         
+        _enable_web_search = self.enable_web_search if enable_web_search is None else enable_web_search
         data = {
             "messages": [{"content": prompt, "role": "user"}],
             "model": self.model,
-            "enable_web_search": self.enable_web_search if enable_web_search is None else enable_web_search,
         }
+        # enable_web_search n'est supporté que par l'ancien endpoint /euria/v1/
+        if "/euria/" in self.url and _enable_web_search:
+            data["enable_web_search"] = True
         if max_tokens is not None:
             data["max_tokens"] = max_tokens
         

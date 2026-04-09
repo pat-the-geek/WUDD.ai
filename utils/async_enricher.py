@@ -245,7 +245,6 @@ class AsyncEnricher:
         payload = {
             "messages": [{"content": prompt, "role": "user"}],
             "model": "qwen3",
-            "enable_web_search": False,
             "max_tokens": max_tokens,
         }
         headers = config.get_api_headers()
@@ -332,9 +331,9 @@ class AsyncEnricher:
     def _sync_fallback_entities(self, articles: list[dict]) -> list[dict]:
         """Fallback : enrichissement NER synchrone via ThreadPoolExecutor."""
         from .parallel import run_parallel
-        from .api_client import get_ai_client
+        from .api_client import get_ner_client
 
-        client = get_ai_client()
+        client = get_ner_client()
         enriched = list(articles)
 
         def _process(item: tuple[int, dict]) -> tuple[int, Optional[dict]]:
@@ -357,9 +356,9 @@ class AsyncEnricher:
     def _sync_fallback_sentiment(self, articles: list[dict]) -> list[dict]:
         """Fallback : enrichissement sentiment synchrone via ThreadPoolExecutor."""
         from .parallel import run_parallel
-        from .api_client import get_ai_client
+        from .api_client import get_ner_client
 
-        client = get_ai_client()
+        client = get_ner_client()
         enriched = list(articles)
 
         def _process(item: tuple[int, dict]) -> tuple[int, Optional[dict]]:

@@ -53,7 +53,7 @@ class Config:
             load_dotenv(env_file)
             default_logger.info(f"Configuration chargée depuis {env_file}")
         else:
-            load_dotenv()  # charge depuis les variables d'environnement système
+            # Pas de .env dans project_root — s'appuyer sur les variables d'environnement déjà définies
             default_logger.warning(f"Fichier .env non trouvé ou inaccessible: {env_file}")
         
         # Charger et valider les variables

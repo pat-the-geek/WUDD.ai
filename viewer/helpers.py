@@ -254,7 +254,8 @@ def _call_ai_blocking(prompt: str, timeout: int = 90,
             "model": "qwen3",
             "stream": True,
         }
-        if enable_web_search:
+        # enable_web_search n'est supporté que par l'ancien endpoint /euria/v1/
+        if enable_web_search and "/euria/" in api_url:
             payload["enable_web_search"] = True
         api_headers = {
             "Authorization": f"Bearer {bearer}",

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { flushSync } from 'react-dom'
 import { X, Send, Save, Trash2, FileText, FileJson, Folder, ChevronRight, Loader2, Terminal, RefreshCw, Check, BookOpen, Maximize2, Minimize2, SlidersHorizontal } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -478,6 +479,20 @@ Voici ce que je peux faire pour vous :
   const [input, setInput]               = useState('')
   const [streaming, setStreaming]       = useState(false)
   const [contextFiles, setContextFiles] = useState(() => initialFile?.path ? [initialFile.path] : [])
+  // Référence pour savoir si l'utilisateur a personnalisé le contexte manuellement
+  const contextCustomizedRef = useRef(false)
+
+  // Mettre à jour le contexte quand initialFile change (navigation sidebar pendant que le terminal est ouvert)
+  // Uniquement si aucun contexte entité/article/flux n'est actif ET que l'utilisateur n'a pas personnalisé
+  useEffect(() => {
+    if (entityContext || articleContext || fluxContext) return
+    if (contextCustomizedRef.current) return
+    if (initialFile?.path) {
+      setContextFiles([initialFile.path])
+    } else {
+      setContextFiles([])
+    }
+  }, [initialFile?.path])
   // Contexte entité pré-formaté (texte) chargé depuis /api/entity-context (SSE)
   const [entityContextText, setEntityContextText]         = useState('')
   const [entityContextLoading, setEntityContextLoading]   = useState(false)
@@ -646,6 +661,8 @@ Voici ce que je peux faire pour vous :
         setAvailableFiles(files)
         setContextFiles(prev => {
           if (prev.length > 0) return prev
+          // Pas de fallback si un contexte spécial est actif (article/entité/flux)
+          if (entityContext || articleContext || fluxContext) return prev
           // Fallback : 48-heures.json si aucun fichier n'est déjà en contexte
           const file48h = files.find(f => f.name === '48-heures.json')
           return file48h ? [file48h.path] : prev
@@ -685,23 +702,35 @@ Voici ce que je peux faire pour vous :
 
     // Placeholder pour la réponse IA en cours
     const assistantIdx = newMessages.length
-    setMessages(prev => [...prev, { role: 'assistant', content: '', streaming: true }])
+    const setStatus = (label) => flushSync(() => setMessages(prev => {
+      const updated = [...prev]
+      updated[assistantIdx] = { role: 'assistant', content: '', streaming: true, status: label }
+      return updated
+    }))
+    flushSync(() => setMessages(prev => [...prev, { role: 'assistant', content: '', streaming: true, status: 'Détermination du contexte…' }]))
 
     const ctrl = new AbortController()
     ctrlRef.current = ctrl
 
     try {
+      await new Promise(r => setTimeout(r, 120))
+      setStatus('Chargement du contexte…')
+      const contextPayload = {
+        messages: newMessages.filter(m => !m.welcome),
+        // Ne pas envoyer context_files si un contexte spécial est déjà actif (article/entité/flux)
+        context_files: (articleContextText || fluxContextText || entityContextText) ? [] : contextFiles,
+        notes_period: overrideNotesPeriod || notesPeriod || undefined,
+        ...(articleContextText ? { entity_context: articleContextText } : fluxContextText ? { entity_context: fluxContextText } : entityContextText ? { entity_context: entityContextText } : {}),
+        provider: effectiveProvider,
+        web_search: webSearch,
+      }
+
+      await new Promise(r => setTimeout(r, 120))
+      setStatus('Envoi de la requête…')
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: newMessages.filter(m => !m.welcome),
-          context_files: contextFiles,
-          notes_period: overrideNotesPeriod || notesPeriod || undefined,
-          ...(articleContextText ? { entity_context: articleContextText } : fluxContextText ? { entity_context: fluxContextText } : entityContextText ? { entity_context: entityContextText } : {}),
-          provider: effectiveProvider,
-          web_search: webSearch,
-        }),
+        body: JSON.stringify(contextPayload),
         signal: ctrl.signal,
       })
 
@@ -715,10 +744,13 @@ Voici ce que je peux faire pour vous :
         return
       }
 
+      setStatus('Génération de la réponse…')
+
       const reader  = res.body.getReader()
       const decoder = new TextDecoder()
       let buf = ''
       let accumulated = ''
+      let firstChunk = true
 
       while (true) {
         const { value, done } = await reader.read()
@@ -744,12 +776,22 @@ Voici ce que je peux faire pour vous :
               const chunk = parsed.choices?.[0]?.delta?.content ?? ''
               accumulated += chunk
             }
+            // Effacer le statut au premier chunk réel
+            if (firstChunk && accumulated.trim()) {
+              firstChunk = false
+              setMessages(prev => {
+                const updated = [...prev]
+                updated[assistantIdx] = { role: 'assistant', content: accumulated, streaming: true }
+                return updated
+              })
+            } else {
             // Mettre à jour en temps réel
             setMessages(prev => {
               const updated = [...prev]
               updated[assistantIdx] = { role: 'assistant', content: accumulated, streaming: true }
               return updated
             })
+            }
           } catch (e) { /* ligne SSE non-JSON (ex: ping, commentaire), ignorer */ }
         }
       }
@@ -848,6 +890,7 @@ Voici ce que je peux faire pour vous :
   // ── Gestion du picker de fichiers de contexte ─────────────────────────────
 
   const toggleContextFile = (path) => {
+    contextCustomizedRef.current = true
     setContextFiles(prev =>
       prev.includes(path) ? prev.filter(p => p !== path) : [...prev, path]
     )
@@ -891,7 +934,11 @@ Voici ce que je peux faire pour vous :
                 {isStreaming ? '▋' : '◆'}
               </span>
               <div className="flex-1 min-w-0">
-                {msg.error ? (
+                {msg.status && !msg.content ? (
+                  <span className="font-mono text-xs italic animate-pulse" style={{ color: theme.textColor, opacity: 0.5 }}>
+                    {msg.status}
+                  </span>
+                ) : msg.error ? (
                   <span className="text-red-400 font-mono text-sm">{msg.content}</span>
                 ) : (
                   <div
@@ -1029,11 +1076,13 @@ Voici ce que je peux faire pour vous :
                       selectedProvider === p
                         ? p === 'claude'
                           ? 'bg-purple-700 text-white'
-                          : 'bg-green-800 text-green-200'
+                          : p === 'ollama'
+                            ? 'bg-orange-700 text-orange-100'
+                            : 'bg-green-800 text-green-200'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    {p === 'claude' ? 'Claude' : 'EurIA'}
+                    {p === 'claude' ? 'Claude' : p === 'ollama' ? 'Ollama' : 'EurIA'}
                   </button>
                 ))}
               </div>
@@ -1112,11 +1161,13 @@ Voici ce que je peux faire pour vous :
                               selectedProvider === p
                                 ? p === 'claude'
                                   ? 'bg-purple-700 text-white'
-                                  : 'bg-green-800 text-green-200'
+                                  : p === 'ollama'
+                                    ? 'bg-orange-700 text-orange-100'
+                                    : 'bg-green-800 text-green-200'
                                 : 'text-slate-400 hover:text-slate-200'
                             }`}
                           >
-                            {p === 'claude' ? 'Claude' : 'EurIA'}
+                            {p === 'claude' ? 'Claude' : p === 'ollama' ? 'Ollama' : 'EurIA'}
                           </button>
                         ))}
                       </div>
@@ -1370,7 +1421,7 @@ Voici ce que je peux faire pour vous :
                 <div className="px-2 py-2 border-t border-green-900/30">
                   {contextFiles.length > 0 && (
                     <button
-                      onClick={() => setContextFiles([])}
+                      onClick={() => { contextCustomizedRef.current = false; setContextFiles([]) }}
                       className="w-full text-[11px] font-mono text-slate-400 hover:text-red-400 transition-colors text-left flex items-center gap-1 mb-1"
                     >
                       <Trash2 size={9} />
