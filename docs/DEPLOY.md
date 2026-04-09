@@ -225,6 +225,64 @@ WUDD.ai/
 
 ## ⚠️ Problèmes Courants
 
+### Problème : Ollama inaccessible depuis Docker sur macOS
+
+**Symptôme** : `get_summary_client()` ou `get_ner_client()` retourne `EurIAClient`
+au lieu d'`OllamaClient` malgré `AI_PROVIDER_SUMMARY=ollama` dans `.env`.
+
+**Cause** : Ollama n'écoute que sur `127.0.0.1` (loopback IPv4). Le conteneur Docker
+accède au Mac via `host.docker.internal` qui résout en IPv6. `is_available()` renvoie
+`False` → bascule silencieuse vers EurIA.
+
+**Diagnostic** :
+```bash
+# Vérifier l'interface d'écoute
+netstat -an | grep 11434
+# tcp4  127.0.0.1.11434  → problème
+# tcp46 *.11434          → OK
+
+# Tester depuis Docker
+docker exec analyse-actualites python3 -c "
+from utils.api_client import OllamaClient
+print('is_available:', OllamaClient.is_available())"
+```
+
+**Fix permanent** — remplacer le LaunchAgent Homebrew par `com.wudd.ollama.plist` :
+```bash
+# Arrêter le service Homebrew
+brew services stop ollama
+
+# Créer le LaunchAgent personnalisé (OLLAMA_HOST=0.0.0.0 baked)
+# → ~/Library/LaunchAgents/com.wudd.ollama.plist  (voir le fichier dans le dépôt)
+
+# Charger et vérifier
+launchctl load ~/Library/LaunchAgents/com.wudd.ollama.plist
+netstat -an | grep 11434   # doit afficher tcp46 *.11434
+```
+
+Le fichier `~/Library/LaunchAgents/com.wudd.ollama.plist` est inclus dans le dépôt
+comme référence. Copier-le sur le Mac hôte avant de lancer Docker.
+
+> **Note** : Ne pas utiliser `brew services` pour Ollama sur un Mac hôte Docker —
+> Homebrew peut régénérer son propre plist sans `OLLAMA_HOST=0.0.0.0` lors d'un
+> `brew upgrade ollama`.
+
+---
+
+### Problème : Variables `AI_PROVIDER_*` ignorées dans le cron Docker
+
+**Symptôme** : Les logs montrent `[FallbackClient] primaire=EurIAClient` alors que
+`AI_PROVIDER_SUMMARY=ollama` est dans `.env`.
+
+**Cause** : `get_summary_client()` / `get_ner_client()` lisaient `os.environ` avant
+`load_dotenv()`. Corrigé dans `utils/api_client.py` v2.8.1 (commit `a3eba8f`) via
+`get_config()` en tête des deux fonctions.
+
+**Vérification** : `grep "Garantit que load_dotenv" utils/api_client.py` doit retourner
+2 lignes.
+
+---
+
 ### Problème : `.env` a été commité par erreur
 
 ```bash

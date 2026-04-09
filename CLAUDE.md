@@ -141,7 +141,7 @@ Required variables:
 | `AI_PROVIDER_NER` | Dedicated provider for NER/sentiment batch: `ollama` for local inference, empty = same as `AI_PROVIDER` |
 | `AI_PROVIDER_SUMMARY` | Dedicated provider for article summaries: `ollama` for local inference, empty = same as `AI_PROVIDER` |
 | `OLLAMA_MODEL` | Ollama model to use (default: `qwen2.5:7b`) |
-| `OLLAMA_HOST` | Ollama server host (default: `localhost`; use `host.docker.internal` inside Docker on macOS) |
+| `OLLAMA_HOST` | Ollama server host (default: `localhost`; use `host.docker.internal` inside Docker on macOS). **Important :** Ollama doit écouter sur `0.0.0.0` (pas `127.0.0.1`) pour être accessible depuis Docker sur macOS — voir `~/Library/LaunchAgents/com.wudd.ollama.plist` |
 
 **Never commit `.env` to git.** It is listed in `.gitignore`.
 

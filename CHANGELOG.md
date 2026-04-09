@@ -1,3 +1,33 @@
+# 09/04/2026 — Correction routage Ollama : get_config() obligatoire avant lecture AI_PROVIDER_* (v2.8.1)
+
+## Bug fix — Ollama ignoré dans le contexte cron Docker
+
+### Problème identifié
+Dans le contexte cron Docker (env minimal), `get_summary_client()` et `get_ner_client()`
+lisaient `os.environ.get("AI_PROVIDER_SUMMARY")` / `os.environ.get("AI_PROVIDER_NER")`
+**avant** que `load_dotenv()` soit appelé. Ces variables étaient vides → bascule
+silencieuse vers EurIA, consommant ~961 000 tokens cloud/jour inutilement.
+
+### Fix — `utils/api_client.py`
+- Ajout de `get_config()` en tête de `get_summary_client()` et `get_ner_client()`
+  pour garantir le chargement du `.env` avant toute lecture de variable d'env
+
+### Correction infrastructure macOS — Ollama inaccessible depuis Docker
+- `OLLAMA_HOST` pointait vers `host.docker.internal` (IPv6 seulement) alors
+  qu'Ollama n'écoutait que sur `127.0.0.1` (IPv4 loopback)
+- Nouveau LaunchAgent `~/Library/LaunchAgents/com.wudd.ollama.plist` :
+  remplace `homebrew.mxcl.ollama` avec `OLLAMA_HOST=0.0.0.0` baked dans le plist
+  (`KeepAlive=true`, `RunAtLoad=true`) — persiste aux reboots et aux `brew upgrade`
+- Suppression de l'ancien `homebrew.mxcl.ollama.plist` géré par Homebrew
+
+### Résultat mesuré
+| Fenêtre | EurIA | Ollama | Total |
+|---|---|---|---|
+| Avant fix (00h–17h55) | 961 062 tokens | 26 083 tokens | 987 145 |
+| Après fix (18h00+) | 0 tokens | 100 % | — |
+
+---
+
 # 08/04/2026 — Résumés d'articles via Ollama local (v2.8.0)
 
 ## Option B — Ollama local pour les résumés d'articles
