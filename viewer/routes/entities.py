@@ -1598,8 +1598,12 @@ def api_entities_images():
                     continue
         return logos, rejected
 
-    def _wikidata_p18_persons(names_batch: list[str]) -> dict[str, str]:
-        """Retourne {name: image_filename} via Wikidata P18 pour les PERSON."""
+    def _wikidata_p18_persons(names_batch: list[str], require_human: bool = False) -> dict[str, str]:
+        """Retourne {name: image_filename} via Wikidata P18 pour les PERSON.
+
+        Si require_human=True, n'accepte que les entités dont P31 contient Q5
+        (humain), évitant de retourner des images de plats homonymes (ex. poutine).
+        """
         logos: dict[str, str] = {}
         P18 = "P18"
         for i in range(0, len(names_batch), BATCH):
@@ -1619,6 +1623,15 @@ def api_entities_images():
                             continue
                         wiki_title = entity.get("sitelinks", {}).get(site, {}).get("title", "")
                         claims = entity.get("claims", {})
+                        if require_human:
+                            p31 = {
+                                c["mainsnak"]["datavalue"]["value"]["id"]
+                                for c in claims.get("P31", [])
+                                if c["mainsnak"].get("datavalue")
+                            }
+                            # Rejeter si P31 est défini mais ne contient pas Q5 (humain)
+                            if p31 and "Q5" not in p31:
+                                continue
                         if P18 not in claims:
                             continue
                         for orig in batch:
@@ -1657,6 +1670,77 @@ def api_entities_images():
                 pass
         return urls
 
+    def _pageimages_persons(names_batch: list[str]) -> dict[str, dict]:
+        """Comme _pageimages mais valide que la page Wikipedia est une personne (P31=Q5).
+
+        Effectue un appel Wikidata groupé pour vérifier les instances afin d'éviter
+        de retourner l'image d'un plat (ex. poutine) pour une personne homonyme.
+        """
+        result: dict[str, dict] = {}
+        for i in range(0, len(names_batch), BATCH):
+            batch = names_batch[i : i + BATCH]
+            titles_str = "|".join(batch)
+            for lang in ("fr", "en"):
+                try:
+                    r = req.get(
+                        f"https://{lang}.wikipedia.org/w/api.php",
+                        params={"action": "query", "titles": titles_str,
+                                "prop": "pageimages|pageprops", "pithumbsize": THUMB,
+                                "pilicense": "any", "ppprop": "wikibase_item",
+                                "format": "json", "origin": "*"},
+                        headers={"User-Agent": UA}, timeout=10,
+                    )
+                    pages_data = r.json().get("query", {})
+                    normalized = {n["from"]: n["to"] for n in pages_data.get("normalized", [])}
+                    pages_list = list(pages_data.get("pages", {}).values())
+
+                    # Validation Wikidata en batch : accepter seulement les humains (Q5)
+                    qids = [p.get("pageprops", {}).get("wikibase_item", "") for p in pages_list]
+                    batch_qids = [q for q in qids if q]
+                    valid_qids: set[str] = set()
+                    if batch_qids:
+                        try:
+                            r2 = req.get(
+                                "https://www.wikidata.org/w/api.php",
+                                params={"action": "wbgetentities",
+                                        "ids": "|".join(batch_qids),
+                                        "props": "claims", "format": "json", "origin": "*"},
+                                headers={"User-Agent": UA}, timeout=10,
+                            )
+                            for qid, entity in r2.json().get("entities", {}).items():
+                                if qid.startswith("-"):
+                                    continue
+                                p31 = {
+                                    c["mainsnak"]["datavalue"]["value"]["id"]
+                                    for c in entity.get("claims", {}).get("P31", [])
+                                    if c["mainsnak"].get("datavalue")
+                                }
+                                # Accepter : pas de P31 (ambigu) OU P31 contient Q5 (humain)
+                                if not p31 or "Q5" in p31:
+                                    valid_qids.add(qid)
+                        except Exception:
+                            valid_qids.update(batch_qids)  # erreur réseau → accepter
+
+                    for page in pages_list:
+                        if "thumbnail" not in page:
+                            continue
+                        qid = page.get("pageprops", {}).get("wikibase_item", "")
+                        if qid and qid not in valid_qids:
+                            continue  # page n'est pas une personne (P31 ≠ Q5)
+                        title = page["title"]
+                        img = {"url": page["thumbnail"]["source"],
+                               "width": page["thumbnail"].get("width", THUMB),
+                               "height": page["thumbnail"].get("height", THUMB)}
+                        result[title] = img
+                        for orig, norm in normalized.items():
+                            if norm == title:
+                                result[orig] = img
+                except Exception:
+                    continue
+                if lang == "fr" and len(result) >= len(batch):
+                    break
+        return result
+
     SEARCH_WRONG = {
         "Q5", "Q202444", "Q101352", "Q4167410", "Q11266439", "Q50339617",
         "Q4086834", "Q35234", "Q12503", "Q8091", "Q1298765", "Q17451",
@@ -1689,6 +1773,9 @@ def api_entities_images():
         """Fallback final : recherche Wikipedia generator=search avec validation de type."""
         langs = ("fr", "en")
         validate = entity_type in ("ORG", "PRODUCT")
+        require_human = entity_type == "PERSON"
+        # Augmenter le nombre de résultats pour les personnes (la 1ère entrée peut être un homonyme)
+        gsrlimit = 5 if require_human else 3
 
         for lang in langs:
             try:
@@ -1698,7 +1785,7 @@ def api_entities_images():
                         "action": "query",
                         "generator": "search",
                         "gsrsearch": name,
-                        "gsrlimit": 3,
+                        "gsrlimit": gsrlimit,
                         "prop": "pageimages|pageprops",
                         "pithumbsize": THUMB,
                         "pilicense": "any",
@@ -1711,10 +1798,28 @@ def api_entities_images():
                 )
                 pages = r.json().get("query", {}).get("pages", {})
                 for page in sorted(pages.values(), key=lambda p: p.get("index", 0)):
+                    qid = page.get("pageprops", {}).get("wikibase_item", "")
                     if validate:
-                        qid = page.get("pageprops", {}).get("wikibase_item", "")
                         if not _wikidata_type_ok(qid, strict=True):
                             continue
+                    elif require_human and qid:
+                        try:
+                            r2 = req.get(
+                                "https://www.wikidata.org/w/api.php",
+                                params={"action": "wbgetentities", "ids": qid,
+                                        "props": "claims", "format": "json", "origin": "*"},
+                                headers={"User-Agent": UA}, timeout=5,
+                            )
+                            p31 = {
+                                c["mainsnak"]["datavalue"]["value"]["id"]
+                                for c in r2.json().get("entities", {}).get(qid, {})
+                                         .get("claims", {}).get("P31", [])
+                                if c["mainsnak"].get("datavalue")
+                            }
+                            if p31 and "Q5" not in p31:
+                                continue  # pas une personne (Q5 = humain)
+                        except Exception:
+                            pass  # erreur réseau → accepter
 
                     thumb = page.get("thumbnail")
                     if thumb and thumb.get("source"):
@@ -1727,16 +1832,22 @@ def api_entities_images():
                 continue
         return name, None
 
-    # ── PERSON / PRODUCT & autres : pageimages puis Wikidata P18 si rien trouvé ──
-    pageimg = _pageimages(person_names + product_names + other_names)
-    for name in person_names + product_names + other_names:
+    # ── PERSON : pageimages avec validation P31=Q5 (évite les homonymes type plats) ──
+    pageimg_persons = _pageimages_persons(person_names) if person_names else {}
+    for name in person_names:
+        if name not in cache:
+            cache[name] = pageimg_persons.get(name)
+
+    # ── PRODUCT & autres : pageimages standard ──
+    pageimg = _pageimages(product_names + other_names) if (product_names or other_names) else {}
+    for name in product_names + other_names:
         if name not in cache:
             cache[name] = pageimg.get(name)
 
-    # Fallback Wikidata P18 pour les PERSON sans image Wikipedia
+    # Fallback Wikidata P18 pour les PERSON sans image Wikipedia (avec validation P31=Q5)
     persons_no_img = [n for n in person_names if not cache.get(n)]
     if persons_no_img:
-        p18_files = _wikidata_p18_persons(persons_no_img)
+        p18_files = _wikidata_p18_persons(persons_no_img, require_human=True)
         if p18_files:
             p18_urls = _resolve_logo_urls(list(set(p18_files.values())))
             for name, fname in p18_files.items():
