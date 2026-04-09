@@ -1851,6 +1851,7 @@ def get_ner_client():
     structurées (NER, sentiment) tout en conservant le cloud pour les
     résumés, rapports et synthèses encyclopédiques.
     """
+    get_config()  # Garantit que load_dotenv() est appelé avant la lecture des vars d'env
     import os as _os
     ner_provider = _os.environ.get("AI_PROVIDER_NER", "").strip().lower()
 
@@ -1886,6 +1887,7 @@ def get_summary_client():
     une réponse brute reste acceptable. Il l'est pour
     generate_summary_with_sentiment() car le format JSON est attendu.
     """
+    get_config()  # Garantit que load_dotenv() est appelé avant la lecture des vars d'env
     import os as _os
     summary_provider = _os.environ.get("AI_PROVIDER_SUMMARY", "").strip().lower()
 
