@@ -699,7 +699,7 @@ Voici ce que je peux faire pour vous :
           context_files: contextFiles,
           notes_period: overrideNotesPeriod || notesPeriod || undefined,
           ...(articleContextText ? { entity_context: articleContextText } : fluxContextText ? { entity_context: fluxContextText } : entityContextText ? { entity_context: entityContextText } : {}),
-          ...(selectedProvider ? { provider: selectedProvider } : {}),
+          provider: effectiveProvider,
           web_search: webSearch,
         }),
         signal: ctrl.signal,
