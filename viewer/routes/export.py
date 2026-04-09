@@ -646,7 +646,7 @@ def api_chat_stream():
     # Construire les messages complets (système + historique)
     full_messages = [{"role": "system", "content": system_prompt}] + clean_messages
 
-    provider = provider_override if provider_override in ("euria", "claude") \
+    provider = provider_override if provider_override in ("euria", "claude", "ollama") \
                else os.environ.get("AI_PROVIDER", "euria").strip().lower()
 
     if provider == "claude":
@@ -674,6 +674,36 @@ def api_chat_stream():
                 timeout=180,
                 messages=claude_messages,
             )
+
+    elif provider == "ollama":
+        from utils.api_client import OllamaClient as _OllamaClient
+        if not _OllamaClient.is_available():
+            return jsonify({"error": "Serveur Ollama injoignable. Démarrez-le : brew services start ollama"}), 503
+        ollama_host  = os.environ.get("OLLAMA_HOST", "localhost")
+        ollama_model = os.environ.get("OLLAMA_MODEL", _OllamaClient._DEFAULT_MODEL).strip()
+        ollama_url   = f"http://{ollama_host}:11434/v1/chat/completions"
+        payload = {
+            "messages": full_messages,
+            "model": ollama_model,
+            "stream": True,
+        }
+        api_headers = {
+            "Authorization": "Bearer ollama",
+            "Content-Type": "application/json",
+        }
+
+        def generate_chat():
+            try:
+                r = req.post(ollama_url, json=payload, headers=api_headers, stream=True, timeout=180)
+                r.raise_for_status()
+                for line in r.iter_lines():
+                    if line:
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data:"):
+                            decoded = "data: " + decoded
+                        yield decoded + "\n\n"
+            except Exception as exc:
+                yield f'data: {json.dumps({"error": str(exc)})}\n\n'
 
     else:
         api_url = os.environ.get("URL", "").strip()
