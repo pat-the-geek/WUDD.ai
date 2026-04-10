@@ -187,7 +187,7 @@ const mdComponents = {
             <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-1">{children}</h4>
           ),
           p: ({ children }) => (
-            <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">{children}</p>
+            <p className="font-reading text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">{children}</p>
           ),
           a: ({ href, children }) => (
             <a
@@ -260,7 +260,7 @@ const mdComponents = {
           ol: ({ children }) => (
             <ol className="list-decimal text-slate-700 dark:text-slate-300 mb-4 space-y-1 ml-5">{children}</ol>
           ),
-          li: ({ children }) => <li className="text-base text-slate-700 dark:text-slate-300 leading-relaxed">{children}</li>,
+          li: ({ children }) => <li className="font-reading text-base text-slate-700 dark:text-slate-300 leading-relaxed">{children}</li>,
           blockquote: ({ children }) => (
             <blockquote className="border-l-4 border-blue-500/60 pl-4 italic text-slate-500 dark:text-slate-400 my-4">
               {children}

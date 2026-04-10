@@ -46,6 +46,8 @@ export default {
       fontFamily: {
         // Priorité à SF Pro sur les plateformes Apple, Inter Variable sur les autres
         sans: ['-apple-system', 'BlinkMacSystemFont', '"Inter Variable"', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Literata Variable : police optimisée pour la lecture longue (Google Play Books)
+        reading: ['"Literata Variable"', 'Literata', 'Georgia', 'ui-serif', 'serif'],
         // SF Mono sur Apple, puis chaîne monospace système
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'monospace'],
       },

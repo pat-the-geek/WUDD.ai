@@ -613,7 +613,7 @@ export default function EntityFullReportDialog({
     ),
     // Entity highlighting — fonctionne pour les paragraphes purs ET mixtes (bold, liens…)
     p: ({ children }) => (
-      <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">
+      <p className="font-reading text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">
         {hiliteChildren(children)}
       </p>
     ),
@@ -652,7 +652,7 @@ export default function EntityFullReportDialog({
     ),
     ul: ({ children }) => <ul className="list-disc text-slate-700 dark:text-slate-300 mb-4 space-y-1 ml-5">{children}</ul>,
     ol: ({ children }) => <ol className="list-decimal text-slate-700 dark:text-slate-300 mb-4 space-y-1 ml-5">{children}</ol>,
-    li: ({ children }) => <li className="text-base text-slate-700 dark:text-slate-300 leading-relaxed">{hiliteChildren(children)}</li>,
+    li: ({ children }) => <li className="font-reading text-base text-slate-700 dark:text-slate-300 leading-relaxed">{hiliteChildren(children)}</li>,
     blockquote: ({ children }) => (
       <blockquote className="border-l-4 border-violet-500/60 pl-4 italic text-slate-500 dark:text-slate-400 my-4">{children}</blockquote>
     ),

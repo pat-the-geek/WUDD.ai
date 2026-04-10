@@ -610,7 +610,7 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
 <title>${titre.replace(/</g, '&lt;')}</title>
 <style>
   *    { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  body { font-family: 'Literata', Georgia, 'Times New Roman', serif;
          font-size: 14px; line-height: 1.75; color: #1e293b;
          max-width: 860px; margin: 0 auto; padding: 2cm; background: #fff; }
   h1   { font-size: 1.75em; font-weight: 700; border-bottom: 2px solid #e2e8f0;
@@ -785,7 +785,7 @@ ${contentEl.innerHTML}
     // Entity highlighting — fonctionne pour les paragraphes purs ET mixtes (bold, liens…)
     // On surligne chaque nœud texte inline individuellement
     p: ({ children }) => (
-      <p className="text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">
+      <p className="font-reading text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">
         {hiliteChildren(children)}
       </p>
     ),
@@ -833,7 +833,7 @@ ${contentEl.innerHTML}
       <ol className="list-decimal text-slate-700 dark:text-slate-300 mb-4 space-y-1 ml-5">{children}</ol>
     ),
     li: ({ children }) => (
-      <li className="text-base text-slate-700 dark:text-slate-300 leading-relaxed">{hiliteChildren(children)}</li>
+      <li className="font-reading text-base text-slate-700 dark:text-slate-300 leading-relaxed">{hiliteChildren(children)}</li>
     ),
     blockquote: ({ children }) => (
       <blockquote className="border-l-4 border-blue-500/60 pl-4 italic text-slate-500 dark:text-slate-400 my-4">
