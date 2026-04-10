@@ -3092,19 +3092,19 @@ const TABS = [
   { id: 'env',        label: 'Environnement',  short: 'Env',      Icon: Lock      },
 ]
 
-// Mobile : sous-onglets du groupe Sources
+// Mobile : sous-onglets du groupe Sources (inclut Mots-clés)
 const SOURCE_TABS = [
-  { id: 'rss',  label: 'RSS',  Icon: Rss      },
-  { id: 'web',  label: 'Web',  Icon: Globe    },
-  { id: 'flux', label: 'Flux', Icon: Database },
+  { id: 'rss',      label: 'RSS',       Icon: Rss      },
+  { id: 'web',      label: 'Web',       Icon: Globe    },
+  { id: 'flux',     label: 'Flux',      Icon: Database },
+  { id: 'keywords', label: 'Mots-clés', Icon: Tag      },
 ]
 
 // Mobile : onglets principaux hors Sources (affiché dans la tab bar du bas)
 const MOBILE_BOTTOM_TABS = [
-  { id: 'keywords',  short: 'Mots-cl.', Icon: Tag       },
-  { id: 'scheduler', short: 'Cron',     Icon: Clock     },
-  { id: 'quota',     short: 'Quota',    Icon: BarChart2 },
-  { id: 'env',       short: 'Env',      Icon: Lock      },
+  { id: 'scheduler', short: 'Cron',  Icon: Clock     },
+  { id: 'quota',     short: 'Quota', Icon: BarChart2 },
+  { id: 'env',       short: 'Env',   Icon: Lock      },
 ]
 
 const THEME_OPTIONS_SETTINGS = [
@@ -3133,15 +3133,11 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
       className={`hig-overlay-enter fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center ${isMaximized ? 'items-stretch' : 'items-stretch md:items-start md:pt-10 md:px-4 md:pb-4'}`}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className={`hig-modal-enter glass-panel shadow-2xl w-full border border-white/45 dark:border-white/[0.09] flex flex-col overflow-hidden ${isMaximized ? '' : 'md:max-w-5xl md:max-h-[88vh] md:rounded-2xl'}`}>
+      <div className={`hig-modal-enter glass-panel shadow-2xl w-full border border-white/45 dark:border-white/[0.09] flex flex-col overflow-hidden relative ${isMaximized ? '' : 'md:max-w-5xl md:max-h-[88vh] md:rounded-2xl'}`}>
 
-        {/* ── Navigation tabs — desktop : header / mobile : tab bar bas harmonisé ── */}
-        <div
-          className="shrink-0 order-last md:order-first glass-nav border-t border-white/35 dark:border-white/[0.08] md:border-t-0 md:border-b"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-        >
-          {/* Desktop : barre d'en-tête avec titre + onglets pill + boutons */}
-          <div className="hidden md:flex items-center gap-2 px-5 py-3">
+        {/* ── Navigation tabs — desktop header / mobile floating pills ── */}
+        {/* Desktop header */}
+        <div className="hidden md:flex items-center gap-2 px-5 py-3 shrink-0 glass-nav border-b border-white/35 dark:border-white/[0.08]">
             <Settings size={15} className="text-slate-400 dark:text-slate-400" />
             <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mr-3">Réglages</h2>
             <div className="flex items-center gap-1 flex-1">
@@ -3175,40 +3171,45 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
             >
               <X size={14} />
             </button>
-          </div>
+        </div>
 
-          {/* Mobile : tab bar reorganisée — Sources (RSS/Web/Flux), Mots-cl., Cron, Quota, Env + Fermer */}
-          <div className="md:hidden flex flex-col">
-            {/* Sous-menu Sources — apparaît au-dessus de la tab bar */}
-            {sourcesMenuOpen && (
-              <div className="flex items-stretch border-b border-slate-200/60 dark:border-slate-700/50 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm">
+        {/* Mobile : tab bar floating pills — absolute, le contenu défile dessous */}
+        <div
+          className="md:hidden absolute bottom-0 left-0 right-0 z-20 flex flex-col"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          {/* Sous-menu Sources — pill floating transparent */}
+          {sourcesMenuOpen && (
+            <div className="flex items-stretch mx-3 mb-2 rounded-2xl overflow-hidden glass-nav">
                 {SOURCE_TABS.map(({ id, label, Icon }) => (
                   <button
                     key={id}
                     onClick={() => handleTabSelect(id)}
-                    className={`flex flex-1 flex-col items-center justify-center gap-[2px] h-10 transition-colors active:opacity-60 ${
+                    className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] h-10 transition-colors active:opacity-60 ${
                       activeTab === id
                         ? 'text-[#007AFF] dark:text-[#0A84FF]'
                         : 'text-slate-400 dark:text-slate-500'
                     }`}
                   >
+                    {activeTab === id && <span className="nav-active-pill" />}
                     <Icon size={18} strokeWidth={activeTab === id ? 2.2 : 1.8} />
                     <span className="text-[11px] font-medium leading-none">{label}</span>
                   </button>
                 ))}
-              </div>
-            )}
-            {/* Barre principale */}
-            <div className="flex items-stretch h-[49px]">
+            </div>
+          )}
+          {/* Barre principale — pill floating transparent */}
+          <div className="flex items-stretch h-[49px] mx-3 mb-3 rounded-2xl overflow-hidden glass-nav">
               {/* Bouton Sources avec sous-menu */}
               <button
                 onClick={() => setSourcesMenuOpen(o => !o)}
-                className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+                className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
                   isSourceTab || sourcesMenuOpen
                     ? 'text-[#007AFF] dark:text-[#0A84FF]'
                     : 'text-slate-400 dark:text-slate-500'
                 }`}
               >
+                {(isSourceTab || sourcesMenuOpen) && <span className="nav-active-pill" />}
                 <Layers size={22} strokeWidth={(isSourceTab || sourcesMenuOpen) ? 2.2 : 1.8} />
                 <span className="text-[11px] font-medium leading-none">Sources</span>
               </button>
@@ -3217,12 +3218,13 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
                 <button
                   key={id}
                   onClick={() => handleTabSelect(id)}
-                  className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
+                  className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
                     activeTab === id
                       ? 'text-[#007AFF] dark:text-[#0A84FF]'
                       : 'text-slate-400 dark:text-slate-500'
                   }`}
                 >
+                  {activeTab === id && <span className="nav-active-pill" />}
                   <Icon size={22} strokeWidth={activeTab === id ? 2.2 : 1.8} />
                   <span className="text-[11px] font-medium leading-none">{short}</span>
                 </button>
@@ -3235,7 +3237,6 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
               >
                 <X size={20} />
               </button>
-            </div>
           </div>
         </div>
 
@@ -3322,7 +3323,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
         </div>
 
         {/* ── Contenu de l'onglet actif ── */}
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden settings-tabs-content">
           {activeTab === 'rss'       && <RssTab />}
           {activeTab === 'web'       && <WebSourcesTab />}
           {activeTab === 'scheduler' && <SchedulerTab />}

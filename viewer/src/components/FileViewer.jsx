@@ -328,7 +328,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
     <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900 relative">
       {/* ── Barre de fichier ── */}
       <div
-        className={`flex items-center gap-1.5 px-2 py-1.5 md:gap-2 md:px-3 md:py-2 md:border-b md:border-slate-200/60 md:dark:border-white/[0.10] shrink-0 fixed left-3 right-3 md:static md:z-auto transition-all duration-200 glass-toolbar-mobile rounded-2xl md:rounded-none ${
+        className={`flex items-center gap-2 px-3 py-2 md:border-b md:border-slate-200/60 md:dark:border-white/[0.10] shrink-0 fixed left-0 right-0 md:static md:z-auto transition-all duration-200 glass-toolbar-mobile ${
           sidebarOpen ? 'z-[15]' : 'z-40'
         }`}
         style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}

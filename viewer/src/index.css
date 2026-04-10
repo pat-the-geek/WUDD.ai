@@ -208,27 +208,27 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
     0 4px 24px rgba(0, 0, 0, 0.55),
     0 1px 6px rgba(0, 0, 0, 0.25);
 }
-/* Mobile uniquement : liquid glass maximal pour la bottom tab bar */
+/* Mobile uniquement : floating glass pill — fond verre dépoli + coins arrondis */
 @media (max-width: 767px) {
   .glass-nav {
-    background: rgba(255, 255, 255, 0.02);
-    backdrop-filter: blur(80px) saturate(280%) brightness(1.14);
-    -webkit-backdrop-filter: blur(80px) saturate(280%) brightness(1.14);
+    background: rgba(255, 255, 255, 0.00);
+    backdrop-filter: blur(80px) saturate(260%) brightness(1.10);
+    -webkit-backdrop-filter: blur(80px) saturate(260%) brightness(1.10);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.70),
-      inset 0 -0.5px 0 rgba(0, 0, 0, 0.03),
-      0 -6px 40px rgba(255, 255, 255, 0.10),
-      0 -1px 6px rgba(0, 0, 0, 0.02);
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      inset 0 -0.5px 0 rgba(0, 0, 0, 0.02),
+      0 -4px 28px rgba(255, 255, 255, 0.06),
+      0 -1px 4px rgba(0, 0, 0, 0.01);
   }
   .dark .glass-nav {
-    background: rgba(5, 10, 28, 0.10);
-    backdrop-filter: blur(80px) saturate(210%) brightness(0.88);
-    -webkit-backdrop-filter: blur(80px) saturate(210%) brightness(0.88);
+    background: rgba(5, 10, 28, 0.04);
+    backdrop-filter: blur(80px) saturate(200%) brightness(0.90);
+    -webkit-backdrop-filter: blur(80px) saturate(200%) brightness(0.90);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.14),
-      inset 0 -0.5px 0 rgba(0, 0, 0, 0.60),
-      0 -6px 40px rgba(0, 0, 0, 0.35),
-      0 -1px 6px rgba(0, 0, 0, 0.18);
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -0.5px 0 rgba(0, 0, 0, 0.40),
+      0 -4px 28px rgba(0, 0, 0, 0.22),
+      0 -1px 4px rgba(0, 0, 0, 0.10);
   }
 
   /* Pill moins transparent sous le bouton actif */
@@ -236,13 +236,13 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
     position: absolute;
     inset: 4px 6px;
     border-radius: 10px;
-    background: rgba(0, 122, 255, 0.12);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.60);
+    background: rgba(0, 122, 255, 0.09);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
     pointer-events: none;
   }
   .dark .nav-active-pill {
-    background: rgba(10, 132, 255, 0.18);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    background: rgba(10, 132, 255, 0.13);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
   }
 }
 
@@ -296,28 +296,38 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   backdrop-filter: blur(28px) saturate(160%) brightness(0.98);
   -webkit-backdrop-filter: blur(28px) saturate(160%) brightness(0.98);
 }
-/* Mobile : floating glass pill — fond verre dépoli + coins arrondis */
+/* Mobile : invisible — seuls les boutons glass FAB sont visibles */
 @media (max-width: 767px) {
   .glass-toolbar-mobile {
-    background: rgba(248, 250, 252, 0.82);
-    backdrop-filter: blur(28px) saturate(180%) brightness(1.04);
-    -webkit-backdrop-filter: blur(28px) saturate(180%) brightness(1.04);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.90),
-      0 4px 24px rgba(0, 0, 0, 0.10),
-      0 1px 6px rgba(0, 0, 0, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.55);
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+    border: none;
   }
   .dark .glass-toolbar-mobile {
-    background: rgba(15, 23, 42, 0.80);
-    backdrop-filter: blur(28px) saturate(160%) brightness(0.95);
-    -webkit-backdrop-filter: blur(28px) saturate(160%) brightness(0.95);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      inset 0 -0.5px 0 rgba(0, 0, 0, 0.45),
-      0 4px 24px rgba(0, 0, 0, 0.45),
-      0 2px 8px rgba(0, 0, 0, 0.28);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+    border: none;
+  }
+}
+
+/* ── EntityDashboard mobile : scroll sous la tab bar flottante ── */
+@media (max-width: 767px) {
+  .entity-tabs-content.overflow-y-auto {
+    padding-bottom: calc(49px + 0.75rem + 0.75rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* ── SettingsPanel mobile : scroll sous la tab bar flottante ── */
+/* Ajoute padding-bottom dans tous les conteneurs scrollables des onglets,
+   pour que le dernier élément ne soit pas masqué derrière la pill tab bar. */
+@media (max-width: 767px) {
+  .settings-tabs-content .flex-1.overflow-y-auto,
+  .settings-tabs-content .flex-1.overflow-auto {
+    padding-bottom: calc(61px + env(safe-area-inset-bottom));
   }
 }
 

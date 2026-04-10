@@ -169,94 +169,50 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
   return (
     <>
       <div
-        className={`hig-overlay-enter fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center ${isMaximized ? 'items-stretch' : 'items-start p-4 overflow-y-auto'}`}
+        className={`hig-overlay-enter fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center ${isMaximized ? 'items-stretch' : 'items-stretch md:items-start md:p-4 md:overflow-y-auto'}`}
         onClick={e => e.target === e.currentTarget && onClose()}
       >
-        <div className={`hig-modal-enter glass-panel shadow-2xl w-full border border-white/45 dark:border-white/[0.09] overflow-hidden flex flex-col ${isMaximized ? '' : 'max-w-4xl rounded-2xl my-4 max-h-[calc(100dvh-4rem)]'}`}>
+        <div className={`hig-modal-enter glass-panel shadow-2xl w-full border border-white/45 dark:border-white/[0.09] overflow-hidden flex flex-col relative ${isMaximized ? '' : 'md:max-w-4xl md:rounded-2xl md:my-4 md:max-h-[calc(100dvh-4rem)]'}`}>
 
-          {/* ── En-tête ── */}
-          <div className="flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border-t border-white/30 dark:border-slate-700/40 md:border-t-0 md:border-b shrink-0 order-last md:order-first" style={isMaximized ? { paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' } : undefined}>
-            <BarChart2 size={18} className="hidden md:block text-violet-500" />
-            <span className="hidden md:block font-semibold text-slate-800 dark:text-slate-100 text-base">
+          {/* ── En-tête desktop ── */}
+          <div className="hidden md:flex items-center gap-2 px-4 py-3 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border-b border-white/30 dark:border-slate-700/40 shrink-0">
+            <BarChart2 size={18} className="text-violet-500" />
+            <span className="font-semibold text-slate-800 dark:text-slate-100 text-base">
               Dashboard entités
             </span>
             {!loading && data && (
-              <span className="hidden md:inline text-xs text-slate-400 dark:text-slate-500 ml-1">
+              <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">
                 — {data.by_type.length} types
               </span>
             )}
-
-            {/* Toggle Liste / Carte */}
             {!loading && data && data.by_type.length > 0 && (
-              <div className="flex-1 md:flex-none md:ml-auto md:mr-2 flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <button
-                  onClick={() => setViewMode('list')}
-                  title="Vue liste"
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 sm:px-3 py-3 sm:py-1.5 text-sm sm:text-xs font-medium transition-colors ${
-                    viewMode === 'list'
-                      ? 'bg-violet-500 text-white'
-                      : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <List size={16} />
-                  <span>Liste</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('map')}
-                  title="Vue carte du monde"
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 sm:px-3 py-3 sm:py-1.5 text-sm sm:text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${
-                    viewMode === 'map'
-                      ? 'bg-violet-500 text-white'
-                      : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <Map size={16} />
-                  <span>Carte</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('gallery')}
-                  title="Galerie d'images Wikipedia"
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 sm:px-3 py-3 sm:py-1.5 text-sm sm:text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${
-                    viewMode === 'gallery'
-                      ? 'bg-violet-500 text-white'
-                      : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <Images size={16} />
-                  <span>Galerie</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('timeline')}
-                  title="Évolution temporelle des entités"
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 sm:px-3 py-3 sm:py-1.5 text-sm sm:text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${
-                    viewMode === 'timeline'
-                      ? 'bg-violet-500 text-white'
-                      : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <TrendingUp size={16} />
-                  <span>Timeline</span>
-                </button>
+              <div className="ml-auto mr-2 flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <button onClick={() => setViewMode('list')} title="Vue liste" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors ${viewMode === 'list' ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><List size={14} /><span>Liste</span></button>
+                <button onClick={() => setViewMode('map')} title="Vue carte" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${viewMode === 'map' ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><Map size={14} /><span>Carte</span></button>
+                <button onClick={() => setViewMode('gallery')} title="Galerie" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${viewMode === 'gallery' ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><Images size={14} /><span>Galerie</span></button>
+                <button onClick={() => setViewMode('timeline')} title="Timeline" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${viewMode === 'timeline' ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><TrendingUp size={14} /><span>Timeline</span></button>
               </div>
             )}
+            <button onClick={() => setIsMaximized(m => !m)} title={isMaximized ? 'Réduire' : 'Agrandir'} className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors">{isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+            <button onClick={onClose} className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors"><X size={14} /></button>
+          </div>
 
-            <button
-              onClick={() => setIsMaximized(m => !m)}
-              title={isMaximized ? 'Réduire la fenêtre' : 'Agrandir à la taille de l\'écran'}
-              className="shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors"
-            >
-              {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
-            <button
-              onClick={onClose}
-              className="shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors"
-            >
-              <X size={16} />
-            </button>
+          {/* ── Tab bar mobile — floating pill transparent ── */}
+          <div
+            className="md:hidden absolute bottom-0 left-0 right-0 z-[1100] flex flex-col"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          >
+            <div className="flex items-stretch mx-3 mb-3 h-[49px] rounded-2xl overflow-hidden glass-nav">
+              <button onClick={() => setViewMode('list')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'list' ? 'text-violet-500 dark:text-violet-400' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'list' && <span className="nav-active-pill" />}<List size={20} strokeWidth={viewMode === 'list' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Liste</span></button>
+              <button onClick={() => setViewMode('map')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'map' ? 'text-violet-500 dark:text-violet-400' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'map' && <span className="nav-active-pill" />}<Map size={20} strokeWidth={viewMode === 'map' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Carte</span></button>
+              <button onClick={() => setViewMode('gallery')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'gallery' ? 'text-violet-500 dark:text-violet-400' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'gallery' && <span className="nav-active-pill" />}<Images size={20} strokeWidth={viewMode === 'gallery' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Galerie</span></button>
+              <button onClick={() => setViewMode('timeline')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'timeline' ? 'text-violet-500 dark:text-violet-400' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'timeline' && <span className="nav-active-pill" />}<TrendingUp size={20} strokeWidth={viewMode === 'timeline' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Timeline</span></button>
+              <button onClick={onClose} aria-label="Fermer" className="flex items-center justify-center px-4 text-slate-400 dark:text-slate-500 border-l border-slate-200/60 dark:border-slate-700/50 active:opacity-60 transition-colors"><X size={20} /></button>
+            </div>
           </div>
 
           {/* ── Corps ── */}
-          <div className={`p-4 sm:p-6 flex-1 min-h-0 ${viewMode === 'map' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`}>
+          <div className={`p-4 sm:p-6 flex-1 min-h-0 entity-tabs-content ${viewMode === 'map' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`}>
             {loading ? (
               <div className="flex items-center justify-center py-20 gap-2 text-slate-400 dark:text-slate-500">
                 <Loader2 size={20} className="animate-spin" />

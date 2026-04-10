@@ -819,8 +819,8 @@ export default function App() {
 
       {/* ── Barre de navigation bas — mobile uniquement (Apple HIG: 5 tabs max, labels, verre dépoli) ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-nav border-t border-white/35 dark:border-white/[0.08]"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        className="md:hidden fixed left-3 right-3 z-50 glass-nav rounded-2xl"
+        style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       >
         <div className="flex items-stretch h-[49px]">
 
