@@ -1,3 +1,21 @@
+# 10/04/2026 — Déduplication sémantique dans le contexte Terminal IA (v2.8.2)
+
+## Amélioration — Terminal IA / chatbot
+
+Lors de la lecture de fichiers JSON d'articles, le contexte injecté dans le Terminal IA
+est désormais **dédupliqué sémantiquement** avant d'être envoyé à l'IA.
+
+### `viewer/routes/export.py` — `_format_articles_for_context()`
+
+- **Passe 1 — URL exacte** : les doublons stricts (même URL) sont éliminés
+- **Passe 2 — Similarité Jaccard** : les articles dont les résumés sont quasi-identiques
+  (seuil ≥ 0.80 sur bigrammes de mots normalisés) sont exclus du contexte
+- Utilise les fonctions `_normalize`, `_tokenize`, `_bigrams` de `utils/deduplication.py`
+- Le message d'en-tête du contexte indique désormais le nombre de doublons supprimés :
+  `X article(s) au total — Y uniques (Z doublon(s) sémantique(s) supprimé(s)) — N inclus`
+
+---
+
 # 09/04/2026 — Correction routage Ollama : get_config() obligatoire avant lecture AI_PROVIDER_* (v2.8.1)
 
 ## Bug fix — Ollama ignoré dans le contexte cron Docker

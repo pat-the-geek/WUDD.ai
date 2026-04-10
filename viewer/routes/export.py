@@ -171,6 +171,10 @@ def _format_articles_for_context(articles: list, max_articles: int = 100) -> str
     Chaque article occupe ~500-800 caractères, soit 5 à 10 fois moins que le
     JSON brut équivalent.
 
+    Une déduplication sémantique est appliquée avant le formatage :
+    1. Doublons d'URL exacte éliminés.
+    2. Articles au résumé quasi-identique éliminés (similarité Jaccard ≥ 0.80).
+
     Args:
         articles:     Liste de dicts article (format WUDD.ai).
         max_articles: Nombre maximum d'articles à inclure.
@@ -180,6 +184,7 @@ def _format_articles_for_context(articles: list, max_articles: int = 100) -> str
     """
     # Trier par date décroissante pour conserver les articles les plus récents
     from utils.date_utils import parse_article_date as _parse_article_date
+    from utils.deduplication import _normalize, _tokenize, _bigrams
     def _sort_key(a: dict):
         try:
             return _parse_article_date(a.get("Date de publication", "")) or ""
@@ -187,13 +192,51 @@ def _format_articles_for_context(articles: list, max_articles: int = 100) -> str
             return ""
     sorted_articles = sorted(articles, key=_sort_key, reverse=True)
 
-    total = len(articles)
+    # ── Déduplication sémantique ─────────────────────────────────────────────
+    # Seuil de similarité Jaccard sur les bigrammes du résumé
+    _SIM_THRESHOLD = 0.80
+
+    seen_urls: set[str] = set()
+    seen_bigrams: list[frozenset] = []
+    deduped: list[dict] = []
+
+    for art in sorted_articles:
+        url = (art.get("URL") or "").strip()
+        # 1. Doublon d'URL exact
+        if url:
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
+
+        # 2. Similarité sémantique sur le résumé
+        resume = (art.get("Résumé") or "").strip()
+        if resume:
+            tokens = _tokenize(_normalize(resume))
+            bg = _bigrams(tokens)
+            if bg:  # ne comparer que si on a des bigrammes valides
+                is_dup = False
+                for ref_bg in seen_bigrams:
+                    union = ref_bg | bg
+                    if union:
+                        jaccard = len(ref_bg & bg) / len(union)
+                        if jaccard >= _SIM_THRESHOLD:
+                            is_dup = True
+                            break
+                if is_dup:
+                    continue
+                seen_bigrams.append(bg)
+
+        deduped.append(art)
+
+    duplicates_removed = len(sorted_articles) - len(deduped)
+    total = len(deduped)
     shown = min(total, max_articles)
+    dedup_note = f" ({duplicates_removed} doublon(s) sémantique(s) supprimé(s))" if duplicates_removed else ""
     lines: list[str] = [
-        f"*{total} article(s) au total — {shown} les plus récents inclus dans le contexte.*",
+        f"*{len(articles)} article(s) au total — {total} uniques{dedup_note} — {shown} les plus récents inclus dans le contexte.*",
         "",
     ]
-    for i, art in enumerate(sorted_articles[:max_articles], 1):
+    for i, art in enumerate(deduped[:max_articles], 1):
         date    = art.get("Date de publication", "?")
         src     = art.get("Sources", "?")
         url     = art.get("URL", "")
