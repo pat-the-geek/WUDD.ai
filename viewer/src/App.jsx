@@ -828,12 +828,13 @@ export default function App() {
           <button
             onClick={() => setSidebarOpen(v => !v)}
             title="Fichiers"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
+            className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               sidebarOpen || selectedFile
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
+            {(sidebarOpen || selectedFile) && <span className="nav-active-pill" />}
             <Menu size={24} strokeWidth={sidebarOpen || selectedFile ? 2.2 : 1.8} />
             <span className="text-[11px] font-medium leading-none">Fichiers</span>
           </button>
@@ -842,12 +843,13 @@ export default function App() {
           <button
             onClick={() => setTopOpen(true)}
             title="Top articles"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
+            className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               topOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
+            {topOpen && <span className="nav-active-pill" />}
             <Star size={24} strokeWidth={topOpen ? 2.2 : 1.8} />
             <span className="text-[11px] font-medium leading-none">Top</span>
           </button>
@@ -856,12 +858,13 @@ export default function App() {
           <button
             onClick={() => { setSearchTypeMenuOpen(true) }}
             title="Recherche"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
+            className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               searchOpen || searchTypeMenuOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
+            {(searchOpen || searchTypeMenuOpen) && <span className="nav-active-pill" />}
             <span className="relative">
               <Search size={24} strokeWidth={searchOpen || searchTypeMenuOpen ? 2.2 : 1.8} />
               {mobileFiltersActive && (
@@ -875,12 +878,13 @@ export default function App() {
           <button
             onClick={() => setDashboardOpen(true)}
             title="Dashboard entités"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
+            className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               dashboardOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
+            {dashboardOpen && <span className="nav-active-pill" />}
             <BarChart2 size={24} strokeWidth={dashboardOpen ? 2.2 : 1.8} />
             <span className="text-[11px] font-medium leading-none">Entités</span>
           </button>
@@ -889,12 +893,13 @@ export default function App() {
           <button
             onClick={() => setSettingsOpen(true)}
             title="Réglages"
-            className={`flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
+            className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               settingsOpen
                 ? 'text-[#007AFF] dark:text-[#0A84FF]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
+            {settingsOpen && <span className="nav-active-pill" />}
             <span className="relative">
               <Settings size={24} strokeWidth={settingsOpen ? 2.2 : 1.8} />
               {rssStatus?.running ? (
