@@ -540,6 +540,7 @@ class EurIAClient:
         backoff_factor: float = 2.0,
         max_tokens: Optional[int] = None,
         enable_web_search: Optional[bool] = None,
+        system_message: Optional[str] = None,
     ) -> str:
         """Envoie un prompt à l'API EurIA et retourne la réponse.
 
@@ -553,6 +554,9 @@ class EurIAClient:
             backoff_factor: Facteur multiplicateur pour le backoff entre tentatives (défaut: 2.0)
             max_tokens: Nombre maximal de tokens en sortie (None = valeur par défaut de l'API)
             enable_web_search: Surcharge l'activation de la recherche web (None = valeur de l'instance)
+            system_message: Message système optionnel à préfixer avant le message utilisateur
+                            (rôle "system"). Utile pour imposer une contrainte de langue aux
+                            modèles locaux (ex. Ollama).
         
         Returns:
             La réponse textuelle de l'API, nettoyée des espaces superflus.
@@ -568,8 +572,12 @@ class EurIAClient:
             return "Erreur: Prompt invalide"
         
         _enable_web_search = self.enable_web_search if enable_web_search is None else enable_web_search
+        messages = []
+        if system_message:
+            messages.append({"role": "system", "content": system_message})
+        messages.append({"content": prompt, "role": "user"})
         data = {
-            "messages": [{"content": prompt, "role": "user"}],
+            "messages": messages,
             "model": self.model,
         }
         # enable_web_search n'est supporté que par l'ancien endpoint /euria/v1/
@@ -1712,6 +1720,11 @@ class OllamaClient(EurIAClient):
         self._ollama_model = model
         default_logger.info(f"[OllamaClient] Initialisé — modèle={model}, endpoint={url}")
 
+    # Message système injecté dans tous les appels Ollama pour forcer le français
+    _SYSTEM_FRENCH = (
+        "Tu réponds toujours en français, quelle que soit la langue du texte analysé."
+    )
+
     # ── Surcharge ask() pour tracer les appels dans les logs ─────────────────
 
     def ask(
@@ -1721,17 +1734,21 @@ class OllamaClient(EurIAClient):
         timeout: int = 60,
         max_tokens: int = 800,
         enable_web_search: Optional[bool] = None,
+        system_message: Optional[str] = None,
     ) -> str:
         default_logger.info(
             f"[Ollama/{self._ollama_model}] ask() — {len(prompt)} cars, "
             f"max_tokens={max_tokens}, timeout={timeout}s"
         )
+        # Injecter le message système français si aucun message système n'est fourni
+        effective_system = system_message if system_message is not None else self._SYSTEM_FRENCH
         result = super().ask(
             prompt,
             max_attempts=max_attempts,
             timeout=timeout,
             max_tokens=max_tokens,
             enable_web_search=False,   # Toujours False pour Ollama
+            system_message=effective_system,
         )
         default_logger.info(
             f"[Ollama/{self._ollama_model}] Réponse reçue — {len(result)} cars"
@@ -1764,7 +1781,8 @@ class OllamaClient(EurIAClient):
             f"Texte à analyser :\n{text_truncated}"
         )
         # max_tokens=800 au lieu de 600 : Ollama est local, pas de surcoût
-        raw = EurIAClient.ask(self, prompt, timeout=timeout, max_tokens=800)
+        # self.ask() (et non EurIAClient.ask()) pour bénéficier du message système français
+        raw = self.ask(prompt, timeout=timeout, max_tokens=800)
         default_logger.info(f"[Ollama/{self._ollama_model}] Réponse brute résumé+sentiment — {len(raw)} cars")
         result = _parse_summary_sentiment_response(raw)
         if not result or "resume" not in result:
