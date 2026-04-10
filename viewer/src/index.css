@@ -1,6 +1,8 @@
 /* ── Polices auto-hébergées (aucune dépendance réseau) ── */
 /* Inter Variable : UI + contenu — lisible sur toutes les plateformes (fallback si SF Pro absent) */
 @import '@fontsource-variable/inter';
+/* Literata Variable : police de lecture — conçue pour la lecture longue sur écran (Google Play Books) */
+@import '@fontsource-variable/literata';
 
 @tailwind base;
 @tailwind components;
