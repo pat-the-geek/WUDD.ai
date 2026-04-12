@@ -122,7 +122,7 @@ export function EntityHighlighterSegments({ text, entities, onEntityClick }) {
  */
 export default function EntityHighlighter({ text, entities, className = '', onEntityClick }) {
   return (
-    <p className={`font-reading leading-7 text-slate-700 dark:text-slate-300 ${className}`}>
+    <p className={`font-reading leading-7 text-lg text-slate-700 dark:text-slate-300 ${className}`}>
       <EntityHighlighterSegments text={text} entities={entities} onEntityClick={onEntityClick} />
     </p>
   )

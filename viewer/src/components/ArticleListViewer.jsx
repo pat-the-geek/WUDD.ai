@@ -172,12 +172,12 @@ function getDateBucket(raw) {
 /** Surligne les occurrences de `query` dans `text` (plain text, sans NER). */
 function SearchHighlighter({ text, query }) {
   if (!query || !text) {
-    return <p className="font-reading leading-7 text-slate-700 dark:text-slate-300">{text}</p>
+    return <p className="font-reading leading-7 text-lg text-slate-700 dark:text-slate-300">{text}</p>
   }
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const parts = text.split(new RegExp(`(${escaped})`, 'gi'))
   return (
-    <p className="font-reading leading-7 text-base text-slate-700 dark:text-slate-300">
+    <p className="font-reading leading-7 text-lg text-slate-700 dark:text-slate-300">
       {parts.map((part, i) =>
         part.toLowerCase() === query.toLowerCase()
           ? <mark key={i} className="bg-yellow-200 dark:bg-yellow-700/60 text-yellow-900 dark:text-yellow-100 rounded px-0.5">{part}</mark>
@@ -812,7 +812,7 @@ function TimelineItem({ article }) {
             {titre}
           </p>
         )}
-        <p className="font-reading text-base text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+        <p className="font-reading text-lg text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
           {resume.slice(0, 220)}{resume.length > 220 ? '…' : ''}
         </p>
       </div>

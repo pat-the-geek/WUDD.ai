@@ -785,7 +785,7 @@ ${contentEl.innerHTML}
     // Entity highlighting — fonctionne pour les paragraphes purs ET mixtes (bold, liens…)
     // On surligne chaque nœud texte inline individuellement
     p: ({ children }) => (
-      <p className="font-reading text-base text-slate-700 dark:text-slate-300 mb-4 leading-7">
+      <p className="font-reading text-lg text-slate-700 dark:text-slate-300 mb-4 leading-7">
         {hiliteChildren(children)}
       </p>
     ),
@@ -833,7 +833,7 @@ ${contentEl.innerHTML}
       <ol className="list-decimal text-slate-700 dark:text-slate-300 mb-4 space-y-1 ml-5">{children}</ol>
     ),
     li: ({ children }) => (
-      <li className="font-reading text-base text-slate-700 dark:text-slate-300 leading-relaxed">{hiliteChildren(children)}</li>
+      <li className="font-reading text-lg text-slate-700 dark:text-slate-300 leading-relaxed">{hiliteChildren(children)}</li>
     ),
     blockquote: ({ children }) => (
       <blockquote className="border-l-4 border-blue-500/60 pl-4 italic text-slate-500 dark:text-slate-400 my-4">
