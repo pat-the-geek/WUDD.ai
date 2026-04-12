@@ -19,6 +19,8 @@ import re
 from flask import Blueprint, jsonify, request, Response, stream_with_context, abort
 from pathlib import Path
 
+from utils.mermaid_utils import fix_mermaid_classdefs
+
 from viewer.helpers import PROJECT_ROOT
 from viewer.state import _annotations_lock
 from utils.article_index import get_article_index
@@ -869,7 +871,7 @@ def api_export_report():
             index      = {}
 
         out_path = save_dir / safe_name
-        out_path.write_text(markdown, encoding="utf-8")
+        out_path.write_text(fix_mermaid_classdefs(markdown), encoding="utf-8")
 
         # Mettre à jour l'index de déduplication
         if target == "obsidian" and resume_md5 and index_path is not None:

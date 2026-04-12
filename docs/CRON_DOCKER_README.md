@@ -76,9 +76,9 @@ flowchart TB
     J3 --> L3
     J3 -->|Échec détecté| SMTP
 
-    classDef job fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    classDef log fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px
-    classDef alert fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef job fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#333333
+    classDef log fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px,color:#333333
+    classDef alert fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#333333
     class J1,J2,J3 job
     class L1,L2,L3 log
     class SMTP alert
@@ -176,8 +176,8 @@ flowchart TD
     ALERT_INACTIF --> SEND_MAIL["Envoi mail SMTP\n(variables .env)"]
     ALERT_ERR --> SEND_MAIL
 
-    classDef ok fill:#e8f5e9,stroke:#388e3c
-    classDef err fill:#ffebee,stroke:#c62828
+    classDef ok fill:#e8f5e9,stroke:#388e3c,color:#333333
+    classDef err fill:#ffebee,stroke:#c62828,color:#333333
     class OK ok
     class ALERT_INACTIF,ALERT_ERR,SEND_MAIL err
 ```

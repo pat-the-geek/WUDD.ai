@@ -72,11 +72,11 @@ flowchart TD
     UTILS --> U6["logging.py"]
     UTILS --> U7["parallel.py"]
 
-    classDef dir fill:#f5f5f5,stroke:#9e9e9e
-    classDef script fill:#e8f5e9,stroke:#388e3c,stroke-width:1px
-    classDef config fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
-    classDef data fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px
-    classDef viewer fill:#fff3e0,stroke:#e65100,stroke-width:1px
+    classDef dir fill:#f5f5f5,stroke:#9e9e9e,color:#333333
+    classDef script fill:#e8f5e9,stroke:#388e3c,stroke-width:1px,color:#333333
+    classDef config fill:#e3f2fd,stroke:#1565c0,stroke-width:1px,color:#333333
+    classDef data fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px,color:#333333
+    classDef viewer fill:#fff3e0,stroke:#e65100,stroke-width:1px,color:#333333
     class ROOT,SCRIPTS,CONFIG,DATA,RAPPORTS,DOCS,UTILS,TESTS,ARCHIVES,SAMPLES,VIEWER dir
     class V1,V2,V3 viewer
     class S1,S2,S3,S4,S5,S6,S7 script
@@ -252,10 +252,10 @@ flowchart LR
     KW --> KWSCRIPT
     KWSCRIPT --> JSONKW
 
-    classDef in fill:#e1f5ff,stroke:#0288d1
-    classDef proc fill:#fff3e0,stroke:#f57c00
-    classDef store fill:#f3e5f5,stroke:#7b1fa2
-    classDef out fill:#e8f5e9,stroke:#388e3c
+    classDef in fill:#e1f5ff,stroke:#0288d1,color:#333333
+    classDef proc fill:#fff3e0,stroke:#f57c00,color:#333333
+    classDef store fill:#f3e5f5,stroke:#7b1fa2,color:#333333
+    classDef out fill:#e8f5e9,stroke:#388e3c,color:#333333
     class FLUX,OPML,KW in
     class ETL,SCHED,KWSCRIPT proc
     class JSON,JSONKW,CACHE store

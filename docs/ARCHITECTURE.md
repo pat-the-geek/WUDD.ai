@@ -127,12 +127,12 @@ flowchart TB
     REACT --> ENTITY_DASH
     REACT --> ENTITY_GRAPH
 
-    classDef source fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
-    classDef process fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef ai fill:#e8f5e9,stroke:#388e3c,stroke-width:3px
-    classDef util fill:#fce4ec,stroke:#c62828,stroke-width:1px
-    classDef viewer fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef source fill:#e1f5ff,stroke:#0288d1,stroke-width:2px,color:#333333
+    classDef process fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#333333
+    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#333333
+    classDef ai fill:#e8f5e9,stroke:#388e3c,stroke-width:3px,color:#333333
+    classDef util fill:#fce4ec,stroke:#c62828,stroke-width:1px,color:#333333
+    classDef viewer fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#333333
     class F1,F2,FN,RSS source
     class COLLECT,EXTRACT,IMAGES process
     class JOUT,CACHE,MDOUT,PDF,GEOCACHE,IMGCACHE,RADAR_OUT storage
@@ -162,8 +162,8 @@ flowchart LR
     S2 --> D2["data/articles/Tech-numerique/"]
     S2 --> C2["data/articles/Tech-numerique/cache/"]
     S2 --> R2["rapports/markdown/Tech-numerique/"]
-    classDef flux fill:#fff9c4,stroke:#f9a825,stroke-width:2px
-    classDef data fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px
+    classDef flux fill:#fff9c4,stroke:#f9a825,stroke-width:2px,color:#333333
+    classDef data fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px,color:#333333
     class S1,S2,SN flux
     class D1,D2,C1,C2,R1,R2 data
 ```
@@ -329,10 +329,10 @@ flowchart LR
     KW_REPORT --> API
     RADAR --> API
 
-    classDef auto fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    classDef enrich fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    classDef analysis fill:#fce4ec,stroke:#c62828,stroke-width:1px
-    classDef lib fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
+    classDef auto fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#333333
+    classDef enrich fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#333333
+    classDef analysis fill:#fce4ec,stroke:#c62828,stroke-width:1px,color:#333333
+    classDef lib fill:#e3f2fd,stroke:#1565c0,stroke-width:1px,color:#333333
     class SCHED,MAIN,KW,HEALTH auto
     class ENRICH,REPAIR enrich
     class TH,RADAR,KW_REPORT,MD analysis
@@ -764,10 +764,10 @@ flowchart LR
     DASH --> MAP
     DASH --> GALLERY
 
-    classDef collect fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    classDef posthoc fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    classDef store fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef viewer fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef collect fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#333333
+    classDef posthoc fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#333333
+    classDef store fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#333333
+    classDef viewer fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#333333
     class GET,MAIN2 collect
     class ENRICH2,REPAIR2 posthoc
     class JSON_ENT store
@@ -857,8 +857,8 @@ flowchart LR
     API_DEL --> FILEVIEW
     API_SCRIPT --> SCRIPT_CON
 
-    classDef be fill:#fff3e0,stroke:#f57c00,stroke-width:1px
-    classDef fe fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
+    classDef be fill:#fff3e0,stroke:#f57c00,stroke-width:1px,color:#333333
+    classDef fe fill:#e3f2fd,stroke:#1565c0,stroke-width:1px,color:#333333
     class API_FILES,API_FILE,API_DEL,API_SEARCH,API_ENT,API_ENT_ART,API_GEO,API_IMG,API_COOC,API_INFO,API_SCRIPT,API_SCHED,API_CFG be
     class SIDEBAR,FILEVIEW,JSONVIEW,MDVIEW,SEARCH_OV,SETTINGS,SCHEDPAN,SCRIPT_CON,E_DASH,E_PANEL,E_GRAPH,E_MAP,E_GALL fe
 ```
@@ -1009,8 +1009,8 @@ flowchart TD
     A2 -->|Échec| A3["Tentative 3/3"]
     A3 -->|Échec| RAISE["RuntimeError levée\n(propagée à l'appelant)"]
     RAISE --> FALLBACK["Message d'erreur standardisé\nstocké dans Résumé"]
-    classDef ok fill:#e8f5e9,stroke:#388e3c
-    classDef err fill:#ffebee,stroke:#c62828
+    classDef ok fill:#e8f5e9,stroke:#388e3c,color:#333333
+    classDef err fill:#ffebee,stroke:#c62828,color:#333333
     class RETURN ok
     class FALLBACK,RAISE err
 ```
@@ -1085,7 +1085,7 @@ flowchart TD
     RAPPORTS2 --> KW2["markdown/keyword/<mot-clé>/\n<mot-clé>_rapport_*.md"]
     RAPPORTS2 --> RAD["markdown/radar/\nradar_articles_*.md"]
     RAPPORTS2 --> PDF2["pdf/\n*.pdf"]
-    classDef dir fill:#f5f5f5,stroke:#9e9e9e
+    classDef dir fill:#f5f5f5,stroke:#9e9e9e,color:#333333
     class ROOT,SCRIPTS,CONFIG2,DATA2,RAPPORTS2,UTILS2,VIEWER2,ARCHIVES2,TESTS2,ART,ARSS,GEO,RAW2,MD3,KW2,RAD,PDF2 dir
 ```
 

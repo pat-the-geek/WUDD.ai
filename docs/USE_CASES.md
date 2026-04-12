@@ -114,9 +114,9 @@ flowchart TD
         V1 --> V2 --> V3 --> V4
     end
 
-    classDef auto fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px
-    classDef viewer fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef auto fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#333333
+    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px,color:#333333
+    classDef viewer fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#333333
     class START,SCHED,FETCH,FILTER,HTML,EURIA1,NER,IMG,RAPPORT auto
     class JSON_OUT,MD storage
     class VIEWER,V1,V2,V3,V4 viewer
@@ -206,9 +206,9 @@ flowchart LR
     PANEL --> ART[Articles mentionnant\ncette zone géographique]
     ART --> EXPORT[Exporte JSON\nou génère rapport MD]
 
-    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
-    classDef api fill:#fff3e0,stroke:#f57c00,stroke-width:1px
-    classDef cache fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:1px,color:#333333
+    classDef api fill:#fff3e0,stroke:#f57c00,stroke-width:1px,color:#333333
+    classDef cache fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px,color:#333333
     class DASH,MAP,PANEL,ART,EXPORT ui
     class API1,GEO,WIKI api
     class CHECK,STORE,HIT cache
@@ -377,8 +377,8 @@ flowchart TD
     ART --> READ[Lecture resume\nscroll vertical]
     READ --> DONE([Briefing termine\nReunion prete])
 
-    classDef mobile fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
-    classDef entity fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px
+    classDef mobile fill:#e3f2fd,stroke:#1565c0,stroke-width:1px,color:#333333
+    classDef entity fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px,color:#333333
     class U,NAV,CARD,ART,READ,DONE mobile
     class DASH,LISTE,CARTE,GALERIE,MARKER,IMG entity
 ```
@@ -435,10 +435,10 @@ rapport_48h.md — remplacé chaque jour]
     SAVE --> VIEWER[Consultable dans le Viewer
 Rendu Markdown avec images]
 
-    classDef auto fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px
-    classDef report fill:#fff3e0,stroke:#f57c00,stroke-width:1px
-    classDef viewer fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef auto fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#333333
+    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px,color:#333333
+    classDef report fill:#fff3e0,stroke:#f57c00,stroke-width:1px,color:#333333
+    classDef viewer fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#333333
     class CRON,SCRIPT,READ,COUNT,SELECT,PROMPT,EURIA,CLEAN auto
     class SAVE storage
     class S0,S1,S2,S3,S4,S5 report
@@ -862,10 +862,10 @@ flowchart TD
 
     SAVE --> B1
 
-    classDef auto fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    classDef ext fill:#fff3e0,stroke:#f57c00,stroke-width:1px
-    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px
-    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef auto fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#333333
+    classDef ext fill:#fff3e0,stroke:#f57c00,stroke-width:1px,color:#333333
+    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px,color:#333333
+    classDef ui fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#333333
     class CRON,READ,LOOP,COMPOSITE,SCORING,TOP auto
     class WHOIS,HTTP,MBFC ext
     class AGE,TRANSP,MBFC_S,SAVE storage
