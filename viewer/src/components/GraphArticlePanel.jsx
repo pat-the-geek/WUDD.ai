@@ -11,11 +11,12 @@
  */
 import { useState, useEffect } from 'react'
 import {
-  X, Tag, Clock, ExternalLink, FileText, Maximize2, ChevronUp, ChevronDown, Loader2, Youtube,
+  X, Tag, Clock, ExternalLink, FileText, Maximize2, ChevronUp, ChevronDown, Loader2, Youtube, Images,
 } from 'lucide-react'
 import EntityHighlighter from './EntityHighlighter'
 import ArticleFullReportDialog from './ArticleFullReportDialog'
 import YouTubePanel from './YouTubePanel'
+import ArticleGalleryPanel from './ArticleGalleryPanel'
 
 // ── Utilitaires date ──────────────────────────────────────────────────────────
 function parseArticleDate(raw) {
@@ -126,6 +127,7 @@ export default function GraphArticlePanel({ article: partialArticle, filePath, o
   const [expanded,   setExpanded]   = useState(true)
   const [reportOpen, setReportOpen] = useState(false)
   const [youtubeOpen, setYoutubeOpen] = useState(false)
+  const [galleryOpen, setGalleryOpen] = useState(false)
 
   // URL canonique : le nœud graphe envoie soit la clé française 'URL' soit 'url'
   const canonicalUrl = partialArticle?.['URL'] ?? partialArticle?.url ?? ''
@@ -306,6 +308,12 @@ export default function GraphArticlePanel({ article: partialArticle, filePath, o
                 {url && (
                   <>
                     <button
+                      onClick={() => setGalleryOpen(true)}
+                      className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+                    >
+                      <Images size={13} /> Galerie
+                    </button>
+                    <button
                       onClick={() => setYoutubeOpen(true)}
                       className="flex items-center gap-1 text-xs text-rose-400 hover:text-[#FF0000] dark:hover:text-[#FF453A] transition-colors"
                     >
@@ -355,6 +363,13 @@ export default function GraphArticlePanel({ article: partialArticle, filePath, o
           Sources:  (article ?? partialArticle)?.['Sources'] ?? '',
         }}
         onClose={() => setYoutubeOpen(false)}
+      />
+    )}
+    {galleryOpen && (
+      <ArticleGalleryPanel
+        article={article ?? partialArticle}
+        filePath={filePath}
+        onClose={() => setGalleryOpen(false)}
       />
     )}
     </>
