@@ -782,7 +782,9 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
 }
 
 /** Ligne compacte pour la vue timeline. */
-function TimelineItem({ article }) {
+function TimelineItem({ article, filePath }) {
+  const [galleryOpen, setGalleryOpen] = useState(false)
+  const url = article['URL'] ?? article.url ?? ''
   const titre = article['Titre']?.trim() || ''
   const resume = article['Résumé'] ?? ''
   const entities = article.entities ?? null
@@ -815,12 +817,21 @@ function TimelineItem({ article }) {
           )}
           <ReadingTimeBadge article={article} />
           <SentimentBadge article={article} />
-          {article['URL'] && (
-            <a href={article['URL']} target="_blank" rel="noopener noreferrer"
-              className="ml-auto shrink-0 text-slate-300 dark:text-slate-600 hover:text-[#007AFF] dark:hover:text-[#0A84FF] opacity-0 group-hover:opacity-100 transition-all"
-              title="Ouvrir l'article">
-              <ExternalLink size={12} />
-            </a>
+          {url && (
+            <div className="ml-auto shrink-0 flex items-center gap-2">
+              <button
+                onClick={() => setGalleryOpen(true)}
+                className="inline-flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300"
+                title="Galerie d’images de l’article"
+              >
+                <Images size={12} /> Galerie
+              </button>
+              <a href={url} target="_blank" rel="noopener noreferrer"
+                className="text-slate-300 dark:text-slate-600 hover:text-[#007AFF] dark:hover:text-[#0A84FF]"
+                title="Ouvrir l'article">
+                <ExternalLink size={12} />
+              </a>
+            </div>
           )}
         </div>
         {titre && (
@@ -831,6 +842,13 @@ function TimelineItem({ article }) {
         <p className="font-reading text-lg text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
           {resume.slice(0, 220)}{resume.length > 220 ? '…' : ''}
         </p>
+        {galleryOpen && (
+          <ArticleGalleryPanel
+            article={article}
+            filePath={filePath}
+            onClose={() => setGalleryOpen(false)}
+          />
+        )}
       </div>
     </div>
   )
@@ -1558,7 +1576,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
               {/* Items */}
               <div className="ml-1">
                 {timelineGroups[bucket].map((article, i) => (
-                  <TimelineItem key={article['URL'] ?? i} article={article} />
+                  <TimelineItem key={article['URL'] ?? i} article={article} filePath={filePath} />
                 ))}
               </div>
             </div>
