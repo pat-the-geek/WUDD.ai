@@ -14,9 +14,10 @@ import { createPortal } from 'react-dom'
 import {
   X, Maximize2, Minimize2, Copy, Download, Printer,
   RefreshCw, FileText, Check, Terminal, BookOpen, Loader2,
-  Hash, FolderOpen, Youtube,
+  Hash, FolderOpen, Youtube, Images,
 } from 'lucide-react'
 import YouTubePanel from './YouTubePanel'
+import ArticleGalleryPanel from './ArticleGalleryPanel'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
@@ -366,6 +367,7 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
   const [exportState, setExportState]   = useState({ local: null, obsidian: null })
   const [obsidianVault, setObsidianVault] = useState(obsidianVaultProp ?? null)
   const [youtubeOpen, setYoutubeOpen]   = useState(false)
+  const [galleryOpen, setGalleryOpen]   = useState(false)
   // frozenMd : snapshot du markdown au moment où le stream se termine.
   // La FinalReportView est montée avec ce snapshot et ne change plus jamais.
   const [frozenMd,  setFrozenMd]        = useState(null)
@@ -929,6 +931,14 @@ ${contentEl.innerHTML}
             {!isLoading && cleanMd && (
               <>
                 <button
+                  onClick={() => setGalleryOpen(true)}
+                  className="hidden sm:flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-700 hover:bg-cyan-100 dark:hover:bg-cyan-800/40 transition-colors"
+                  title="Galerie d’images de cet article"
+                >
+                  <Images size={12} />
+                  <span className="hidden sm:inline">Galerie</span>
+                </button>
+                <button
                   onClick={() => setYoutubeOpen(true)}
                   className="hidden sm:flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors"
                   title="Vidéos YouTube liées à cet article"
@@ -1138,6 +1148,13 @@ ${contentEl.innerHTML}
         <YouTubePanel
           article={{ titre, entities, Sources: sources }}
           onClose={() => setYoutubeOpen(false)}
+        />
+      )}
+      {galleryOpen && (
+        <ArticleGalleryPanel
+          article={article}
+          filePath={filePath}
+          onClose={() => setGalleryOpen(false)}
         />
       )}
     </>

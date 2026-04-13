@@ -3,8 +3,9 @@
  * Style : cartes article identiques à la vue JSON, grille 2 colonnes, modal large.
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, VolumeX, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut, Terminal, Youtube } from 'lucide-react'
+import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, VolumeX, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut, Terminal, Youtube, Images } from 'lucide-react'
 import YouTubePanel from './YouTubePanel'
+import ArticleGalleryPanel from './ArticleGalleryPanel'
 import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -299,6 +300,7 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
   const [noteOpen, setNoteOpen]           = useState(false)
   const [refreshing, setRefreshing]       = useState(false)
   const [youtubeOpen, setYoutubeOpen]     = useState(false)
+  const [galleryOpen, setGalleryOpen]     = useState(false)
   const [localEnrichment, setLocalEnrichment] = useState(null)
   const [showIAPicker, setShowIAPicker]   = useState(false)
 
@@ -489,6 +491,12 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
             {url && url !== '#' && (
               <>
                 <button
+                  onClick={() => setGalleryOpen(true)}
+                  className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+                  title="Galerie d’images de l’article">
+                  <Images size={12} /> Galerie
+                </button>
+                <button
                   onClick={() => setYoutubeOpen(true)}
                   className="flex items-center gap-1 text-xs text-rose-400 hover:text-[#FF0000] dark:hover:text-[#FF453A] transition-colors"
                   title="Vidéos YouTube liées">
@@ -545,6 +553,13 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
       <YouTubePanel
         article={{ titre: article['Titre'] ?? article['Sources'] ?? '', entities: article.entities ?? {}, Sources: article['Sources'] ?? '' }}
         onClose={() => setYoutubeOpen(false)}
+      />
+    )}
+    {galleryOpen && (
+      <ArticleGalleryPanel
+        article={article}
+        filePath={filePath}
+        onClose={() => setGalleryOpen(false)}
       />
     )}
   </>

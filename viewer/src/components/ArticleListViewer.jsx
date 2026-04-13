@@ -3,9 +3,10 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
   Download, LayoutGrid, AlignLeft, LayoutList, Maximize2, Clock,
-  Star, Eye, EyeOff, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge, FolderOpen, Hash, Youtube,
+  Star, Eye, EyeOff, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge, FolderOpen, Hash, Youtube, Images,
 } from 'lucide-react'
 import YouTubePanel from './YouTubePanel'
+import ArticleGalleryPanel from './ArticleGalleryPanel'
 import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
 import { openInObsidian } from '../utils/obsidian'
@@ -449,6 +450,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
   const [showContradiction, setShowContradiction] = useState(false)
   const [showSimilar, setShowSimilar]             = useState(false)
   const [youtubeOpen, setYoutubeOpen]             = useState(false)
+  const [galleryOpen, setGalleryOpen]             = useState(false)
 
   const displayArticle = localEnrichment ? { ...article, ...localEnrichment } : article
 
@@ -683,6 +685,13 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
             {url && (
               <>
                 <button
+                  onClick={() => setGalleryOpen(true)}
+                  className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+                  title="Galerie d’images de l’article"
+                >
+                  <Images size={12} /> Galerie
+                </button>
+                <button
                   onClick={() => setYoutubeOpen(true)}
                   className="flex items-center gap-1 text-xs text-rose-400 hover:text-[#FF0000] dark:hover:text-[#FF453A] transition-colors"
                   title="Vidéos YouTube liées"
@@ -759,6 +768,13 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
       <YouTubePanel
         article={{ titre: article['Titre'] ?? '', entities: article.entities ?? {}, Sources: article['Sources'] ?? '' }}
         onClose={() => setYoutubeOpen(false)}
+      />
+    )}
+    {galleryOpen && (
+      <ArticleGalleryPanel
+        article={article}
+        filePath={filePath}
+        onClose={() => setGalleryOpen(false)}
       />
     )}
   </>
