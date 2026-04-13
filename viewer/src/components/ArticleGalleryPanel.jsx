@@ -6,7 +6,12 @@ function ImageViewer({ image, onClose }) {
   if (!image) return null
   return (
     <div className="fixed inset-0 z-[251] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <img src={image.URL} alt={image.alt || image.title || 'Image'} className="max-w-full max-h-full object-contain rounded-lg" />
+      <img
+        src={image.URL}
+        alt={image.alt || image.title || 'Image de l’article'}
+        className="max-w-full max-h-full object-contain rounded-lg"
+        onClick={(e) => e.stopPropagation()}
+      />
       <button
         onClick={onClose}
         className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center"
@@ -106,7 +111,7 @@ export default function ArticleGalleryPanel({ article, filePath, onClose }) {
                 <article key={`${img.URL || 'img'}-${idx}`} className="rounded-xl border border-white/10 bg-white/5 overflow-hidden">
                   <button className="w-full text-left" onClick={() => setSelected(img)}>
                     <div className="aspect-video bg-black/50 overflow-hidden">
-                      <img src={img.URL} alt={img.alt || img.title || ''} className="w-full h-full object-cover hover:scale-[1.02] transition-transform" loading="lazy" />
+                      <img src={img.URL} alt={img.alt || img.title || 'Image de l’article'} className="w-full h-full object-cover hover:scale-[1.02] transition-transform" loading="lazy" />
                     </div>
                   </button>
                   <div className="p-3 space-y-1 text-xs text-slate-300">
