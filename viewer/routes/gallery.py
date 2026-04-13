@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import ipaddress
 import json
-import re
 import socket
 from pathlib import Path
 from urllib.parse import urlparse
@@ -15,12 +14,10 @@ from flask import Blueprint, jsonify, request
 
 from utils.article_index import get_article_index
 from utils.http_utils import extract_top_n_largest_images
-from viewer.helpers import PROJECT_ROOT, safe_path
+from viewer.helpers import PROJECT_ROOT
 
 
 gallery_bp = Blueprint("gallery", __name__)
-
-_ALLOWED_JSON_PATH = re.compile(r"^(data|samples)/[A-Za-z0-9_./\- ]+\.json$")
 
 
 def _normalize_url(url: str) -> str:
@@ -75,24 +72,6 @@ def _is_public_http_url(url: str) -> bool:
     return True
 
 
-def _resolve_target(rel_path: str) -> Path | None:
-    """Valide et résout un chemin JSON autorisé sous data/ ou samples/."""
-    if not rel_path:
-        return None
-    rel_path = rel_path.strip().replace("\\", "/")
-    if ".." in rel_path or not _ALLOWED_JSON_PATH.match(rel_path):
-        return None
-
-    try:
-        target = safe_path(rel_path)
-    except Exception:
-        return None
-
-    if target.suffix.lower() != ".json":
-        return None
-    return target
-
-
 def _normalize_gallery(images: list[dict]) -> list[dict]:
     gallery: list[dict] = []
     seen: set[str] = set()
@@ -129,11 +108,9 @@ def _normalize_gallery(images: list[dict]) -> list[dict]:
     return gallery
 
 
-def _collect_target_files(article_url: str, primary: Path | None) -> list[Path]:
+def _collect_target_files(article_url: str) -> list[Path]:
     """Utilise l'index d'articles pour trouver rapidement les fichiers à mettre à jour."""
     targets: list[Path] = []
-    if primary:
-        targets.append(primary)
 
     index = get_article_index(PROJECT_ROOT)
     url_norm = _normalize_url(article_url)
@@ -151,13 +128,13 @@ def _collect_target_files(article_url: str, primary: Path | None) -> list[Path]:
         if candidate not in targets:
             targets.append(candidate)
 
-    return targets
+    return sorted(targets)
 
 
-def _persist_gallery(article_url: str, gallery: list[dict], primary: Path | None, force_refresh: bool) -> list[str]:
+def _persist_gallery(article_url: str, gallery: list[dict], force_refresh: bool) -> list[str]:
     updated_files: list[str] = []
 
-    for target in _collect_target_files(article_url, primary):
+    for target in _collect_target_files(article_url):
         try:
             data = json.loads(target.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -215,12 +192,19 @@ def _find_existing_gallery_in_target(target: Path, article_url: str) -> list[dic
     return None
 
 
+def _find_existing_gallery(article_url: str) -> list[dict] | None:
+    for target in _collect_target_files(article_url):
+        existing = _find_existing_gallery_in_target(target, article_url)
+        if existing:
+            return existing
+    return None
+
+
 @gallery_bp.route("/api/article/gallery", methods=["POST"])
 def api_article_gallery():
     body = request.get_json(force=True, silent=True) or {}
 
     article_url = (body.get("article_url") or body.get("url") or "").strip()
-    rel_path = (body.get("file_path") or "").strip()
     max_images = body.get("max", 12)
     force_refresh = bool(body.get("force_refresh", False))
 
@@ -233,14 +217,12 @@ def api_article_gallery():
         return jsonify({"error": "article_url invalide ou non autorisée"}), 400
 
     # Limiter aux URLs connues du corpus pour éviter un fetch arbitraire.
-    if get_article_index(PROJECT_ROOT).get_by_url(article_url) is None and not rel_path:
+    if get_article_index(PROJECT_ROOT).get_by_url(article_url) is None:
         return jsonify({"error": "article introuvable dans l'index"}), 404
 
-    target = _resolve_target(rel_path) if rel_path else None
-
     # 1) Réutilisation directe si la galerie existe déjà et sans force refresh
-    if target and not force_refresh:
-        existing = _find_existing_gallery_in_target(target, article_url)
+    if not force_refresh:
+        existing = _find_existing_gallery(article_url)
         if existing:
             return jsonify({
                 "ok": True,
@@ -257,7 +239,7 @@ def api_article_gallery():
     gallery = _normalize_gallery(images)
 
     # 3) Persistance dans les JSON contenant l'article
-    updated_files = _persist_gallery(article_url, gallery, target, force_refresh=force_refresh)
+    updated_files = _persist_gallery(article_url, gallery, force_refresh=force_refresh)
 
     return jsonify({
         "ok": True,
