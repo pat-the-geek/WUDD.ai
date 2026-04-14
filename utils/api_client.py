@@ -288,6 +288,63 @@ _TON_VALUES = {"factuel", "alarmiste", "promotionnel", "critique", "analytique"}
 
 _PROMPT_SENTIMENT_TEMPLATE = _SENTIMENT_SYSTEM_INSTRUCTIONS + "\n\nTexte :\n{resume}"
 
+_CHINESE_CHAR_RE = re.compile(
+    r"[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\U00020000-\U0002EBEF]"
+)
+_SUMMARY_REGEN_MAX_ATTEMPTS = 2
+
+
+def _contains_chinese_chars(text: str) -> bool:
+    """Détecte la présence de caractères chinois (CJK Han) dans un texte."""
+    if not isinstance(text, str) or not text:
+        return False
+    return _CHINESE_CHAR_RE.search(text) is not None
+
+
+def _strip_summary_heading(text: str) -> str:
+    """Supprime les titres markdown de type '# Résumé' ajoutés par certains modèles."""
+    if not isinstance(text, str):
+        return ""
+    return re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', text).strip()
+
+
+def _build_summary_prompt(text_truncated: str, max_lines: int, language: str, retry: bool = False) -> str:
+    """Construit un prompt de résumé avec contrainte stricte de langue française."""
+    constraints = (
+        "Contrainte obligatoire: réponds uniquement en français. "
+        "N'utilise aucun caractère chinois (hanzi). "
+        "Ne donne que le résumé, sans commentaire ni remarque."
+    )
+    if retry:
+        constraints = (
+            "Le résumé précédent contenait des caractères chinois. "
+            "Corrige impérativement en produisant une version 100% en français, "
+            "sans aucun caractère chinois. "
+            "Ne donne que le résumé, sans commentaire ni remarque."
+        )
+    return (
+        f"Faire un résumé de ce texte sur maximum {max_lines} lignes en {language}. "
+        f"{constraints} Texte : {text_truncated}"
+    )
+
+
+def _build_combined_user_prompt(text_truncated: str, max_lines: int, language: str, retry: bool = False) -> str:
+    """Construit le message utilisateur pour le mode combiné résumé+sentiment."""
+    if retry:
+        return (
+            f"Le résumé précédent contenait des caractères chinois. "
+            f"Régénère le champ \"resume\" en maximum {max_lines} lignes en {language}, "
+            "strictement en français, sans aucun caractère chinois. "
+            "Conserve le format JSON demandé et ne retourne rien d'autre.\n\n"
+            f"Texte à analyser :\n{text_truncated}"
+        )
+    return (
+        f"Résumé en maximum {max_lines} lignes en {language}. "
+        "Le champ \"resume\" doit être rédigé uniquement en français, "
+        "sans aucun caractère chinois.\n\n"
+        f"Texte à analyser :\n{text_truncated}"
+    )
+
 
 def _parse_sentiment_response(raw: str) -> Optional[dict]:
     """Extrait un dict sentiment/ton depuis une réponse brute de l'API.
@@ -336,6 +393,8 @@ def _parse_sentiment_response(raw: str) -> Optional[dict]:
 _COMBINED_SYSTEM_INSTRUCTIONS = (
     "Tu es un analyseur de contenu journalistique. "
     "Retourne UNIQUEMENT un objet JSON valide — aucun texte avant ou après le JSON.\n\n"
+    "Le champ \"resume\" doit être rédigé exclusivement en français, "
+    "sans aucun caractère chinois (hanzi).\n\n"
     "Champs attendus :\n"
     '- "resume" : résumé du texte (nombre de lignes indiqué dans le message utilisateur), '
     'sans commentaire ni remarque\n'
@@ -715,13 +774,18 @@ class EurIAClient:
             max_lines = get_config().summary_max_lines
         # Tronquer le texte à 15 000 chars pour rester dans les limites de l'API
         text_truncated = text[:15000]
-        prompt = (
-            f"Faire un résumé de ce texte sur maximum {max_lines} lignes en {language}, "
-            f"ne donne que le résumé, sans commentaire ni remarque : {text_truncated}"
-        )
-        result = self.ask(prompt, timeout=timeout, max_tokens=600)
-        # Supprimer le préfixe de titre Markdown que certains modèles ajoutent (ex: "# Résumé\n")
-        result = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', result).strip()
+        prompt = _build_summary_prompt(text_truncated, max_lines, language, retry=False)
+        result = _strip_summary_heading(self.ask(prompt, timeout=timeout, max_tokens=600))
+
+        for regen_attempt in range(1, _SUMMARY_REGEN_MAX_ATTEMPTS + 1):
+            if not _contains_chinese_chars(result):
+                break
+            default_logger.warning(
+                f"Résumé contient des caractères chinois — régénération {regen_attempt}/{_SUMMARY_REGEN_MAX_ATTEMPTS}"
+            )
+            retry_prompt = _build_summary_prompt(text_truncated, max_lines, language, retry=True)
+            result = _strip_summary_heading(self.ask(retry_prompt, timeout=timeout, max_tokens=600))
+
         return result
 
     def generate_entities(
@@ -807,11 +871,7 @@ class EurIAClient:
         if max_lines is None:
             max_lines = get_config().summary_max_lines
         text_truncated = text[:15000]
-        prompt = (
-            f"{_COMBINED_SYSTEM_INSTRUCTIONS}\n\n"
-            f"Résumé en maximum {max_lines} lignes en {language}.\n\n"
-            f"Texte à analyser :\n{text_truncated}"
-        )
+        prompt = f"{_COMBINED_SYSTEM_INSTRUCTIONS}\n\n{_build_combined_user_prompt(text_truncated, max_lines, language)}"
         raw = self.ask(prompt, timeout=timeout, max_tokens=600)
         result = _parse_summary_sentiment_response(raw)
         if not result or "resume" not in result:
@@ -820,8 +880,29 @@ class EurIAClient:
                 "Parsing JSON combiné échoué — extraction du champ resume depuis réponse brute"
             )
             raw_clean = _extract_resume_from_raw(raw)
-            raw_clean = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', raw_clean).strip()
-            return {"resume": raw_clean}
+            raw_clean = _strip_summary_heading(raw_clean)
+            result = {"resume": raw_clean}
+
+        result["resume"] = _strip_summary_heading(result.get("resume", ""))
+
+        for regen_attempt in range(1, _SUMMARY_REGEN_MAX_ATTEMPTS + 1):
+            if not _contains_chinese_chars(result.get("resume", "")):
+                break
+            default_logger.warning(
+                f"Résumé combiné contient des caractères chinois — régénération {regen_attempt}/{_SUMMARY_REGEN_MAX_ATTEMPTS}"
+            )
+            retry_prompt = (
+                f"{_COMBINED_SYSTEM_INSTRUCTIONS}\n\n"
+                f"{_build_combined_user_prompt(text_truncated, max_lines, language, retry=True)}"
+            )
+            retry_raw = self.ask(retry_prompt, timeout=timeout, max_tokens=600)
+            retry_result = _parse_summary_sentiment_response(retry_raw)
+            if not retry_result or "resume" not in retry_result:
+                retry_resume = _strip_summary_heading(_extract_resume_from_raw(retry_raw))
+                retry_result = {"resume": retry_resume}
+            retry_result["resume"] = _strip_summary_heading(retry_result.get("resume", ""))
+            result = retry_result
+
         return result
 
     def synthesize_topic(
@@ -1184,13 +1265,22 @@ class ClaudeClient:
         if max_lines is None:
             max_lines = get_config().summary_max_lines
         text_truncated = text[:15000]
-        prompt = (
-            f"Faire un résumé de ce texte sur maximum {max_lines} lignes en {language}, "
-            f"ne donne que le résumé, sans commentaire ni remarque : {text_truncated}"
+        prompt = _build_summary_prompt(text_truncated, max_lines, language, retry=False)
+        result = _strip_summary_heading(
+            self.ask(prompt, model=self.model_batch, timeout=timeout, max_tokens=600)
         )
-        result = self.ask(prompt, model=self.model_batch, timeout=timeout, max_tokens=600)
-        # Supprimer le préfixe de titre Markdown que certains modèles ajoutent (ex: "# Résumé\n")
-        result = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', result).strip()
+
+        for regen_attempt in range(1, _SUMMARY_REGEN_MAX_ATTEMPTS + 1):
+            if not _contains_chinese_chars(result):
+                break
+            default_logger.warning(
+                f"[Claude] Résumé contient des caractères chinois — régénération {regen_attempt}/{_SUMMARY_REGEN_MAX_ATTEMPTS}"
+            )
+            retry_prompt = _build_summary_prompt(text_truncated, max_lines, language, retry=True)
+            result = _strip_summary_heading(
+                self.ask(retry_prompt, model=self.model_batch, timeout=timeout, max_tokens=600)
+            )
+
         return result
 
     def generate_entities(self, resume: str, timeout: int = 60) -> Optional[dict]:
@@ -1262,10 +1352,7 @@ class ClaudeClient:
         try:
             raw = self.ask_with_cached_system(
                 system_text=_COMBINED_SYSTEM_INSTRUCTIONS,
-                user_text=(
-                    f"Résumé en maximum {max_lines} lignes en {language}.\n\n"
-                    f"Texte à analyser :\n{text_truncated}"
-                ),
+                user_text=_build_combined_user_prompt(text_truncated, max_lines, language),
                 max_attempts=2,
                 timeout=timeout,
                 max_tokens=600,
@@ -1276,8 +1363,35 @@ class ClaudeClient:
                     "[Claude] Parsing JSON combiné échoué — extraction du champ resume depuis réponse brute"
                 )
                 raw_clean = _extract_resume_from_raw(raw)
-                raw_clean = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', raw_clean).strip()
-                return {"resume": raw_clean}
+                raw_clean = _strip_summary_heading(raw_clean)
+                result = {"resume": raw_clean}
+
+            result["resume"] = _strip_summary_heading(result.get("resume", ""))
+
+            for regen_attempt in range(1, _SUMMARY_REGEN_MAX_ATTEMPTS + 1):
+                if not _contains_chinese_chars(result.get("resume", "")):
+                    break
+                default_logger.warning(
+                    f"[Claude] Résumé combiné contient des caractères chinois — régénération {regen_attempt}/{_SUMMARY_REGEN_MAX_ATTEMPTS}"
+                )
+                retry_raw = self.ask_with_cached_system(
+                    system_text=_COMBINED_SYSTEM_INSTRUCTIONS,
+                    user_text=_build_combined_user_prompt(
+                        text_truncated,
+                        max_lines,
+                        language,
+                        retry=True,
+                    ),
+                    max_attempts=2,
+                    timeout=timeout,
+                    max_tokens=600,
+                )
+                retry_result = _parse_summary_sentiment_response(retry_raw)
+                if not retry_result or "resume" not in retry_result:
+                    retry_result = {"resume": _strip_summary_heading(_extract_resume_from_raw(retry_raw))}
+                retry_result["resume"] = _strip_summary_heading(retry_result.get("resume", ""))
+                result = retry_result
+
             return result
         except Exception as e:
             default_logger.warning(f"[Claude] Résumé+sentiment combiné échoué : {e}")
@@ -1775,11 +1889,7 @@ class OllamaClient(EurIAClient):
         if max_lines is None:
             max_lines = get_config().summary_max_lines
         text_truncated = text[:15000]
-        prompt = (
-            f"{_COMBINED_SYSTEM_INSTRUCTIONS}\n\n"
-            f"Résumé en maximum {max_lines} lignes en {language}.\n\n"
-            f"Texte à analyser :\n{text_truncated}"
-        )
+        prompt = f"{_COMBINED_SYSTEM_INSTRUCTIONS}\n\n{_build_combined_user_prompt(text_truncated, max_lines, language)}"
         # max_tokens=800 au lieu de 600 : Ollama est local, pas de surcoût
         # self.ask() (et non EurIAClient.ask()) pour bénéficier du message système français
         raw = self.ask(prompt, timeout=timeout, max_tokens=800)
@@ -1791,8 +1901,29 @@ class OllamaClient(EurIAClient):
                 "— extraction du champ resume depuis réponse brute"
             )
             raw_clean = _extract_resume_from_raw(raw)
-            raw_clean = re.sub(r'^#{1,3}\s*[Rr]é[sc]?umé\s*[:\-]?\s*\n?', '', raw_clean).strip()
-            return {"resume": raw_clean}
+            raw_clean = _strip_summary_heading(raw_clean)
+            result = {"resume": raw_clean}
+
+        result["resume"] = _strip_summary_heading(result.get("resume", ""))
+
+        for regen_attempt in range(1, _SUMMARY_REGEN_MAX_ATTEMPTS + 1):
+            if not _contains_chinese_chars(result.get("resume", "")):
+                break
+            default_logger.warning(
+                f"[Ollama/{self._ollama_model}] Résumé combiné contient des caractères chinois "
+                f"— régénération {regen_attempt}/{_SUMMARY_REGEN_MAX_ATTEMPTS}"
+            )
+            retry_prompt = (
+                f"{_COMBINED_SYSTEM_INSTRUCTIONS}\n\n"
+                f"{_build_combined_user_prompt(text_truncated, max_lines, language, retry=True)}"
+            )
+            retry_raw = self.ask(retry_prompt, timeout=timeout, max_tokens=800)
+            retry_result = _parse_summary_sentiment_response(retry_raw)
+            if not retry_result or "resume" not in retry_result:
+                retry_result = {"resume": _strip_summary_heading(_extract_resume_from_raw(retry_raw))}
+            retry_result["resume"] = _strip_summary_heading(retry_result.get("resume", ""))
+            result = retry_result
+
         return result
 
     @classmethod

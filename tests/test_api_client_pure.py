@@ -15,10 +15,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from utils.api_client import (
+    EurIAClient,
     FallbackClient,
+    _build_summary_prompt,
+    _contains_chinese_chars,
     _parse_entities_response,
     _parse_sentiment_response,
     _parse_summary_sentiment_response,
+    _strip_summary_heading,
     get_ai_client,
 )
 
@@ -350,6 +354,49 @@ class TestParseSummarySentimentResponse:
             raw = json.dumps({"resume": "OK", "ton_editorial": ton})
             result = _parse_summary_sentiment_response(raw)
             assert result.get("ton_editorial") == ton
+
+
+# ─────────────────────────────────────────────────────────────
+# Gardes langue FR / caractères chinois
+# ─────────────────────────────────────────────────────────────
+
+
+class TestSummaryLanguageGuards:
+    """Tests des garde-fous de langue pour les résumés."""
+
+    def test_contains_chinese_chars_true_false(self):
+        assert _contains_chinese_chars("这是一个摘要") is True
+        assert _contains_chinese_chars("Résumé uniquement en français") is False
+
+    def test_strip_summary_heading(self):
+        assert _strip_summary_heading("## Résumé\nTexte final") == "Texte final"
+
+    def test_build_summary_prompt_contains_french_constraints(self):
+        prompt = _build_summary_prompt("texte", max_lines=10, language="français", retry=False)
+        assert "uniquement en français" in prompt
+        assert "aucun caractère chinois" in prompt
+
+    def test_euria_generate_summary_regenerates_when_chinese(self):
+        client = EurIAClient(url="http://localhost", bearer="dummy")
+        with patch.object(
+            EurIAClient,
+            "ask",
+            side_effect=["这是中文摘要", "Résumé final entièrement en français."],
+        ) as ask_mock:
+            result = client.generate_summary("texte source", max_lines=5, timeout=1)
+        assert "Résumé final" in result
+        assert ask_mock.call_count == 2
+
+    def test_euria_generate_summary_no_regeneration_if_french(self):
+        client = EurIAClient(url="http://localhost", bearer="dummy")
+        with patch.object(
+            EurIAClient,
+            "ask",
+            return_value="Résumé valide en français.",
+        ) as ask_mock:
+            result = client.generate_summary("texte source", max_lines=5, timeout=1)
+        assert result == "Résumé valide en français."
+        assert ask_mock.call_count == 1
 
 
 # ─────────────────────────────────────────────────────────────

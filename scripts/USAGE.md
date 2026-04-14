@@ -57,6 +57,7 @@ Ce guide décrit tous les scripts disponibles dans `scripts/`, leur rôle, leurs
 | 44 | [`rebuild_48h.py`](#44-rebuild_48hpy) | Reconstruction 48-heures.json | À la demande |
 | 45 | [`fix_article_dates.py`](#45-fix_article_datespy) | Migration : normalisation des dates | Migration unique |
 | 46 | [`Get_htmlText_From_JSONFile.py`](#46-get_htmltext_from_jsonfilepy) | Extraction texte brut (GUI) | À la demande |
+| 47 | [`rename_obsidian_reports.py`](#47-rename_obsidian_reportspy) | Renommage des rapports Obsidian | À la demande |
 
 ---
 
@@ -1139,6 +1140,53 @@ python3 scripts/Get_htmlText_From_JSONFile.py
 ```
 
 **Sortie** : `data/raw/all_articles.txt`
+
+---
+
+### 47. rename_obsidian_reports.py
+
+**Description** : Scanne le vault Obsidian (`OBSIDIAN_DIR`) pour repérer les rapports d'articles WUDD.ai dont le nom de fichier ne commence pas par `YYYY-MM-DD`. Le script lit ensuite le frontmatter `url`, retrouve l'article correspondant dans `data/articles-from-rss/*.json`, puis recupere le nom cible depuis `rapports[].fichier`.
+
+Le renommage effectif utilise **Obsidian CLI** par défaut :
+`obsidian rename vault=<nom> path=<ancien-chemin> name=<nouveau-nom>`.
+
+L'option `--rename-command` permet un override si nécessaire.
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--dir CHEMIN` | Répertoire Obsidian à scanner | `OBSIDIAN_DIR` |
+| `--limit N` | Nombre maximal de fichiers mal nommés à vérifier | `0` (sans limite) |
+| `--dry-run` | Simulation sans renommage effectif | désactivé |
+| `--rename-command CMD` | Commande shell personnalisée (override Obsidian CLI) | vide |
+| `--vault-name NOM` | Nom exact du vault si requis par votre CLI | `OBSIDIAN_VAULT_NAME` ou nom du dossier |
+| `--verbose` | Affiche le détail des décisions | désactivé |
+
+**Placeholders de `--rename-command`** :
+
+- `{old_abs}` / `{new_abs}` : chemins absolus source et cible
+- `{old_rel}` / `{new_rel}` : chemins relatifs au repertoire `OBSIDIAN_DIR`
+- `{old_name}` / `{new_name}` : noms de fichiers
+- `{vault_dir}` / `{vault_name}` : repertoire et nom du vault
+- variantes suffixees `_q` : meme valeur, deja echappee pour le shell
+
+**Utilisation** :
+```bash
+# Simulation sur 20 fichiers maximum
+python3 scripts/rename_obsidian_reports.py --dry-run --limit 20
+
+# Execution reelle via Obsidian CLI (defaut)
+python3 scripts/rename_obsidian_reports.py \
+  --limit 20 \
+  --vault-name "Coffre-de-Pat"
+
+# Override optionnel avec commande personnalisee
+python3 scripts/rename_obsidian_reports.py \
+  --limit 20 \
+  --vault-name "MonVault" \
+  --rename-command 'obsidian rename vault={vault_name_q} path={old_rel_q} name={new_name_q}'
+```
 
 ---
 

@@ -1,3 +1,41 @@
+# 14/04/2026 — Garde-fous anti-caractères chinois dans les résumés IA (v2.8.4)
+
+## Amélioration — Qualité linguistique des résumés (français strict)
+
+### `utils/api_client.py`
+
+- Ajout d'un contrôle **en amont** dans les prompts de résumé : consigne explicite
+  `français uniquement` et `aucun caractère chinois (hanzi)`
+- Ajout d'un contrôle **en aval** sur le texte généré : détection des caractères
+  CJK Han via regex unicode
+- Si des caractères chinois sont détectés, relance automatique de l'IA avec un
+  prompt de correction strict (jusqu'à 2 régénérations)
+- Le mécanisme est appliqué aux 3 chemins de génération :
+  `generate_summary`, `generate_summary_with_sentiment` et variantes
+  `EurIA`, `Claude`, `Ollama`
+- Harmonisation du nettoyage des préfixes `# Résumé` via helper centralisé
+
+### `tests/test_api_client_pure.py`
+
+- Nouveaux tests unitaires pour :
+  - détection des caractères chinois
+  - contraintes de prompt français
+  - relance automatique quand un résumé contient du chinois
+
+# 12/04/2026 — Script de renommage des rapports Obsidian (v2.8.3)
+
+## Ajout — Maintenance du vault Obsidian
+
+### `scripts/rename_obsidian_reports.py`
+
+- Nouveau script CLI pour verifier les rapports WUDD.ai du vault Obsidian
+- Detecte les fichiers Markdown de rapports d'articles dont le nom ne commence pas par `YYYY-MM-DD`
+- Retrouve l'article source via l'URL du frontmatter dans `data/articles-from-rss/*.json`
+- Recupere le nom cible depuis `rapports[].fichier`
+- Integre un mode `--dry-run`, une limite `--limit` et une commande de renommage configurable via `--rename-command`
+
+---
+
 # 10/04/2026 — Déduplication sémantique dans le contexte Terminal IA (v2.8.2)
 
 ## Amélioration — Terminal IA / chatbot
