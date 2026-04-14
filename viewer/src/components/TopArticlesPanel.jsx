@@ -1543,6 +1543,7 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
                       key={artUrl || i}
                       article={article}
                       rank={i + 1}
+                      filePath={article._source_file ?? null}
                       isCurrentPodcast={playing && currentIdx === i}
                       onEntityClick={(type, value) => setSelectedEntity({ type, value })}
                       annotation={artUrl ? annotations?.[artUrl] : undefined}
