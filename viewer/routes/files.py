@@ -19,24 +19,32 @@ from flask import Blueprint, jsonify, request, abort, send_file, Response, strea
 from pathlib import Path
 
 from viewer.helpers import safe_path, collect_files, PROJECT_ROOT
-from viewer.state import _invalidate_bias_cache
+from viewer.state import (
+    _get_files_manifest,
+    _invalidate_bias_cache,
+    _invalidate_files_manifest_cache,
+)
 
 files_bp = Blueprint("files", __name__)
 
 
-@files_bp.route("/api/files")
-def api_files():
-    # Double scan pour compenser les listings incomplets de virtiofs
-    # (Docker Desktop / macOS) : rglob() peut retourner un résultat partiel
-    # si le cache kernel est rafraîchi entre les deux appels.
-    files1 = collect_files()
+def _collect_files_with_double_scan(files1=None):
+    """Refait un second scan et fusionne les résultats si le premier paraît incomplet."""
+    if files1 is None:
+        files1 = collect_files()
     time.sleep(0.20)
     files2 = collect_files()
-    # Union des deux passes — chaque chemin vu dans l'une ou l'autre est retenu ;
-    # la seconde passe écrase les métadonnées de la première si les deux la voient.
     by_path = {f["path"]: f for f in files1}
     by_path.update({f["path"]: f for f in files2})
-    files = sorted(by_path.values(), key=lambda x: x["modified"], reverse=True)
+    return sorted(by_path.values(), key=lambda x: x["modified"], reverse=True)
+
+
+@files_bp.route("/api/files")
+def api_files():
+    files = _get_files_manifest(
+        builder=collect_files,
+        fallback_builder=_collect_files_with_double_scan,
+    )
     return jsonify(files)
 
 
@@ -101,6 +109,7 @@ def api_save_content():
         target.write_text(content, encoding="utf-8")
     except OSError as e:
         abort(500, f"Erreur d'écriture : {e}")
+    _invalidate_files_manifest_cache()
     # Invalider le cache biais si un fichier JSON de data/ est modifié
     if rel.startswith("data/") and target.suffix == ".json":
         _invalidate_bias_cache()
@@ -221,6 +230,7 @@ def api_delete_file():
         target.unlink()
     except OSError as exc:
         abort(500, f"Erreur de suppression : {exc}")
+    _invalidate_files_manifest_cache()
     # Invalider le cache biais si un fichier JSON de data/ est supprimé
     if rel.startswith("data/") and target.suffix == ".json":
         _invalidate_bias_cache()
@@ -354,6 +364,8 @@ def api_article_refresh_resume():
         tmp.replace(target)
     except OSError as e:
         return jsonify({"error": f"Erreur écriture : {e}"}), 500
+
+    _invalidate_files_manifest_cache()
 
     return jsonify({
         "ok": True,

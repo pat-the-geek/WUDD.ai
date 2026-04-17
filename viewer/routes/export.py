@@ -22,7 +22,7 @@ from pathlib import Path
 from utils.mermaid_utils import fix_mermaid_classdefs
 
 from viewer.helpers import PROJECT_ROOT
-from viewer.state import _annotations_lock
+from viewer.state import _annotations_lock, _invalidate_files_manifest_cache
 from utils.article_index import get_article_index
 from utils.scoring import get_scoring_engine
 
@@ -872,6 +872,8 @@ def api_export_report():
 
         out_path = save_dir / safe_name
         out_path.write_text(fix_mermaid_classdefs(markdown), encoding="utf-8")
+        if target != "obsidian":
+            _invalidate_files_manifest_cache()
 
         # Mettre à jour l'index de déduplication
         if target == "obsidian" and resume_md5 and index_path is not None:
@@ -953,6 +955,8 @@ def api_article_set_report_meta():
     except OSError as e:
         return jsonify({"error": f"Écriture impossible : {e}"}), 500
 
+    _invalidate_files_manifest_cache()
+
     # Propager le rapport aux fichiers sources (articles-from-rss/*.json et
     # articles/**/*.json) pour que les métadonnées survivent à la reconstruction
     # de la fenêtre glissante 48-heures.json.
@@ -1015,6 +1019,7 @@ def _propagate_rapport_to_source_files(
                         json.dumps(other_articles, ensure_ascii=False, indent=2),
                         encoding="utf-8",
                     )
+                    _invalidate_files_manifest_cache()
             except Exception:
                 continue  # propagation optionnelle, ne jamais bloquer
 
@@ -1057,6 +1062,8 @@ def api_entity_set_report_meta():
         index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
     except OSError as e:
         return jsonify({"error": f"Écriture impossible : {e}"}), 500
+
+    _invalidate_files_manifest_cache()
 
     return jsonify({"ok": True})
 
@@ -1150,6 +1157,7 @@ def api_chat_save():
         out_path = save_dir / safe_name
         out_path.write_text(content, encoding="utf-8")
         rel = str(out_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
+        _invalidate_files_manifest_cache()
         return jsonify({"ok": True, "path": rel})
     except OSError as e:
         return jsonify({"error": f"Erreur écriture : {e}"}), 500
