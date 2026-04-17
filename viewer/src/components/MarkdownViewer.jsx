@@ -181,7 +181,7 @@ const mdComponents = {
             <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mt-7 mb-3">{children}</h2>
           ),
           h3: ({ children }) => (
-            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-5 mb-2 leading-tight">{children}</h3>
+            <h3 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mt-8 mb-4 leading-tight">{children}</h3>
           ),
           h4: ({ children }) => (
             <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-1">{children}</h4>
