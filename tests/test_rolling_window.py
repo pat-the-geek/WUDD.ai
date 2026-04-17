@@ -23,7 +23,7 @@ from utils.rolling_window import update_rolling_window
 
 def _make_article(url: str, days_ago: int = 0, source: str = "TestSource") -> dict:
     """Crée un article de test avec une date relative à aujourd'hui."""
-    dt = datetime.utcnow() - timedelta(days=days_ago)
+    dt = datetime.now() - timedelta(days=days_ago)
     return {
         "URL": url,
         "Sources": source,

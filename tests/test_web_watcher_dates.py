@@ -105,11 +105,11 @@ class TestParseDateEnglish:
 
     def test_empty_string_returns_now(self):
         dt = _parse_date("", langue="en")
-        assert (datetime.utcnow() - dt).total_seconds() < 30
+        assert (datetime.now() - dt).total_seconds() < 30
 
     def test_invalid_string_returns_now(self):
         dt = _parse_date("not-a-date", langue="en")
-        assert (datetime.utcnow() - dt).total_seconds() < 30
+        assert (datetime.now() - dt).total_seconds() < 30
 
 
 class TestParseDateFrench:
@@ -136,7 +136,7 @@ class TestParseDateFrench:
 
     def test_empty_string_returns_now(self):
         dt = _parse_date("", langue="fr")
-        assert (datetime.utcnow() - dt).total_seconds() < 30
+        assert (datetime.now() - dt).total_seconds() < 30
 
 
 class TestFmtDdMmYyyy:

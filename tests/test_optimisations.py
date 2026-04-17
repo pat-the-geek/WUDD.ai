@@ -124,7 +124,7 @@ class TestRollingWindowEntityHook:
         from utils.rolling_window import update_rolling_window
         from datetime import datetime, timedelta
 
-        recent_date = (datetime.utcnow() - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        recent_date = (datetime.now() - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
         articles = [{"URL": "https://a.com/1", "Date de publication": recent_date,
                      "Résumé": "Test", "Sources": "A"}]
         output = tmp_path / "48-heures.json"
@@ -137,7 +137,7 @@ class TestRollingWindowEntityHook:
         from utils.rolling_window import update_rolling_window
         from datetime import datetime, timedelta
 
-        recent_date = (datetime.utcnow() - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        recent_date = (datetime.now() - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
         articles = [{"URL": "https://b.com/1", "Date de publication": recent_date,
                      "Résumé": "Test sans entités", "Sources": "B"}]
         output = tmp_path / "48-heures.json"

@@ -82,7 +82,11 @@ class TestEnrichEntitiesBatchAsync:
         enricher = AsyncEnricher()
         enricher.available = True
 
-        with patch("utils.async_enricher.asyncio.run", return_value=expected) as mock_run:
+        def run_and_close(coro):
+            coro.close()
+            return expected
+
+        with patch("utils.async_enricher.asyncio.run", side_effect=run_and_close) as mock_run:
             result = enricher.enrich_entities_batch(articles, timeout_per_request=30)
 
         mock_run.assert_called_once()
@@ -113,7 +117,11 @@ class TestEnrichEntitiesBatchAsync:
         enricher = AsyncEnricher()
         enricher.available = True
 
-        with patch("utils.async_enricher.asyncio.run", return_value=[]) as mock_run:
+        def run_and_close(coro):
+            coro.close()
+            return []
+
+        with patch("utils.async_enricher.asyncio.run", side_effect=run_and_close) as mock_run:
             result = enricher.enrich_entities_batch([])
 
         assert result == []
@@ -163,7 +171,11 @@ class TestEnrichSentimentBatchAsync:
         enricher = AsyncEnricher()
         enricher.available = True
 
-        with patch("utils.async_enricher.asyncio.run", return_value=expected) as mock_run:
+        def run_and_close(coro):
+            coro.close()
+            return expected
+
+        with patch("utils.async_enricher.asyncio.run", side_effect=run_and_close) as mock_run:
             result = enricher.enrich_sentiment_batch(articles, timeout_per_request=20)
 
         mock_run.assert_called_once()
@@ -172,13 +184,9 @@ class TestEnrichSentimentBatchAsync:
     def test_sentiment_batch_uses_task_type_sentiment(self):
         """Vérifie que _async_enrich_batch est bien appelé avec task_type='sentiment'."""
         from utils.async_enricher import AsyncEnricher
-        import inspect
 
         enricher = AsyncEnricher()
         enricher.available = True
-
-        async def mock_coro_check(coro_arg):
-            pass
 
         coros_seen = []
         def capture(coro):

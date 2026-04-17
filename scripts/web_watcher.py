@@ -135,10 +135,10 @@ def _parse_date(date_str: str, langue: str = "en") -> datetime:
     - langue='en' : MM/DD/YYYY prioritaire (format américain)
     - langue='fr' : DD/MM/YYYY prioritaire (format français)
 
-    Fallback : maintenant (datetime.utcnow()).
+    Fallback : maintenant (datetime.now()).
     """
     if not date_str:
-        return datetime.utcnow()
+        return datetime.now()
     clean = re.sub(r"[+-]\d{2}:\d{2}$", "", date_str.strip())
 
     # Formats ISO (non-ambigus) — priorité maximale
@@ -156,7 +156,7 @@ def _parse_date(date_str: str, langue: str = "en") -> datetime:
         except (ValueError, TypeError):
             continue
 
-    return datetime.utcnow()
+    return datetime.now()
 
 
 def _fmt_ddmmyyyy(dt: datetime) -> str:

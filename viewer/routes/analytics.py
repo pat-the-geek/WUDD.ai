@@ -33,6 +33,90 @@ from utils.entity_index import get_entity_index
 analytics_bp = Blueprint("analytics", __name__)
 
 
+def _get_scan_dirs(dir_filter: str = "all") -> list[Path]:
+    scan_dirs: list[Path] = []
+    normalized = (dir_filter or "all").strip().lower()
+    if normalized in ("articles", "all"):
+        scan_dirs.append(PROJECT_ROOT / "data" / "articles")
+    if normalized in ("rss", "all"):
+        scan_dirs.append(PROJECT_ROOT / "data" / "articles-from-rss")
+    return scan_dirs
+
+
+def _iter_article_json_files(dir_filter: str = "all", candidate_files: list[Path] | None = None):
+    if candidate_files is not None:
+        seen: set[Path] = set()
+        for file_path in sorted(Path(p) for p in candidate_files):
+            resolved = file_path.resolve()
+            if not resolved.exists() or resolved in seen:
+                continue
+            if "cache" in resolved.parts:
+                continue
+            seen.add(resolved)
+            yield resolved
+        return
+
+    for scan_dir in _get_scan_dirs(dir_filter):
+        if not scan_dir.exists():
+            continue
+        for json_file in sorted(scan_dir.rglob("*.json")):
+            try:
+                if "cache" in json_file.relative_to(scan_dir).parts:
+                    continue
+            except Exception:
+                if "cache" in json_file.parts:
+                    continue
+            yield json_file
+
+
+def _read_articles_list(json_file: Path) -> list[dict]:
+    try:
+        articles = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
+        return articles if isinstance(articles, list) else []
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def _load_articles_python(dir_filter: str = "all", candidate_files: list[Path] | None = None) -> list[dict]:
+    articles: list[dict] = []
+    for json_file in _iter_article_json_files(dir_filter=dir_filter, candidate_files=candidate_files):
+        articles.extend(_read_articles_list(json_file))
+    return articles
+
+
+def _duckdb_rows_to_articles(rows: list[dict], include_entities: bool = False) -> list[dict]:
+    articles: list[dict] = []
+    for row in rows:
+        article = {
+            "Sources": row.get("source") or "",
+            "URL": row.get("url") or "",
+            "Date de publication": row.get("date_publication") or "",
+            "Résumé": row.get("resume") or "",
+            "sentiment": row.get("sentiment"),
+            "score_sentiment": row.get("score_sentiment"),
+            "score_ton": row.get("score_ton"),
+            "ton_editorial": row.get("ton_editorial"),
+        }
+        if include_entities:
+            entities = {}
+            entities_json = row.get("entities_json")
+            if entities_json:
+                try:
+                    entities = json.loads(entities_json)
+                except (TypeError, json.JSONDecodeError):
+                    entities = {}
+            article["entities"] = entities if isinstance(entities, dict) else {}
+        articles.append(article)
+    return articles
+
+
+def _relative_json_path(file_path: str | Path) -> str:
+    try:
+        return str(Path(file_path).resolve().relative_to(PROJECT_ROOT)).replace("\\", "/")
+    except Exception:
+        return str(file_path).replace("\\", "/")
+
+
 @analytics_bp.route("/api/articles/top")
 def api_articles_top():
     """Retourne les N articles les mieux scorés sur une fenêtre temporelle.
@@ -292,29 +376,35 @@ def api_sources_reliability():
         from utils.source_credibility import CredibilityEngine
         from utils.scoring import _parse_date, _bigrams, _jaccard, _TRIANGULATION_JACCARD_THRESHOLD, _TRIANGULATION_MIN_SOURCE_SCORE
         from collections import defaultdict
-        import time as _t
 
         hours = int(request.args.get("hours", 48))
         min_articles = int(request.args.get("min_articles", 1))
 
         engine = CredibilityEngine(PROJECT_ROOT)
 
-        # Charger les articles récents
         cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=hours * 2)
         all_articles = []
-        for data_dir in [PROJECT_ROOT / "data" / "articles",
-                         PROJECT_ROOT / "data" / "articles-from-rss"]:
-            if not data_dir.exists():
-                continue
-            for jf in data_dir.rglob("*.json"):
-                if "cache" in str(jf):
-                    continue
-                try:
-                    arts = json.loads(jf.read_text(encoding="utf-8", errors="replace"))
-                    if isinstance(arts, list):
-                        all_articles.extend(arts)
-                except Exception:
-                    continue
+        try:
+            from utils.db import get_db
+
+            db = get_db(PROJECT_ROOT)
+            if db.available:
+                all_articles = _duckdb_rows_to_articles(
+                    db.query_articles_filtered(dir_filter="all"),
+                    include_entities=False,
+                )
+        except Exception:
+            all_articles = []
+
+        if not all_articles:
+            all_articles = _load_articles_python(dir_filter="all")
+
+        filtered_articles = []
+        for article in all_articles:
+            article_dt = _parse_date(article.get("Date de publication", ""))
+            if article_dt and article_dt >= cutoff:
+                filtered_articles.append(article)
+        all_articles = filtered_articles
 
         # Index timestamps par source
         source_dates: dict[str, list] = defaultdict(list)
@@ -783,40 +873,40 @@ def api_analytics_compare():
             "top_entities": top_entities[:20],
         }
 
-    # Utiliser l'article_index pour charger uniquement les fichiers contenant
-    # des articles dans les deux fenêtres temporelles (évite le scan rglob complet).
+    date_min = min(from1, from2)
+    date_max = max(to1, to2)
+    all_articles = []
+
     try:
-        from utils.article_index import get_article_index as _get_aidx
-        _aidx = _get_aidx(PROJECT_ROOT)
-        # Déterminer la fenêtre englobante pour une seule requête d'index
-        date_min = min(from1, from2)
-        date_max = max(to1, to2)
-        # Charger les entrées d'index dans la plage globale
-        all_entries = [
-            e for e in _aidx._data.get("articles", [])
-            if date_min <= e.get("date", "") <= date_max
-        ] if (_aidx._load() or True) else []
-        all_articles = _aidx.load_articles(all_entries)
-        index_available = True
+        from utils.db import get_db
+
+        db = get_db(PROJECT_ROOT)
+        if db.available:
+            all_articles = _duckdb_rows_to_articles(
+                db.query_articles_filtered(
+                    date_from=date_min,
+                    date_to=date_max,
+                    include_entities=True,
+                    dir_filter="all",
+                ),
+                include_entities=True,
+            )
     except Exception:
-        index_available = False
         all_articles = []
 
-    if not index_available or not all_articles:
-        # Fallback : scan complet
-        for data_dir in [PROJECT_ROOT / "data" / "articles",
-                         PROJECT_ROOT / "data" / "articles-from-rss"]:
-            if not data_dir.exists():
-                continue
-            for json_file in data_dir.rglob("*.json"):
-                if "cache" in str(json_file):
-                    continue
-                try:
-                    arts = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
-                    if isinstance(arts, list):
-                        all_articles.extend(arts)
-                except (json.JSONDecodeError, OSError):
-                    continue
+    if not all_articles:
+        candidate_files: list[Path] | None = None
+        try:
+            _aidx = get_article_index(PROJECT_ROOT)
+            if _aidx._load() or True:
+                candidate_files = [
+                    PROJECT_ROOT / entry.get("file", "")
+                    for entry in _aidx._data.get("articles", [])
+                    if date_min <= entry.get("date", "") <= date_max and entry.get("file")
+                ]
+        except Exception:
+            candidate_files = None
+        all_articles = _load_articles_python(dir_filter="all", candidate_files=candidate_files)
 
     # Déduplication par URL
     seen: set = set()
@@ -895,64 +985,91 @@ def api_data_quality():
     results = []
     totals = defaultdict(int)
 
-    for scan_dir in scan_dirs:
-        if not scan_dir.exists():
-            continue
-        for json_file in sorted(scan_dir.rglob("*.json")):
-            if "cache" in json_file.relative_to(scan_dir).parts:
-                continue
-            try:
-                articles = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
-            except (json.JSONDecodeError, OSError):
-                continue
-            if not isinstance(articles, list) or not articles:
-                continue
+    try:
+        from utils.db import get_db
 
-            stats = {
-                "total": len(articles),
-                "sans_resume": 0,
-                "sans_entites": 0,
-                "sans_sentiment": 0,
-                "echec_api": 0,
-                "echec_parse": 0,
-                "sans_image": 0,
-                "sans_date": 0,
-            }
-            for a in articles:
-                if not isinstance(a, dict):
+        db = get_db(PROJECT_ROOT)
+        if db.available:
+            rows = db.data_quality_by_file(dir_filter=dir_filter)
+            if rows:
+                for row in rows:
+                    stats = {
+                        "total": row.get("total", 0),
+                        "sans_resume": row.get("sans_resume", 0),
+                        "sans_entites": row.get("sans_entites", 0),
+                        "sans_sentiment": row.get("sans_sentiment", 0),
+                        "echec_api": row.get("echec_api", 0),
+                        "echec_parse": row.get("echec_parse", 0),
+                        "sans_image": row.get("sans_image", 0),
+                        "sans_date": row.get("sans_date", 0),
+                    }
+                    pct_ok = round(
+                        100 * (1 - (stats["sans_resume"] + stats["sans_entites"]) / (2 * stats["total"])),
+                        1,
+                    ) if stats["total"] > 0 else 100.0
+                    results.append({
+                        "file": _relative_json_path(row.get("file_path", "")),
+                        "quality_score": pct_ok,
+                        **stats,
+                    })
+                    for key, value in stats.items():
+                        totals[key] += value
+    except Exception:
+        results = []
+        totals = defaultdict(int)
+
+    if not results:
+        for scan_dir in scan_dirs:
+            if not scan_dir.exists():
+                continue
+            for json_file in _iter_article_json_files("all", candidate_files=list(scan_dir.rglob("*.json"))):
+                articles = _read_articles_list(json_file)
+                if not articles:
                     continue
-                resume = a.get("Résumé", "")
-                if not resume or not str(resume).strip():
-                    stats["sans_resume"] += 1
-                if not a.get("entities"):
-                    stats["sans_entites"] += 1
-                if not a.get("sentiment"):
-                    stats["sans_sentiment"] += 1
-                statut = a.get("enrichissement_statut", "")
-                if statut == "echec_api":
-                    stats["echec_api"] += 1
-                elif statut == "echec_parse":
-                    stats["echec_parse"] += 1
-                images = a.get("Images", [])
-                if not images:
-                    stats["sans_image"] += 1
-                if not a.get("Date de publication", ""):
-                    stats["sans_date"] += 1
 
-            rel = str(json_file.relative_to(PROJECT_ROOT)).replace("\\", "/")
-            # Score qualité 0–100 : pénalise les articles incomplets
-            pct_ok = round(
-                100 * (1 - (stats["sans_resume"] + stats["sans_entites"]) / (2 * stats["total"])),
-                1,
-            ) if stats["total"] > 0 else 100.0
+                stats = {
+                    "total": len(articles),
+                    "sans_resume": 0,
+                    "sans_entites": 0,
+                    "sans_sentiment": 0,
+                    "echec_api": 0,
+                    "echec_parse": 0,
+                    "sans_image": 0,
+                    "sans_date": 0,
+                }
+                for a in articles:
+                    if not isinstance(a, dict):
+                        continue
+                    resume = a.get("Résumé", "")
+                    if not resume or not str(resume).strip():
+                        stats["sans_resume"] += 1
+                    if not a.get("entities"):
+                        stats["sans_entites"] += 1
+                    if not a.get("sentiment"):
+                        stats["sans_sentiment"] += 1
+                    statut = a.get("enrichissement_statut", "")
+                    if statut == "echec_api":
+                        stats["echec_api"] += 1
+                    elif statut == "echec_parse":
+                        stats["echec_parse"] += 1
+                    images = a.get("Images", [])
+                    if not images:
+                        stats["sans_image"] += 1
+                    if not a.get("Date de publication", ""):
+                        stats["sans_date"] += 1
 
-            results.append({
-                "file": rel,
-                "quality_score": pct_ok,
-                **stats,
-            })
-            for k, v in stats.items():
-                totals[k] += v
+                pct_ok = round(
+                    100 * (1 - (stats["sans_resume"] + stats["sans_entites"]) / (2 * stats["total"])),
+                    1,
+                ) if stats["total"] > 0 else 100.0
+
+                results.append({
+                    "file": _relative_json_path(json_file),
+                    "quality_score": pct_ok,
+                    **stats,
+                })
+                for key, value in stats.items():
+                    totals[key] += value
 
     results.sort(key=lambda r: r.get("quality_score", 100))
 

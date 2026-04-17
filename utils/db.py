@@ -87,6 +87,57 @@ class ArticleDB:
         """Retourne le glob absolu vers les fichiers d'articles."""
         return str(self.project_root / "data" / subdir)
 
+    def _sql_quote(self, value: str) -> str:
+        """Échappe une chaîne pour interpolation sûre dans une requête SQL."""
+        return str(value).replace("'", "''")
+
+    def _article_globs(self, dir_filter: str = "all") -> list[str]:
+        """Retourne les glob patterns analytiques selon le périmètre demandé."""
+        globs: list[str] = []
+        if dir_filter in ("articles", "all"):
+            globs.append(str(self.project_root / "data" / "articles" / "*" / "*.json"))
+        if dir_filter in ("rss", "all"):
+            globs.append(str(self.project_root / "data" / "articles-from-rss" / "**" / "*.json"))
+        return globs
+
+    def _date_key_expr(self, column: str = '"Date de publication"') -> str:
+        """Normalise une date article en clé ISO `YYYY-MM-DD` quand possible."""
+        return f"""
+            CASE
+                WHEN {column} IS NULL OR TRIM(CAST({column} AS VARCHAR)) = '' THEN NULL
+                WHEN regexp_matches(CAST({column} AS VARCHAR), '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}')
+                    THEN SUBSTR(CAST({column} AS VARCHAR), 1, 10)
+                WHEN regexp_matches(CAST({column} AS VARCHAR), '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$')
+                    THEN SUBSTR(CAST({column} AS VARCHAR), 7, 4)
+                         || '-' || SUBSTR(CAST({column} AS VARCHAR), 4, 2)
+                         || '-' || SUBSTR(CAST({column} AS VARCHAR), 1, 2)
+                ELSE NULL
+            END
+        """
+
+    def _article_union_sql(
+        self,
+        select_list: list[str],
+        dir_filter: str = "all",
+        schema: Optional[dict[str, str]] = None,
+    ) -> str:
+        """Construit une requête UNION ALL sur le corpus JSON articles + RSS."""
+        parts = []
+        schema_clause = ""
+        if schema:
+            schema_pairs = ", ".join(
+                f"'{self._sql_quote(key)}':'{self._sql_quote(value)}'"
+                for key, value in schema.items()
+            )
+            schema_clause = f", columns={{{schema_pairs}}}"
+        for glob in self._article_globs(dir_filter):
+            safe_glob = self._sql_quote(glob)
+            parts.append(
+                f"SELECT {', '.join(select_list)} "
+                f"FROM read_json_auto('{safe_glob}', ignore_errors=true, filename=true, union_by_name=true, sample_size=-1{schema_clause})"
+            )
+        return " UNION ALL ".join(parts)
+
     # ── Requêtes articles ────────────────────────────────────────────────────
 
     def query_articles_by_entity(
@@ -437,6 +488,189 @@ class ArticleDB:
                 AND LOWER("Résumé") LIKE LOWER('%{safe_query}%')
             ORDER BY "Date de publication" DESC
             LIMIT {int(limit)}
+        """
+        return self._exec(sql)
+
+    def query_articles_filtered(
+        self,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        source_like: Optional[str] = None,
+        sentiment: Optional[str] = None,
+        query: Optional[str] = None,
+        limit: Optional[int] = None,
+        include_entities: bool = False,
+        include_filename: bool = False,
+        dir_filter: str = "all",
+    ) -> list[dict]:
+        """Retourne des articles filtrés avec un chemin DuckDB uniforme.
+
+        Utilisable comme chemin rapide générique pour les routes analytiques,
+        avec un post-traitement Python minimal côté appelant.
+        """
+        select_list = [
+            '"Sources" AS source',
+            '"URL" AS url',
+            '"Date de publication" AS date_publication',
+            '"Résumé" AS resume',
+            'sentiment',
+            'score_sentiment',
+            'score_ton',
+            'ton_editorial',
+            f'{self._date_key_expr()} AS date_key',
+        ]
+        if include_entities:
+            select_list.append('CAST(entities AS VARCHAR) AS entities_json')
+        if include_filename:
+            select_list.append('filename AS file_path')
+
+        union_sql = self._article_union_sql(select_list, dir_filter=dir_filter)
+        if not union_sql:
+            return []
+
+        where = ["1=1"]
+        if date_from:
+            where.append(f"date_key >= '{self._sql_quote(date_from)}'")
+        if date_to:
+            where.append(f"date_key <= '{self._sql_quote(date_to)}'")
+        if source_like:
+            safe_source = self._sql_quote(source_like)
+            where.append(f"LOWER(COALESCE(source, '')) LIKE LOWER('%{safe_source}%')")
+        if sentiment:
+            safe_sentiment = self._sql_quote(sentiment)
+            where.append(f"LOWER(COALESCE(sentiment, '')) = LOWER('{safe_sentiment}')")
+        if query:
+            safe_query = self._sql_quote(query)
+            where.append(
+                "(" \
+                f"LOWER(COALESCE(resume, '')) LIKE LOWER('%{safe_query}%') OR "
+                f"LOWER(COALESCE(source, '')) LIKE LOWER('%{safe_query}%') OR "
+                f"LOWER(COALESCE(url, '')) LIKE LOWER('%{safe_query}%')" \
+                ")"
+            )
+
+        sql = (
+            f"SELECT * FROM ({union_sql}) AS articles "
+            f"WHERE {' AND '.join(where)} "
+            "ORDER BY date_key DESC NULLS LAST, date_publication DESC"
+        )
+        if limit is not None:
+            sql += f" LIMIT {max(1, int(limit))}"
+        return self._exec(sql)
+
+    def top_recent_files(self, limit: int = 20, dir_filter: str = "all") -> list[dict]:
+        """Retourne les fichiers les plus récents logiquement selon la date des articles."""
+        select_list = [
+            'filename AS file_path',
+            f'{self._date_key_expr()} AS date_key',
+        ]
+        union_sql = self._article_union_sql(select_list, dir_filter=dir_filter)
+        if not union_sql:
+            return []
+        sql = f"""
+            SELECT
+                file_path,
+                COUNT(*) AS article_count,
+                MAX(date_key) AS last_date
+            FROM ({union_sql}) AS articles
+            GROUP BY file_path
+            ORDER BY last_date DESC NULLS LAST, article_count DESC
+            LIMIT {max(1, int(limit))}
+        """
+        return self._exec(sql)
+
+    def aggregate_articles_by_flux(self, days: int = 30, limit: int = 100) -> list[dict]:
+        """Agrège les volumes d'articles par flux ou mot-clé source."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        flux_expr = """
+            COALESCE(
+                NULLIF(regexp_extract(file_path, '.*/data/articles/([^/]+)/[^/]+\\.json$', 1), ''),
+                NULLIF(regexp_extract(file_path, '.*/data/articles-from-rss/(?:.*/)?([^/]+)\\.json$', 1), ''),
+                'inconnu'
+            )
+        """
+        select_list = [
+            'filename AS file_path',
+            '"Sources" AS source',
+            f'{self._date_key_expr()} AS date_key',
+        ]
+        union_sql = self._article_union_sql(select_list, dir_filter="all")
+        if not union_sql:
+            return []
+        sql = f"""
+            SELECT
+                {flux_expr} AS flux,
+                COUNT(*) AS article_count,
+                COUNT(DISTINCT source) AS source_count,
+                MAX(date_key) AS last_date
+            FROM ({union_sql}) AS articles
+            WHERE date_key IS NOT NULL AND date_key >= '{self._sql_quote(cutoff)}'
+            GROUP BY flux
+            ORDER BY article_count DESC, flux ASC
+            LIMIT {max(1, int(limit))}
+        """
+        return self._exec(sql)
+
+    def count_articles_by_period(
+        self,
+        days: int = 30,
+        period: str = "day",
+        dir_filter: str = "all",
+    ) -> list[dict]:
+        """Compte les articles par période standardisée (`day` ou `month`)."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        bucket_expr = "date_key" if period == "day" else "SUBSTR(date_key, 1, 7)"
+        select_list = [f'{self._date_key_expr()} AS date_key']
+        union_sql = self._article_union_sql(select_list, dir_filter=dir_filter)
+        if not union_sql:
+            return []
+        sql = f"""
+            SELECT
+                {bucket_expr} AS period,
+                COUNT(*) AS article_count
+            FROM ({union_sql}) AS articles
+            WHERE date_key IS NOT NULL AND date_key >= '{self._sql_quote(cutoff)}'
+            GROUP BY period
+            ORDER BY period ASC
+        """
+        return self._exec(sql)
+
+    def data_quality_by_file(self, dir_filter: str = "all") -> list[dict]:
+        """Retourne les statistiques de qualité de données agrégées par fichier."""
+        schema = {
+            "Résumé": "VARCHAR",
+            "entities": "JSON",
+            "sentiment": "VARCHAR",
+            "enrichissement_statut": "VARCHAR",
+            "Images": "JSON",
+            "Date de publication": "VARCHAR",
+        }
+        select_list = [
+            'filename AS file_path',
+            '"Résumé"',
+            'entities',
+            'sentiment',
+            'enrichissement_statut',
+            'Images',
+            '"Date de publication"',
+        ]
+        union_sql = self._article_union_sql(select_list, dir_filter=dir_filter, schema=schema)
+        if not union_sql:
+            return []
+        sql = f"""
+            SELECT
+                file_path,
+                COUNT(*) AS total,
+                SUM(CASE WHEN "Résumé" IS NULL OR TRIM(CAST("Résumé" AS VARCHAR)) = '' THEN 1 ELSE 0 END) AS sans_resume,
+                SUM(CASE WHEN entities IS NULL OR TRIM(CAST(entities AS VARCHAR)) IN ('', '{{}}') THEN 1 ELSE 0 END) AS sans_entites,
+                SUM(CASE WHEN sentiment IS NULL OR TRIM(CAST(sentiment AS VARCHAR)) = '' THEN 1 ELSE 0 END) AS sans_sentiment,
+                SUM(CASE WHEN enrichissement_statut = 'echec_api' THEN 1 ELSE 0 END) AS echec_api,
+                SUM(CASE WHEN enrichissement_statut = 'echec_parse' THEN 1 ELSE 0 END) AS echec_parse,
+                SUM(CASE WHEN Images IS NULL OR TRIM(CAST(Images AS VARCHAR)) IN ('', '[]') THEN 1 ELSE 0 END) AS sans_image,
+                SUM(CASE WHEN "Date de publication" IS NULL OR TRIM(CAST("Date de publication" AS VARCHAR)) = '' THEN 1 ELSE 0 END) AS sans_date
+            FROM ({union_sql}) AS articles
+            GROUP BY file_path
+            ORDER BY file_path ASC
         """
         return self._exec(sql)
 

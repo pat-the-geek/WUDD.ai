@@ -12,7 +12,7 @@ import json
 import os
 import smtplib
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -257,7 +257,7 @@ def check_cron_health() -> dict:
     Returns:
         Dictionnaire complet de santé (aussi écrit dans data/cron_health.json).
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     health: dict = {
         "generated_at": now.isoformat() + "Z",
         "status": "ok",  # "ok" | "degraded" | "critical"
