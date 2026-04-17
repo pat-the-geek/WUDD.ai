@@ -474,13 +474,16 @@ def api_article_full_report():
         "2. ## Contexte et enjeux — 2-4 paragraphes, **entités en gras**\n"
         "3. ## Analyse détaillée — sous-sections en ### (Markdown), **entités en gras**, faits et chiffres\n"
         "4. ## Acteurs impliqués — tableau | Entité | Type | Rôle |\n"
-        "5. ## Diagrammes (si pertinent) — bloc ```mermaid avec flowchart TD, timeline ou xychart. "
-        "IMPORTANT : le mot-clé du type (graph/flowchart/timeline/xychart) doit être la 1ère ligne du bloc, "
-        "sans aucun texte avant. Labels sans accents ni caractères spéciaux ; "
-        "si espaces ou ponctuation, utilise [\"label\"]. "
-        "Pour chaque classDef : si la couleur fill: est sombre (luminance perçue < 35 %), "
-        "utilise color:#ffffff ; sinon utilise color:#333333. "
-        "Exemples : classDef dark fill:#1a3a5c,color:#ffffff  — classDef light fill:#e3f2fd,color:#333333.\n"
+        "5. ## Diagramme Mermaid — inclure OBLIGATOIREMENT un et un seul bloc ```mermaid valide. "
+        "Ne saute jamais cette section, même si les données sont partielles. "
+        "Choisis le format le plus simple et le plus robuste selon le contenu : flowchart TD pour relations ou processus, "
+        "timeline pour chronologie, xychart-beta pour quelques valeurs chiffrées. "
+        "Le bloc doit commencer directement par le mot-clé du type de diagramme sur la première ligne du bloc. "
+        "N'ajoute aucun texte avant le diagramme dans cette section. "
+        "Labels sans accents ni caractères spéciaux ; si espaces ou ponctuation, utilise [\"label\"]. "
+        "Si tu manques d'informations, produis un flowchart TD minimal mais valide à partir des acteurs, du produit et des effets mentionnés dans l'article. "
+        "Pour chaque classDef : si la couleur fill: est sombre (luminance perçue < 35 %), utilise color:#ffffff ; sinon utilise color:#333333. "
+        "Exemples : classDef dark fill:#1a3a5c,color:#ffffff  ; classDef light fill:#e3f2fd,color:#333333.\n"
         "6. ## Points clés — 4-7 bullets + conclusion\n"
         f"7. ## Source — {source_link}\n\n"
         "Règles : Markdown uniquement, pas de balises <think>, développe chaque section au maximum."
@@ -500,20 +503,33 @@ def api_article_full_report():
             yield from _claude.stream(prompt=prompt, max_tokens=16000, timeout=300)
 
     else:
-        api_url = os.environ.get("URL", "")
-        bearer  = os.environ.get("bearer", "")
-        if not api_url or not bearer:
-            return jsonify({"error": "URL ou bearer manquant dans .env (AI_PROVIDER=euria)"}), 503
-        payload = {
-            "messages":   [{"role": "user", "content": prompt}],
-            "model":      "qwen3",
-            "stream":     True,
-            "max_tokens": 16000,
-        }
-        api_headers = {
-            "Authorization": f"Bearer {bearer}",
-            "Content-Type":  "application/json",
-        }
+        if provider == "ollama":
+            from utils.api_client import OllamaClient as _OC
+
+            api_url = _OC._default_url()
+            model = os.environ.get("OLLAMA_MODEL", _OC._DEFAULT_MODEL).strip() or _OC._DEFAULT_MODEL
+            payload = {
+                "messages":   [{"role": "system", "content": _OC._SYSTEM_FRENCH}, {"role": "user", "content": prompt}],
+                "model":      model,
+                "stream":     True,
+                "max_tokens": 16000,
+            }
+            api_headers = {"Content-Type": "application/json"}
+        else:
+            api_url = os.environ.get("URL", "")
+            bearer  = os.environ.get("bearer", "")
+            if not api_url or not bearer:
+                return jsonify({"error": "URL ou bearer manquant dans .env (AI_PROVIDER=euria)"}), 503
+            payload = {
+                "messages":   [{"role": "user", "content": prompt}],
+                "model":      "qwen3",
+                "stream":     True,
+                "max_tokens": 16000,
+            }
+            api_headers = {
+                "Authorization": f"Bearer {bearer}",
+                "Content-Type":  "application/json",
+            }
 
         def generate():
             try:
