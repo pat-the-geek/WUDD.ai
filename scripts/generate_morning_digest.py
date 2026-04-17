@@ -189,33 +189,79 @@ def _highlight_ner(text: str, entities: dict) -> str:
 
     Ex : "OpenAI" → "**OpenAI** *(ORG)*"
     Traite les entités de la plus longue à la plus courte pour éviter les
-    remplacements partiels. Insensible à la casse pour la recherche.
+    remplacements partiels. Le remplacement se fait en un seul passage regex
+    pour éviter d'injecter du Markdown puis de rematcher à l'intérieur.
     """
     import re
     if not entities or not isinstance(entities, dict):
         return text
 
-    # Construire la liste (nom, type), triée par longueur décroissante
-    pairs = []
+    # Construire la liste (nom, type), triée par longueur décroissante.
+    replacements: dict[str, tuple[str, str]] = {}
+    escaped_names: list[str] = []
+    seen: set[str] = set()
+
     for etype, names in entities.items():
         if etype not in ENTITY_TYPES_PERTINENTS or not isinstance(names, list):
             continue
         for name in names:
             name_clean = str(name).strip()
-            if len(name_clean) >= 3:
-                pairs.append((name_clean, etype))
-    pairs.sort(key=lambda x: len(x[0]), reverse=True)
+            if len(name_clean) < 3:
+                continue
+            key = name_clean.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            replacements[key] = (name_clean, etype)
+            escaped_names.append(re.escape(name_clean))
 
-    seen: set = set()
-    for name_clean, etype in pairs:
-        key = name_clean.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        pattern = re.compile(r'(?<!\w)' + re.escape(name_clean) + r'(?!\w)', re.IGNORECASE | re.UNICODE)
-        replacement = f"**{name_clean}** *({etype})*"
-        text = pattern.sub(replacement, text, count=1)
-    return text
+    if not escaped_names:
+        return text
+
+    escaped_names.sort(key=len, reverse=True)
+    pattern = re.compile(
+        r'(?<!\w)(' + '|'.join(escaped_names) + r')(?!\w)',
+        re.IGNORECASE | re.UNICODE,
+    )
+
+    highlighted: set[str] = set()
+
+    def _replace(match: re.Match) -> str:
+        matched_text = match.group(0)
+        key = matched_text.casefold()
+        canonical_name, etype = replacements.get(key, (matched_text, ""))
+        if key in highlighted:
+            return matched_text
+        highlighted.add(key)
+        label = canonical_name if canonical_name else matched_text
+        return f"**{label}** *({etype})*"
+
+    return pattern.sub(_replace, text)
+
+
+def _article_display_title(article: dict) -> str:
+    """Retourne le meilleur titre affichable pour un article du digest."""
+    for key in ("Titre", "title", "title_rendered"):
+        value = str(article.get(key, "") or "").strip()
+        if value:
+            return value
+
+    images = article.get("Images", [])
+    if isinstance(images, list):
+        for image in images:
+            if not isinstance(image, dict):
+                continue
+            value = str(image.get("title", "") or image.get("alt", "") or "").strip()
+            if value:
+                return value
+
+    resume = str(article.get("Résumé", "") or "").strip()
+    if resume:
+        title_lines = [line.strip() for line in resume.split("\n") if line.strip()]
+        if title_lines:
+            return title_lines[0]
+
+    return "Sans titre"
 
 
 def _format_article_card(article: dict, rank: int) -> str:
@@ -231,9 +277,7 @@ def _format_article_card(article: dict, rank: int) -> str:
     sentiment = article.get("sentiment", "")
     entities = article.get("entities", {})
 
-    # Titre synthétique : première ligne non vide du résumé
-    titre_lines = [l.strip() for l in resume.split("\n") if l.strip()]
-    titre = titre_lines[0][:120] if titre_lines else "Sans titre"
+    titre = _article_display_title(article)
 
     sent_emoji = SENTIMENT_EMOJI.get(sentiment.lower(), "") if sentiment else ""
 
