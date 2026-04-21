@@ -3,6 +3,8 @@ WUDD.ai Viewer — Flask backend
 Sert l'API de navigation de fichiers et le frontend React compilé.
 """
 
+import os
+import socket
 import subprocess
 import threading
 from pathlib import Path
@@ -43,12 +45,46 @@ try:
 except ImportError:
     pass
 
-from flask import Flask, send_from_directory
+from flask import Flask, jsonify, send_from_directory
+
+_DEFAULT_VIEWER_PORT = 5050
 
 from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
 
 app = Flask(__name__)
+app.config["ACTIVE_VIEWER_PORT"] = _DEFAULT_VIEWER_PORT
+
+
+def _port_is_free(host: str, port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind((host, port))
+        return True
+    except OSError:
+        return False
+
+
+def _resolve_viewer_port(default_port: int = _DEFAULT_VIEWER_PORT, attempts: int = 10) -> int:
+    explicit_port = os.getenv("WUDD_VIEWER_PORT") or os.getenv("PORT")
+    if explicit_port:
+        try:
+            return int(explicit_port)
+        except ValueError:
+            print(f"[startup] Port invalide ignoré : {explicit_port}", flush=True)
+
+    for port in range(default_port, default_port + attempts):
+        if _port_is_free("127.0.0.1", port):
+            if port != default_port:
+                print(
+                    f"[startup] Port {default_port} occupé, bascule automatique sur {port}.",
+                    flush=True,
+                )
+            return port
+
+    raise RuntimeError(
+        f"Aucun port libre trouvé entre {default_port} et {default_port + attempts - 1}."
+    )
 
 # ── Enregistrement des blueprints ─────────────────────────────────────────────
 from viewer.routes.files           import files_bp
@@ -147,7 +183,17 @@ def _startup_index_rebuild() -> None:
 
 
 # Lancer la vérification des indexes dès le chargement du module
-_startup_index_rebuild()
+if os.getenv("WUDD_SKIP_STARTUP_REBUILD") != "1":
+    _startup_index_rebuild()
+
+
+@app.route("/api/runtime-info")
+def runtime_info():
+    return jsonify({
+        "viewer_port": app.config.get("ACTIVE_VIEWER_PORT", _DEFAULT_VIEWER_PORT),
+        "default_viewer_port": _DEFAULT_VIEWER_PORT,
+        "project_root": str(PROJECT_ROOT),
+    })
 
 
 # ── SPA fallback — toutes les routes non-API renvoient index.html ─────────────
@@ -174,6 +220,8 @@ def serve_app(path):
 
 
 if __name__ == "__main__":
+    port = _resolve_viewer_port()
+    app.config["ACTIVE_VIEWER_PORT"] = port
     print(f"WUDD.ai Viewer — racine projet : {PROJECT_ROOT}")
-    print("API disponible sur http://localhost:5050/api/files")
-    app.run(host="0.0.0.0", port=5050, debug=False, threaded=True)
+    print(f"API disponible sur http://localhost:{port}/api/files")
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

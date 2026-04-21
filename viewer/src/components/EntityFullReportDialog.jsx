@@ -15,10 +15,9 @@ import {
   X, Maximize2, Minimize2, Copy, Download, RefreshCw,
   FileText, Check, BookOpen, Loader2,
 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeRaw from 'rehype-raw'
 import { getMermaid } from '../utils/mermaidLoader'
+import ReportMarkdownContent from './ReportMarkdownContent'
+import StreamingReportPreview, { StreamingCursor } from './StreamingReportPreview'
 
 // ── Mermaid block ──────────────────────────────────────────────────────────────
 
@@ -151,9 +150,7 @@ function MermaidBlock({ code, isStreaming }) {
 // ── Vue finale gelée ───────────────────────────────────────────────────────────
 const FinalReportView = memo(function FinalReportView({ md, components }) {
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
-      {md}
-    </ReactMarkdown>
+    <ReportMarkdownContent md={md} components={components} />
   )
 })
 
@@ -821,16 +818,8 @@ export default function EntityFullReportDialog({
             </div>
           ) : cleanMd ? (
             <div key="streaming" className="w-full max-w-none">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw]}
-                components={mdComponents}
-              >
-                {cleanMd}
-              </ReactMarkdown>
-              {isLoading && (
-                <span className="inline-block w-1.5 h-4 bg-violet-500 dark:bg-violet-400 animate-pulse rounded-sm align-middle" />
-              )}
+              <StreamingReportPreview text={cleanMd} tone="violet" />
+              {isLoading && <StreamingCursor tone="violet" />}
             </div>
           ) : null}
         </div>

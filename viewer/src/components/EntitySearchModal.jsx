@@ -1,6 +1,17 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { X, ExternalLink, FileText, Loader2, Tag } from 'lucide-react'
-import GraphArticlePanel from './GraphArticlePanel'
+
+const GraphArticlePanel = lazy(() => import('./GraphArticlePanel'))
+
+function OverlayPanelFallback({ label = 'Chargement…' }) {
+  return (
+    <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/20 backdrop-blur-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-xl dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300">
+        {label}
+      </div>
+    </div>
+  )
+}
 
 /**
  * EntitySearchModal — recherche cross-fichiers pour une entité nommée.
@@ -198,11 +209,13 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
     </div>
 
     {reportItem && (
-      <GraphArticlePanel
-        article={{ url: reportItem.url, source: reportItem.source, date: reportItem.date }}
-        filePath={reportItem.path}
-        onClose={() => setReportItem(null)}
-      />
+      <Suspense fallback={<OverlayPanelFallback label="Chargement de l'article…" />}>
+        <GraphArticlePanel
+          article={{ url: reportItem.url, source: reportItem.source, date: reportItem.date }}
+          filePath={reportItem.path}
+          onClose={() => setReportItem(null)}
+        />
+      </Suspense>
     )}
   </>
   )

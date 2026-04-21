@@ -458,7 +458,6 @@ def api_article_full_report():
     meta_str = "\n".join(meta_parts) or "(non renseigné)"
 
     source_label = "texte complet de l'article" if url_ok else "résumé de l'article"
-    image_md = f"![Image principale]({image_url})\n\n" if image_url else ""
     source_link = f"[{url}]({url})" if url else "(non disponible)"
 
     # ── 4. Prompt ─────────────────────────────────────────────────────────────
@@ -470,7 +469,7 @@ def api_article_full_report():
         f"## {source_label.capitalize()}\n{source_text}\n\n"
         "---\n\n"
         "Génère un rapport complet en Markdown français avec ces sections dans l'ordre :\n"
-        f"1. Titre H1{(' + ' + image_md.strip()) if image_url else ''} + métadonnées (source · date) + accroche\n"
+        "1. Titre H1 + métadonnées (source · date) + accroche\n"
         "2. ## Contexte et enjeux — 2-4 paragraphes, **entités en gras**\n"
         "3. ## Analyse détaillée — sous-sections en ### (Markdown), **entités en gras**, faits et chiffres\n"
         "4. ## Acteurs impliqués — tableau | Entité | Type | Rôle |\n"
@@ -486,7 +485,8 @@ def api_article_full_report():
         "Exemples : classDef dark fill:#1a3a5c,color:#ffffff  ; classDef light fill:#e3f2fd,color:#333333.\n"
         "6. ## Points clés — 4-7 bullets + conclusion\n"
         f"7. ## Source — {source_link}\n\n"
-        "Règles : Markdown uniquement, pas de balises <think>, développe chaque section au maximum."
+        "Règles : Markdown uniquement, pas de balises <think>, développe chaque section au maximum. "
+        "N'insère jamais d'image Markdown en tête de document ; l'image principale est gérée séparément par l'interface."
     )
 
     # ── 5. Stream via EurIA or Claude ─────────────────────────────────────────

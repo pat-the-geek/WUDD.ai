@@ -1,5 +1,10 @@
 # 21/04/2026 — Audit dépendances et réalignement des runtimes (v2.8.5)
 
+## Viewer — rapports d'article
+
+- correction de la génération du rapport complet article pour ne plus demander au modèle d'insérer l'image principale en tête du Markdown
+- l'image principale reste affichée par l'interface dans un bloc dédié, ce qui évite l'empilement au-dessus du texte et les incohérences entre stream et rendu final
+
 ## Maintenance — Dépendances, frameworks et build Docker
 
 ### `requirements.txt`
@@ -81,7 +86,7 @@
 - Correction des 2 vulnérabilités npm restantes sans changement de major déclaré
 - Mise à jour transitive du lockfile : `dompurify` `3.3.1` → `3.4.0`, `picomatch` `2.3.1` → `2.3.2`, `picomatch` `4.0.3` → `4.0.4`
 
-# 14/04/2026 — Garde-fous anti-caractères chinois dans les résumés IA (v2.8.4)
+## 14/04/2026 — Garde-fous anti-caractères chinois dans les résumés IA (v2.8.4)
 
 ## Amélioration — Qualité linguistique des résumés (français strict)
 
@@ -98,14 +103,14 @@
   `EurIA`, `Claude`, `Ollama`
 - Harmonisation du nettoyage des préfixes `# Résumé` via helper centralisé
 
-### `tests/test_api_client_pure.py`
+### `tests/test_api_client_pure.py` — garde-fous linguistiques
 
 - Nouveaux tests unitaires pour :
   - détection des caractères chinois
   - contraintes de prompt français
   - relance automatique quand un résumé contient du chinois
 
-# 12/04/2026 — Script de renommage des rapports Obsidian (v2.8.3)
+## 12/04/2026 — Script de renommage des rapports Obsidian (v2.8.3)
 
 ## Ajout — Maintenance du vault Obsidian
 
@@ -119,7 +124,7 @@
 
 ---
 
-# 10/04/2026 — Déduplication sémantique dans le contexte Terminal IA (v2.8.2)
+## 10/04/2026 — Déduplication sémantique dans le contexte Terminal IA (v2.8.2)
 
 ## Amélioration — Terminal IA / chatbot
 
@@ -137,21 +142,24 @@ est désormais **dédupliqué sémantiquement** avant d'être envoyé à l'IA.
 
 ---
 
-# 09/04/2026 — Correction routage Ollama : get_config() obligatoire avant lecture AI_PROVIDER_* (v2.8.1)
+## 09/04/2026 — Correction routage Ollama : get_config() obligatoire avant lecture AI_PROVIDER_* (v2.8.1)
 
 ## Bug fix — Ollama ignoré dans le contexte cron Docker
 
 ### Problème identifié
+
 Dans le contexte cron Docker (env minimal), `get_summary_client()` et `get_ner_client()`
 lisaient `os.environ.get("AI_PROVIDER_SUMMARY")` / `os.environ.get("AI_PROVIDER_NER")`
 **avant** que `load_dotenv()` soit appelé. Ces variables étaient vides → bascule
 silencieuse vers EurIA, consommant ~961 000 tokens cloud/jour inutilement.
 
 ### Fix — `utils/api_client.py`
+
 - Ajout de `get_config()` en tête de `get_summary_client()` et `get_ner_client()`
   pour garantir le chargement du `.env` avant toute lecture de variable d'env
 
 ### Correction infrastructure macOS — Ollama inaccessible depuis Docker
+
 - `OLLAMA_HOST` pointait vers `host.docker.internal` (IPv6 seulement) alors
   qu'Ollama n'écoutait que sur `127.0.0.1` (IPv4 loopback)
 - Nouveau LaunchAgent `~/Library/LaunchAgents/com.wudd.ollama.plist` :
@@ -160,14 +168,15 @@ silencieuse vers EurIA, consommant ~961 000 tokens cloud/jour inutilement.
 - Suppression de l'ancien `homebrew.mxcl.ollama.plist` géré par Homebrew
 
 ### Résultat mesuré
+
 | Fenêtre | EurIA | Ollama | Total |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Avant fix (00h–17h55) | 961 062 tokens | 26 083 tokens | 987 145 |
 | Après fix (18h00+) | 0 tokens | 100 % | — |
 
 ---
 
-# 08/04/2026 — Résumés d'articles via Ollama local (v2.8.0)
+## 08/04/2026 — Résumés d'articles via Ollama local (v2.8.0)
 
 ## Option B — Ollama local pour les résumés d'articles
 
@@ -195,16 +204,17 @@ Tous utilisent désormais `get_summary_client()` au lieu de `get_ai_client()` :
 - Tracking de la consommation Ollama dans les logs (`[Ollama] Usage`)
 - Regex `USAGE_LINE_OLLAMA`, compteurs par service, agrégation dans `_provider_totals()`
 
-### `tests/test_api_client_pure.py`
+### `tests/test_api_client_pure.py` — routage résumés Ollama
 
 5 nouveaux tests `TestGetSummaryClient` (total : 97 tests) :
+
 - Routage Ollama disponible → `FallbackClient(OllamaClient)`
 - Fallback cloud si Ollama injoignable
 - `AI_PROVIDER_SUMMARY` vide → client cloud
 - `generate_summary_with_sentiment` → `None` déclenche fallback cloud
 - `generate_summary` → `None` sans fallback (comportement normal)
 
-### `.env.example`
+### `.env.example` — Option B
 
 ```env
 # IA Locale — Ollama (Option B : résumés d'articles)
@@ -213,7 +223,7 @@ AI_PROVIDER_SUMMARY=ollama  # ~789K tokens/j économisés
 
 ---
 
-# 07/04/2026 — Inférence NER/sentiment locale via Ollama (v2.7.0)
+## 07/04/2026 — Inférence NER/sentiment locale via Ollama (v2.7.0)
 
 ## Option A — Ollama local pour NER et sentiment batch
 
@@ -223,10 +233,10 @@ sans consommer de tokens API cloud.
 
 ### `utils/api_client.py` — `OllamaClient` + `get_ner_client()`
 
-- Nouveau classe `OllamaClient(EurIAClient)` : endpoint `http://{OLLAMA_HOST}:11434/v1/chat/completions`, sans credentials    
-  - Tous les appels sont tracés dans les logs avec le préfixe `[Ollama/<modèle>]`
-  - `OllamaClient._ollama_host()` lit la variable `OLLAMA_HOST` (défaut `localhost`, mettre `host.docker.internal` dans Docker sur macOS)
-  - `OllamaClient.is_available()` et `OllamaClient.list_models()` — sondes sans authentification
+- Nouvelle classe `OllamaClient(EurIAClient)` : endpoint `http://{OLLAMA_HOST}:11434/v1/chat/completions`, sans credentials
+- Tous les appels sont tracés dans les logs avec le préfixe `[Ollama/<modèle>]`
+- `OllamaClient._ollama_host()` lit la variable `OLLAMA_HOST` (défaut `localhost`, mettre `host.docker.internal` dans Docker sur macOS)
+- `OllamaClient.is_available()` et `OllamaClient.list_models()` — sondes sans authentification
 - Nouvelle fonction `get_ner_client()` : retourne `OllamaClient` si `AI_PROVIDER_NER=ollama` et serveur joignable, sinon bascule transparente sur le client cloud principal — aucune modification requise dans les scripts appelants
 - `get_ai_client()` étendu : branche `AI_PROVIDER=ollama` (utilisation directe d'Ollama comme provider principal)
 
@@ -244,7 +254,7 @@ sans consommer de tokens API cloud.
 
 - Variable d'environnement `OLLAMA_HOST=host.docker.internal` injectée automatiquement — le conteneur Docker peut joindre Ollama sur l'hôte macOS sans configuration supplémentaire
 
-### `.env.example`
+### `.env.example` — Option A
 
 Nouvelles variables documentées :
 
@@ -272,6 +282,7 @@ OLLAMA_MODEL=qwen2.5:7b
 ### Tests — `tests/test_api_client_pure.py`
 
 20 nouveaux tests unitaires (sans requête réseau) :
+
 - `TestOllamaClient` (12) : `_ollama_host`, `_default_url`, `__init__`, `is_available`, `list_models`
 - `TestGetAiClientOllama` (2) : branche `AI_PROVIDER=ollama` de `get_ai_client()`
 - `TestGetNerClient` (6) : routage NER selon `AI_PROVIDER_NER`, fallback si hors ligne, modèle custom
@@ -280,7 +291,7 @@ OLLAMA_MODEL=qwen2.5:7b
 
 ---
 
-# 25/03/2026 — Détection des silences + refactoring web_watcher (v2.6.0)
+## 25/03/2026 — Détection des silences + refactoring web_watcher (v2.6.0)
 
 ## `scripts/trend_detector.py` — Détection des silences (optimisation 3.7)
 
@@ -290,21 +301,24 @@ médiatique (0 mention sur les dernières 24h).
 
 **Nouvelle fonction :**
 
-```
+```python
 detect_silences(counts_24h, counts_7j, min_baseline_avg=3.0, top_n=10, rules=None)
 ```
 
 Retourne une liste d'alertes avec `"type": "silence"` contenant :
+
 - `entity_type`, `entity_value`, `count_24h` (= 0), `count_7j`
 - `baseline_avg_per_day` : fréquence de référence (mentions/j sur 7j)
 - `niveau` : `"élevé"` si avg ≥ 10/j, `"modéré"` sinon
 
 **Intégration dans `main()` :**
+
 - Nouveau flag `--no-silence` pour désactiver la détection
 - Nouveau flag `--silence-threshold AVG` pour ajuster le seuil
 - Les alertes de tendance et de silence sont combinées dans `data/alertes.json`
 
 **Mise à jour `config/alert_rules.json` :**
+
 - Nouveau paramètre `"silence_baseline_avg": 3.0` dans la section `global`
 
 ## `viewer/routes/analytics.py` — Support alertes de silence
@@ -323,7 +337,7 @@ Retourne une liste d'alertes avec `"type": "silence"` contenant :
 
 Extraction de la logique de persistance dans une fonction dédiée :
 
-```
+```python
 _save_and_index_articles(out_path, existing_articles, new_for_48h)
 ```
 
@@ -338,7 +352,7 @@ est réduite de 100 à 50 lignes et délègue clairement à cette nouvelle fonct
 
 ---
 
-# 25/03/2026 — Documentation complète des nouvelles fonctionnalités (v2.4)
+## 25/03/2026 — Documentation complète des nouvelles fonctionnalités (v2.4)
 
 ## `scripts/USAGE.md` — Refonte complète
 
@@ -347,7 +361,7 @@ Le guide de référence CLI a été entièrement réécrit pour couvrir les **46
 Scripts nouvellement documentés :
 
 | Script | Rôle |
-|---|---|
+| --- | --- |
 | `web_watcher.py` | Surveillance sources web via sitemap |
 | `enrich_sentiment.py` | Enrichissement sentiment et ton éditorial |
 | `enrich_images.py` | Enrichissement images (og:image / twitter:image) |
@@ -379,7 +393,7 @@ Scripts nouvellement documentés :
 Documentation des modules `utils/` créés dans les versions v2.3–v2.4 :
 
 | Module | Rôle |
-|---|---|
+| --- | --- |
 | `utils/rolling_window.py` | Fenêtre glissante 48h (`48-heures.json`) |
 | `utils/article_merger.py` | Recherche et fusion d'articles similaires |
 | `utils/async_enricher.py` | Enrichissement NER/sentiment asynchrone (aiohttp) |
@@ -394,13 +408,14 @@ Documentation des modules `utils/` créés dans les versions v2.3–v2.4 :
 
 ---
 
-# 20/03/2026 — Visualisations custom React dans le rapport cross-flux (sans Mermaid)
+## 20/03/2026 — Visualisations custom React dans le rapport cross-flux (sans Mermaid)
 
 ## `scripts/cross_flux_analysis.py` — Remplacement des blocs Mermaid
 
 Les deux blocs Mermaid du rapport cross-flux ont été remplacés par des composants React personnalisés, plus fiables et entièrement contrôlables.
 
 **Fonctions supprimées :**
+
 - `_sanitize_mindmap_text()` — nettoyage pour Mermaid mindmap (obsolète)
 - `_build_mermaid_mindmap_keywords()` — génération du mindmap Mermaid (obsolète)
 - `_build_mermaid_top_flux()` — génération du xychart Mermaid (obsolète)
@@ -408,12 +423,13 @@ Les deux blocs Mermaid du rapport cross-flux ont été remplacés par des compos
 **Nouvelles fonctions :**
 
 | Fonction | Description |
-|---|---|
+| --- | --- |
 | `_normalize_keyword_stem(kw)` | Normalise un mot-clé vers le stem du fichier RSS correspondant (`strip().lower().replace(' ', '-')`) |
 | `_build_keyword_graph_block(project_root, active_stems)` | Génère un bloc `keyword-graph` (JSON) ne contenant que les mots-clés ayant au moins un article dans la période analysée |
 | `_build_flux_chart_block(flux_article_counts, flux_letter_map, top_n=15)` | Génère un bloc `flux-chart` (JSON) avec, pour chaque flux, son `name`, son `count` et sa `letter` issue de l'attribution alphabétique |
 
 **Fonctions inchangées :**
+
 - `_assign_flux_letters(sorted_flux_names)` — attribue A, B, C… aux flux triés alphabétiquement ; utilisé à la fois pour la liste textuelle et pour le champ `letter` du graphique
 
 ## `viewer/src/components/KeywordForceGraph.jsx` — Nouveau composant
@@ -440,7 +456,7 @@ Graphique à barres horizontales pour les statistiques par flux RSS (remplace le
 Deux nouveaux types de blocs de code interprétés par le rendu Markdown :
 
 | Type de bloc | Composant rendu |
-|---|---|
+| --- | --- |
 | ` ```keyword-graph ` | `<KeywordForceGraph keywords={JSON.parse(children)} />` dans un conteneur 600 px de hauteur |
 | ` ```flux-chart ` | `<FluxBarChart items={JSON.parse(children)} />` |
 
@@ -451,7 +467,7 @@ Correction de `makeResponsiveSvg()` : remplacement de `height:auto` (invisible d
 Même correction `makeResponsiveSvg()` (aspect-ratio) appliquée dans le `useEffect` du `MermaidBlock`.
 Thème Mermaid changé de `neutral` → `default`.
 
-## `viewer/src/components/SettingsPanel.jsx`
+## `viewer/src/components/SettingsPanel.jsx` — modal mots-clés
 
 Le mindmap Mermaid du panneau Paramètres (onglet Mots-clés) est remplacé par `KeywordForceGraph` dans une modal plein-écran (`fixed inset-0 z-[9999]`). Tout le code Mermaid résiduel supprimé.
 
@@ -461,7 +477,7 @@ Les boutons +/– d'espacement des liens sont remplacés par un slider `<input t
 
 ---
 
-# 17/03/2026 — Couche analytique DuckDB + script d'import d'articles
+## 17/03/2026 — Couche analytique DuckDB + script d'import d'articles
 
 ## `utils/db.py` — Nouvelle couche analytique DuckDB (Optimisation 2.1)
 
@@ -471,7 +487,7 @@ DuckDB est une dépendance optionnelle — si indisponible, le code bascule sur 
 Méthodes disponibles via `get_db()` (singleton thread-safe) :
 
 | Méthode | Description |
-|---|---|
+| --- | --- |
 | `query_articles_by_entity(entity, days)` | Articles mentionnant une entité (18 types NER) |
 | `article_stats_by_source(days)` | Statistiques par source : volume, sentiment moyen |
 | `article_stats_by_day(days)` | Volume quotidien |
@@ -486,6 +502,7 @@ Méthodes disponibles via `get_db()` (singleton thread-safe) :
 Injecte des articles depuis un fichier JSON externe dans la structure WUDD.ai.
 
 Fonctionnalités :
+
 - Validation des champs obligatoires (`Date de publication`, `Sources`, `URL`, `Résumé`)
 - Déduplication contre les articles existants du flux cible (via `Deduplicator`)
 - Destinations : `data/articles/<flux>/` ou `data/articles-from-rss/<keyword>.json`
@@ -507,7 +524,7 @@ Options CLI : `--file`, `--flux`, `--keyword`, `--rss`, `--dry-run`, `--force`, 
 
 ---
 
-# 07/03/2026 — Quota par entité nommée (`per_entity_daily_limit`)
+## 07/03/2026 — Quota par entité nommée (`per_entity_daily_limit`)
 
 ## Nouveau plafond : entités nommées (`utils/quota.py`)
 
@@ -533,12 +550,12 @@ Options CLI : `--file`, `--flux`, `--keyword`, `--rss`, `--dry-run`, `--force`, 
 
 ---
 
-# 07/03/2026 · Chaînage entity_timeline + cross_flux + enrich_reading_time après flux_watcher
+## 07/03/2026 · Chaînage entity_timeline + cross_flux + enrich_reading_time après flux_watcher
 
 ## Priorités 1 à 10 — 10 nouvelles fonctions de veille informationnelle
 
 | # | Fonction | Fichiers |
-|---|---|---|
+| --- | --- | --- |
 | 1 | Déduplication 3 signaux | `utils/deduplication.py`, `get-keyword-from-rss.py` |
 | 2 | Règles d'alertes configurables | `config/alert_rules.json`, `scripts/trend_detector.py` |
 | 3 | Suivi temporel des entités (Timeline) | `scripts/entity_timeline.py`, endpoint Flask |
@@ -572,15 +589,13 @@ Options CLI : `--file`, `--flux`, `--keyword`, `--rss`, `--dry-run`, `--force`, 
 
 ---
 
-
-
 ## Analyse et priorisation
 
 Après analyse de l'état de l'art en veille informationnelle, 10 nouvelles fonctions
 ont été conçues et implémentées, triées par priorité décroissante :
 
 | # | Fonction | Priorité | Fichiers créés / modifiés |
-|---|----------|----------|--------------------------|
+| --- | ---------- | ---------- | -------------------------- |
 | 1 | Déduplication de contenu | 🔴 Critique | `utils/deduplication.py` + `get-keyword-from-rss.py` |
 | 2 | Règles d'alertes configurables | 🔴 Critique | `config/alert_rules.json` + `trend_detector.py` |
 | 3 | Suivi temporel des entités | 🟠 Élevé | `scripts/entity_timeline.py` + endpoint Flask |
@@ -671,7 +686,7 @@ ont été conçues et implémentées, triées par priorité décroissante :
 ## Priorité 9 — `viewer/app.py` : 5 nouveaux endpoints API
 
 | Route | Description |
-|---|---|
+| --- | --- |
 | `GET /api/entities/timeline` | Série chronologique des entités |
 | `GET /api/sources/credibility` | Score de crédibilité d'une source ou liste complète |
 | `GET /api/alerts/rules` | Lire les règles d'alertes |
@@ -686,8 +701,6 @@ ont été conçues et implémentées, triées par priorité décroissante :
 
 ---
 
-
-
 ## `utils/quota.py` — resync disque automatique
 
 - `get_stats()` relit maintenant `data/quota_state.json` depuis le disque à chaque appel
@@ -700,7 +713,7 @@ ont été conçues et implémentées, triées par priorité décroissante :
 
 ---
 
-# 06/03/2026 — Système de quota adaptatif & fix sys.path Flask
+## 06/03/2026 — Système de quota adaptatif & fix sys.path Flask
 
 ## Quota adaptatif (`utils/quota.py`)
 
@@ -731,7 +744,7 @@ ont été conçues et implémentées, triées par priorité décroissante :
 ## 4 endpoints Flask
 
 | Route | Description |
-|---|---|
+| --- | --- |
 | `GET /api/quota/config` | Lire la configuration |
 | `POST /api/quota/config` | Sauvegarder la configuration |
 | `GET /api/quota/stats` | Statistiques de consommation du jour |
@@ -745,7 +758,7 @@ ont été conçues et implémentées, triées par priorité décroissante :
 
 ---
 
-# 06/03/2026 — Sentiment, Export & Diffusion, robustesse explorateur
+## 06/03/2026 — Sentiment, Export & Diffusion, robustesse explorateur
 
 ## Analyse de sentiment (`enrich_sentiment.py`)
 
@@ -781,7 +794,7 @@ ont été conçues et implémentées, triées par priorité décroissante :
 
 ---
 
-# 06/03/2026 — Améliorations UX viewer
+## 06/03/2026 — Améliorations UX viewer
 
 ## Réglages — Tri alphabétique des mots-clés
 
@@ -791,7 +804,7 @@ ont été conçues et implémentées, triées par priorité décroissante :
 
 ---
 
-# 04/03/2026 — Rapport quotidien Top 10 entités (48h)
+## 04/03/2026 — Rapport quotidien Top 10 entités (48h)
 
 ## Nouveau script `generate_48h_report.py`
 
@@ -806,7 +819,7 @@ ont été conçues et implémentées, triées par priorité décroissante :
 - Cron ajouté dans `archives/crontab` : `0 23 * * *`
 - Documentation : `scripts/USAGE.md` §8, `CLAUDE.md` (tables Key Scripts et Scheduled cron jobs)
 
-# 28/02/2026 — Dashboard entités, export article, correction API
+## 28/02/2026 — Dashboard entités, export article, correction API
 
 ## Viewer — Détail entités avec export
 
@@ -824,7 +837,7 @@ ont été conçues et implémentées, triées par priorité décroissante :
 - Nouveau script `scripts/repair_failed_summaries.py` : détecte et régénère les résumés en erreur (220 articles réparés le 28/02/2026)
 - README mis à jour : section §5 Viewer (captures entités), §4 (script réparation, format JSON complet avec `entities` et `Images`)
 
-# 26/02/2026 — Viewer web (Flask + React)
+## 26/02/2026 — Viewer web (Flask + React)
 
 - Ajout du Viewer WUDD.ai : interface locale de navigation/lecture/édition des fichiers JSON et Markdown
 - Backend Flask (`viewer/app.py`) : API REST, navigation fichiers, recherche plein texte, gestion flux et planification
@@ -834,10 +847,11 @@ ont été conçues et implémentées, triées par priorité décroissante :
 - Documentation mise à jour : README (section 5), CLAUDE.md, ARCHITECTURE.md (ADR-007), STRUCTURE.md, DOCS_INDEX.md
 - Fix Docker : `viewer/package-lock.json` versionné pour `npm ci`
 
-# 21/02/2026 - Vérification conformité orchestrations
+## 21/02/2026 - Vérification conformité orchestrations
 
 - Toutes les tâches planifiées (scheduler, extraction par mot-clé, monitoring, test cron) sont orchestrées exclusivement dans Docker (cron du conteneur analyse-actualites).
 - Aucune tâche cron n’est programmée sur l’hôte.
+
 ### Ajout du script get-keyword-from-rss.py (20/02/2026)
 
 - Nouveau script : `get-keyword-from-rss.py` (extraction quotidienne par mot-clé depuis tous les flux RSS)
@@ -846,9 +860,10 @@ ont été conçues et implémentées, triées par priorité décroissante :
 - Intégration au scheduler via cron (1h00 chaque jour)
 - Documentation mise à jour (README.md, USAGE.md, ARCHITECTURE.md)
 
-# Changements apportés - Restructuration du 23 janvier 2026
+## Changements apportés - Restructuration du 23 janvier 2026
 
 ## 🎯 Objectif
+
 Réorganisation complète du projet AnalyseActualités pour améliorer la maintenabilité, l'évolutivité et la clarté de la structure, avec implémentation de chemins absolus automatiques.
 
 ## ✅ Actions réalisées
@@ -856,10 +871,13 @@ Réorganisation complète du projet AnalyseActualités pour améliorer la mainte
 ### Version 2.0 - Chemins absolus (23/01/2026 - après-midi)
 
 #### Problème résolu
+
 Scripts v1.0 (chemins relatifs) causaient des erreurs `FileNotFoundError` quand exécutés depuis un autre répertoire ou via raccourcis macOS.
 
 #### Solution implémentée
+
 Détection automatique du répertoire du projet via `__file__` :
+
 ```python
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -868,6 +886,7 @@ DATA_ARTICLES_DIR = os.path.join(PROJECT_ROOT, "data", "articles")
 ```
 
 #### Fichiers modifiés
+
 - ✅ `scripts/Get_data_from_JSONFile_AskSummary.py` : Chemins absolus + création auto dossiers
 - ✅ `.github/copilot-instructions.md` : Mise à jour complète (v2.0)
 - ✅ `STRUCTURE.md` : Documentation chemins absolus
@@ -875,9 +894,11 @@ DATA_ARTICLES_DIR = os.path.join(PROJECT_ROOT, "data", "articles")
 - ✅ `ARCHITECTURE.md` : Documentation technique complète (NOUVEAU)
 
 #### Nouveaux fichiers
+
 - ✅ `ARCHITECTURE.md` - Documentation architecturale complète (diagrammes, flux, ADRs)
 
 #### Bénéfices
+
 - ✅ Scripts fonctionnent depuis n'importe quel répertoire
 - ✅ Compatible raccourcis macOS
 - ✅ Compatible automatisation (cron, GitHub Actions)
@@ -886,6 +907,7 @@ DATA_ARTICLES_DIR = os.path.join(PROJECT_ROOT, "data", "articles")
 ### Version 1.0 - Restructuration initiale (23/01/2026 - matin)
 
 ### 1. Création de la structure de dossiers
+
 - ✅ `scripts/` - Scripts Python exécutables
 - ✅ `config/` - Fichiers de configuration
 - ✅ `data/articles/` - Articles JSON générés
@@ -897,20 +919,24 @@ DATA_ARTICLES_DIR = os.path.join(PROJECT_ROOT, "data", "articles")
 ### 2. Migration des fichiers
 
 #### Scripts (→ `scripts/`)
+
 - `Get_data_from_JSONFile_AskSummary.py`
 - `Get_htmlText_From_JSONFile.py`
 - `articles_json_to_markdown.py`
 
 #### Configuration (→ `config/`)
+
 - `sites_actualite.json` (133 sources)
 - `categories_actualite.json` (215 catégories)
 - `prompt-rapport.txt`
 
 #### Données (→ `data/articles/`)
+
 - `articles_generated_2025-12-01_2025-12-28.json`
 - `articles_generated_2026-01-01_2026-01-18.json`
 
 #### Rapports (→ `rapports/`)
+
 - `rapport_complet_ia_gouvernement.md` → `rapports/markdown/`
 - `rapport_sommaire_articles_generated_2025-12-01_2025-12-28.md` → `rapports/markdown/`
 - `rapport_sommaire_articles_generated_2026-01-01_2026-01-18.md` → `rapports/markdown/`
@@ -919,22 +945,30 @@ DATA_ARTICLES_DIR = os.path.join(PROJECT_ROOT, "data", "articles")
 ### 3. Mise à jour des scripts
 
 #### `Get_htmlText_From_JSONFile.py`
+
 **Avant** :
+
 ```python
 output_file = 'all_articles.txt'
 ```
+
 **Après** :
+
 ```python
 output_file = '../data/raw/all_articles.txt'
 ```
 
 #### `Get_data_from_JSONFile_AskSummary.py`
+
 **Avant** :
+
 ```python
 file_output = f"articles_generated_{date_debut}_{date_fin}.json"
 report_file = f"rapport_sommaire_{file_output.replace('.json', '.md')}"
 ```
+
 **Après** :
+
 ```python
 file_output = f"../data/articles/articles_generated_{date_debut}_{date_fin}.json"
 base_filename = os.path.basename(file_output)
@@ -944,26 +978,31 @@ report_file = f"../rapports/markdown/rapport_sommaire_{base_filename.replace('.j
 ### 4. Nouveaux fichiers créés
 
 #### Documentation
+
 - ✅ `README.md` - Documentation principale (5866 octets)
 - ✅ `STRUCTURE.md` - Documentation de la structure du projet
 - ✅ `scripts/USAGE.md` - Guide d'utilisation des scripts
 
 #### Configuration projet
+
 - ✅ `.gitignore` - Fichiers à ignorer (Python + macOS + projet)
 - ✅ `requirements.txt` - Dépendances Python
-  ```
+
+  ```txt
   requests>=2.31.0
   beautifulsoup4>=4.12.0
   python-dotenv>=1.0.0
   ```
 
 #### Historique
+
 - ✅ `CHANGELOG.md` - Ce fichier
 
 ## 📊 Comparaison avant/après
 
 ### Avant (structure plate)
-```
+
+```text
 AnalyseActualités/
 ├── Get_data_from_JSONFile_AskSummary.py
 ├── Get_htmlText_From_JSONFile.py
@@ -975,13 +1014,16 @@ AnalyseActualités/
 ├── rapport_*.pdf (×1)
 └── Anciennes versions/
 ```
+
 **Problèmes** :
+
 - Tous les fichiers mélangés à la racine
 - Difficile de distinguer scripts, config, données, rapports
 - Pas de documentation centralisée
 
 ### Après (structure organisée)
-```
+
+```text
 AnalyseActualités/
 ├── scripts/          # Scripts exécutables
 ├── config/           # Configuration
@@ -996,7 +1038,9 @@ AnalyseActualités/
 ├── .gitignore       # Exclusions Git
 └── requirements.txt # Dépendances
 ```
+
 **Avantages** :
+
 - ✅ Séparation claire des responsabilités
 - ✅ Chemins prévisibles et standardisés
 - ✅ Documentation complète
@@ -1006,7 +1050,9 @@ AnalyseActualités/
 ## 🔧 Compatibilité et rétrocompatibilité
 
 ### ⚠️ Breaking changes
+
 Les scripts doivent maintenant être exécutés depuis le dossier `scripts/` :
+
 ```bash
 # ❌ Ancien (ne fonctionne plus)
 python3 Get_data_from_JSONFile_AskSummary.py
@@ -1021,6 +1067,7 @@ python3 Get_data_from_JSONFile_AskSummary.py
 Si vous avez des scripts personnalisés qui référencent les anciens chemins :
 
 1. **Mettre à jour les chemins absolus** :
+
    ```python
    # Avant
    with open('sites_actualite.json', 'r') as f:
@@ -1030,6 +1077,7 @@ Si vous avez des scripts personnalisés qui référencent les anciens chemins :
    ```
 
 2. **Mettre à jour les commandes** :
+
    ```bash
    # Ajouter 'cd scripts/' avant l'exécution
    cd scripts/
@@ -1074,10 +1122,11 @@ Tous les fichiers originaux ont été préservés dans le dossier `archives/` av
 ## 📧 Support
 
 Pour toute question sur cette restructuration :
+
 - **Auteur** : Patrick Ostertag
-- **Email** : patrick.ostertag@gmail.com
+- **Email** : [patrick.ostertag@gmail.com](mailto:patrick.ostertag@gmail.com)
 - **Date** : 23 janvier 2026
 
 ---
 
-*Restructuration effectuée avec succès - Projet AnalyseActualités v2.0*
+## Restructuration effectuée avec succès - Projet AnalyseActualités v2.0

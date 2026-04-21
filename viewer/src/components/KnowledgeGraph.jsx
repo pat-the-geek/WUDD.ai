@@ -15,16 +15,27 @@
  *   - Tooltip au survol d'un nœud
  *   - Légende
  */
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import {
   X, Search, ZoomIn, ZoomOut,
   RefreshCw, Loader2, Network, Crosshair, ExternalLink,
   ChevronUp, ChevronDown,
 } from 'lucide-react'
-import ArticleFullReportDialog from './ArticleFullReportDialog'
-import GraphArticlePanel from './GraphArticlePanel'
-import EntityArticlePanel from './EntityArticlePanel'
+
+const ArticleFullReportDialog = lazy(() => import('./ArticleFullReportDialog'))
+const GraphArticlePanel = lazy(() => import('./GraphArticlePanel'))
+const EntityArticlePanel = lazy(() => import('./EntityArticlePanel'))
+
+function OverlayPanelFallback({ label = 'Chargement…' }) {
+  return (
+    <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/20 backdrop-blur-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-xl dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300">
+        {label}
+      </div>
+    </div>
+  )
+}
 
 // ── Couleurs par type NER ──────────────────────────────────────────────────
 const TYPE_CFG = {
@@ -2363,20 +2374,24 @@ export default function KnowledgeGraph({ onClose }) {
 
     {/* ── Panel article ── */}
     {reportArticle && (
-      <GraphArticlePanel
-        article={reportArticle.article}
-        filePath={reportArticle.filePath}
-        onClose={() => setReportArticle(null)}
-      />
+      <Suspense fallback={<OverlayPanelFallback label="Chargement de l'article…" />}>
+        <GraphArticlePanel
+          article={reportArticle.article}
+          filePath={reportArticle.filePath}
+          onClose={() => setReportArticle(null)}
+        />
+      </Suspense>
     )}
 
     {/* ── Panel entité ── */}
     {entityPanel && (
-      <EntityArticlePanel
-        entityType={entityPanel.type}
-        entityValue={entityPanel.value}
-        onClose={() => setEntityPanel(null)}
-      />
+      <Suspense fallback={<OverlayPanelFallback label="Chargement de l'entité…" />}>
+        <EntityArticlePanel
+          entityType={entityPanel.type}
+          entityValue={entityPanel.value}
+          onClose={() => setEntityPanel(null)}
+        />
+      </Suspense>
     )}
     </>
   )

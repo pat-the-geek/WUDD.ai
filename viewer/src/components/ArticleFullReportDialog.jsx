@@ -18,10 +18,9 @@ import {
 } from 'lucide-react'
 import YouTubePanel from './YouTubePanel'
 import ArticleGalleryPanel from './ArticleGalleryPanel'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeRaw from 'rehype-raw'
 import EntityHighlighter, { EntityHighlighterSegments } from './EntityHighlighter'
+import ReportMarkdownContent from './ReportMarkdownContent'
+import StreamingReportPreview, { StreamingCursor } from './StreamingReportPreview'
 import { obsidianUri, openInObsidian } from '../utils/obsidian'
 import { getMermaid } from '../utils/mermaidLoader'
 
@@ -177,18 +176,16 @@ function MermaidBlock({ code, isStreaming }) {
   )
 }
 
+function stripLeadingReportImages(markdown) {
+  return String(markdown ?? '').replace(/^(?:!\[[^\]]*\]\([^\)]+\)\s*\n+)+/m, '').trim()
+}
+
 // ── Vue finale gelée ──────────────────────────────────────────────────────────
 // Montée une seule fois quand le stream est terminé.
 // Reçoit des props stables (md, components) → aucun re-render, aucun flash Mermaid.
 const FinalReportView = memo(function FinalReportView({ md, components }) {
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeRaw]}
-      components={components}
-    >
-      {md}
-    </ReactMarkdown>
+    <ReportMarkdownContent md={md} components={components} />
   )
 })
 
@@ -371,6 +368,8 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
   const [frozenMd,  setFrozenMd]        = useState(null)
   const frozenComponentsRef             = useRef(null)  // components capturés à la fin du stream
   const abortRef = useRef(null)
+  const streamBufferRef = useRef('')
+  const streamFlushTimerRef = useRef(null)
 
   const entities     = article.entities ?? {}
   const titre        = article['Titre']?.trim() || article['Sources'] || 'Rapport complet'
@@ -390,6 +389,23 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
     if (!Array.isArray(imgs) || !imgs.length) return null
     return imgs.find(i => i?.URL)?.URL ?? imgs.find(i => i?.url)?.url ?? null
   })()
+
+  const flushStreamMarkdown = useCallback((force = false) => {
+    if (force) {
+      if (streamFlushTimerRef.current) {
+        clearTimeout(streamFlushTimerRef.current)
+        streamFlushTimerRef.current = null
+      }
+      setReportMd(streamBufferRef.current)
+      return
+    }
+
+    if (streamFlushTimerRef.current) return
+    streamFlushTimerRef.current = setTimeout(() => {
+      streamFlushTimerRef.current = null
+      setReportMd(streamBufferRef.current)
+    }, 90)
+  }, [])
 
   // ── Inject/remove print CSS ──────────────────────────────────────────────────
   useEffect(() => {
@@ -444,6 +460,11 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
     abortRef.current?.abort()
     const ac = new AbortController()
     abortRef.current = ac
+    streamBufferRef.current = ''
+    if (streamFlushTimerRef.current) {
+      clearTimeout(streamFlushTimerRef.current)
+      streamFlushTimerRef.current = null
+    }
     setReportMd('')
     setFrozenMd(null)   // réinitialiser la vue gelée pour repartir en streaming
     setIsLoading(true)
@@ -510,7 +531,10 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
                     inThink = false
                   }
                 }
-                if (toAppend) setReportMd(prev => prev + toAppend)
+                if (toAppend) {
+                  streamBufferRef.current += toAppend
+                  flushStreamMarkdown()
+                }
               } else if (parsed.error) {
                 const errMsg = parsed.error
                 setError(typeof errMsg === 'string' ? errMsg : (errMsg?.message ?? JSON.stringify(errMsg)))
@@ -518,19 +542,27 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
             } catch { /* ignorer les chunks malformés */ }
           }
         }
+        flushStreamMarkdown(true)
         setIsLoading(false)
       })
       .catch(e => {
         if (e.name !== 'AbortError') {
+          flushStreamMarkdown(true)
           setError(e.message)
           setIsLoading(false)
         }
       })
-  }, [url, titre, sources, date, resume, entities, sentiment, ton, mainImageUrl]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [url, titre, sources, date, resume, entities, sentiment, ton, mainImageUrl, flushStreamMarkdown]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     startStream()
-    return () => abortRef.current?.abort()
+    return () => {
+      abortRef.current?.abort()
+      if (streamFlushTimerRef.current) {
+        clearTimeout(streamFlushTimerRef.current)
+        streamFlushTimerRef.current = null
+      }
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Récupération du nom du vault Obsidian ─────────────────────────────────────
@@ -545,11 +577,11 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
   // On capture cleanMd au moment précis où isLoading passe à false.
   // frozenMd ne changera plus jusqu'au prochain startStream → FinalReportView stable.
   useEffect(() => {
-    if (!isLoading && cleanMd) {
+    if (!isLoading && displayMd) {
       // Capturer le snapshot du markdown ET les composants (référence stable)
       // pour que memo(FinalReportView) ne se re-rende jamais après le gel.
       frozenComponentsRef.current = mdComponents
-      setFrozenMd(cleanMd)
+      setFrozenMd(displayMd)
     }
   }, [isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -567,6 +599,7 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
     .replace(/<think>[\s\S]*/gi, '')
     .trim()
+  const displayMd = stripLeadingReportImages(cleanMd)
 
   // Build entity chip list (all types, PERSON/ORG/PRODUCT first)
   const chipList = []
@@ -582,14 +615,14 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
 
   // ── Actions ───────────────────────────────────────────────────────────────────
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(cleanMd).catch(() => {})
+    await navigator.clipboard.writeText(displayMd).catch(() => {})
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   const handleOpenChatbot = () => {
     window.dispatchEvent(new CustomEvent('wudd:openArticleChatbot', {
-      detail: { titre, sources, date, url, entities, resume, reportMd: cleanMd },
+      detail: { titre, sources, date, url, entities, resume, reportMd: displayMd },
     }))
   }
 
@@ -657,7 +690,7 @@ ${contentEl.innerHTML}
     const fname = `rapport_${sources || 'article'}_${date || new Date().toISOString().slice(0, 10)}.md`
       .replace(/[/\\: ]/g, '-')
     const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([cleanMd], { type: 'text/markdown' }))
+    a.href = URL.createObjectURL(new Blob([displayMd], { type: 'text/markdown' }))
     a.download = fname
     a.click()
   }
@@ -665,7 +698,7 @@ ${contentEl.innerHTML}
   const handleExport = async (target) => {
     setExportState(prev => ({ ...prev, [target]: 'saving' }))
 
-    let markdown = cleanMd
+    let markdown = displayMd
     let filename
     let resumeForDedup = ''
 
@@ -698,7 +731,7 @@ ${contentEl.innerHTML}
       const front    = buildArticleObsidianFrontmatter(article, geoData)
       const noteBody = buildObsidianNoteBody(article, geoData)
       // Corps IA : supprimer le frontmatter existant du rapport AI
-      const aiReport = cleanMd.replace(/^---[\s\S]*?---\n\n?/, '')
+      const aiReport = displayMd.replace(/^---[\s\S]*?---\n\n?/, '')
       markdown = front + noteBody + `## Rapport IA\n\n` + aiReport
 
       // MD5 du résumé pour la déduplication côté serveur
@@ -926,7 +959,7 @@ ${contentEl.innerHTML}
             </div>
           </div>
           <div className="flex items-center gap-0.5 shrink-0 justify-end">
-            {!isLoading && cleanMd && (
+            {!isLoading && displayMd && (
               <>
                 <button
                   onClick={() => setGalleryOpen(true)}
@@ -1099,13 +1132,27 @@ ${contentEl.innerHTML}
 
         {/* ── Report content ────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-10 py-6 bg-white dark:bg-slate-900">
+          {mainImageUrl && (
+            <figure className="mb-8 mx-auto max-w-4xl overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 shadow-sm">
+              <img
+                src={mainImageUrl}
+                alt={titre}
+                className="block w-full max-h-[240px] sm:max-h-[300px] lg:max-h-[340px] object-cover"
+                loading="eager"
+              />
+              <figcaption className="px-4 py-2.5 text-xs text-center text-slate-500 dark:text-slate-400">
+                Image principale de l'article
+              </figcaption>
+            </figure>
+          )}
+
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-sm text-rose-700 dark:text-rose-300">
               Erreur : {error}
             </div>
           )}
 
-          {isLoading && !cleanMd && (
+          {isLoading && !displayMd && (
             <div className="flex items-center gap-3 text-slate-400 dark:text-slate-500 text-sm py-16 justify-center">
               <RefreshCw size={16} className="animate-spin" />
               Génération du rapport en cours…
@@ -1119,18 +1166,12 @@ ${contentEl.innerHTML}
             <div key="final" className="w-full max-w-none">
               <FinalReportView md={frozenMd} components={frozenComponentsRef.current} />
             </div>
-          ) : cleanMd ? (
+          ) : displayMd ? (
             /* ── Vue streaming ────────────────────────────────────────────────
-               Mise à jour à chaque token — Mermaid affiche un placeholder. */
+               Aperçu texte stable pendant la génération pour éviter le clignotement. */
             <div key="streaming" className="w-full max-w-none">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw]}
-                components={mdComponents}
-              >
-                {cleanMd}
-              </ReactMarkdown>
-              <span className="inline-block w-1.5 h-4 bg-blue-500 dark:bg-blue-400 animate-pulse rounded-sm align-middle" />
+              <StreamingReportPreview text={displayMd} tone="slate" />
+              <StreamingCursor tone="slate" />
             </div>
           ) : null}
         </div>

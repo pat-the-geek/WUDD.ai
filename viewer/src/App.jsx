@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import Sidebar from './components/Sidebar'
 import FileViewer from './components/FileViewer'
+import RuntimeInfoPanel from './components/RuntimeInfoPanel'
 import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, EyeOff, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, ChevronRight, MoreHorizontal, Newspaper, Filter, Tag, BookOpen, Network } from 'lucide-react'
 import wuddLogo from './assets/wudd-prism-floyd.svg'
 
@@ -303,6 +304,7 @@ export default function App() {
   const [isRefreshing, setIsRefreshing]   = useState(false)
   // Annotations manuelles (dict keyed par URL article) — null tant que le fetch initial n'est pas terminé
   const [annotations, setAnnotations]     = useState(null)
+  const [runtimeInfo, setRuntimeInfo]     = useState(null)
   // Compteur de requêtes pour ignorer les réponses périmées (race condition)
   const fetchIdRef = useRef(0)
   // Ref sur le fichier en cours de consultation (accessible dans les callbacks
@@ -330,6 +332,19 @@ export default function App() {
     return () => mq.removeEventListener('change', handler)
   }, [theme])
 
+  useEffect(() => {
+    fetch('/api/runtime-info')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (data) setRuntimeInfo(data) })
+      .catch(() => {})
+  }, [])
+
+  const activePort = runtimeInfo?.viewer_port != null
+    ? String(runtimeInfo.viewer_port)
+    : typeof window !== 'undefined'
+      ? (window.location.port || (window.location.protocol === 'https:' ? '443' : '80'))
+      : ''
+  const showPortBadge = Boolean(activePort) && activePort !== '5050'
   // ── Données ────────────────────────────────────────────────────────────────
   const refreshFiles = useCallback(() => {
     setIsRefreshing(true)
@@ -438,6 +453,10 @@ export default function App() {
 
   const warmTopRuntime = useCallback(() => {
     loadTopArticlesPanel()
+  }, [])
+
+  const warmChatRuntime = useCallback(() => {
+    loadChatbotPanel()
   }, [])
 
   const warmSettingsRuntime = useCallback(() => {
@@ -709,10 +728,20 @@ export default function App() {
         <div className="flex items-center gap-2 shrink-0 mr-1">
           <img src={wuddLogo} alt="WUDD.ai" className="w-8 h-8 rounded-md select-none" />
           <span className="hidden xl:block font-semibold text-hig-callout text-slate-900 dark:text-slate-100 whitespace-nowrap">WUDD.ai</span>
+          {showPortBadge && (
+            <span
+              className="hidden lg:inline-flex items-center gap-1 rounded-full border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 whitespace-nowrap"
+              title={`Viewer démarré sur le port ${activePort}`}
+            >
+              Port {activePort}
+            </span>
+          )}
         </div>
 
         {/* Statut RSS */}
         <RssStatusBar status={rssStatus} nextRssLabel={nextRssLabel} />
+
+        <RuntimeInfoPanel runtimeInfo={runtimeInfo} activePort={activePort} />
 
         <div className="flex-1 min-w-0" />
 
@@ -895,6 +924,12 @@ export default function App() {
       {/* ── Corps principal ── */}
       {/* safe-area-inset-top sur mobile (le header étant masqué, le contenu remonte sous l'encoche) */}
       <div className="flex flex-1 overflow-hidden relative pb-16 md:pb-0" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        {showPortBadge && (
+          <div className="md:hidden absolute top-2 right-3 z-20">
+            <RuntimeInfoPanel runtimeInfo={runtimeInfo} activePort={activePort} compact />
+          </div>
+        )}
+
         {/* Overlay backdrop — mobile uniquement, ferme la sidebar au clic */}
         {sidebarOpen && (
           <div
