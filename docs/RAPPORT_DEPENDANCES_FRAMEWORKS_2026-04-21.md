@@ -30,9 +30,9 @@ Périmètre audité :
 
 ### Frontend / viewer
 
-- React 18
-- Vite 6
-- Tailwind CSS 3
+- React 19
+- Vite 8
+- Tailwind CSS 4
 - Mermaid 11
 - Leaflet + react-leaflet pour la cartographie
 - react-markdown / rehype-raw / remark-gfm pour le rendu Markdown
@@ -72,16 +72,15 @@ Périmètre audité :
 | react-dom | ^19.2.5 | 19.2.5 | 19.2.5 | à jour |
 | Vite | ^8.0.9 | 8.0.9 | 8.0.9 | à jour |
 | @vitejs/plugin-react | ^6.0.1 | 6.0.1 | 6.0.1 | à jour |
-| Tailwind CSS | ^3.4.19 | 3.4.19 | 4.2.3 | upgrade majeur avec impact config |
+| Tailwind CSS | ^4.2.3 | 4.2.3 | 4.2.3 | à jour |
+| @tailwindcss/vite | ^4.2.3 | 4.2.3 | 4.2.3 | à jour |
 | Mermaid | ^11.14.0 | 11.14.0 | 11.14.0 | à jour dans la major |
 | Leaflet | ^1.9.4 | 1.9.4 | 1.9.4 | à jour |
 | react-leaflet | ^5.0.0 | 5.0.0 | 5.0.0 | à jour |
-| react-markdown | ^9.1.0 | 9.1.0 | 10.1.0 | upgrade majeur modéré |
+| react-markdown | ^10.1.0 | 10.1.0 | 10.1.0 | à jour |
 | rehype-raw | ^7.0.0 | 7.0.0 | 7.0.0 | à jour |
 | remark-gfm | ^4.0.1 | 4.0.1 | 4.0.1 | à jour dans la major |
-| lucide-react | ^0.469.0 | 0.469.0 | 1.8.0 | upgrade majeur possible |
-| postcss | ^8.5.10 | 8.5.10 | 8.5.10 | à jour dans la major |
-| autoprefixer | ^10.5.0 | 10.5.0 | 10.5.0 | à jour dans la major |
+| lucide-react | ^1.8.0 | 1.8.0 | 1.8.0 | à jour |
 
 ### Runtimes de build
 
@@ -102,13 +101,12 @@ Périmètre audité :
 
 1. Mettre à jour les dépendances Python mineures à faible risque : `requests`, `python-dotenv`, `pytest`.
 2. Monter légèrement le niveau de vérité des manifests pour éviter les installations partielles ou trop anciennes.
-3. Mettre à jour quelques dépendances frontend non disruptives lors d'un prochain passage npm ciblé : `mermaid`, `postcss`, `autoprefixer`.
+3. Conserver une recette visuelle légère après les prochains ajustements UX côté viewer.
 
 ### Priorité plus lourde
 
-1. Migrer Tailwind 3 vers 4.
-2. Mettre à jour `react-markdown` 9 vers 10.
-3. Évaluer le passage de `lucide-react` 0.x vers 1.x.
+1. Réduire encore les gros bundles Mermaid et Markdown.
+2. Continuer les recettes UI manuelles sur les panneaux les plus utilisés.
 
 ## Plan d'upgrade recommandé par lots
 
@@ -140,8 +138,6 @@ Risque : faible.
 Objectif : moderniser sans chantier de migration.
 
 - `mermaid`
-- `postcss`
-- `autoprefixer`
 - éventuellement normaliser les plages `package.json` sur les versions déjà verrouillées
 
 Risque : faible à modéré selon le lockfile.
@@ -151,29 +147,31 @@ Statut au 2026-04-21 : réalisé et validé.
 - `mermaid` → `^11.14.0`
 - `react-markdown` → `^9.1.0`
 - `remark-gfm` → `^4.0.1`
-- `@vitejs/plugin-react` → `^4.7.0`
-- `autoprefixer` → `^10.5.0`
-- `postcss` → `^8.5.10`
-- `tailwindcss` → `^3.4.19`
+- `@vitejs/plugin-react` → `^6.0.1`
 - `vite` → `^6.4.2`
 
 ### Lot D — Frontend majeur restant
 
 Objectif : préparer la prochaine étape de modernisation UI.
 
-- Tailwind 4
-- `react-markdown` 10
-- éventuellement `lucide-react` 1
+- recette visuelle ciblée des panneaux principaux
+- réduction des bundles lourds restants
 
 Risque : modéré à élevé. À traiter sur branche dédiée avec validation UI complète.
 
-Statut au 2026-04-21 : partiellement réalisé.
+Statut au 2026-04-21 : largement réalisé.
 
 - `react` → `^19.2.5`
 - `react-dom` → `^19.2.5`
 - `react-leaflet` → `^5.0.0`
 - `vite` → `^8.0.9`
 - `@vitejs/plugin-react` → `^6.0.1`
+- `tailwindcss` → `^4.2.3`
+- `@tailwindcss/vite` → `^4.2.3`
+- `react-markdown` → `^10.1.0`
+- `lucide-react` → `^1.8.0`
+- suppression de `postcss` / `autoprefixer` du toolchain frontend
+- remplacement local de l'icône `Youtube` retirée par une icône de lecture maintenue
 - build production validé sous Node 24 sans retouche de code applicatif
 
 ## Contraintes techniques vérifiées pour le lot majeur
@@ -219,21 +217,22 @@ Conclusion : la migration Vite 8 a été absorbée sans modification de `viewer/
 
 ### Tailwind 4
 
-État actuel : c'est le vrai lot lourd.
+État actuel : migré et validé au build.
 
-- Le projet repose sur `viewer/tailwind.config.js` avec `content`, `darkMode`, `safelist` riche et `theme.extend` conséquent.
-- La chaîne PostCSS actuelle dans `viewer/postcss.config.js` est encore au modèle Tailwind 3.
-- Une part importante de la sécurité visuelle repose sur la `safelist` des classes NER ; c'est un point critique à préserver pendant la migration.
+- Le viewer utilise désormais `@tailwindcss/vite` au lieu de l'ancien branchement PostCSS.
+- `viewer/src/index.css` a été migré de `@tailwind base/components/utilities` vers `@import "tailwindcss"`.
+- La config JS legacy est conservée via `@config "../tailwind.config.js"` pour préserver `darkMode` et `theme.extend`.
+- L'ancienne `safelist` NER a été transposée en `@source inline(...)` dans la feuille CSS d'entrée.
+- Une petite couche de compatibilité CSS a été ajoutée pour limiter les écarts de préflight sur les bordures, placeholders, boutons et `ring` par défaut.
 
-Conclusion : Tailwind 4 doit rester le dernier sous-lot du chantier majeur frontend.
+Conclusion : le lot Tailwind 4 n'est plus un point bloquant, et les migrations `react-markdown` 10 et `lucide-react` 1 sont désormais absorbées. Le prochain sujet frontend est surtout la réduction des bundles lourds et la recette visuelle continue.
 
 ## Séquencement recommandé pour le prochain chantier
 
 Ordre recommandé :
 
-1. Vite 8 + `@vitejs/plugin-react` 6.
-2. Tailwind 4 en dernier, sur un lot séparé si possible.
-3. `react-markdown` 10 sur un sous-lot dédié si l'on veut poursuivre la modernisation du rendu Markdown.
+1. recette visuelle ciblée des panneaux principaux.
+2. réduction des bundles Mermaid et Markdown les plus lourds.
 
 ## Recette ciblée cartes après React 19 + react-leaflet 5
 
@@ -252,12 +251,12 @@ Limite de recette :
 
 1. Garder Node 24 minimum pour toute validation frontend ; Node 11 local n'est pas exploitable pour ce chantier.
 2. Vérifier manuellement les cartes de `TopArticlesPanel` et `EntityWorldMap` après migration React 19.
-3. Comparer précisément le graphe de chunks avant/après migration Vite 8.
-4. Préparer une recette visuelle dédiée pour les classes NER et le mode sombre avant de toucher à Tailwind 4.
+3. Vérifier manuellement les surfaces Markdown principales après migration `react-markdown` 10.
+4. Garder une recette visuelle dédiée pour les classes NER et le mode sombre après la migration Tailwind 4.
 
 ## Changements appliqués dans ce dépôt
 
-Les changements suivants ont été appliqués dans le cadre du lot sûr et limité :
+Les changements suivants ont été appliqués dans ce dépôt :
 
 1. Rehausse des minimums Python dans `requirements.txt` vers des versions courantes et supportées.
 2. Rehausse des minimums Flask et openpyxl dans `viewer/requirements.txt`.
@@ -266,17 +265,20 @@ Les changements suivants ont été appliqués dans le cadre du lot sûr et limit
 5. Régénération de `viewer/package-lock.json` avec Node 24.
 6. Validation du build frontend sous Node 24.
 7. Validation des tests Python en local et dans le conteneur.
+8. Migration Tailwind 4 du viewer avec plugin Vite officiel et suppression du chaînage PostCSS.
+9. Migration `react-markdown` 10 sans retouche de code applicatif.
+10. Migration `lucide-react` 1 avec remplacement local de l'icône `Youtube` retirée.
 
 Ce qui n'a pas été modifié volontairement :
 
-1. Pas de migration React 19 / Vite 8 / Tailwind 4.
-2. Pas de migration `react-leaflet` 4 → 5.
-3. Pas de changement fonctionnel dans le code applicatif.
+1. Pas de réduction structurelle supplémentaire des bundles Mermaid/Markdown dans ce lot.
+2. Pas de recette visuelle automatisée complète faute d'outils navigateur agentiques actifs sur la page.
+3. Pas de changement fonctionnel dans le code applicatif hors compatibilité build/icônes.
 
 ## Risques et points de vigilance
 
 1. Le poste local reste en Node 11.9.0, donc les validations frontend locales directes ne sont pas représentatives tant que ce runtime n'est pas relevé.
-2. Le build frontend passe sous Node 24, mais conserve un warning de chunks volumineux sur `mermaid-bundle` et `index`.
+2. Le build frontend passe sous Node 24 et le graphe de chunks est mieux segmenté, mais plusieurs bundles Mermaid et Markdown restent lourds.
 3. Les 2 vulnérabilités npm initialement restantes ont été corrigées sans changement de major déclaré, via mise à jour transitive du lockfile.
 4. Les dépendances optionnelles devenues minimales dans le manifest augmentent légèrement le coût d'installation, mais réduisent fortement les états dégradés non visibles.
 
@@ -300,6 +302,18 @@ Contrôles réalisés dans ce lot :
 5. `docker run --rm -e URL=https://example.invalid -e bearer=test-token --entrypoint pytest wudd-ai-upgrade-check tests/ -q` : `1104 passed, 1 skipped` ;
 6. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm run build` : OK avec warning de chunks > 500 kB ;
 7. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm audit --json` : `0` vulnérabilité.
+
+Complément Tailwind 4 :
+
+8. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm install` : lockfile régénéré avec `tailwindcss@4.2.3` et `@tailwindcss/vite@4.2.3` ;
+9. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm run build` : build OK après migration Tailwind 4.
+
+Complément Markdown et icônes :
+
+10. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm install` : lockfile régénéré avec `react-markdown@10.1.0` ;
+11. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm run build` : build OK après migration `react-markdown` 10 ;
+12. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm install` : lockfile régénéré avec `lucide-react@1.8.0` ;
+13. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm run build` : build OK après remplacement local de l'icône `Youtube` retirée.
 
 ## Correctifs de sécurité frontend
 

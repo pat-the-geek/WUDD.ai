@@ -48,10 +48,27 @@
 - `@vitejs/plugin-react` relevé vers `6.0.1`
 - build production validé sous Node 24 sans changement de configuration Vite
 
+### `viewer/package.json` / `viewer/package-lock.json` / `viewer/vite.config.js` / `viewer/src/index.css` / `viewer/tailwind.config.js` — migration Tailwind 4
+
+- `tailwindcss` relevé vers `4.2.3`
+- ajout du plugin `@tailwindcss/vite` `4.2.3`
+- suppression de l'ancienne chaîne `postcss` / `autoprefixer` et suppression de `viewer/postcss.config.js`
+- migration de la feuille d'entrée Tailwind vers `@import "tailwindcss"` avec chargement de la config JS via `@config`
+- transposition de l'ancienne `safelist` NER vers des directives `@source inline(...)` dans `viewer/src/index.css`
+- ajout d'une couche de compatibilité CSS minimale pour préserver les comportements de bordures, placeholders, boutons et `ring`
+- lockfile régénéré et build production validé sous Node 24
+
+### `viewer/package.json` / `viewer/package-lock.json` — modernisation Markdown et icônes
+
+- `react-markdown` relevé vers `10.1.0`
+- `lucide-react` relevé vers `1.8.0`
+- remplacement local de l'icône de marque `Youtube` supprimée en 1.x par `PlayCircle` dans les panneaux vidéo liés
+- lockfile régénéré et build production revalidé sous Node 24
+
 ### `docs/RAPPORT_DEPENDANCES_FRAMEWORKS_2026-04-21.md`
 
 - Ajout des contraintes techniques vérifiées pour le futur lot majeur frontend
-- Séquencement recommandé : React 19, puis react-leaflet 5, puis Vite 8, puis Tailwind 4 en dernier
+- Mise à jour du statut après validation complète de Tailwind 4 sous Node 24
 
 ### Validation
 

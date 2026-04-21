@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Youtube, Loader2, AlertTriangle, ExternalLink, SlidersHorizontal } from 'lucide-react'
+import { X, PlayCircle, Loader2, AlertTriangle, ExternalLink, SlidersHorizontal } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -63,7 +63,7 @@ function VideoCard({ video, onPlay, isPlaying }) {
             <img src={thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <Youtube size={20} className="text-slate-600" />
+              <PlayCircle size={20} className="text-slate-600" />
             </div>
           )}
           {duration && (
@@ -242,7 +242,7 @@ export default function YouTubePanel({ article, onClose }) {
 
           {/* ── Header ─────────────────────────────────────────────────── */}
           <div className="shrink-0 flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-            <Youtube size={18} className="text-[#FF0000] shrink-0" />
+            <PlayCircle size={18} className="text-[#FF0000] shrink-0" />
             <div className="flex-1 min-w-0">
               <h3 className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 truncate">
                 Vidéos liées
@@ -341,7 +341,7 @@ export default function YouTubePanel({ article, onClose }) {
             {/* Pas de résultat */}
             {!loading && !error && videos.length === 0 && (
               <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
-                <Youtube size={32} className="opacity-30" />
+                <PlayCircle size={32} className="opacity-30" />
                 <p className="text-[13px]">Aucune vidéo trouvée</p>
               </div>
             )}

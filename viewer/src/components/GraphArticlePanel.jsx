@@ -11,7 +11,7 @@
  */
 import { useState, useEffect } from 'react'
 import {
-  X, Tag, Clock, ExternalLink, FileText, Maximize2, ChevronUp, ChevronDown, Loader2, Youtube, Images,
+  X, Tag, Clock, ExternalLink, FileText, Maximize2, ChevronUp, ChevronDown, Loader2, PlayCircle, Images,
 } from 'lucide-react'
 import EntityHighlighter from './EntityHighlighter'
 import ArticleFullReportDialog from './ArticleFullReportDialog'
@@ -317,7 +317,7 @@ export default function GraphArticlePanel({ article: partialArticle, filePath, o
                       onClick={() => setYoutubeOpen(true)}
                       className="flex items-center gap-1 text-xs text-rose-400 hover:text-[#FF0000] dark:hover:text-[#FF453A] transition-colors"
                     >
-                      <Youtube size={13} /> Vidéos
+                      <PlayCircle size={13} /> Vidéos
                     </button>
                     <button
                       onClick={() => setReportOpen(true)}

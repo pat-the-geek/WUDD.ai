@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom'
 import {
   X, Maximize2, Minimize2, Copy, Download, Printer,
   RefreshCw, FileText, Check, Terminal, BookOpen, Loader2,
-  Hash, FolderOpen, Youtube, Images,
+  Hash, FolderOpen, PlayCircle, Images,
 } from 'lucide-react'
 import YouTubePanel from './YouTubePanel'
 import ArticleGalleryPanel from './ArticleGalleryPanel'
@@ -941,7 +941,7 @@ ${contentEl.innerHTML}
                   className="hidden sm:flex items-center gap-1 px-2 py-1 mr-1 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors"
                   title="Vidéos YouTube liées à cet article"
                 >
-                  <Youtube size={12} />
+                  <PlayCircle size={12} />
                   <span className="hidden sm:inline">Vidéos</span>
                 </button>
                 <button

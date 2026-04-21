@@ -3,7 +3,7 @@
  * Style : cartes article identiques à la vue JSON, grille 2 colonnes, modal large.
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, VolumeX, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut, Terminal, Youtube, Images } from 'lucide-react'
+import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, VolumeX, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut, Terminal, Images } from 'lucide-react'
 import YouTubePanel from './YouTubePanel'
 import ArticleGalleryPanel from './ArticleGalleryPanel'
 import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, useMap } from 'react-leaflet'
@@ -500,7 +500,7 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
                   onClick={() => setYoutubeOpen(true)}
                   className="flex items-center gap-1 text-xs text-rose-400 hover:text-[#FF0000] dark:hover:text-[#FF453A] transition-colors"
                   title="Vidéos YouTube liées">
-                  <Youtube size={12} /> Vidéos
+                  <PlayCircle size={12} /> Vidéos
                 </button>
                 <button
                   onClick={() => onReport?.(article)}

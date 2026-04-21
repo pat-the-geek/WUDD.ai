@@ -3,7 +3,7 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
   Download, LayoutGrid, AlignLeft, LayoutList, Maximize2, Clock,
-  Star, Eye, EyeOff, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge, FolderOpen, Hash, Youtube, Images,
+  Star, Eye, EyeOff, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge, FolderOpen, Hash, PlayCircle, Images,
 } from 'lucide-react'
 import YouTubePanel from './YouTubePanel'
 import ArticleGalleryPanel from './ArticleGalleryPanel'
@@ -714,7 +714,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
                   className="flex items-center gap-1 text-xs text-rose-400 hover:text-[#FF0000] dark:hover:text-[#FF453A] transition-colors"
                   title="Vidéos YouTube liées"
                 >
-                  <Youtube size={12} /> Vidéos
+                  <PlayCircle size={12} /> Vidéos
                 </button>
                 <button
                   onMouseEnter={onWarmReportDialog}

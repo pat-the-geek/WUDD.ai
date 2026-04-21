@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
 function getPackageName(id) {
@@ -10,7 +11,7 @@ function getPackageName(id) {
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   // Pre-bundler Mermaid pour éviter l'erreur "text/html is not a valid JavaScript MIME type"
   // causée par les imports dynamiques internes de Mermaid v10/v11 qui échouent sans pre-bundling.
   optimizeDeps: {

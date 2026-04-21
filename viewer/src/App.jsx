@@ -3,7 +3,6 @@ import Sidebar from './components/Sidebar'
 import FileViewer from './components/FileViewer'
 import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, EyeOff, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, ChevronRight, MoreHorizontal, Newspaper, Filter, Tag, BookOpen, Network } from 'lucide-react'
 import wuddLogo from './assets/wudd-prism-floyd.svg'
-import { preloadMermaid } from './utils/mermaidLoader'
 
 const loadSearchOverlay = () => import('./components/SearchOverlay')
 const loadEntitySearchModal = () => import('./components/EntitySearchModal')
@@ -449,16 +448,8 @@ export default function App() {
     loadSourceBiasPanel()
   }, [warmAuxiliaryData])
 
-  const warmChatRuntime = useCallback(() => {
-    warmAuxiliaryData()
-    loadChatbotPanel()
-    preloadMermaid({ theme: 'dark', securityLevel: 'antiscript' }).catch(() => {})
-  }, [warmAuxiliaryData])
-
   const warmToolsRuntime = useCallback(() => {
     loadExportPanel()
-    loadClusterView()
-    loadKnowledgeGraph()
     loadEntityWatchPanel()
     loadComparePanel()
   }, [])
@@ -470,10 +461,9 @@ export default function App() {
       warmSettingsRuntime()
       warmTopRuntime()
       warmEntityRuntime()
-      warmChatRuntime()
     }, 1600)
     return cancel
-  }, [warmChatRuntime, warmEntityRuntime, warmSearchRuntime, warmSettingsRuntime, warmTopRuntime])
+  }, [warmEntityRuntime, warmSearchRuntime, warmSettingsRuntime, warmTopRuntime])
 
   useEffect(() => {
     if (!outilsOpen || !shouldWarmRuntime()) return undefined
