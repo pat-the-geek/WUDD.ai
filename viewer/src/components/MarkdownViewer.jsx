@@ -1,11 +1,12 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
-import { useMemo, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useMemo, useEffect, useRef, useState } from 'react'
 import TTSButton from './TTSButton'
-import KeywordForceGraph from './KeywordForceGraph'
-import FluxBarChart from './FluxBarChart'
 import { getMermaid } from '../utils/mermaidLoader'
+
+const KeywordForceGraph = lazy(() => import('./KeywordForceGraph'))
+const FluxBarChart = lazy(() => import('./FluxBarChart'))
 
 /** Rend le SVG Mermaid responsive.
  * Calcule l'aspect-ratio depuis le viewBox pour éviter height:0 sur les mindmaps.
@@ -143,6 +144,14 @@ function MermaidBlock({ code }) {
   )
 }
 
+function EmbeddedBlockFallback({ label = 'Chargement…' }) {
+  return (
+    <div className="my-6 flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4 text-sm text-slate-500 dark:text-slate-400">
+      <span>{label}</span>
+    </div>
+  )
+}
+
 /** Parse le frontmatter YAML entre --- et retourne { meta, body } */
 function parseFrontmatter(content) {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
@@ -222,9 +231,11 @@ const mdComponents = {
               try {
                 const kwData = JSON.parse(String(children).trim())
                 return (
-                  <div className="my-6 w-full" style={{ height: 600 }}>
-                    <KeywordForceGraph keywords={kwData} />
-                  </div>
+                  <Suspense fallback={<EmbeddedBlockFallback label="Chargement du graphe de mots-clés…" />}>
+                    <div className="my-6 w-full" style={{ height: 600 }}>
+                      <KeywordForceGraph keywords={kwData} />
+                    </div>
+                  </Suspense>
                 )
               } catch {
                 return null
@@ -233,7 +244,11 @@ const mdComponents = {
             if (className === 'language-flux-chart') {
               try {
                 const items = JSON.parse(String(children).trim())
-                return <FluxBarChart items={items} />
+                return (
+                  <Suspense fallback={<EmbeddedBlockFallback label="Chargement du graphique de flux…" />}>
+                    <FluxBarChart items={items} />
+                  </Suspense>
+                )
               } catch {
                 return null
               }

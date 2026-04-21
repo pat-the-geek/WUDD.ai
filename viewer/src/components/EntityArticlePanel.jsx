@@ -1,14 +1,15 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useCallback } from 'react'
 import { X, FileText, Download, Loader2, ExternalLink, ChevronLeft, Network, GripHorizontal, Maximize2, Minimize2, Info, Calendar, Layers, Terminal, BookOpen, Hash, FolderOpen } from 'lucide-react'
 import EntityWorldMap from './EntityWorldMap'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import EntityGraph from './EntityGraph'
-import EntityCalendar from './EntityCalendar'
 import TTSButton from './TTSButton'
-import EntityFullReportDialog from './EntityFullReportDialog'
-import GraphArticlePanel from './GraphArticlePanel'
 import { openInObsidian } from '../utils/obsidian'
+
+const EntityGraph = lazy(() => import('./EntityGraph'))
+const EntityCalendar = lazy(() => import('./EntityCalendar'))
+const EntityFullReportDialog = lazy(() => import('./EntityFullReportDialog'))
+const GraphArticlePanel = lazy(() => import('./GraphArticlePanel'))
 
 // ── Composants Markdown ────────────────────────────────────────────────────────
 const MD = {
@@ -113,6 +114,15 @@ function ResizeHandle({ onMouseDown }) {
       <svg width="9" height="9" viewBox="0 0 9 9" className="text-slate-500 fill-current">
         <path d="M9 3L3 9M9 6L6 9M9 0L0 9" stroke="currentColor" strokeWidth="1.2" fill="none" />
       </svg>
+    </div>
+  )
+}
+
+function PanelSectionFallback({ label = 'Chargement…' }) {
+  return (
+    <div className="flex items-center justify-center h-full min-h-32 text-sm text-slate-400 dark:text-slate-500 gap-2">
+      <Loader2 size={16} className="animate-spin" />
+      <span>{label}</span>
     </div>
   )
 }
@@ -772,16 +782,20 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose, o
         ) : viewMode === 'calendar' ? (
           /* Mode calendrier */
           <div className="flex-1 min-h-0 overflow-y-auto">
-            <EntityCalendar articles={articles} />
+            <Suspense fallback={<PanelSectionFallback label="Chargement du calendrier…" />}>
+              <EntityCalendar articles={articles} />
+            </Suspense>
           </div>
         ) : viewMode === 'graph' ? (
           /* Mode graphe : flex-col sans scroll pour que le SVG remplisse la hauteur */
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-4 pt-3 pb-2">
-            <EntityGraph
-              entityType={current.type}
-              entityValue={current.value}
-              onNavigate={navigateTo}
-            />
+            <Suspense fallback={<PanelSectionFallback label="Chargement du graphe…" />}>
+              <EntityGraph
+                entityType={current.type}
+                entityValue={current.value}
+                onNavigate={navigateTo}
+              />
+            </Suspense>
           </div>
         ) : (
         /* Mode articles : visuel en haut + liste en bas (avec splitter) */
@@ -985,21 +999,25 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose, o
 
       {/* ── Dialogue rapport complet entité ── */}
       {showReportDialog && (
-        <EntityFullReportDialog
-          entityType={current.type}
-          entityValue={current.value}
-          articles={articles}
-          onClose={() => { setShowReportDialog(false); setRapportsFetchKey(k => k + 1) }}
-        />
+        <Suspense fallback={<PanelSectionFallback label="Chargement du rapport…" />}>
+          <EntityFullReportDialog
+            entityType={current.type}
+            entityValue={current.value}
+            articles={articles}
+            onClose={() => { setShowReportDialog(false); setRapportsFetchKey(k => k + 1) }}
+          />
+        </Suspense>
       )}
 
       {/* ── Panel article complet (image, NER, résumé enrichi) ── */}
       {reportArticle && (
-        <GraphArticlePanel
-          article={reportArticle}
-          filePath={reportArticle._source_file ?? null}
-          onClose={() => setReportArticle(null)}
-        />
+        <Suspense fallback={<PanelSectionFallback label="Chargement de l'article…" />}>
+          <GraphArticlePanel
+            article={reportArticle}
+            filePath={reportArticle._source_file ?? null}
+            onClose={() => setReportArticle(null)}
+          />
+        </Suspense>
       )}
     </>
   )
