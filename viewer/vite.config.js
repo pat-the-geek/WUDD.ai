@@ -1,6 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+function getPackageName(id) {
+  const normalized = id.split('node_modules/')[1]
+  if (!normalized) return null
+  const parts = normalized.split('/')
+  return parts[0].startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0]
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -22,11 +29,56 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Regrouper tous les modules Mermaid dans un seul chunk pour éviter
-        // les imports dynamiques résiduels qui causent des erreurs MIME en production.
         manualChunks(id) {
-          if (id.includes('mermaid') || id.includes('@mermaid-js')) {
-            return 'mermaid-bundle'
+          if (!id.includes('/node_modules/')) return
+
+          const pkg = getPackageName(id)
+          if (!pkg) return
+
+          if (pkg === 'react' || pkg === 'react-dom' || pkg === 'scheduler') {
+            return 'react-vendor'
+          }
+
+          if (pkg === 'lucide-react') {
+            return 'icons-vendor'
+          }
+
+          if (
+            pkg === 'react-markdown' ||
+            pkg === 'remark-gfm' ||
+            pkg === 'rehype-raw' ||
+            pkg.startsWith('remark-') ||
+            pkg.startsWith('rehype-') ||
+            pkg.startsWith('mdast-') ||
+            pkg.startsWith('hast-') ||
+            pkg.startsWith('micromark') ||
+            pkg.startsWith('unist-') ||
+            pkg === 'decode-named-character-reference'
+          ) {
+            return 'markdown-vendor'
+          }
+
+          if (pkg === 'leaflet' || pkg === 'react-leaflet' || pkg === '@react-leaflet/core') {
+            return 'leaflet-vendor'
+          }
+
+          if (pkg === 'katex') {
+            return 'katex'
+          }
+
+          if (
+            pkg === 'dompurify' ||
+            pkg === 'marked' ||
+            pkg === 'dayjs' ||
+            pkg === 'lodash-es' ||
+            pkg === 'stylis' ||
+            pkg === 'uuid' ||
+            pkg === 'ts-dedent' ||
+            pkg === 'roughjs' ||
+            pkg === '@braintree/sanitize-url' ||
+            pkg === '@iconify/utils'
+          ) {
+            return 'mermaid-shared'
           }
         },
       },

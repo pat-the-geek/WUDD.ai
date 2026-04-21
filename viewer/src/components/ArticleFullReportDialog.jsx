@@ -21,11 +21,9 @@ import ArticleGalleryPanel from './ArticleGalleryPanel'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
-import mermaid from 'mermaid'
 import EntityHighlighter, { EntityHighlighterSegments } from './EntityHighlighter'
 import { obsidianUri, openInObsidian } from '../utils/obsidian'
-
-mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' })
+import { getMermaid } from '../utils/mermaidLoader'
 
 // ── Mermaid block ─────────────────────────────────────────────────────────────
 
@@ -95,8 +93,8 @@ function MermaidBlock({ code, isStreaming }) {
     // Annuler si le composant est démonté avant la fin du rendu
     let cancelled = false
 
-    mermaid.parse(clean)
-      .then(() => mermaid.render(id.current, clean))
+    getMermaid({ theme: 'default', securityLevel: 'loose' })
+      .then(mermaid => mermaid.parse(clean).then(() => mermaid.render(id.current, clean)))
       .then(({ svg }) => {
         if (!cancelled && containerRef.current) {
           // Rendre le SVG responsive AVANT injection dans le DOM :

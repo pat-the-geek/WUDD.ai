@@ -1,3 +1,69 @@
+# 21/04/2026 — Audit dépendances et réalignement des runtimes (v2.8.5)
+
+## Maintenance — Dépendances, frameworks et build Docker
+
+### `requirements.txt`
+
+- Rehausse des versions minimales Python pour refléter l'état courant recommandé du projet
+- Mises à jour des minima pour `requests`, `beautifulsoup4`, `python-dotenv`, `urllib3`
+- Rehausse des dépendances optionnelles déjà exploitées par le code : `duckdb`, `aiohttp`, `anthropic`, `python-whois`
+- Mise à jour de l'outillage de tests : `pytest`, `pytest-cov`
+
+### `viewer/requirements.txt`
+
+- Mise à jour des minima pour `flask` et `openpyxl`
+
+### `Dockerfile`
+
+- Build frontend Docker : `node:20-slim` → `node:24-slim`
+- Runtime Python Docker : `python:3.10-slim` → `python:3.14-slim`
+
+### `docs/RAPPORT_DEPENDANCES_FRAMEWORKS_2026-04-21.md` — lot majeur frontend
+
+- Nouveau rapport versionné sur les librairies et frameworks du projet
+- Inventaire des versions déclarées, versions locales observées et dernières versions disponibles
+- Plan d'upgrade par lots avec distinction entre lot sûr et migrations frontend majeures
+
+### `viewer/package.json` / `viewer/package-lock.json`
+
+- Mise à jour des dépendances frontend mineures sans changement de major : `mermaid`, `react-markdown`, `remark-gfm`, `vite`, `@vitejs/plugin-react`, `tailwindcss`, `postcss`, `autoprefixer`
+- Lockfile régénéré sous Node 24
+- Build frontend validé sous Node 24
+
+### `viewer/src/App.jsx` / `viewer/src/components/FileViewer.jsx` / `viewer/src/components/ArticleListViewer.jsx` / `viewer/src/utils/mermaidLoader.js`
+
+- Lazy-loading consolidé sur les panneaux et dialogues les plus lourds
+- Préchargement opportuniste sur intention utilisateur pour la recherche, les réglages, les entités, le top, le chatbot et les rapports d'article
+- Lissage des fetchs auxiliaires du viewer au démarrage pour laisser la liste de fichiers charger en priorité
+- Chargement Mermaid mutualisé et à la demande, avec préchauffage ciblé seulement pour les contenus Markdown qui en ont besoin
+
+### `viewer/package.json` / `viewer/package-lock.json` — migration React 19
+
+- `react` et `react-dom` relevés vers `19.2.5`
+- `react-leaflet` relevé vers `5.0.0` pour lever le blocage de peer dependency React 18
+
+### `viewer/package.json` / `viewer/package-lock.json` — migration Vite 8
+
+- `vite` relevé vers `8.0.9`
+- `@vitejs/plugin-react` relevé vers `6.0.1`
+- build production validé sous Node 24 sans changement de configuration Vite
+
+### `docs/RAPPORT_DEPENDANCES_FRAMEWORKS_2026-04-21.md`
+
+- Ajout des contraintes techniques vérifiées pour le futur lot majeur frontend
+- Séquencement recommandé : React 19, puis react-leaflet 5, puis Vite 8, puis Tailwind 4 en dernier
+
+### Validation
+
+- Suite de tests locale : `1104 passed, 1 skipped`
+- Suite de tests dans l'image Docker avec env minimale : `1104 passed, 1 skipped`
+- Audit npm frontend après correction du lockfile : `0` vulnérabilité
+
+### Sécurité frontend
+
+- Correction des 2 vulnérabilités npm restantes sans changement de major déclaré
+- Mise à jour transitive du lockfile : `dompurify` `3.3.1` → `3.4.0`, `picomatch` `2.3.1` → `2.3.2`, `picomatch` `4.0.3` → `4.0.4`
+
 # 14/04/2026 — Garde-fous anti-caractères chinois dans les résumés IA (v2.8.4)
 
 ## Amélioration — Qualité linguistique des résumés (français strict)

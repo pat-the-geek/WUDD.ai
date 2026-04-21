@@ -1,22 +1,64 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import Sidebar from './components/Sidebar'
 import FileViewer from './components/FileViewer'
-import SearchOverlay from './components/SearchOverlay'
-import SettingsPanel from './components/SettingsPanel'
-import EntitySearchModal from './components/EntitySearchModal'
-import EntityDashboard from './components/EntityDashboard'
-import ScriptConsolePanel from './components/ScriptConsolePanel'
 import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, EyeOff, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, ChevronRight, MoreHorizontal, Newspaper, Filter, Tag, BookOpen, Network } from 'lucide-react'
-import AlertsPanel from './components/AlertsPanel'
-import ExportPanel from './components/ExportPanel'
-import TopArticlesPanel from './components/TopArticlesPanel'
-import SourceBiasPanel from './components/SourceBiasPanel'
-import ComparePanel from './components/ComparePanel'
-import EntityWatchPanel from './components/EntityWatchPanel'
-import ClusterView from './components/ClusterView'
-import ChatbotPanel from './components/ChatbotPanel'
-import KnowledgeGraph from './components/KnowledgeGraph'
 import wuddLogo from './assets/wudd-prism-floyd.svg'
+import { preloadMermaid } from './utils/mermaidLoader'
+
+const loadSearchOverlay = () => import('./components/SearchOverlay')
+const loadEntitySearchModal = () => import('./components/EntitySearchModal')
+const loadScriptConsolePanel = () => import('./components/ScriptConsolePanel')
+const loadSettingsPanel = () => import('./components/SettingsPanel')
+const loadEntityDashboard = () => import('./components/EntityDashboard')
+const loadAlertsPanel = () => import('./components/AlertsPanel')
+const loadExportPanel = () => import('./components/ExportPanel')
+const loadTopArticlesPanel = () => import('./components/TopArticlesPanel')
+const loadSourceBiasPanel = () => import('./components/SourceBiasPanel')
+const loadComparePanel = () => import('./components/ComparePanel')
+const loadEntityWatchPanel = () => import('./components/EntityWatchPanel')
+const loadClusterView = () => import('./components/ClusterView')
+const loadChatbotPanel = () => import('./components/ChatbotPanel')
+const loadKnowledgeGraph = () => import('./components/KnowledgeGraph')
+
+const SearchOverlay = lazy(loadSearchOverlay)
+const EntitySearchModal = lazy(loadEntitySearchModal)
+const ScriptConsolePanel = lazy(loadScriptConsolePanel)
+const SettingsPanel = lazy(loadSettingsPanel)
+const EntityDashboard = lazy(loadEntityDashboard)
+const AlertsPanel = lazy(loadAlertsPanel)
+const ExportPanel = lazy(loadExportPanel)
+const TopArticlesPanel = lazy(loadTopArticlesPanel)
+const SourceBiasPanel = lazy(loadSourceBiasPanel)
+const ComparePanel = lazy(loadComparePanel)
+const EntityWatchPanel = lazy(loadEntityWatchPanel)
+const ClusterView = lazy(loadClusterView)
+const ChatbotPanel = lazy(loadChatbotPanel)
+const KnowledgeGraph = lazy(loadKnowledgeGraph)
+
+function runWhenIdle(callback, timeout = 1200) {
+  if (typeof window === 'undefined') return () => {}
+  if ('requestIdleCallback' in window) {
+    const id = window.requestIdleCallback(callback, { timeout })
+    return () => window.cancelIdleCallback(id)
+  }
+  const id = window.setTimeout(callback, Math.min(timeout, 800))
+  return () => window.clearTimeout(id)
+}
+
+function shouldWarmRuntime() {
+  if (typeof navigator === 'undefined') return true
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection
+  if (!connection) return true
+  if (connection.saveData) return false
+  return !['slow-2g', '2g'].includes(connection.effectiveType)
+}
+
+function fetchJson(url) {
+  return fetch(url).then(r => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    return r.json()
+  })
+}
 
 // Heures de passage du cron get-keyword-from-rss.py (Europe/Paris)
 const RSS_CRON_HOURS = [6, 8, 10, 12, 14, 16, 18, 20, 22]
@@ -183,6 +225,16 @@ function RssStatusBar({ status, nextRssLabel }) {
   )
 }
 
+function PanelFallback() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-xl dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300">
+        Chargement du panneau…
+      </div>
+    </div>
+  )
+}
+
 const THEME_OPTIONS = [
   { key: 'jour', Icon: Sun,     title: 'Jour' },
   { key: 'auto', Icon: Monitor, title: 'Automatique' },
@@ -258,6 +310,9 @@ export default function App() {
   // sans créer de dépendances cycliques)
   const selectedFileRef = useRef(null)
   useEffect(() => { selectedFileRef.current = selectedFile }, [selectedFile])
+  const auxiliaryDataLoadedRef = useRef(false)
+  const annotationsRequestRef = useRef(null)
+  const providersRequestRef = useRef(null)
 
   // ── Thème ──────────────────────────────────────────────────────────────────
   const [theme, setTheme] = useState(() => localStorage.getItem('wudd_theme') || 'auto')
@@ -347,22 +402,86 @@ export default function App() {
   useEffect(() => { refreshFiles() }, [refreshFiles])
 
   // ── Annotations ─────────────────────────────────────────────────────────────
-  // Chargement initial depuis /api/annotations
-  useEffect(() => {
-    fetch('/api/annotations')
-      .then(r => r.ok ? r.json() : {})
-      .then(data => setAnnotations(data || {}))
-      .catch(() => {})
-  }, [])
-
   // ── Fournisseurs IA disponibles ──────────────────────────────────────────────
   const [availableProviders, setAvailableProviders] = useState([])
-  useEffect(() => {
-    fetch('/api/ai-providers')
-      .then(r => r.ok ? r.json() : { providers: [] })
-      .then(d => setAvailableProviders(d.providers ?? []))
-      .catch(() => {})
+  const warmAuxiliaryData = useCallback(() => {
+    if (auxiliaryDataLoadedRef.current) return
+    auxiliaryDataLoadedRef.current = true
+
+    if (!annotationsRequestRef.current) {
+      annotationsRequestRef.current = fetchJson('/api/annotations')
+        .then(data => setAnnotations(data || {}))
+        .catch(() => {})
+    }
+
+    if (!providersRequestRef.current) {
+      providersRequestRef.current = fetchJson('/api/ai-providers')
+        .then(data => setAvailableProviders(data.providers ?? []))
+        .catch(() => {})
+    }
   }, [])
+
+  useEffect(() => {
+    const cancel = runWhenIdle(() => {
+      warmAuxiliaryData()
+    }, 900)
+    return cancel
+  }, [warmAuxiliaryData])
+
+  const warmSearchRuntime = useCallback(() => {
+    loadSearchOverlay()
+  }, [])
+
+  const warmEntityRuntime = useCallback(() => {
+    loadEntityDashboard()
+    loadEntitySearchModal()
+  }, [])
+
+  const warmTopRuntime = useCallback(() => {
+    loadTopArticlesPanel()
+  }, [])
+
+  const warmSettingsRuntime = useCallback(() => {
+    warmAuxiliaryData()
+    loadSettingsPanel()
+    loadScriptConsolePanel()
+    loadAlertsPanel()
+    loadSourceBiasPanel()
+  }, [warmAuxiliaryData])
+
+  const warmChatRuntime = useCallback(() => {
+    warmAuxiliaryData()
+    loadChatbotPanel()
+    preloadMermaid({ theme: 'dark', securityLevel: 'antiscript' }).catch(() => {})
+  }, [warmAuxiliaryData])
+
+  const warmToolsRuntime = useCallback(() => {
+    loadExportPanel()
+    loadClusterView()
+    loadKnowledgeGraph()
+    loadEntityWatchPanel()
+    loadComparePanel()
+  }, [])
+
+  useEffect(() => {
+    if (!shouldWarmRuntime()) return undefined
+    const cancel = runWhenIdle(() => {
+      warmSearchRuntime()
+      warmSettingsRuntime()
+      warmTopRuntime()
+      warmEntityRuntime()
+      warmChatRuntime()
+    }, 1600)
+    return cancel
+  }, [warmChatRuntime, warmEntityRuntime, warmSearchRuntime, warmSettingsRuntime, warmTopRuntime])
+
+  useEffect(() => {
+    if (!outilsOpen || !shouldWarmRuntime()) return undefined
+    const cancel = runWhenIdle(() => {
+      warmToolsRuntime()
+    }, 600)
+    return cancel
+  }, [outilsOpen, warmToolsRuntime])
 
   // ── Terminal IA depuis une entité ─────────────────────────────────────────────
   // L'EntityArticlePanel dispatche "wudd:openEntityChatbot" quand l'utilisateur
@@ -371,18 +490,20 @@ export default function App() {
     const handler = (e) => {
       const { type, value } = e.detail || {}
       if (!type || !value) return
+      warmChatRuntime()
       setChatEntityContext({ type, value })
       setChatOpen(true)
     }
     window.addEventListener('wudd:openEntityChatbot', handler)
     return () => window.removeEventListener('wudd:openEntityChatbot', handler)
-  }, [])
+  }, [warmChatRuntime])
 
   // ── Terminal IA depuis un rapport d'article ───────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
       const ctx = e.detail || {}
       if (!ctx.reportMd) return
+      warmChatRuntime()
       setChatArticleContext(ctx)
       setChatEntityContext(null)
       setChatFluxContext(null)
@@ -390,13 +511,14 @@ export default function App() {
     }
     window.addEventListener('wudd:openArticleChatbot', handler)
     return () => window.removeEventListener('wudd:openArticleChatbot', handler)
-  }, [])
+  }, [warmChatRuntime])
 
   // ── Terminal IA depuis la liste de flux (ArticleListViewer) ───────────────────
   useEffect(() => {
     const handler = (e) => {
       const ctx = e.detail || {}
       if (!ctx.articles?.length) return
+      warmChatRuntime()
       setChatFluxContext(ctx)
       setChatEntityContext(null)
       setChatArticleContext(null)
@@ -404,7 +526,7 @@ export default function App() {
     }
     window.addEventListener('wudd:openFluxChatbot', handler)
     return () => window.removeEventListener('wudd:openFluxChatbot', handler)
-  }, [])
+  }, [warmChatRuntime])
 
   // Callback : crée ou met à jour l'annotation d'un article (optimistic update)
   const handleAnnotate = useCallback(async (url, changes) => {
@@ -633,7 +755,9 @@ export default function App() {
 
         {/* Console RSS keywords */}
         <button
-          onClick={() => setConsoleOpen(true)}
+          onMouseEnter={warmSettingsRuntime}
+          onFocus={warmSettingsRuntime}
+          onClick={() => { warmSettingsRuntime(); setConsoleOpen(true) }}
           className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${
             rssStatus?.running
               ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
@@ -656,7 +780,9 @@ export default function App() {
 
         {/* Top articles */}
         <button
-          onClick={() => setTopOpen(true)}
+          onMouseEnter={warmTopRuntime}
+          onFocus={warmTopRuntime}
+          onClick={() => { warmTopRuntime(); setTopOpen(true) }}
           className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Top articles par score de pertinence"
         >
@@ -666,7 +792,9 @@ export default function App() {
 
         {/* Tendances & alertes */}
         <button
-          onClick={() => setAlertsOpen(true)}
+          onMouseEnter={warmSettingsRuntime}
+          onFocus={warmSettingsRuntime}
+          onClick={() => { warmSettingsRuntime(); setAlertsOpen(true) }}
           className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Alertes de tendances"
         >
@@ -676,7 +804,9 @@ export default function App() {
 
         {/* Dashboard entités */}
         <button
-          onClick={() => setDashboardOpen(true)}
+          onMouseEnter={warmEntityRuntime}
+          onFocus={warmEntityRuntime}
+          onClick={() => { warmEntityRuntime(); setDashboardOpen(true) }}
           className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Dashboard des entités nommées"
         >
@@ -689,7 +819,9 @@ export default function App() {
 
         {/* Chatbot IA */}
         <button
-          onClick={() => setChatOpen(true)}
+          onMouseEnter={warmChatRuntime}
+          onFocus={warmChatRuntime}
+          onClick={() => { warmChatRuntime(); setChatOpen(true) }}
           className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-green-50 dark:hover:bg-green-900/20 border border-slate-200 dark:border-slate-600 hover:border-green-300 dark:hover:border-green-700 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-green-700 dark:hover:text-green-400 transition-colors"
           title="Chatbot IA — interrogez vos données et rapports"
         >
@@ -699,7 +831,9 @@ export default function App() {
         {/* Menu déroulant Outils : Biais, Export, Clusters, Veille, Comparer */}
         <div ref={outilsMenuRef} className="relative shrink-0">
           <button
-            onClick={() => setOutilsOpen(v => !v)}
+            onMouseEnter={warmToolsRuntime}
+            onFocus={warmToolsRuntime}
+            onClick={() => { warmToolsRuntime(); setOutilsOpen(v => !v) }}
             className={`flex items-center gap-1 px-3 py-2 border rounded-lg text-sm transition-colors ${
               outilsOpen
                 ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300'
@@ -758,7 +892,9 @@ export default function App() {
 
         {/* Recherche plein texte */}
         <button
-          onClick={() => setSearchOpen(true)}
+          onMouseEnter={warmSearchRuntime}
+          onFocus={warmSearchRuntime}
+          onClick={() => { warmSearchRuntime(); setSearchOpen(true) }}
           className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title="Recherche plein texte (Ctrl+K)"
         >
@@ -812,8 +948,8 @@ export default function App() {
             const full = files.find(f => f.path === path)
             if (full) selectFile(full)
           }}
-          onOpenGraph={() => setGraphOpen(true)}
-          onOpenChat={() => setChatOpen(true)}
+          onOpenGraph={() => { warmToolsRuntime(); setGraphOpen(true) }}
+          onOpenChat={() => { warmChatRuntime(); setChatOpen(true) }}
         />
       </div>
 
@@ -841,7 +977,9 @@ export default function App() {
 
           {/* 2 — Top articles */}
           <button
-            onClick={() => setTopOpen(true)}
+            onMouseEnter={warmTopRuntime}
+            onFocus={warmTopRuntime}
+            onClick={() => { warmTopRuntime(); setTopOpen(true) }}
             title="Top articles"
             className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               topOpen
@@ -856,7 +994,9 @@ export default function App() {
 
           {/* 3 — Recherche : centre = zone pouce prioritaire */}
           <button
-            onClick={() => { setSearchTypeMenuOpen(true) }}
+            onMouseEnter={warmSearchRuntime}
+            onFocus={warmSearchRuntime}
+            onClick={() => { warmSearchRuntime(); setSearchTypeMenuOpen(true) }}
             title="Recherche"
             className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               searchOpen || searchTypeMenuOpen
@@ -876,7 +1016,9 @@ export default function App() {
 
           {/* 4 — Entités */}
           <button
-            onClick={() => setDashboardOpen(true)}
+            onMouseEnter={warmEntityRuntime}
+            onFocus={warmEntityRuntime}
+            onClick={() => { warmEntityRuntime(); setDashboardOpen(true) }}
             title="Dashboard entités"
             className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               dashboardOpen
@@ -891,7 +1033,9 @@ export default function App() {
 
           {/* 5 — Réglages (inclut : thème, RSS, tendances, biais) */}
           <button
-            onClick={() => setSettingsOpen(true)}
+            onMouseEnter={warmSettingsRuntime}
+            onFocus={warmSettingsRuntime}
+            onClick={() => { warmSettingsRuntime(); setSettingsOpen(true) }}
             title="Réglages"
             className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               settingsOpen
@@ -913,9 +1057,11 @@ export default function App() {
       </nav>
 
       {/* ── Overlays ── */}
-      {consoleOpen && (
-        <ScriptConsolePanel onClose={() => setConsoleOpen(false)} onDone={refreshFiles} />
-      )}
+      <Suspense fallback={<PanelFallback />}>
+        {consoleOpen && (
+          <ScriptConsolePanel onClose={() => setConsoleOpen(false)} onDone={refreshFiles} />
+        )}
+      </Suspense>
       {/* Sélecteur type de recherche — mobile uniquement */}
       {searchTypeMenuOpen && (
         <div
@@ -1097,102 +1243,108 @@ export default function App() {
         </div>
       )}
 
-      {searchOpen && (
-        <SearchOverlay
-          onClose={() => setSearchOpen(false)}
-          mode={searchMode}
-          currentFile={selectedFile}
-          onSelect={(result) => {
-            if (searchMode === 'article') {
-              articleSearchVersionRef.current += 1
-              setArticleSearchQuery({ query: result._query || '', version: articleSearchVersionRef.current })
-            } else {
-              selectFile(result)
-            }
-            setSearchOpen(false)
-          }}
-        />
-      )}
-      {settingsOpen && (
-        <SettingsPanel
-          onClose={() => setSettingsOpen(false)}
-          theme={theme}
-          onThemeChange={setTheme}
-          rssStatus={rssStatus}
-          onOpenConsole={() => { setSettingsOpen(false); setConsoleOpen(true) }}
-          onOpenTendances={() => { setSettingsOpen(false); setAlertsOpen(true) }}
-          onOpenBiais={() => { setSettingsOpen(false); setBiasOpen(true) }}
-        />
-      )}
-      {dashboardOpen && (
-        <EntityDashboard
-          onClose={() => setDashboardOpen(false)}
-          onEntitySearch={(value, type) => {
-            setDashboardOpen(false)
-            setEntitySearch({ value, type })
-          }}
-        />
-      )}
-      {alertsOpen && (
-        <AlertsPanel
-          onClose={() => setAlertsOpen(false)}
-          onEntitySearch={(value, type) => { setEntitySearch({ value, type }) }}
-        />
-      )}
-      {topOpen && (
-        <TopArticlesPanel
-          onClose={() => setTopOpen(false)}
-          annotations={annotations}
-          onAnnotate={handleAnnotate}
-          availableProviders={availableProviders}
-        />
-      )}
-      {biasOpen && (
-        <SourceBiasPanel onClose={() => setBiasOpen(false)} />
-      )}
-      {exportOpen && (
-        <ExportPanel onClose={() => setExportOpen(false)} files={files} />
-      )}
-      {clusterOpen && (
-        <ClusterView onClose={() => setClusterOpen(false)} />
-      )}
-      {graphOpen && (
-        <KnowledgeGraph onClose={() => setGraphOpen(false)} />
-      )}
-      {watchOpen && (
-        <EntityWatchPanel
-          onClose={() => setWatchOpen(false)}
-          onOpenArticles={(type, value) => {
-            setWatchOpen(false)
-            setEntitySearch({ value, type })
-          }}
-        />
-      )}
-      {compareOpen && (
-        <ComparePanel onClose={() => setCompareOpen(false)} />
-      )}
-      {chatOpen && (
-        <ChatbotPanel
-          onClose={() => { setChatOpen(false); setChatEntityContext(null); setChatArticleContext(null); setChatFluxContext(null) }}
-          onFileSaved={refreshFiles}
-          initialFile={(chatEntityContext || chatArticleContext || chatFluxContext) ? null : selectedFile}
-          entityContext={chatEntityContext}
-          articleContext={chatArticleContext}
-          fluxContext={chatFluxContext}
-        />
-      )}
-      {entitySearch && (
-        <EntitySearchModal
-          query={entitySearch.value}
-          entityType={entitySearch.type}
-          onClose={() => setEntitySearch(null)}
-          onSelectFile={(file) => {
-            const full = files.find(f => f.path === file.path) ?? file
-            selectFile(full)
-            setEntitySearch(null)
-          }}
-        />
-      )}
+      <Suspense fallback={<PanelFallback />}>
+        {searchOpen && (
+          <SearchOverlay
+            onClose={() => setSearchOpen(false)}
+            mode={searchMode}
+            currentFile={selectedFile}
+            onSelect={(result) => {
+              if (searchMode === 'article') {
+                articleSearchVersionRef.current += 1
+                setArticleSearchQuery({ query: result._query || '', version: articleSearchVersionRef.current })
+              } else {
+                selectFile(result)
+              }
+              setSearchOpen(false)
+            }}
+          />
+        )}
+      </Suspense>
+      <Suspense fallback={<PanelFallback />}>
+        {settingsOpen && (
+          <SettingsPanel
+            onClose={() => setSettingsOpen(false)}
+            theme={theme}
+            onThemeChange={setTheme}
+            rssStatus={rssStatus}
+            onOpenConsole={() => { setSettingsOpen(false); setConsoleOpen(true) }}
+            onOpenTendances={() => { setSettingsOpen(false); setAlertsOpen(true) }}
+            onOpenBiais={() => { setSettingsOpen(false); setBiasOpen(true) }}
+          />
+        )}
+        {dashboardOpen && (
+          <EntityDashboard
+            onClose={() => setDashboardOpen(false)}
+            onEntitySearch={(value, type) => {
+              setDashboardOpen(false)
+              setEntitySearch({ value, type })
+            }}
+          />
+        )}
+        {alertsOpen && (
+          <AlertsPanel
+            onClose={() => setAlertsOpen(false)}
+            onEntitySearch={(value, type) => { setEntitySearch({ value, type }) }}
+          />
+        )}
+        {topOpen && (
+          <TopArticlesPanel
+            onClose={() => setTopOpen(false)}
+            annotations={annotations}
+            onAnnotate={handleAnnotate}
+            availableProviders={availableProviders}
+          />
+        )}
+        {biasOpen && (
+          <SourceBiasPanel onClose={() => setBiasOpen(false)} />
+        )}
+        {exportOpen && (
+          <ExportPanel onClose={() => setExportOpen(false)} files={files} />
+        )}
+        {clusterOpen && (
+          <ClusterView onClose={() => setClusterOpen(false)} />
+        )}
+        {graphOpen && (
+          <KnowledgeGraph onClose={() => setGraphOpen(false)} />
+        )}
+        {watchOpen && (
+          <EntityWatchPanel
+            onClose={() => setWatchOpen(false)}
+            onOpenArticles={(type, value) => {
+              setWatchOpen(false)
+              setEntitySearch({ value, type })
+            }}
+          />
+        )}
+        {compareOpen && (
+          <ComparePanel onClose={() => setCompareOpen(false)} />
+        )}
+        {chatOpen && (
+          <ChatbotPanel
+            onClose={() => { setChatOpen(false); setChatEntityContext(null); setChatArticleContext(null); setChatFluxContext(null) }}
+            onFileSaved={refreshFiles}
+            initialFile={(chatEntityContext || chatArticleContext || chatFluxContext) ? null : selectedFile}
+            entityContext={chatEntityContext}
+            articleContext={chatArticleContext}
+            fluxContext={chatFluxContext}
+          />
+        )}
+      </Suspense>
+      <Suspense fallback={<PanelFallback />}>
+        {entitySearch && (
+          <EntitySearchModal
+            query={entitySearch.value}
+            entityType={entitySearch.type}
+            onClose={() => setEntitySearch(null)}
+            onSelectFile={(file) => {
+              const full = files.find(f => f.path === file.path) ?? file
+              selectFile(full)
+              setEntitySearch(null)
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   )
 }

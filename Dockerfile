@@ -1,7 +1,7 @@
 # Dockerfile pour AnalyseActualités (multi-flux) + Viewer React/Flask
 
 # ── Étape 1 : Compilation du frontend React ──────────────────────────────────
-FROM node:20-slim AS react-builder
+FROM node:24-slim AS react-builder
 
 WORKDIR /viewer
 COPY viewer/package*.json ./
@@ -10,7 +10,7 @@ COPY viewer/ ./
 RUN npm run build
 
 # ── Étape 2 : Image Python principale ────────────────────────────────────────
-FROM python:3.10-slim
+FROM python:3.14-slim
 
 # 1. Dépendances système minimales (inclut cron)
 RUN apt-get update && apt-get install -y --no-install-recommends \

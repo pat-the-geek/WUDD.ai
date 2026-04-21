@@ -2,12 +2,10 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import { useMemo, useEffect, useRef, useState } from 'react'
-import mermaid from 'mermaid'
 import TTSButton from './TTSButton'
 import KeywordForceGraph from './KeywordForceGraph'
 import FluxBarChart from './FluxBarChart'
-
-mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' })
+import { getMermaid } from '../utils/mermaidLoader'
 
 /** Rend le SVG Mermaid responsive.
  * Calcule l'aspect-ratio depuis le viewBox pour éviter height:0 sur les mindmaps.
@@ -109,8 +107,8 @@ function MermaidBlock({ code }) {
     let cancelled = false
     // Debounce 300 ms — le SVG précédent reste affiché, aucun flickering
     const timer = setTimeout(() => {
-      mermaid.parse(clean)
-        .then(() => mermaid.render(id.current, clean))
+      getMermaid({ theme: 'default', securityLevel: 'loose' })
+        .then(mermaid => mermaid.parse(clean).then(() => mermaid.render(id.current, clean)))
         .then(({ svg }) => {
           if (cancelled) return
           lastCode.current = clean

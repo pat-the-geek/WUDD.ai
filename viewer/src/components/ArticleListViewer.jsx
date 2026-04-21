@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { lazy, Suspense, useMemo, useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
 import {
   ExternalLink, ChevronDown, ChevronUp, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
@@ -8,11 +8,25 @@ import {
 import YouTubePanel from './YouTubePanel'
 import ArticleGalleryPanel from './ArticleGalleryPanel'
 import EntityHighlighter from './EntityHighlighter'
-import EntityArticlePanel from './EntityArticlePanel'
 import { openInObsidian } from '../utils/obsidian'
-import ArticleFullReportDialog from './ArticleFullReportDialog'
 import TTSButton from './TTSButton'
 import SimilarArticlesPanel from './SimilarArticlesPanel'
+
+const loadEntityArticlePanel = () => import('./EntityArticlePanel')
+const loadArticleFullReportDialog = () => import('./ArticleFullReportDialog')
+
+const EntityArticlePanel = lazy(loadEntityArticlePanel)
+const ArticleFullReportDialog = lazy(loadArticleFullReportDialog)
+
+function DialogFallback() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-xl dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300">
+        Chargement de la fenêtre…
+      </div>
+    </div>
+  )
+}
 
 // ── Badge sentiment ───────────────────────────────────────────────────────────
 // Couleurs HIG : systemGreen #34C759 / systemRed #FF3B30 / slate pour neutre
@@ -440,7 +454,7 @@ function hasObsidianReport(article, localReportsByUrl) {
 }
 
 /** Carte article complète (vue grille / large) — style Liquid Glass. */
-function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged, localRapports = [], onOpenFile }) {
+function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, onWarmEntityDialog, onWarmReportDialog, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged, localRapports = [], onOpenFile }) {
   const [expanded, setExpanded]                   = useState(index < 3)
   const [lightbox, setLightbox]                   = useState(false)
   const [noteOpen, setNoteOpen]                   = useState(false)
@@ -674,7 +688,11 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
         )}
 
         {/* Résumé */}
-        <div className={`text-sm leading-relaxed overflow-hidden transition-all ${expanded ? '' : 'max-h-28'}`}>
+        <div
+          className={`text-sm leading-relaxed overflow-hidden transition-all ${expanded ? '' : 'max-h-28'}`}
+          onMouseEnter={hasEntities ? onWarmEntityDialog : undefined}
+          onFocus={hasEntities ? onWarmEntityDialog : undefined}
+        >
           {hasEntities
             ? <EntityHighlighter text={resume} entities={entities} onEntityClick={onEntityClick} />
             : <SearchHighlighter text={resume} query={highlight} />
@@ -699,6 +717,8 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, a
                   <Youtube size={12} /> Vidéos
                 </button>
                 <button
+                  onMouseEnter={onWarmReportDialog}
+                  onFocus={onWarmReportDialog}
                   onClick={() => onFullReport?.(article)}
                   className="flex items-center gap-1 text-xs text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
                   title="Générer un rapport complet"
@@ -872,6 +892,20 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   const [sourcesOpen, setSourcesOpen]         = useState(false)
   const [annotFilter, setAnnotFilter]         = useState('tous') // 'tous' | 'importants' | 'non-lus' | 'masqués'
   const [obsidianVault, setObsidianVault]     = useState(null)
+  const warmEntityDialog = useCallback(() => {
+    loadEntityArticlePanel()
+  }, [])
+  const warmReportDialog = useCallback(() => {
+    loadArticleFullReportDialog()
+  }, [])
+  const handleEntityClick = useCallback((type, value) => {
+    warmEntityDialog()
+    setSelectedEntity({ type, value })
+  }, [warmEntityDialog])
+  const handleFullReport = useCallback((article) => {
+    warmReportDialog()
+    setReportArticle(article)
+  }, [warmReportDialog])
   // pageSize calculé une seule fois au montage — stable pour toute la session.
   const pageSize = useRef(getPageSize()).current
   const [visibleCount, setVisibleCount]       = useState(pageSize)
@@ -1598,8 +1632,10 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           {visibleArticles.map((article, i) => (
             <div key={article['URL'] ?? i} className="w-full" style={{ maxWidth: '80%' }}>
               <ArticleCard article={article} index={i} highlight={searchQuery.trim()}
-                onEntityClick={(type, value) => setSelectedEntity({ type, value })}
-                onFullReport={a => setReportArticle(a)}
+                onEntityClick={handleEntityClick}
+                onFullReport={handleFullReport}
+                onWarmEntityDialog={warmEntityDialog}
+                onWarmReportDialog={warmReportDialog}
                 annotation={annotations?.[article['URL']] ?? null}
                 onAnnotate={onAnnotate}
                 filePath={filePath}
@@ -1629,8 +1665,10 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
         <div ref={gridRef} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {visibleArticles.map((article, i) => (
             <ArticleCard key={article['URL'] ?? i} article={article} index={i} highlight={searchQuery.trim()}
-              onEntityClick={(type, value) => setSelectedEntity({ type, value })}
-              onFullReport={a => setReportArticle(a)}
+              onEntityClick={handleEntityClick}
+              onFullReport={handleFullReport}
+              onWarmEntityDialog={warmEntityDialog}
+              onWarmReportDialog={warmReportDialog}
               annotation={annotations?.[article['URL']] ?? null}
               onAnnotate={onAnnotate}
               filePath={filePath}
@@ -1655,28 +1693,30 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
         </div>
       )}
 
-      {selectedEntity && (
-        <EntityArticlePanel
-          entityType={selectedEntity.type}
-          entityValue={selectedEntity.value}
-          onClose={() => setSelectedEntity(null)}
-          onOpenFile={onOpenFile}
-        />
-      )}
+      <Suspense fallback={<DialogFallback />}>
+        {selectedEntity && (
+          <EntityArticlePanel
+            entityType={selectedEntity.type}
+            entityValue={selectedEntity.value}
+            onClose={() => setSelectedEntity(null)}
+            onOpenFile={onOpenFile}
+          />
+        )}
 
-      {reportArticle && (
-        <ArticleFullReportDialog
-          article={reportArticle}
-          filePath={filePath}
-          obsidianVaultProp={obsidianVault}
-          onClose={() => setReportArticle(null)}
-          onReportSaved={(url, rapport) => setLocalReports(prev => ({
-            ...prev,
-            [url]: [...(prev[url] || []), rapport]
-          }))}
-          onOpenFile={onOpenFile}
-        />
-      )}
+        {reportArticle && (
+          <ArticleFullReportDialog
+            article={reportArticle}
+            filePath={filePath}
+            obsidianVaultProp={obsidianVault}
+            onClose={() => setReportArticle(null)}
+            onReportSaved={(url, rapport) => setLocalReports(prev => ({
+              ...prev,
+              [url]: [...(prev[url] || []), rapport]
+            }))}
+            onOpenFile={onOpenFile}
+          />
+        )}
+      </Suspense>
     </div>
   )
 })

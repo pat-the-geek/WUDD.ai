@@ -3,9 +3,7 @@ import { flushSync } from 'react-dom'
 import { X, Send, Save, Trash2, FileText, FileJson, Folder, ChevronRight, Loader2, Terminal, RefreshCw, Check, BookOpen, Maximize2, Minimize2, SlidersHorizontal } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import mermaid from 'mermaid'
-
-mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'antiscript' })
+import { getMermaid } from '../utils/mermaidLoader'
 
 /**
  * ChatbotPanel — Chatbot IA style terminal
@@ -117,8 +115,8 @@ function MermaidBlock({ code }) {
     let cancelled = false
     // Debounce 300 ms : attend la fin du streaming avant de tenter un rendu
     const timer = setTimeout(() => {
-      mermaid.parse(clean)
-        .then(() => mermaid.render(id.current, clean))
+      getMermaid({ theme: 'dark', securityLevel: 'antiscript' })
+        .then(mermaid => mermaid.parse(clean).then(() => mermaid.render(id.current, clean)))
         .then(({ svg }) => {
           if (cancelled) return
           lastCode.current = clean
@@ -577,7 +575,7 @@ Voici ce que je peux faire pour vous :
   // Ré-initialiser Mermaid et persister le thème quand il change
   useEffect(() => {
     localStorage.setItem('chatbot_theme', terminalTheme)
-    mermaid.initialize({ startOnLoad: false, theme: theme.mermaid, securityLevel: 'antiscript' })
+    getMermaid({ theme: theme.mermaid, securityLevel: 'antiscript' }).catch(() => {})
   }, [terminalTheme, theme.mermaid])
 
 

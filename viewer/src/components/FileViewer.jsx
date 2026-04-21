@@ -1,9 +1,19 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { lazy, Suspense, useMemo, useState, useEffect, useRef } from 'react'
 import { Download, FileText, Calendar, HardDrive, ChevronRight, ChevronDown, Images, ArrowUp, Tag, Braces, LayoutList, Trash2, AlertTriangle, Printer, BookOpen, BookMarked, Network, MessageSquare } from 'lucide-react'
-import JsonViewer from './JsonViewer'
-import MarkdownViewer from './MarkdownViewer'
-import EntityPanel from './EntityPanel'
-import ArticleListViewer from './ArticleListViewer'
+import { preloadMermaid } from '../utils/mermaidLoader'
+
+const JsonViewer = lazy(() => import('./JsonViewer'))
+const EntityPanel = lazy(() => import('./EntityPanel'))
+const MarkdownViewer = lazy(() => import('./MarkdownViewer'))
+const ArticleListViewer = lazy(() => import('./ArticleListViewer'))
+
+function ViewerFallback({ label = 'Chargement…' }) {
+  return (
+    <div className="flex items-center justify-center py-12 text-sm text-slate-400 dark:text-slate-500">
+      {label}
+    </div>
+  )
+}
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} o`
@@ -216,6 +226,13 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
 
   // Remet le scroll à 0 et la vue JSON lors d'un changement de fichier
   useEffect(() => { setScrollTop(0); setViewMode('articles'); setExportOpen(false) }, [file])
+
+  // Précharger Mermaid seulement pour les rapports Markdown qui en contiennent.
+  useEffect(() => {
+    if (!file || file.type !== 'markdown' || typeof content !== 'string') return
+    if (!content.includes('```mermaid')) return
+    preloadMermaid({ theme: 'default', securityLevel: 'loose' }).catch(() => {})
+  }, [file, content])
 
   // Garde une référence du fichier courant accessible depuis beforeprint
   const fileRef = useRef(file)
@@ -561,22 +578,32 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
           <div className="text-slate-400 dark:text-slate-500 text-sm">Contenu indisponible</div>
         ) : file.type === 'json' ? (
           viewMode === 'articles' && isArticleArray ? (
-            <ArticleListViewer ref={articleListRef} content={content} annotations={annotations} onAnnotate={onAnnotate} filePath={file?.path} availableProviders={availableProviders} searchInjection={articleSearchQuery} focusSignal={articleFocusSignal} onMobileSearchClose={onMobileSearchClose} mobileFilterSignal={mobileFilterSignal} onMobileFilterClose={onMobileFilterClose} onMerged={onMerged} onOpenFile={onOpenFile} />
+            <Suspense fallback={<ViewerFallback label="Chargement des articles…" />}>
+              <ArticleListViewer ref={articleListRef} content={content} annotations={annotations} onAnnotate={onAnnotate} filePath={file?.path} availableProviders={availableProviders} searchInjection={articleSearchQuery} focusSignal={articleFocusSignal} onMobileSearchClose={onMobileSearchClose} mobileFilterSignal={mobileFilterSignal} onMobileFilterClose={onMobileFilterClose} onMerged={onMerged} onOpenFile={onOpenFile} />
+            </Suspense>
           ) : (
             <>
               <div className="bg-slate-100 dark:bg-slate-950 rounded-xl p-6 border border-slate-200 dark:border-slate-800/60">
-                <JsonViewer
-                  content={content}
-                  onSave={onContentSaved ? (newContent) => onContentSaved(file.path, newContent) : undefined}
-                />
+                <Suspense fallback={<ViewerFallback label="Chargement du JSON…" />}>
+                  <JsonViewer
+                    content={content}
+                    onSave={onContentSaved ? (newContent) => onContentSaved(file.path, newContent) : undefined}
+                  />
+                </Suspense>
               </div>
-              <div ref={entitiesRef}><EntityPanel content={content} onEntitySearch={onEntitySearch} /></div>
+              <div ref={entitiesRef}>
+                <Suspense fallback={<ViewerFallback label="Chargement des entités…" />}>
+                  <EntityPanel content={content} onEntitySearch={onEntitySearch} />
+                </Suspense>
+              </div>
               <div ref={imagesRef}><ImageGallery content={content} /></div>
             </>
           )
         ) : (
           <div id="print-area">
-            <MarkdownViewer content={content} />
+            <Suspense fallback={<ViewerFallback label="Chargement du rapport…" />}>
+              <MarkdownViewer content={content} />
+            </Suspense>
           </div>
         )}
       </div>
