@@ -1,11 +1,10 @@
 import { lazy, Suspense, useEffect, useState, useRef, useCallback } from 'react'
 import { X, FileText, Download, Loader2, ExternalLink, ChevronLeft, Network, GripHorizontal, Maximize2, Minimize2, Info, Calendar, Layers, Terminal, BookOpen, Hash, FolderOpen } from 'lucide-react'
 import EntityWorldMap from './EntityWorldMap'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import TTSButton from './TTSButton'
 import { openInObsidian } from '../utils/obsidian'
 
+const EntityMarkdownContent = lazy(() => import('./EntityMarkdownContent'))
 const EntityGraph = lazy(() => import('./EntityGraph'))
 const EntityCalendar = lazy(() => import('./EntityCalendar'))
 const EntityFullReportDialog = lazy(() => import('./EntityFullReportDialog'))
@@ -49,9 +48,9 @@ function EntityInfoView({ text, loading, error }) {
               <TTSButton text={text} size={13} />
             </div>
           )}
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD}>
-            {text}
-          </ReactMarkdown>
+          <Suspense fallback={<PanelSectionFallback label="Chargement du rendu…" />}>
+            <EntityMarkdownContent content={text} components={MD} />
+          </Suspense>
         </>
       )}
       {loading && text.length > 0 && (
@@ -765,9 +764,9 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose, o
                     <TTSButton text={ragText} size={13} />
                   </div>
                 )}
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD}>
-                  {ragText}
-                </ReactMarkdown>
+                <Suspense fallback={<PanelSectionFallback label="Chargement du rendu…" />}>
+                  <EntityMarkdownContent content={ragText} components={MD} />
+                </Suspense>
                 {ragLoading && (
                   <span className="inline-block w-2 h-4 bg-emerald-500 animate-pulse ml-1 rounded-sm" />
                 )}
