@@ -771,31 +771,17 @@ def api_chat_stream():
         bearer  = os.environ.get("bearer", "").strip()
         if not api_url or not bearer:
             return jsonify({"error": "URL ou bearer manquant dans .env (AI_PROVIDER=euria)"}), 503
-        payload = {
-            "messages": full_messages,
-            "model": "qwen3",
-            "stream": True,
-        }
-        # enable_web_search n'est supporté que par l'ancien endpoint /euria/v1/
-        if "/euria/" in api_url and web_search:
-            payload["enable_web_search"] = True
-        api_headers = {
-            "Authorization": f"Bearer {bearer}",
-            "Content-Type": "application/json",
-        }
+        from utils.api_client import EurIAClient as _EurIAClient
+        _euria = _EurIAClient(url=api_url, bearer=bearer)
 
         def generate_chat():
-            try:
-                r = req.post(api_url, json=payload, headers=api_headers, stream=True, timeout=180)
-                r.raise_for_status()
-                for line in r.iter_lines():
-                    if line:
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data:"):
-                            decoded = "data: " + decoded
-                        yield decoded + "\n\n"
-            except Exception as exc:
-                yield f'data: {json.dumps({"error": str(exc)})}\n\n'
+            yield from _euria.stream(
+                prompt="",
+                messages=full_messages,
+                timeout=180,
+                max_tokens=4096,
+                enable_web_search=bool(web_search),
+            )
 
     return Response(
         stream_with_context(generate_chat()),

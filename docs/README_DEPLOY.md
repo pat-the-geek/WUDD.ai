@@ -104,7 +104,7 @@ git status | grep "\.env$" && echo "❌ ERREUR!" || echo "✅ OK"
 git commit -m "🎉 Initial commit - Pipeline ETL d'analyse d'actualités
 
 - Pipeline automatisé de collecte RSS/JSON
-- Intégration API EurIA (Infomaniak Qwen3)
+- Intégration API EurIA (Infomaniak Qwen/Qwen3.5-122B-A10B-FP8)
 - Scripts Python pour extraction et résumé IA
 - Configuration sécurisée avec .env
 - Documentation complète (50+ pages)

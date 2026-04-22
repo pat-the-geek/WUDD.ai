@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 radar_wudd.py — Radar Thématique WUDD.ai
-Appelle l'API EurIA (Infomaniak / Qwen3), score les thèmes sur le corpus, génère un HTML autonome.
+Appelle l'API EurIA (Infomaniak / Qwen/Qwen3.5-122B-A10B-FP8), score les thèmes sur le corpus, génère un HTML autonome.
 
 Usage:
     python3 radar_wudd.py
@@ -139,7 +139,7 @@ def call_api(client, corpus_t0, corpus_t1, t0_label, t1_label, t0_count, t1_coun
 
     raw = client.ask(prompt, max_attempts=3, timeout=120, max_tokens=16000)
 
-    # Supprimer les blocs de réflexion <think>…</think> de Qwen3
+    # Supprimer les blocs de réflexion <think>…</think> des réponses Qwen
     import re
     raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL)
     raw = raw.replace("```json", "").replace("```", "").strip()
@@ -160,7 +160,7 @@ def call_api(client, corpus_t0, corpus_t1, t0_label, t1_label, t0_count, t1_coun
             raise ValueError(f"Pas de JSON valide dans la reponse: {raw[:300]}")
 
     # Calcul de freq (= freqT0) et vel côté Python
-    # Toujours recalculer vel : Qwen3 renvoie souvent 0.5 pour tous les thèmes
+    # Toujours recalculer vel : le modèle Qwen renvoie souvent 0.5 pour tous les thèmes
     # quand le corpus T1 est trop petit pour discriminer les vélocités.
     for item in items:
         ft0 = float(item.get("freqT0", item.get("freq", 0.05)))
@@ -639,7 +639,7 @@ def main():
     corpus_t0 = format_corpus(t0, limit=35)
     corpus_t1 = format_corpus(t1, limit=20)
 
-    print_console(f"[3/4] Appel API EurIA (Qwen3) pour scorer {len(THEMES)} thèmes ...", level="info")
+    print_console(f"[3/4] Appel API EurIA (Qwen/Qwen3.5-122B-A10B-FP8) pour scorer {len(THEMES)} thèmes ...", level="info")
     try:
         results = call_api(
             client=client,

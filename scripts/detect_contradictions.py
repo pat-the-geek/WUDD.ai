@@ -536,9 +536,9 @@ def main() -> None:
         from utils.config import get_config as _gc
         cfg = _gc()
         provider = getattr(cfg, "ai_provider", "euria").lower()
-        provider_label = "Claude (Anthropic)" if provider == "claude" else "EurIA (Qwen3)"
+        provider_label = "Claude (Anthropic)" if provider == "claude" else "EurIA (Qwen/Qwen3.5-122B-A10B-FP8)"
     except Exception:
-        provider_label = "EurIA (Qwen3)"
+        provider_label = "EurIA (Qwen/Qwen3.5-122B-A10B-FP8)"
 
     log(f"[00:00]     Fournisseur IA : {provider_label}")
     log(f"[00:00]     Durée estimée  : 40–70 secondes (NER à la volée si absent)")

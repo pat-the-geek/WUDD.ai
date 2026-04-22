@@ -73,7 +73,7 @@ Ce document décrit les 5 scripts de génération de rapports exécutés automat
 
 **Sources :**
 - Tous les `*.json` sous `data/` (récursif) — corpus complet
-- EurIA API (Qwen3, web search désactivé, 120s timeout)
+- EurIA API (Qwen/Qwen3.5-122B-A10B-FP8, web search désactivé, 120s timeout)
 
 **Fonctionnement :**
 1. Divise le corpus en deux périodes : **T0** (mois courant) et **T1** (fenêtre de 2 semaines la plus ancienne)

@@ -1,3 +1,12 @@
+# 22/04/2026 — Bascule EurIA vers Qwen/Qwen3.5-122B-A10B-FP8 (v2.8.6)
+
+## IA — Modèle EurIA, fallback et harmonisation documentaire
+
+- remplacement du modèle EurIA par défaut par `Qwen/Qwen3.5-122B-A10B-FP8` dans le client partagé et dans les routes viewer qui pilotent réellement le chat et le streaming
+- ajout d'un fallback robuste quand EurIA renvoie un `reasoning` tronqué avec `content=null`, avec reprise non-stream pour préserver les endpoints SSE
+- harmonisation des messages utilisateur, statuts runtime et libellés du dashboard sur le nouveau modèle
+- mise à jour de la documentation technique et fonctionnelle pour refléter le nouveau modèle EurIA
+
 # 21/04/2026 — Audit dépendances et réalignement des runtimes (v2.8.5)
 
 ## Viewer — rapports d'article

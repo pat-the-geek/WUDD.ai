@@ -60,7 +60,7 @@ flowchart TB
     subgraph PIPELINE["Pipeline ETL par flux"]
         COLLECT["Collecte HTTP\n(requests)"]
         EXTRACT["Extraction HTML\n(BeautifulSoup4)"]
-        SUMMARIZE["Résumé IA\n(API EurIA · Qwen3 · 60s)"]
+        SUMMARIZE["Résumé IA\n(API EurIA · Qwen3.5-122B-A10B-FP8 · 60s)"]
         IMAGES["Extraction images\n(top 3 · largeur > 500px)"]
         NER_INLINE["Entités NER inline\n(API EurIA · 18 types)"]
     end
@@ -782,7 +782,7 @@ def generate_entities(resume: str, timeout: int = 30) -> dict:
     """
     Extrait les entités nommées d'un résumé.
     Retourne un dict {TYPE: [valeur, ...]} selon OntoNotes 5.0.
-    Nettoie les blocs <think>...</think> de Qwen3.
+    Nettoie les blocs <think>...</think> des réponses Qwen.
     """
 ```
 
@@ -954,7 +954,7 @@ Le projet supporte deux fournisseurs IA interchangeables via `utils/api_client.p
 
 | Fournisseur | Variable env | Modèle par défaut | Endpoint |
 |---|---|---|---|
-| **EurIA — Infomaniak** | `URL` + `bearer` | `qwen3` | OpenAI-compatible (`/v1/chat/completions`) |
+| **EurIA — Infomaniak** | `URL` + `bearer` | `Qwen/Qwen3.5-122B-A10B-FP8` | OpenAI-compatible (`/v1/chat/completions`) |
 | **Claude — Anthropic** | `ANTHROPIC_API_KEY` | `claude-sonnet-4-6` | `https://api.anthropic.com/v1/messages` |
 
 ### Sélection du fournisseur
@@ -977,7 +977,7 @@ response = requests.post(
     URL,  # depuis .env
     json={
         "messages": [{"content": prompt, "role": "user"}],
-        "model": "qwen3",
+        "model": "Qwen/Qwen3.5-122B-A10B-FP8",
         "enable_web_search": True
     },
     headers={"Authorization": f"Bearer {BEARER}"},
@@ -994,7 +994,7 @@ content = response.json()["choices"][0]["message"]["content"]
 | `generate_entities(resume)`| NER sur le résumé   | 30 s         | 3            || `generate_sentiment(resume)`| Sentiment + ton éditorial | 30 s  | 3            || `generate_report(json_str)`| Rapport de synthèse | 300 s        | 3            |
 | `ask(prompt)`              | Appel générique     | configurable | configurable |
 
-> `generate_entities()` nettoie automatiquement les blocs `<think>...</think>` produits par Qwen3 et normalise le JSON résultant.
+> `generate_entities()` nettoie automatiquement les blocs `<think>...</think>` produits par le modèle Qwen et normalise le JSON résultant.
 
 ### Gestion des erreurs & retry
 

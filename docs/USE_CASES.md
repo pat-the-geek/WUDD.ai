@@ -40,7 +40,7 @@ sequenceDiagram
     participant V as Viewer (navigateur)
     participant F as Flask (app.py)
     participant S as get-keyword-from-rss.py
-    participant E as API EurIA (Qwen3)
+    participant E as API EurIA (Qwen/Qwen3.5-122B-A10B-FP8)
     participant R as Flux RSS
 
     Note over U,R: Configuration initiale (une fois)
@@ -393,7 +393,7 @@ flowchart TD
 
 **Contexte :** Chaque soir à 23h00, un rapport de veille analytique est généré automatiquement à partir des articles collectés dans les 48 dernières heures. Le script identifie les 10 entités nommées les plus citées (personnes, organisations, pays, produits, événements), rédige une analyse structurée pour chacune — contexte encyclopédique, actualité des 48h avec sources, analyse stratégique — puis synthétise les corrélations et signaux faibles détectés.
 
-**Acteurs :** Docker/cron · `generate_48h_report.py` · `get-keyword-from-rss.py` · API EurIA (Qwen3)
+**Acteurs :** Docker/cron · `generate_48h_report.py` · `get-keyword-from-rss.py` · API EurIA (Qwen/Qwen3.5-122B-A10B-FP8)
 
 **Prérequis :** `data/articles-from-rss/_WUDD.AI_/48-heures.json` doit être à jour (généré par `get-keyword-from-rss.py` après chaque collecte RSS).
 
@@ -616,7 +616,7 @@ sequenceDiagram
     participant V as "Viewer (EntityArticlePanel - onglet RAG)"
     participant A as "Flask /api/synthesize-topic"
     participant C as "api_client.generate_report()"
-    participant AI as "EurIA API (Qwen3)"
+    participant AI as "EurIA API (Qwen/Qwen3.5-122B-A10B-FP8)"
 
     U->>V: Clique entité, ouvre EntityArticlePanel
     U->>V: Sélectionne onglet Synthèse RAG

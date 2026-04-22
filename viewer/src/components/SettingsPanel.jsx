@@ -1995,7 +1995,7 @@ function EnvTab() {
       const d = await r.json()
       setAiCheck(prev => ({ ...prev, [provider]: d }))
     } catch (e) {
-      setAiCheck(prev => ({ ...prev, [provider]: { ok: false, message: String(e), latency_ms: 0 } }))
+      setAiCheck(prev => ({ ...prev, [provider]: { ok: false, message: String(e), latency_ms: 0, active_model: '' } }))
     }
   }
 
@@ -2126,7 +2126,7 @@ function EnvTab() {
         </p>
         <div className="flex items-center gap-2 flex-wrap">
           {[
-            { value: 'euria',  label: 'EurIA · Infomaniak/Qwen3' },
+            { value: 'euria',  label: 'EurIA · Infomaniak/Qwen3.5-122B-A10B-FP8' },
             { value: 'claude', label: 'Claude · Anthropic' },
           ].map(opt => (
             <button
@@ -2326,7 +2326,7 @@ function EnvTab() {
                             {checkState && checkState !== 'checking' && !isOllama && (
                               <span className={`text-[11px] flex items-center gap-1 ${checkState.ok ? 'text-[#1a7a34] dark:text-[#30D158]' : 'text-red-500 dark:text-red-400'}`}>
                                 {checkState.ok
-                                  ? <><CheckCircle2 size={11} /> OK {checkState.latency_ms > 0 ? `· ${checkState.latency_ms}ms` : ''}</>
+                                  ? <><CheckCircle2 size={11} /> OK {checkState.active_model ? `· ${checkState.active_model}` : ''}{checkState.latency_ms > 0 ? ` · ${checkState.latency_ms}ms` : ''}</>
                                   : <><AlertTriangle size={11} /> {checkState.message.slice(0, 60)}</>
                                 }
                               </span>

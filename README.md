@@ -22,7 +22,7 @@
   </a>
 </p>
 
-> **What's up, Doc?** — Plateforme de veille intelligente inspirée de Bugs Bunny : collecte, analyse et synthèse d'actualités via l'API EurIA (Infomaniak / Qwen3) ou Claude (Anthropic), à partir de flux JSON accessibles par URL HTTP.
+> **What's up, Doc?** — Plateforme de veille intelligente inspirée de Bugs Bunny : collecte, analyse et synthèse d'actualités via l'API EurIA (Infomaniak / Qwen/Qwen3.5-122B-A10B-FP8) ou Claude (Anthropic), à partir de flux JSON accessibles par URL HTTP.
 
 ---
 
@@ -52,7 +52,7 @@
 
 WUDD.ai est une plateforme open-source de **veille de presse automatisée**.  
 Elle collecte des articles depuis des flux JSON et RSS, les enrichit via une API IA  
-(Infomaniak EurIA / Qwen3 ou Claude), et les rend exploitables via une interface web locale.
+(Infomaniak EurIA / Qwen/Qwen3.5-122B-A10B-FP8 ou Claude), et les rend exploitables via une interface web locale.
 
 ## Ce que fait WUDD.ai
 
@@ -80,7 +80,7 @@ Elle collecte des articles depuis des flux JSON et RSS, les enrichit via une API
 
 | Technologie | Description |
 |---|---|
-| EurIA / Qwen3 (Infomaniak) | Provider IA par défaut — résumés, NER, sentiments, rapports via API REST |
+| EurIA / Qwen/Qwen3.5-122B-A10B-FP8 (Infomaniak) | Provider IA par défaut — résumés, NER, sentiments, rapports via API REST |
 | Claude (Anthropic) | Provider IA alternatif — sélectionnable via `AI_PROVIDER=claude` dans `.env` |
 | Ollama (local) | Provider NER/sentiment batch local (Option A : `AI_PROVIDER_NER=ollama`) et résumés d'articles (Option B : `AI_PROVIDER_SUMMARY=ollama`) — aucun token consommé, Metal/Neural Engine sur Apple Silicon |
 
@@ -183,7 +183,7 @@ mindmap
       Flux JSON par URL HTTP
       Multi-flux cloisonnés
     Résumé IA
-      EurIA / Qwen3 ou Claude
+      EurIA / Qwen/Qwen3.5-122B-A10B-FP8 ou Claude
       20 lignes · français
       3 images par article
     Analyse thématique
@@ -236,7 +236,7 @@ mindmap
 ### Pipeline de traitement
 
 ```
-Flux JSON (HTTP) → Extraction HTML → Résumé IA (EurIA/Qwen3 ou Claude) → JSON → Enrichissement NER → Markdown annoté / PDF
+Flux JSON (HTTP) → Extraction HTML → Résumé IA (EurIA/Qwen/Qwen3.5-122B-A10B-FP8 ou Claude) → JSON → Enrichissement NER → Markdown annoté / PDF
 ```
 
 ### Arborescence du projet
@@ -461,7 +461,7 @@ Ajoute un champ `entities` à chaque article possédant un champ `Résumé`, en 
   "PERSON": ["Sam Altman"],
   "ORG": ["OpenAI", "Infomaniak"],
   "GPE": ["États-Unis"],
-  "PRODUCT": ["Qwen3"]
+  "PRODUCT": ["Qwen/Qwen3.5-122B-A10B-FP8"]
 }
 ```
 
@@ -847,7 +847,7 @@ response = requests.post(
     URL,
     json={
         "messages": [{"content": prompt, "role": "user"}],
-        "model": "qwen3",
+        "model": "Qwen/Qwen3.5-122B-A10B-FP8",
         "enable_web_search": True
     },
     headers={"Authorization": f"Bearer {BEARER}"},
@@ -905,7 +905,7 @@ Inclus des images pertinentes (<img src='URL' />).
       "PERSON": ["Sam Altman"],
       "ORG": ["OpenAI", "Infomaniak"],
       "GPE": ["États-Unis"],
-      "PRODUCT": ["Qwen3"]
+      "PRODUCT": ["Qwen/Qwen3.5-122B-A10B-FP8"]
     }
   }
 ]
@@ -1162,7 +1162,7 @@ Merci de respecter : la structure du projet, la langue française pour les clés
 - **Auteur** : Patrick Ostertag
 - **Email** : patrick.ostertag@gmail.com
 - **Site** : [patrickostertag.ch](http://patrickostertag.ch)
-- **Moteur IA** : EurIA (Infomaniak) — Modèle : Qwen3 — [euria.infomaniak.com](https://euria.infomaniak.com)
+- **Moteur IA** : EurIA (Infomaniak) — Modèle : Qwen/Qwen3.5-122B-A10B-FP8 — [euria.infomaniak.com](https://euria.infomaniak.com)
 - **Licence** : Projet personnel
 
 ---

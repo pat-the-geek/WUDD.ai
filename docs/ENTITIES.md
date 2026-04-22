@@ -85,7 +85,7 @@ Le schéma de typage adopté est celui du corpus **OntoNotes 5.0**, développé 
 
 Ce choix assure une compatibilité maximale avec l'écosystème NLP : les types sont stables, documentés, et interopérables avec les outils tiers (spaCy, Hugging Face, etc.).
 
-> **Note d'implémentation :** l'extraction n'est pas réalisée par un pipeline NLP classique (spaCy, stanza…) mais par **prompt soumis au LLM** (Qwen3 via l'API EurIA). Le modèle retourne directement les entités au format JSON structuré, en appliquant la taxonomie OntoNotes. Cette approche est plus flexible sur les textes français et les entités récentes, mais peut produire des résultats variables selon la qualité du résumé source.
+> **Note d'implémentation :** l'extraction n'est pas réalisée par un pipeline NLP classique (spaCy, stanza…) mais par **prompt soumis au LLM** (Qwen/Qwen3.5-122B-A10B-FP8 via l'API EurIA). Le modèle retourne directement les entités au format JSON structuré, en appliquant la taxonomie OntoNotes. Cette approche est plus flexible sur les textes français et les entités récentes, mais peut produire des résultats variables selon la qualité du résumé source.
 
 ---
 
@@ -107,7 +107,7 @@ L'extraction NER identifie 18 types d'entités couvrant les dimensions essentiel
 
 ### 4.1 Enrichissement a posteriori
 
-L'extraction NER est assurée par `scripts/enrich_entities.py`, qui soumet le champ `Résumé` de chaque article à l'API EurIA (Qwen3) avec un prompt spécialisé.
+L'extraction NER est assurée par `scripts/enrich_entities.py`, qui soumet le champ `Résumé` de chaque article à l'API EurIA (Qwen/Qwen3.5-122B-A10B-FP8) avec un prompt spécialisé.
 
 ```bash
 # Enrichir tous les articles existants

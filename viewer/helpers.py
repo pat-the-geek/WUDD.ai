@@ -219,7 +219,6 @@ def _call_ai_blocking(prompt: str, timeout: int = 90,
     Retourne "" en cas d'erreur ou de configuration manquante.
     """
     import re
-    import requests as _req
     provider = os.environ.get("AI_PROVIDER", "euria").strip().lower()
     chunks: list[str] = []
 
@@ -249,36 +248,10 @@ def _call_ai_blocking(prompt: str, timeout: int = 90,
         bearer  = os.environ.get("bearer", "")
         if not api_url or not bearer:
             return ""
-        payload: dict = {
-            "messages": [{"role": "user", "content": prompt}],
-            "model": "qwen3",
-            "stream": True,
-        }
-        # enable_web_search n'est supporté que par l'ancien endpoint /euria/v1/
-        if enable_web_search and "/euria/" in api_url:
-            payload["enable_web_search"] = True
-        api_headers = {
-            "Authorization": f"Bearer {bearer}",
-            "Content-Type": "application/json",
-        }
         try:
-            r = _req.post(api_url, json=payload, headers=api_headers,
-                          stream=True, timeout=timeout)
-            r.raise_for_status()
-            for line in r.iter_lines():
-                if not line:
-                    continue
-                decoded = line.decode("utf-8")
-                raw = decoded[5:].strip() if decoded.startswith("data:") else decoded.strip()
-                if raw == "[DONE]":
-                    break
-                try:
-                    d = json.loads(raw)
-                    content = (d.get("choices") or [{}])[0].get("delta", {}).get("content", "")
-                    if content:
-                        chunks.append(content)
-                except Exception:
-                    pass
+            from utils.api_client import EurIAClient
+            client = EurIAClient(url=api_url, bearer=bearer)
+            return client.ask(prompt, timeout=timeout, enable_web_search=enable_web_search).strip()
         except Exception:
             pass
 

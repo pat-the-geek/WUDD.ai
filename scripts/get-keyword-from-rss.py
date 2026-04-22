@@ -7,7 +7,7 @@ Pour chaque flux RSS dans WUDD.opml :
     - Si le titre contient un mot-clé de keyword-to-search.json :
         - Enregistre l'URL dans un fichier JSON nommé par mot-clé (sans doublon)
         - Format de sortie = articles_generated_YYYY-MM-DD_YYYY-MM-DD.json
-        - Résumé généré par IA EurIA (Qwen3)
+        - Résumé généré par IA EurIA (Qwen/Qwen3.5-122B-A10B-FP8)
         - Images extraites selon la méthode du projet
         - Clés : Date de publication, Sources, URL, Résumé, Images
         - Fichiers créés dans data/articles-from-rss/

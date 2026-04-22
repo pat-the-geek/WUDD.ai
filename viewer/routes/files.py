@@ -520,36 +520,30 @@ def api_article_full_report():
             bearer  = os.environ.get("bearer", "")
             if not api_url or not bearer:
                 return jsonify({"error": "URL ou bearer manquant dans .env (AI_PROVIDER=euria)"}), 503
-            payload = {
-                "messages":   [{"role": "user", "content": prompt}],
-                "model":      "qwen3",
-                "stream":     True,
-                "max_tokens": 16000,
-            }
-            api_headers = {
-                "Authorization": f"Bearer {bearer}",
-                "Content-Type":  "application/json",
-            }
+            from utils.api_client import EurIAClient as _EC
+            _euria = _EC(url=api_url, bearer=bearer)
 
         def generate():
-            try:
-                r = _req.post(
-                    api_url, json=payload, headers=api_headers,
-                    stream=True, timeout=300,
-                )
-                r.raise_for_status()
-                for line in r.iter_lines(decode_unicode=True):
-                    if not line:
-                        continue
-                    # Normaliser le préfixe SSE : s'assurer que la ligne commence
-                    # par "data: " (avec espace) pour que le frontend puisse la parser.
-                    if line.startswith("data:"):
-                        line = "data: " + line[5:].lstrip()
-                    else:
-                        line = "data: " + line
-                    yield line + "\n\n"
-            except Exception as exc:
-                yield f'data: {json.dumps({"error": str(exc)})}\n\n'
+            if provider == "ollama":
+                try:
+                    r = _req.post(
+                        api_url, json=payload, headers=api_headers,
+                        stream=True, timeout=300,
+                    )
+                    r.raise_for_status()
+                    for line in r.iter_lines(decode_unicode=True):
+                        if not line:
+                            continue
+                        if line.startswith("data:"):
+                            line = "data: " + line[5:].lstrip()
+                        else:
+                            line = "data: " + line
+                        yield line + "\n\n"
+                except Exception as exc:
+                    yield f'data: {json.dumps({"error": str(exc)})}\n\n'
+                return
+
+            yield from _euria.stream(prompt=prompt, max_tokens=16000, timeout=300)
 
     return Response(
         stream_with_context(generate()),

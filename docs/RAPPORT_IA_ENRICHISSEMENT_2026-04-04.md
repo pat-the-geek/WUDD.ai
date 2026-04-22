@@ -59,7 +59,7 @@ flowchart LR
 
 | Provider | Modèle | Usage |
 |---|---|---|
-| EurIA / Infomaniak | Qwen3 | Provider par défaut — résumés, NER, sentiments |
+| EurIA / Infomaniak | Qwen/Qwen3.5-122B-A10B-FP8 | Provider par défaut — résumés, NER, sentiments |
 | Anthropic | Claude Sonnet 4.6 | Provider alternatif — prompt caching, synthèses |
 
 ---

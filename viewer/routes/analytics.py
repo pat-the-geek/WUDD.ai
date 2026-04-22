@@ -645,8 +645,6 @@ def api_synthesize_topic():
         f"Articles :\n{sources_block}"
     )
 
-    import requests as req
-
     if provider == "claude":
         from utils.api_client import ClaudeClient as _ClaudeClient
         _claude = _ClaudeClient(api_key=api_key)
@@ -655,28 +653,11 @@ def api_synthesize_topic():
             yield from _claude.stream(prompt=prompt, timeout=120)
 
     else:
-        payload = {
-            "messages": [{"role": "user", "content": prompt}],
-            "model": "qwen3",
-            "stream": True,
-        }
-        api_headers = {
-            "Authorization": f"Bearer {bearer}",
-            "Content-Type": "application/json",
-        }
+        from utils.api_client import EurIAClient as _EC
+        _euria = _EC(url=api_url, bearer=bearer)
 
         def generate_synthesis():
-            try:
-                r = req.post(api_url, json=payload, headers=api_headers, stream=True, timeout=120)
-                r.raise_for_status()
-                for line in r.iter_lines():
-                    if line:
-                        decoded = line.decode("utf-8")
-                        if not decoded.startswith("data:"):
-                            decoded = "data: " + decoded
-                        yield decoded + "\n\n"
-            except Exception as exc:
-                yield f'data: {json.dumps({"error": str(exc)})}\n\n'
+            yield from _euria.stream(prompt=prompt, timeout=120)
 
     return Response(
         stream_with_context(generate_synthesis()),

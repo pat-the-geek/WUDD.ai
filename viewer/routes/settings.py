@@ -103,7 +103,6 @@ def api_save_keywords():
 @settings_bp.route("/api/keywords/suggest", methods=["POST"])
 def api_suggest_semantic_field():
     """Demande à l'IA des propositions de champ sémantique pour un mot-clé."""
-    import requests as req
     data = request.get_json(force=True)
     keyword = (data.get("keyword") or "").strip()
     if not keyword:
@@ -141,15 +140,9 @@ def api_suggest_semantic_field():
         else:
             if not api_url or not bearer:
                 return jsonify({"error": "URL ou bearer manquant dans .env"}), 503
-            payload = {
-                "messages": [{"role": "user", "content": prompt}],
-                "model": "qwen3",
-                "stream": False,
-            }
-            headers = {"Authorization": f"Bearer {bearer}", "Content-Type": "application/json"}
-            r = req.post(api_url, json=payload, headers=headers, timeout=60)
-            r.raise_for_status()
-            full_text = r.json()["choices"][0]["message"]["content"]
+            from utils.api_client import EurIAClient
+            client = EurIAClient(url=api_url, bearer=bearer)
+            full_text = client.ask(prompt, timeout=60, enable_web_search=False)
 
         # Extraire le JSON de la réponse (robuste aux balises markdown)
         import re
@@ -681,7 +674,7 @@ def api_ai_check():
     """Vérifie la connexion à un fournisseur IA en envoyant un prompt minimal.
 
     Body JSON : { "provider": "euria" | "claude" | "ollama" }
-    Retourne  : { ok: bool, message: str, latency_ms: int }
+    Retourne  : { ok: bool, message: str, latency_ms: int, active_model?: str }
     """
     import time as _time
     body = request.get_json(force=True, silent=True) or {}
@@ -704,22 +697,30 @@ def api_ai_check():
                 return jsonify({"ok": False, "message": "URL ou bearer non configuré.", "latency_ms": 0})
             client = EurIAClient(url=url, bearer=bearer)
             result = client.ask(prompt, timeout=10)
+            active_model = client.model
         elif provider == "claude":
             api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
             if not api_key:
                 return jsonify({"ok": False, "message": "ANTHROPIC_API_KEY non configurée.", "latency_ms": 0})
             client = ClaudeClient(api_key=api_key)
             result = client.ask(prompt, max_tokens=16, timeout=10)
+            active_model = None
         else:  # ollama
             if not OllamaClient.is_available():
                 return jsonify({"ok": False, "message": "Serveur Ollama injoignable (localhost:11434). Démarrez-le : brew services start ollama", "latency_ms": 0})
             model = os.environ.get("OLLAMA_MODEL", OllamaClient._DEFAULT_MODEL).strip()
             client = OllamaClient(model=model)
             result = client.ask(prompt, max_tokens=16, timeout=30)
+            active_model = model
 
         latency_ms = int((_time.monotonic() - t0) * 1000)
         ok = bool(result and len(result.strip()) > 0)
-        return jsonify({"ok": ok, "message": result.strip() if ok else "Réponse vide.", "latency_ms": latency_ms})
+        return jsonify({
+            "ok": ok,
+            "message": result.strip() if ok else "Réponse vide.",
+            "latency_ms": latency_ms,
+            "active_model": active_model,
+        })
 
     except Exception as exc:
         latency_ms = int((_time.monotonic() - t0) * 1000)

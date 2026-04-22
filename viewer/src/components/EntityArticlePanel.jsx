@@ -409,7 +409,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose, o
             } catch (e) { if (e.message?.startsWith('Erreur')) throw e; continue }
             if (!chunk) continue
 
-            // Filtre les blocs <think>…</think> de Qwen3
+            // Filtre les blocs <think>…</think> des réponses Qwen
             let rem = chunk
             while (rem.length > 0) {
               if (!inThink) {

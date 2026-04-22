@@ -4,7 +4,7 @@ This file provides essential context for AI assistants working in this codebase.
 
 ## Project Overview
 
-**WUDD.ai** (also called *Analyse Actualités*) is a French-language intelligent news monitoring platform. It fetches articles from JSON feeds accessible via HTTP URL, summarizes them with an AI API (Infomaniak EurIA / Qwen3), and produces structured JSON outputs and Markdown reports.
+**WUDD.ai** (also called *Analyse Actualités*) is a French-language intelligent news monitoring platform. It fetches articles from JSON feeds accessible via HTTP URL, summarizes them with an AI API (Infomaniak EurIA / Qwen/Qwen3.5-122B-A10B-FP8), and produces structured JSON outputs and Markdown reports.
 
 - **Language:** All configuration keys, prompts, log messages, and output are in **French**
 - **Version:** 2.4.0 (index articles/entités, détection contradictions, enrichissement async, fusion articles)
@@ -47,7 +47,7 @@ WUDD.ai/
 
 | Technologie | Description |
 |---|---|
-| EurIA / Qwen3 (Infomaniak) | Provider IA par défaut — résumés, NER, sentiments, rapports via API REST |
+| EurIA / Qwen/Qwen3.5-122B-A10B-FP8 (Infomaniak) | Provider IA par défaut — résumés, NER, sentiments, rapports via API REST |
 | Claude (Anthropic) | Provider IA alternatif — sélectionnable via `AI_PROVIDER=claude` dans `.env` |
 | Ollama (local) | Provider NER/sentiment batch local (Option A) — `AI_PROVIDER_NER=ollama`, modèle `qwen2.5:7b`, ~35–45 tok/s sur Apple Silicon, 0 token API consommé. Provider résumés d'articles (Option B) — `AI_PROVIDER_SUMMARY=ollama` |
 

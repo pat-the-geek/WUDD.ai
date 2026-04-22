@@ -38,7 +38,7 @@ Aucune base de données externe n'est utilisée : tout est stocké localement en
 | Attribut | Valeur |
 | --- | --- |
 | Fournisseur | Infomaniak (hébergeur suisse) |
-| Modèle | Qwen3 (API OpenAI-compatible) |
+| Modèle | Qwen/Qwen3.5-122B-A10B-FP8 (API OpenAI-compatible) |
 | Endpoint | `https://api.infomaniak.com/2/ai/{PRODUCT_ID}/openai/v1/chat/completions` |
 | Authentification | Bearer token (variable `bearer` dans `.env`) |
 | Variable d'endpoint | `URL` dans `.env` |
@@ -57,7 +57,7 @@ Aucune base de données externe n'est utilisée : tout est stocké localement en
 
 L'extraction d'entités nommées suit la norme **OntoNotes 5.0**, développée par l'Université de Pennsylvanie, BBN Technologies et USC ISI, popularisée par **spaCy**. Les 18 types reconnus (`PERSON`, `ORG`, `GPE`, `LOC`, `PRODUCT`, `EVENT`, `DATE`, `MONEY`…) sont stables, documentés et interopérables avec l'écosystème NLP courant.
 
-> L'extraction est réalisée par prompt soumis à Qwen3, pas par un pipeline NLP classique — le LLM applique la taxonomie OntoNotes et retourne directement le JSON structuré. Voir [docs/ENTITIES.md §3](ENTITIES.md#3-les-18-types-dentités-reconnus) pour la table complète des types.
+> L'extraction est réalisée par prompt soumis à Qwen/Qwen3.5-122B-A10B-FP8, pas par un pipeline NLP classique — le LLM applique la taxonomie OntoNotes et retourne directement le JSON structuré. Voir [docs/ENTITIES.md §3](ENTITIES.md#3-les-18-types-dentités-reconnus) pour la table complète des types.
 
 ### Client — `utils/api_client.py`
 
@@ -315,7 +315,7 @@ Toutes définies dans `.env` (cf. `.env.example`) :
                               │
                               ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  ANALYSE IA — Infomaniak EurIA (Qwen3)                       │
+│  ANALYSE IA — Infomaniak EurIA (Qwen/Qwen3.5-122B-A10B-FP8)  │
 │  api.infomaniak.com/2/ai/.../openai/v1/chat/completions      │
 │                                                              │
 │  → Résumé 20 lignes (FR)                                     │
@@ -410,7 +410,7 @@ Les APIs Wikipedia, Wikidata et Commons bloquent les requêtes sans `User-Agent`
 
 Le schéma de typage des entités nommées est emprunté au corpus **OntoNotes 5.0**, distribué par le [Linguistic Data Consortium (LDC)](https://catalog.ldc.upenn.edu/LDC2013T19) sous licence LDC. WUDD.ai utilise uniquement les noms de catégories (PERSON, ORG, GPE…) comme convention de typage, sans redistribuer les données du corpus. Aucune attribution contractuelle n'est requise pour cet usage nomenclatural.
 
-La bibliothèque **spaCy** (MIT License), qui a popularisé cette taxonomie, n'est pas une dépendance de WUDD.ai : le typage est appliqué directement par Qwen3 via prompt.
+La bibliothèque **spaCy** (MIT License), qui a popularisé cette taxonomie, n'est pas une dépendance de WUDD.ai : le typage est appliqué directement par Qwen/Qwen3.5-122B-A10B-FP8 via prompt.
 
 ---
 

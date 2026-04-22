@@ -8,6 +8,7 @@ Fournit :
 """
 
 import json
+import os
 import re
 import time
 import threading
@@ -15,6 +16,53 @@ import requests
 from typing import Optional
 from .logging import default_logger
 from .config import get_config
+
+
+EURIA_DEFAULT_MODEL = "Qwen/Qwen3.5-122B-A10B-FP8"
+_EURIA_REASONING_RETRY_SYSTEM = (
+    "Réponds uniquement avec la réponse finale utile dans le champ content. "
+    "N'inclus aucun raisonnement, aucune balise <think>, aucun commentaire méta."
+)
+
+
+def get_euria_model() -> str:
+    """Retourne le modèle EurIA effectif."""
+    model = os.environ.get("EURIA_MODEL", "").strip()
+    return model or EURIA_DEFAULT_MODEL
+
+
+def _extract_chat_text(value) -> str:
+    """Normalise les formats de contenu OpenAI-compatibles en texte brut."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            if isinstance(item, str):
+                parts.append(item)
+                continue
+            if not isinstance(item, dict):
+                continue
+            text = item.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+                continue
+            inner_text = item.get("content")
+            if isinstance(inner_text, str):
+                parts.append(inner_text)
+        return "".join(parts)
+    return ""
+
+
+def _extract_reasoning_text(message_or_delta: dict) -> str:
+    """Extrait un éventuel champ de raisonnement sans l'exposer au frontend."""
+    if not isinstance(message_or_delta, dict):
+        return ""
+    for key in ("reasoning", "reasoning_content", "thinking"):
+        text = _extract_chat_text(message_or_delta.get(key))
+        if text:
+            return text
+    return ""
 
 
 # ── Circuit Breaker ───────────────────────────────────────────────────────────
@@ -565,7 +613,7 @@ class EurIAClient:
         self,
         url: Optional[str] = None,
         bearer: Optional[str] = None,
-        model: str = "qwen3",
+        model: Optional[str] = None,
         enable_web_search: bool = True
     ):
         """Initialise le client API.
@@ -573,14 +621,14 @@ class EurIAClient:
         Args:
             url: URL de l'API (utilise la config si None)
             bearer: Token d'authentification (utilise la config si None)
-            model: Nom du modèle IA à utiliser (défaut: qwen3)
+            model: Nom du modèle IA à utiliser (défaut: modèle EurIA courant)
             enable_web_search: Active la recherche web (défaut: True)
         """
         config = get_config()
         
         self.url = url or config.url
         self.bearer = bearer or config.bearer
-        self.model = model
+        self.model = model or get_euria_model()
         self.enable_web_search = enable_web_search
         
         self.headers = {
@@ -590,6 +638,162 @@ class EurIAClient:
         
         if not self.url or not self.bearer:
             raise ValueError("URL et bearer token requis pour le client API")
+
+    def _build_payload(
+        self,
+        messages: list,
+        model: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        enable_web_search: Optional[bool] = None,
+        stream: bool = False,
+    ) -> dict:
+        payload = {
+            "messages": messages,
+            "model": model or self.model,
+        }
+        if stream:
+            payload["stream"] = True
+        _enable_web_search = self.enable_web_search if enable_web_search is None else enable_web_search
+        if "/euria/" in self.url and _enable_web_search:
+            payload["enable_web_search"] = True
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+        return payload
+
+    def _complete_messages(
+        self,
+        messages: list,
+        max_attempts: int = 3,
+        timeout: int = 60,
+        backoff_factor: float = 2.0,
+        max_tokens: Optional[int] = None,
+        enable_web_search: Optional[bool] = None,
+        model: Optional[str] = None,
+    ) -> str:
+        """Appel non-stream OpenAI-compatible avec retry et garde-fou reasoning-only."""
+        last_error = None
+        saw_reasoning_only = False
+        active_model = model or self.model
+
+        if not _euria_breaker.allow_request():
+            raise RuntimeError(
+                f"[EurIA] Circuit OPEN — appels bloqués pendant la fenêtre de grâce "
+                f"({_euria_breaker.grace_seconds:.0f}s). Dernière erreur : {_euria_breaker.name}"
+            )
+
+        for attempt in range(max_attempts):
+            try:
+                attempt_messages = list(messages)
+                if saw_reasoning_only:
+                    attempt_messages = [
+                        {"role": "system", "content": _EURIA_REASONING_RETRY_SYSTEM},
+                        *attempt_messages,
+                    ]
+                data = self._build_payload(
+                    messages=attempt_messages,
+                    model=active_model,
+                    max_tokens=max_tokens,
+                    enable_web_search=enable_web_search,
+                    stream=False,
+                )
+
+                default_logger.info(
+                    f"Envoi de prompt à l'API (tentative {attempt + 1}/{max_attempts}, "
+                    f"timeout={timeout}s)"
+                )
+
+                response = requests.post(
+                    self.url,
+                    json=data,
+                    headers=self.headers,
+                    timeout=timeout
+                )
+                response.raise_for_status()
+                json_data = response.json()
+
+                if 'choices' not in json_data or len(json_data['choices']) == 0:
+                    raise ValueError("Réponse API invalide : champ 'choices' manquant ou vide")
+
+                choice = json_data['choices'][0] or {}
+                message = choice.get('message') or {}
+                content = _extract_chat_text(message.get('content')).strip()
+
+                if content:
+                    usage = json_data.get("usage", {})
+                    if usage:
+                        default_logger.info(
+                            f"[{self._provider_label}] Usage — prompt: {usage.get('prompt_tokens', '?')} tokens, "
+                            f"completion: {usage.get('completion_tokens', '?')} tokens, "
+                            f"total: {usage.get('total_tokens', '?')} tokens"
+                        )
+                    default_logger.info(f"Réponse reçue de l'API: {len(content)} caractères")
+                    _euria_breaker.record_success()
+                    return content
+
+                reasoning = _extract_reasoning_text(message) or _extract_reasoning_text(choice)
+                if reasoning:
+                    saw_reasoning_only = True
+                    raise ValueError("Réponse reasoning tronquée sans contenu final")
+
+                raise ValueError("Réponse API vide")
+
+            except requests.exceptions.Timeout:
+                last_error = f"Timeout après {timeout}s"
+                default_logger.warning(
+                    f"Timeout lors de la tentative {attempt + 1}/{max_attempts}"
+                )
+                _euria_breaker.record_failure()
+
+            except requests.exceptions.HTTPError as e:
+                status_code = e.response.status_code if e.response is not None else 'inconnu'
+                last_error = f"Erreur HTTP {status_code}"
+                default_logger.error(
+                    f"Erreur HTTP {status_code} lors de la tentative {attempt + 1}/{max_attempts}"
+                )
+
+                if status_code == 429:
+                    _euria_breaker.record_failure(error_category="quota")
+                    break
+                if status_code in [401, 403]:
+                    _euria_breaker.record_failure(error_category="auth")
+                    break
+                if status_code not in [400, 404]:
+                    _euria_breaker.record_failure()
+                else:
+                    break
+
+            except requests.exceptions.ConnectionError as e:
+                last_error = "Erreur de connexion"
+                default_logger.error(
+                    f"Erreur de connexion lors de la tentative {attempt + 1}/{max_attempts}: {e}"
+                )
+                _euria_breaker.record_failure()
+
+            except (ValueError, KeyError, TypeError) as e:
+                last_error = f"Erreur de format de réponse: {e}"
+                default_logger.error(
+                    f"Erreur de parsing de la réponse lors de la tentative "
+                    f"{attempt + 1}/{max_attempts}: {e}"
+                )
+
+            except Exception as e:
+                last_error = f"Erreur inattendue: {type(e).__name__}: {e}"
+                default_logger.error(
+                    f"Erreur inattendue lors de la tentative {attempt + 1}/{max_attempts}: {e}"
+                )
+                _euria_breaker.record_failure()
+
+            if attempt < max_attempts - 1:
+                wait_time = backoff_factor ** attempt
+                default_logger.info(f"Attente de {wait_time:.1f}s avant nouvelle tentative...")
+                time.sleep(wait_time)
+
+        error_message = (
+            f"Échec après {max_attempts} tentatives. "
+            f"Dernière erreur: {last_error}"
+        )
+        default_logger.error(error_message)
+        raise RuntimeError(f"Échec API après {max_attempts} tentatives. {last_error}")
     
     def ask(
         self,
@@ -630,126 +834,113 @@ class EurIAClient:
             default_logger.error("Prompt invalide ou vide")
             return "Erreur: Prompt invalide"
         
-        _enable_web_search = self.enable_web_search if enable_web_search is None else enable_web_search
         messages = []
         if system_message:
             messages.append({"role": "system", "content": system_message})
         messages.append({"content": prompt, "role": "user"})
-        data = {
-            "messages": messages,
-            "model": self.model,
-        }
-        # enable_web_search n'est supporté que par l'ancien endpoint /euria/v1/
-        if "/euria/" in self.url and _enable_web_search:
-            data["enable_web_search"] = True
-        if max_tokens is not None:
-            data["max_tokens"] = max_tokens
-        
-        last_error = None
-
-        if not _euria_breaker.allow_request():
-            raise RuntimeError(
-                f"[EurIA] Circuit OPEN — appels bloqués pendant la fenêtre de grâce "
-                f"({_euria_breaker.grace_seconds:.0f}s). Dernière erreur : {_euria_breaker.name}"
-            )
-
-        for attempt in range(max_attempts):
-            try:
-                default_logger.info(
-                    f"Envoi de prompt à l'API (tentative {attempt + 1}/{max_attempts}, "
-                    f"timeout={timeout}s)"
-                )
-
-                response = requests.post(
-                    self.url,
-                    json=data,
-                    headers=self.headers,
-                    timeout=timeout
-                )
-                response.raise_for_status()
-                json_data = response.json()
-
-                # Valider la structure de la réponse
-                if 'choices' not in json_data or len(json_data['choices']) == 0:
-                    raise ValueError("Réponse API invalide : champ 'choices' manquant ou vide")
-
-                content = json_data['choices'][0]['message']['content']
-
-                if not content:
-                    raise ValueError("Réponse API vide")
-
-                usage = json_data.get("usage", {})
-                if usage:
-                    default_logger.info(
-                        f"[{self._provider_label}] Usage — prompt: {usage.get('prompt_tokens', '?')} tokens, "
-                        f"completion: {usage.get('completion_tokens', '?')} tokens, "
-                        f"total: {usage.get('total_tokens', '?')} tokens"
-                    )
-                default_logger.info(f"Réponse reçue de l'API: {len(content)} caractères")
-                _euria_breaker.record_success()
-                return content.strip()
-
-            except requests.exceptions.Timeout as e:
-                last_error = f"Timeout après {timeout}s"
-                default_logger.warning(
-                    f"Timeout lors de la tentative {attempt + 1}/{max_attempts}"
-                )
-                _euria_breaker.record_failure()
-
-            except requests.exceptions.HTTPError as e:
-                status_code = e.response.status_code if e.response is not None else 'inconnu'
-                last_error = f"Erreur HTTP {status_code}"
-                default_logger.error(
-                    f"Erreur HTTP {status_code} lors de la tentative {attempt + 1}/{max_attempts}"
-                )
-
-                # Catégoriser l'erreur pour le circuit breaker (optimisation 2.3)
-                if status_code == 429:
-                    _euria_breaker.record_failure(error_category="quota")
-                    break
-                elif status_code in [401, 403]:
-                    _euria_breaker.record_failure(error_category="auth")
-                    break
-                elif status_code in [400, 404]:
-                    break  # Erreur client non récupérable — pas de circuit breaker
-                else:
-                    _euria_breaker.record_failure()
-
-            except requests.exceptions.ConnectionError as e:
-                last_error = "Erreur de connexion"
-                default_logger.error(
-                    f"Erreur de connexion lors de la tentative {attempt + 1}/{max_attempts}: {e}"
-                )
-                _euria_breaker.record_failure()
-
-            except (ValueError, KeyError, TypeError) as e:
-                last_error = f"Erreur de format de réponse: {e}"
-                default_logger.error(
-                    f"Erreur de parsing de la réponse lors de la tentative "
-                    f"{attempt + 1}/{max_attempts}: {e}"
-                )
-
-            except Exception as e:
-                last_error = f"Erreur inattendue: {type(e).__name__}: {e}"
-                default_logger.error(
-                    f"Erreur inattendue lors de la tentative {attempt + 1}/{max_attempts}: {e}"
-                )
-                _euria_breaker.record_failure()
-
-            # Backoff exponentiel avant la prochaine tentative
-            if attempt < max_attempts - 1:
-                wait_time = backoff_factor ** attempt
-                default_logger.info(f"Attente de {wait_time:.1f}s avant nouvelle tentative...")
-                time.sleep(wait_time)
-
-        # Toutes les tentatives ont échoué
-        error_message = (
-            f"Échec après {max_attempts} tentatives. "
-            f"Dernière erreur: {last_error}"
+        return self._complete_messages(
+            messages=messages,
+            max_attempts=max_attempts,
+            timeout=timeout,
+            backoff_factor=backoff_factor,
+            max_tokens=max_tokens,
+            enable_web_search=enable_web_search,
         )
-        default_logger.error(error_message)
 
-        raise RuntimeError(f"Échec API après {max_attempts} tentatives. {last_error}")
+    def stream(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        system: Optional[str] = None,
+        max_tokens: int = 2048,
+        timeout: int = 120,
+        messages: Optional[list] = None,
+        enable_web_search: Optional[bool] = None,
+    ):
+        """Envoie un appel EurIA en streaming SSE normalisé.
+
+        Si le flux ne contient que du reasoning avec `content=null`, effectue
+        un fallback non-stream et réémet la réponse sous forme SSE.
+        """
+        active_model = model or self.model
+        base_messages = list(messages) if messages is not None else [{"role": "user", "content": prompt}]
+        if system:
+            base_messages = [{"role": "system", "content": system}, *base_messages]
+
+        saw_reasoning_only = False
+        try:
+            data = self._build_payload(
+                messages=base_messages,
+                model=active_model,
+                max_tokens=max_tokens,
+                enable_web_search=enable_web_search,
+                stream=True,
+            )
+            r = requests.post(self.url, json=data, headers=self.headers, stream=True, timeout=timeout)
+            r.raise_for_status()
+            saw_content = False
+            for line in r.iter_lines():
+                if not line:
+                    continue
+                decoded = line.decode("utf-8")
+                if not decoded.startswith("data:"):
+                    continue
+                raw = decoded[5:].strip()
+                if not raw:
+                    continue
+                if raw == "[DONE]":
+                    if saw_content:
+                        _euria_breaker.record_success()
+                        yield "data: [DONE]\n\n"
+                        return
+                    break
+                try:
+                    evt = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                choice = (evt.get("choices") or [{}])[0] or {}
+                delta = choice.get("delta") or {}
+                content = _extract_chat_text(delta.get("content")).strip()
+                if content:
+                    saw_content = True
+                    normalized = json.dumps(
+                        {"choices": [{"delta": {"content": content}, "finish_reason": choice.get("finish_reason")}]},
+                        ensure_ascii=False,
+                    )
+                    yield f"data: {normalized}\n\n"
+                    continue
+                reasoning = _extract_reasoning_text(delta) or _extract_reasoning_text(choice)
+                if reasoning:
+                    saw_reasoning_only = True
+
+            fallback_text = self._complete_messages(
+                messages=base_messages,
+                max_attempts=2 if saw_reasoning_only else 1,
+                timeout=timeout,
+                max_tokens=max_tokens,
+                enable_web_search=enable_web_search,
+                model=active_model,
+            )
+            if fallback_text:
+                normalized = json.dumps(
+                    {"choices": [{"delta": {"content": fallback_text}, "finish_reason": "stop"}]},
+                    ensure_ascii=False,
+                )
+                yield f"data: {normalized}\n\n"
+                yield "data: [DONE]\n\n"
+                return
+            raise RuntimeError("Réponse streaming vide")
+
+        except requests.exceptions.HTTPError as exc:
+            body = ""
+            try:
+                body = exc.response.text[:800] if exc.response is not None else ""
+            except Exception:
+                pass
+            error_msg = f"{exc}" + (f" — Détail API: {body}" if body else "")
+            yield f'data: {json.dumps({"error": error_msg})}\n\n'
+        except Exception as exc:
+            yield f'data: {json.dumps({"error": str(exc)})}\n\n'
     
     def generate_summary(
         self,

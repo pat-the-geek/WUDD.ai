@@ -2,7 +2,7 @@
 
 ## Contexte
 
-WUDD.ai utilise exclusivement l'API EurIA (Infomaniak / Qwen3). L'objectif est d'ajouter Claude (Anthropic) comme fournisseur IA alternatif, sélectionnable dans le panneau Environnement des Réglages, sans rien casser du fonctionnement EurIA actuel.
+WUDD.ai utilise exclusivement l'API EurIA (Infomaniak / Qwen/Qwen3.5-122B-A10B-FP8). L'objectif est d'ajouter Claude (Anthropic) comme fournisseur IA alternatif, sélectionnable dans le panneau Environnement des Réglages, sans rien casser du fonctionnement EurIA actuel.
 
 **Stratégie modèles Claude** (basée sur l'analyse des prompts) :
 - **Haiku 4.5** (`claude-haiku-4-5-20251001`) pour les tâches batch volumineuses : résumé, NER, sentiment
@@ -131,7 +131,7 @@ _SENSITIVE_KEYS = {"bearer", "SMTP_PASSWORD", "NTFY_TOKEN", "ANTHROPIC_API_KEY"}
 #### Helper `_build_sse_call(prompt, stream, use_web_search)` (nouvelle fonction interne)
 
 Retourne `(api_url, payload, headers, provider)` selon `AI_PROVIDER` :
-- `"euria"` → URL+bearer existants, payload EurIA, Qwen3
+- `"euria"` → URL+bearer existants, payload EurIA, Qwen/Qwen3.5-122B-A10B-FP8
 - `"claude"` → `CLAUDE_API_URL`, ANTHROPIC_API_KEY, `claude-sonnet-4-6` (ces routes sont user-facing → Sonnet)
 
 #### Normalisation SSE Claude → format OpenAI
@@ -171,7 +171,7 @@ Deux boutons radio-style en haut de `EnvTab` :
 ```
 ┌────────────────────────────────────────────────────┐
 │  FOURNISSEUR IA ACTIF                              │
-│  [● EurIA · Infomaniak/Qwen3]  [ Claude · Anthropic]│
+│  [● EurIA · Infomaniak/Qwen3.5-122B-A10B-FP8]  [ Claude · Anthropic]│
 └────────────────────────────────────────────────────┘
 ```
 - Lit `vars.find(v => v.key === 'AI_PROVIDER')?.value`

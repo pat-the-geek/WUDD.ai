@@ -1962,28 +1962,11 @@ def api_entities_info():
         bearer  = os.environ.get("bearer", "")
         if not api_url or not bearer:
             return jsonify({"error": "URL ou bearer manquant dans .env (AI_PROVIDER=euria)"}), 503
-        payload = {
-            "messages": [{"role": "user", "content": prompt}],
-            "model": "qwen3",
-            "stream": True,
-        }
-        # enable_web_search n'est supporté que par l'ancien endpoint /euria/v1/
-        if "/euria/" in api_url:
-            payload["enable_web_search"] = True
-        api_headers = {
-            "Authorization": f"Bearer {bearer}",
-            "Content-Type": "application/json",
-        }
+        from utils.api_client import EurIAClient as _EC
+        _euria = _EC(url=api_url, bearer=bearer)
 
         def generate():
-            try:
-                r = req.post(api_url, json=payload, headers=api_headers, stream=True, timeout=90)
-                r.raise_for_status()
-                for line in r.iter_lines():
-                    if line:
-                        yield line.decode("utf-8") + "\n\n"
-            except Exception as exc:
-                yield f'data: {json.dumps({"error": str(exc)})}\n\n'
+            yield from _euria.stream(prompt=prompt, timeout=90, enable_web_search=True)
 
     return Response(
         stream_with_context(generate()),

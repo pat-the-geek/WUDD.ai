@@ -1,6 +1,6 @@
 # Prompts EurIA / Claude — WUDD.ai
 
-> Documentation complète des prompts utilisés avec l'API EurIA (Infomaniak / Qwen3) **ou** Claude (Anthropic)
+> Documentation complète des prompts utilisés avec l'API EurIA (Infomaniak / Qwen/Qwen3.5-122B-A10B-FP8) **ou** Claude (Anthropic)
 > Le provider est sélectionnable via la variable `AI_PROVIDER` dans `.env` (`euria` par défaut, `claude` en option).
 > Dernière mise à jour : 15 mars 2026
 
@@ -12,7 +12,7 @@ Le projet prend en charge **deux providers IA interchangeables** pour l'ensemble
 
 | Provider | Modèle | Configuration |
 |---|---|---|
-| **EurIA** (défaut) | Qwen3 | `AI_PROVIDER=euria` + `bearer=…` dans `.env` |
+| **EurIA** (défaut) | Qwen/Qwen3.5-122B-A10B-FP8 | `AI_PROVIDER=euria` + `bearer=…` dans `.env` |
 | **Claude** | claude-3-5-sonnet / claude-3-7-sonnet | `AI_PROVIDER=claude` + `CLAUDE_API_KEY=…` dans `.env` |
 
 > La bascule entre les deux providers s'effectue uniquement via `.env` — aucune modification du code n'est nécessaire. Le Viewer permet également un override par requête (menu Réglages → Provider).
@@ -109,7 +109,7 @@ Content-Type: application/json
       "role": "user"
     }
   ],
-  "model": "qwen3",
+  "model": "Qwen/Qwen3.5-122B-A10B-FP8",
   "enable_web_search": true
 }
 ```
@@ -295,7 +295,7 @@ Les types suivent la norme **OntoNotes 5.0** (UPenn / BBN / USC ISI), popularis�
 | `ORG` | Organisations, entreprises | OpenAI, Infomaniak, ONU |
 | `GPE` | Entités géopolitiques (pays, villes) | France, Paris, États-Unis |
 | `LOC` | Lieux géographiques non-GPE | Alpes, Atlantique |
-| `PRODUCT` | Produits, technologies | ChatGPT, iPhone 16, Qwen3 |
+| `PRODUCT` | Produits, technologies | ChatGPT, iPhone 16, Qwen/Qwen3.5-122B-A10B-FP8 |
 | `EVENT` | Événements | CES 2026, Davos |
 | `LAW` | Lois, réglements | RGPD, AI Act |
 | `DATE` | Expressions de date | 15 janvier 2026, Q1 2026 |
@@ -554,7 +554,7 @@ Où `label` est le libellé français du type NER (`PERSON` → `"personne physi
 
 ### Remarques
 
-- Le prompt demande explicitement `sans balises <think>` pour éviter que Qwen3 n'expose son raisonnement interne.
+- Le prompt demande explicitement `sans balises <think>` pour éviter que Qwen/Qwen3.5-122B-A10B-FP8 n'expose son raisonnement interne.
 - Le parseur React filtre quand même les blocs `<think>…</think>` résiduels via un flag `inThink`.
 
 ---
@@ -980,7 +980,7 @@ prompt = (
 
 ### Post-traitement
 
-Les blocs `<think>…</think>` de Qwen3 et les balises ` ```json ` sont supprimés avant `json.loads()`.
+Les blocs `<think>…</think>` du modèle Qwen et les balises ` ```json ` sont supprimés avant `json.loads()`.
 
 ---
 
@@ -1066,7 +1066,7 @@ Le chatbot accepte deux types de contexte injectés dans le system prompt :
 ## Références
 
 - [API EurIA Infomaniak](https://euria.infomaniak.com)
-- [Qwen3 Model Documentation](https://huggingface.co/Qwen)
+- [Qwen Model Documentation](https://huggingface.co/Qwen)
 
 ---
 

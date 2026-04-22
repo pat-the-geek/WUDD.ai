@@ -23,7 +23,7 @@ Le projet a atteint une maturité architecturale significative (v4.2). Les fonda
 - **Quotas adaptatifs à 4 niveaux** : global / par mot-clé / par source / par entité nommée
 - **Index inversé** entity→articles avec normalisation de casse (v2)
 - **Déduplication 3 signaux** : URL MD5 + résumé MD5 + Jaccard bigrammes
-- **Double fournisseur IA** : EurIA (Qwen3) et Claude (Anthropic), sélectionnable via env var
+- **Double fournisseur IA** : EurIA (Qwen/Qwen3.5-122B-A10B-FP8) et Claude (Anthropic), sélectionnable via env var
 - **Viewer Flask+React mobile-first** : 50+ endpoints, 30 composants, SSE streaming
 - **Architecture sans base de données** : JSON files + indexes, portable et simple
 - **Couverture de tests** : 50+ tests, 2 020 lignes, cibles `utils/` ≥ 80%

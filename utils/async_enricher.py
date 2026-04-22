@@ -233,6 +233,7 @@ class AsyncEnricher:
     ) -> Optional[dict]:
         """Appel API EurIA asynchrone."""
         from .api_client import _PROMPT_ENTITIES, _PROMPT_SENTIMENT_TEMPLATE
+        from .api_client import _extract_chat_text, _extract_reasoning_text, get_euria_model
         from .api_client import _parse_entities_response, _parse_sentiment_response
 
         if task_type == "entities":
@@ -242,22 +243,39 @@ class AsyncEnricher:
             prompt = _PROMPT_SENTIMENT_TEMPLATE.format(resume=resume[:3000])
             max_tokens = 150
 
-        payload = {
-            "messages": [{"content": prompt, "role": "user"}],
-            "model": "qwen3",
-            "max_tokens": max_tokens,
-        }
         headers = config.get_api_headers()
 
-        async with session.post(
-            config.url,
-            json=payload,
-            headers=headers,
-            timeout=_aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            resp.raise_for_status()
-            data = await resp.json()
-            raw = data["choices"][0]["message"]["content"]
+        raw = ""
+        for attempt in range(2):
+            messages = [{"content": prompt, "role": "user"}]
+            if attempt == 1:
+                messages = [{
+                    "role": "system",
+                    "content": "Réponds uniquement avec le résultat final, sans reasoning et sans balise <think>.",
+                }, *messages]
+            payload = {
+                "messages": messages,
+                "model": get_euria_model(),
+                "max_tokens": max_tokens,
+            }
+
+            async with session.post(
+                config.url,
+                json=payload,
+                headers=headers,
+                timeout=_aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                message = ((data.get("choices") or [{}])[0] or {}).get("message") or {}
+                raw = _extract_chat_text(message.get("content")).strip()
+                if raw:
+                    break
+                if not _extract_reasoning_text(message):
+                    break
+
+        if not raw:
+            return None
 
         if task_type == "entities":
             return _parse_entities_response(raw)

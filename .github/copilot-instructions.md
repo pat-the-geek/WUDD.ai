@@ -16,7 +16,7 @@ Cela évite de versionner des données volumineuses, sensibles ou générées au
 
 ## 🎯 Big Picture
 
-Pipeline ETL automatisé qui collecte des flux RSS/JSON d'actualités, extrait le contenu HTML, génère des résumés via l'API EurIA d'Infomaniak (modèle Qwen3), et produit des sorties structurées (JSON + rapports Markdown). Architecture modulaire avec scripts Python CLI/GUI.
+Pipeline ETL automatisé qui collecte des flux RSS/JSON d'actualités, extrait le contenu HTML, génère des résumés via l'API EurIA d'Infomaniak (modèle Qwen/Qwen3.5-122B-A10B-FP8), et produit des sorties structurées (JSON + rapports Markdown). Architecture modulaire avec scripts Python CLI/GUI.
 
 ## 📁 Structure du projet (IMPORTANT)
 
@@ -144,7 +144,7 @@ response = requests.post(
     URL,
     json={
         "messages": [{"content": prompt, "role": "user"}],
-        "model": "qwen3",
+        "model": "Qwen/Qwen3.5-122B-A10B-FP8",
         "enable_web_search": True
     },
     headers={'Authorization': f'Bearer {BEARER}'},
@@ -272,7 +272,7 @@ python3 scripts/articles_json_to_markdown.py
   - GUI-first workflow: most scripts expect interactive file selection. If automating, adapt the script to accept CLI args or bypass `tkinter`.
   - Hardcoded output names: scripts commonly write fixed outputs like `articles.json` or `all_articles.txt`. When changing filenames, update callers and documentation.
   - French keys and messages: keys such as `Résumé` and `Date de publication` are used across scripts — rename carefully.
-  - LLM usage: `Get_data_from_JSONFile_AskSummary.py` calls Infomaniak's EurIA API (Qwen3 model) via HTTP POST and expects `choices[0].message.content` in the response. Follow the existing retry/backoff approach when modifying.
+  - LLM usage: `Get_data_from_JSONFile_AskSummary.py` calls Infomaniak's EurIA API (Qwen/Qwen3.5-122B-A10B-FP8 model) via HTTP POST and expects `choices[0].message.content` in the response. Follow the existing retry/backoff approach when modifying.
 
 - **Debugging & development tips:**
   - Use `print_console()` (defined in scripts) to add timestamped logs instead of ad-hoc prints.
