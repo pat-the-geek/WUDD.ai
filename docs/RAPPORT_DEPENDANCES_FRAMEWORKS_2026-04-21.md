@@ -36,6 +36,7 @@ Périmètre audité :
 - Mermaid 11
 - Leaflet + react-leaflet pour la cartographie
 - react-markdown / rehype-raw / remark-gfm pour le rendu Markdown
+- Vitest + Testing Library + jsdom pour les tests frontend ciblés
 
 ### Build / runtime
 
@@ -48,10 +49,10 @@ Périmètre audité :
 ### Python, backend et outillage
 
 | Composant | Déclaré avant mise à jour | Environnement local | Dernière version | Statut |
-|---|---:|---:|---:|---|
+| --- | ---: | ---: | ---: | --- |
 | Python local | 3.10+ | 3.14.1 | 3.14.4 | mineur disponible |
-| Python Docker | 3.10-slim | n/a | 3.14.4 | écart runtime important |
-| Flask | >=3.0.0 | 3.1.3 | 3.1.3 | à jour |
+| Python Docker | 3.14-slim | n/a | 3.14.4 | aligné, patch mineur disponible |
+| Flask | >=3.1.3,<4.0.0 | 3.1.3 | 3.1.3 | à jour |
 | requests | >=2.31.0 | 2.32.5 | 2.33.1 | upgrade mineur utile |
 | beautifulsoup4 | >=4.12.0 | 4.14.3 | 4.14.3 | à jour |
 | python-dotenv | >=1.0.0 | 1.2.1 | 1.2.2 | upgrade mineur utile |
@@ -67,7 +68,7 @@ Périmètre audité :
 ### Frontend
 
 | Composant | Déclaré | Lockfile | Dernière version | Statut |
-|---|---:|---:|---:|---|
+| --- | ---: | ---: | ---: | --- |
 | React | ^19.2.5 | 19.2.5 | 19.2.5 | à jour |
 | react-dom | ^19.2.5 | 19.2.5 | 19.2.5 | à jour |
 | Vite | ^8.0.9 | 8.0.9 | 8.0.9 | à jour |
@@ -81,13 +82,17 @@ Périmètre audité :
 | rehype-raw | ^7.0.0 | 7.0.0 | 7.0.0 | à jour |
 | remark-gfm | ^4.0.1 | 4.0.1 | 4.0.1 | à jour dans la major |
 | lucide-react | ^1.8.0 | 1.8.0 | 1.8.0 | à jour |
+| @testing-library/react | ^16.3.0 | 16.3.0 | 16.3.0 | à jour |
+| @testing-library/jest-dom | ^6.6.3 | 6.9.1 | 6.9.1 | référence élargie, lockfile à jour |
+| jsdom | ^26.1.0 | 26.1.0 | 29.0.2 | retard maîtrisé, upgrade majeur séparé |
+| vitest | ^3.2.4 | 3.2.4 | 4.1.5 | upgrade majeur disponible |
 
 ### Runtimes de build
 
 | Runtime | Version utilisée | Dernière version pertinente | Statut |
-|---|---:|---:|---|
-| Node.js build Docker | 20 | 24 LTS / 25 current | Node 20 est hors support |
-| Python runtime Docker | 3.10 | 3.14.4 stable | 3.10 encore supporté jusqu'à 2026-10, mais en retrait |
+| --- | ---: | ---: | --- |
+| Node.js build Docker | 24 | 24 LTS / 25 current | aligné sur la LTS |
+| Python runtime Docker | 3.14 | 3.14.4 stable | aligné, patch mineur disponible |
 
 ## Opportunités d'upgrade
 
@@ -101,7 +106,7 @@ Périmètre audité :
 
 1. Mettre à jour les dépendances Python mineures à faible risque : `requests`, `python-dotenv`, `pytest`.
 2. Monter légèrement le niveau de vérité des manifests pour éviter les installations partielles ou trop anciennes.
-3. Conserver une recette visuelle légère après les prochains ajustements UX côté viewer.
+3. Traiter séparément les upgrades majeurs de l'outillage frontend (`vitest`, `jsdom`) après validation du socle ajouté.
 
 ### Priorité plus lourde
 
@@ -137,18 +142,25 @@ Risque : faible.
 
 Objectif : moderniser sans chantier de migration.
 
-- `mermaid`
-- éventuellement normaliser les plages `package.json` sur les versions déjà verrouillées
+- ajout du socle de test frontend léger
+- normalisation des plages `package.json` sur les versions réellement verrouillées
+- maintien des dépendances UI principales sur leurs dernières versions stables compatibles
 
 Risque : faible à modéré selon le lockfile.
 
 Statut au 2026-04-21 : réalisé et validé.
 
 - `mermaid` → `^11.14.0`
-- `react-markdown` → `^9.1.0`
+- `react-markdown` → `^10.1.0`
 - `remark-gfm` → `^4.0.1`
+- `@testing-library/react` → `^16.3.0`
+- `@testing-library/jest-dom` → `^6.6.3`
+- `jsdom` → `^26.1.0`
+- `vitest` → `^3.2.4`
 - `@vitejs/plugin-react` → `^6.0.1`
-- `vite` → `^6.4.2`
+- `vite` → `^8.0.9`
+- `@tailwindcss/vite` → `^4.2.3`
+- `tailwindcss` → `^4.2.3`
 
 ### Lot D — Frontend majeur restant
 
@@ -305,15 +317,15 @@ Contrôles réalisés dans ce lot :
 
 Complément Tailwind 4 :
 
-8. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm install` : lockfile régénéré avec `tailwindcss@4.2.3` et `@tailwindcss/vite@4.2.3` ;
-9. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm run build` : build OK après migration Tailwind 4.
+1. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm install` : lockfile régénéré avec `tailwindcss@4.2.3` et `@tailwindcss/vite@4.2.3` ;
+2. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm run build` : build OK après migration Tailwind 4.
 
 Complément Markdown et icônes :
 
-10. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm install` : lockfile régénéré avec `react-markdown@10.1.0` ;
-11. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm run build` : build OK après migration `react-markdown` 10 ;
-12. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm install` : lockfile régénéré avec `lucide-react@1.8.0` ;
-13. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm run build` : build OK après remplacement local de l'icône `Youtube` retirée.
+1. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm install` : lockfile régénéré avec `react-markdown@10.1.0` ;
+2. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm run build` : build OK après migration `react-markdown` 10 ;
+3. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm install` : lockfile régénéré avec `lucide-react@1.8.0` ;
+4. `docker run --rm -v "$PWD/viewer:/work" -w /work node:24-slim npm run build` : build OK après remplacement local de l'icône `Youtube` retirée.
 
 ## Correctifs de sécurité frontend
 

@@ -330,6 +330,29 @@ Gain attendu:
 - amélioration du temps de réponse perçu
 - baisse du nombre de relectures des mêmes fichiers
 
+### 10. Morning Digest: fiabilisation récente du rendu et de la génération
+
+Impact: moyen sur l'expérience utilisateur et la robustesse éditoriale
+
+Ce point ne change pas significativement les temps de réponse, mais il améliore la qualité perçue d'un rapport consulté quotidiennement et réduit les erreurs de présentation qui brouillaient l'analyse.
+
+État au 2026-04-17:
+
+- le titre des cartes d'articles du Top 5 utilise désormais le vrai champ `Titre` quand il est présent, au lieu d'être dérivé de la première ligne de `Résumé`
+- le surlignage NER du résumé a été réécrit en un passage regex unique, ce qui évite les remplacements imbriqués et le Markdown cassé observés sur certains groupes nominaux
+- un test ciblé `tests/test_morning_digest.py` a été ajouté pour verrouiller les régressions sur la sélection du titre et sur le surlignage d'entités
+- le digest du jour a été régénéré avec cette logique corrigée puis validé dans le viewer
+- le rendu du titre d'article dans le viewer a été renforcé pour augmenter la hiérarchie visuelle du Top 5
+
+Commits déployés associés:
+
+- `9530650` — correction de la logique de titre du Morning Digest et du rendu associé
+- `8ae4f7c` — augmentation de la taille du titre d'article dans le viewer
+
+Conclusion mise à jour:
+
+Ce chantier relève plus de la fiabilisation que de la performance brute, mais il a une valeur opérationnelle réelle: un digest quotidien doit d'abord être juste, lisible et stable. Cette correction réduit le bruit visuel, supprime un faux titre très coûteux en lisibilité, et renforce la confiance dans les sorties générées automatiquement.
+
 ## Priorisation recommandée
 
 ### P0: à traiter en premier
@@ -401,3 +424,5 @@ Le plus gros gain viendra de la séparation des rôles entre interface et traite
 Le code montre déjà une bonne direction technique. Le travail prioritaire consiste maintenant à brancher correctement les optimisations existantes sur les chemins critiques, à supprimer les scans complets les plus coûteux, et à ne conserver que les indexes qui démontrent un bénéfice mesurable.
 
 Mise à jour au 2026-04-17: le chantier `/api/files` valide l'approche recommandée par ce rapport. La suite logique est d'ajouter une observabilité légère sur ce cache, puis d'appliquer le même modèle ciblé, mesuré et invalidé proprement aux autres endpoints interactifs les plus coûteux.
+
+Complément au 2026-04-17: en parallèle des gains de latence, le Morning Digest a été fiabilisé sur un point critique de restitution. Les correctifs récents ne relèvent pas d'une optimisation CPU/I/O, mais d'une optimisation de qualité de service: vrai titre d'article, résumé conservé comme résumé, surlignage NER stable et hiérarchie visuelle plus nette dans le viewer.
