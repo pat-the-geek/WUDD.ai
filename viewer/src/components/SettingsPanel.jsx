@@ -2130,7 +2130,7 @@ function EnvTab() {
         </p>
         <div className="flex items-center gap-2 flex-wrap">
           {[
-            { value: 'euria',  label: 'EurIA · Infomaniak/Qwen3.5-122B-A10B-FP8' },
+            { value: 'euria',  label: `EurIA · Infomaniak${vars.find(v => v.key === 'EURIA_MODEL')?.value ? ' / ' + vars.find(v => v.key === 'EURIA_MODEL').value : ''}` },
             { value: 'claude', label: 'Claude · Anthropic' },
           ].map(opt => (
             <button

@@ -18,7 +18,7 @@ from .logging import default_logger
 from .config import get_config
 
 
-EURIA_DEFAULT_MODEL = "Qwen/Qwen3.5-122B-A10B-FP8"
+EURIA_DEFAULT_MODEL = "openai/gpt-oss-120b"
 _EURIA_REASONING_RETRY_SYSTEM = (
     "Réponds uniquement avec la réponse finale utile dans le champ content. "
     "N'inclus aucun raisonnement, aucune balise <think>, aucun commentaire méta."
@@ -900,9 +900,10 @@ class EurIAClient:
                     continue
                 choice = (evt.get("choices") or [{}])[0] or {}
                 delta = choice.get("delta") or {}
-                content = _extract_chat_text(delta.get("content")).strip()
+                content = _extract_chat_text(delta.get("content"))
                 if content:
-                    saw_content = True
+                    if content.strip():
+                        saw_content = True
                     normalized = json.dumps(
                         {"choices": [{"delta": {"content": content}, "finish_reason": choice.get("finish_reason")}]},
                         ensure_ascii=False,
