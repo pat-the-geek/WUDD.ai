@@ -1403,7 +1403,7 @@ function QuotaTab() {
         <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50">
           <div>
             <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Activer la régulation</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Limite le nombre d'articles importés et les appels à l'API EurIA</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Limite le nombre d'articles du jour présents dans 48-heures et déjà intégrés au pipeline</p>
           </div>
           <button
             onClick={() => setConfig(c => ({ ...c, enabled: !c.enabled }))}
@@ -1420,11 +1420,15 @@ function QuotaTab() {
           <div className="flex flex-col gap-4">
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Plafonds journaliers</p>
 
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Les quotas sont calculés sur les articles datés d'aujourd'hui présents dans <span className="font-mono">data/articles-from-rss/_WUDD.AI_/48-heures.json</span>.
+            </p>
+
             {/* Global */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-sm text-slate-700 dark:text-slate-300">Plafond global</label>
-                <span className="text-xs text-slate-400">articles / jour</span>
+                <span className="text-xs text-slate-400">articles du jour dans 48-heures</span>
               </div>
               <input
                 type="range" min="10" max="500" step="10"
@@ -1462,7 +1466,7 @@ function QuotaTab() {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-sm text-slate-700 dark:text-slate-300">Par mot-clé</label>
-                <span className="text-xs text-slate-400">articles / mot-clé / jour</span>
+                <span className="text-xs text-slate-400">articles du jour / mot-clé / dans 48-heures</span>
               </div>
               <input
                 type="range" min="1" max="100" step="1"
@@ -1481,7 +1485,7 @@ function QuotaTab() {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-sm text-slate-700 dark:text-slate-300">Par source</label>
-                <span className="text-xs text-slate-400">articles / source / mot-clé / jour</span>
+                <span className="text-xs text-slate-400">articles du jour / source / mot-clé / dans 48-heures</span>
               </div>
               <input
                 type="range" min="1" max="20" step="1"
@@ -1500,7 +1504,7 @@ function QuotaTab() {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-sm text-slate-700 dark:text-slate-300">Par entité</label>
-                <span className="text-xs text-slate-400">articles / entité nommée / jour</span>
+                <span className="text-xs text-slate-400">articles du jour / entité nommée / dans 48-heures</span>
               </div>
               <input
                 type="range" min="1" max="50" step="1"
@@ -1537,7 +1541,7 @@ function QuotaTab() {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-sm text-slate-700 dark:text-slate-300">Par passage</label>
-                <span className="text-xs text-slate-400">articles / exécution (0 = illimité)</span>
+                <span className="text-xs text-slate-400">articles du jour / exécution (0 = illimité)</span>
               </div>
               <input
                 type="range" min="0" max="100" step="5"
@@ -1558,7 +1562,7 @@ function QuotaTab() {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-sm text-slate-700 dark:text-slate-300">Source cross-keyword</label>
-                <span className="text-xs text-slate-400">articles / source / jour tous mots-clés (0 = illimité)</span>
+                <span className="text-xs text-slate-400">articles du jour / source / dans 48-heures (0 = illimité)</span>
               </div>
               <input
                 type="range" min="0" max="50" step="1"
@@ -1631,7 +1635,7 @@ function QuotaTab() {
             </div>
           ) : (
             <p className="text-xs text-slate-400 dark:text-slate-500 italic px-1">
-              Aucun article importé aujourd'hui.
+              Aucun article du jour trouvé dans 48-heures.
             </p>
           )}
         </div>
@@ -1668,7 +1672,7 @@ function QuotaTab() {
         {stats && Object.keys(stats.global_sources ?? {}).length > 0 && (
           <div className="flex flex-col gap-3">
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Sources cross-keyword — top {Object.keys(stats.global_sources).length}
+              Sources cross-keyword du jour — top {Object.keys(stats.global_sources).length}
             </p>
             <div className="flex flex-col gap-2">
               {Object.entries(stats.global_sources).map(([src, info]) => (

@@ -18,9 +18,12 @@ from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
+from .date_utils import parse_article_date
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 QUOTA_CONFIG_PATH = PROJECT_ROOT / "config" / "quota.json"
 QUOTA_STATE_PATH  = PROJECT_ROOT / "data"   / "quota_state.json"
+WUDD_48H_PATH     = PROJECT_ROOT / "data"   / "articles-from-rss" / "_WUDD.AI_" / "48-heures.json"
 
 # ── Valeurs par défaut ────────────────────────────────────────────────────────
 DEFAULT_CONFIG: dict = {
@@ -63,7 +66,7 @@ class QuotaManager:
     # ─── Chargement ──────────────────────────────────────────────────────────
 
     def _reload(self) -> None:
-        """Charge la config et l'état courant, réinitialise l'état si nouveau jour."""
+        """Charge la config et resynchronise l'état courant depuis 48-heures.json."""
         # Config
         if QUOTA_CONFIG_PATH.exists():
             try:
@@ -73,30 +76,9 @@ class QuotaManager:
         else:
             self._config = dict(DEFAULT_CONFIG)
 
-        # État
         today = str(date.today())
-        loaded: dict = {}
-        if QUOTA_STATE_PATH.exists():
-            try:
-                loaded = json.loads(QUOTA_STATE_PATH.read_text(encoding="utf-8"))
-            except Exception:
-                pass
-
-        if loaded.get("date") == today:
-            self._state = loaded
-            # Assurer la présence des nouvelles clés d'état (rétrocompatibilité)
-            if "global_sources" not in self._state:
-                self._state["global_sources"] = {}
-        else:
-            # Nouveau jour → remise à zéro
-            self._state = {
-                "date": today,
-                "global_count": 0,
-                "keywords": {},
-                "entities": {},
-                "global_sources": {},
-            }
-            self._persist()
+        self._state = self._build_state_from_48h(today)
+        self._persist()
 
     def _persist(self) -> None:
         """Écriture atomique de l'état dans data/quota_state.json."""
@@ -203,25 +185,7 @@ class QuotaManager:
         with self._lock:
             self._maybe_reset_day()
             src_key = _domain(source)
-            kw_data = self._state["keywords"].setdefault(
-                keyword, {"total": 0, "sources": {}}
-            )
-            kw_data["total"] += 1
-            kw_data["sources"][src_key] = kw_data["sources"].get(src_key, 0) + 1
-            self._state["global_count"] += 1
-            # Plafond source cross-keyword
-            global_sources = self._state.setdefault("global_sources", {})
-            global_sources[src_key] = global_sources.get(src_key, 0) + 1
-            # Entités (sans les types ignorés)
-            if entities:
-                ignored = self._ignored_entity_types
-                entity_counts = self._state.setdefault("entities", {})
-                for etype, etype_list in entities.items():
-                    if etype.upper() in ignored:
-                        continue
-                    if isinstance(etype_list, list):
-                        for name in etype_list:
-                            entity_counts[name] = entity_counts.get(name, 0) + 1
+            self._apply_article_to_state(keyword, src_key, entities)
             self._persist()
 
     def sort_by_priority(
@@ -373,8 +337,66 @@ class QuotaManager:
         """Réinitialise l'état si on est passé à un nouveau jour."""
         today = str(date.today())
         if self._state.get("date") != today:
-            self._state = {"date": today, "global_count": 0, "keywords": {}, "entities": {}, "global_sources": {}}
+            self._state = self._build_state_from_48h(today)
             self._persist()
+
+    def _build_state_from_48h(self, today: str) -> dict:
+        """Construit l'état quota depuis les articles du jour présents dans 48-heures.json."""
+        state = {
+            "date": today,
+            "global_count": 0,
+            "keywords": {},
+            "entities": {},
+            "global_sources": {},
+        }
+        if not WUDD_48H_PATH.exists():
+            return state
+        try:
+            articles = json.loads(WUDD_48H_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            return state
+        if not isinstance(articles, list):
+            return state
+
+        for article in articles:
+            if not isinstance(article, dict):
+                continue
+            article_dt = parse_article_date(article.get("Date de publication", ""))
+            if article_dt is None or article_dt.date().isoformat() != today:
+                continue
+            keyword = article.get("mot_cle") if isinstance(article.get("mot_cle"), str) else ""
+            source = article.get("Sources") if isinstance(article.get("Sources"), str) else ""
+            entities = article.get("entities") if isinstance(article.get("entities"), dict) else None
+            self._apply_article_to_state(keyword or "_sans_mot_cle_", _domain(source), entities, state)
+        return state
+
+    def _apply_article_to_state(
+        self,
+        keyword: str,
+        src_key: str,
+        entities: dict | None = None,
+        state: dict | None = None,
+    ) -> None:
+        """Applique un article à l'état quota cible."""
+        target = state if state is not None else self._state
+        kw_data = target["keywords"].setdefault(keyword, {"total": 0, "sources": {}})
+        kw_data["total"] += 1
+        kw_data["sources"][src_key] = kw_data["sources"].get(src_key, 0) + 1
+        target["global_count"] += 1
+
+        global_sources = target.setdefault("global_sources", {})
+        global_sources[src_key] = global_sources.get(src_key, 0) + 1
+
+        if not entities:
+            return
+        ignored = self._ignored_entity_types
+        entity_counts = target.setdefault("entities", {})
+        for etype, etype_list in entities.items():
+            if etype.upper() in ignored:
+                continue
+            if isinstance(etype_list, list):
+                for name in etype_list:
+                    entity_counts[name] = entity_counts.get(name, 0) + 1
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
