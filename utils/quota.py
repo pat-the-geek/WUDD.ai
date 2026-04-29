@@ -14,6 +14,7 @@ Config : config/quota.json
 
 import json
 import threading
+import time
 from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -57,6 +58,10 @@ class QuotaManager:
         self._lock = threading.Lock()
         self._config: dict = {}
         self._state: dict = {}
+        self._config_mtime_ns = 0
+        self._state_mtime_ns = 0
+        self._last_disk_sync_ts = 0.0
+        self._disk_sync_interval_seconds = 2.0
         self._reload()
         # Reset au démarrage si la date de l'état ne correspond pas à aujourd'hui
         # (évite de conserver des compteurs d'un jour précédent si le process
@@ -66,19 +71,19 @@ class QuotaManager:
     # ─── Chargement ──────────────────────────────────────────────────────────
 
     def _reload(self) -> None:
-        """Charge la config et resynchronise l'état courant depuis 48-heures.json."""
-        # Config
-        if QUOTA_CONFIG_PATH.exists():
-            try:
-                self._config = json.loads(QUOTA_CONFIG_PATH.read_text(encoding="utf-8"))
-            except Exception:
-                self._config = dict(DEFAULT_CONFIG)
-        else:
-            self._config = dict(DEFAULT_CONFIG)
-
+        """Charge la config et l'état quota depuis disque (fallback 48h si nécessaire)."""
+        self._config = self._load_config_from_disk()
         today = str(date.today())
-        self._state = self._build_state_from_48h(today)
-        self._persist()
+        self._state = self._load_state_from_disk(today)
+
+        # Si aucun état valide n'existe, reconstruire depuis 48h puis persister.
+        if not self._state:
+            self._state = self._build_state_from_48h(today)
+            self._persist()
+
+        self._config_mtime_ns = self._safe_mtime_ns(QUOTA_CONFIG_PATH)
+        self._state_mtime_ns = self._safe_mtime_ns(QUOTA_STATE_PATH)
+        self._last_disk_sync_ts = time.monotonic()
 
     def _persist(self) -> None:
         """Écriture atomique de l'état dans data/quota_state.json."""
@@ -89,6 +94,7 @@ class QuotaManager:
             encoding="utf-8",
         )
         tmp.replace(QUOTA_STATE_PATH)
+        self._state_mtime_ns = self._safe_mtime_ns(QUOTA_STATE_PATH)
 
     # ─── API publique ─────────────────────────────────────────────────────────
 
@@ -210,7 +216,13 @@ class QuotaManager:
 
         return sorted(keywords, key=_ratio)
 
-    def get_stats(self) -> dict:
+    def get_stats(
+        self,
+        top_keywords: int | None = None,
+        top_sources_per_keyword: int | None = None,
+        top_entities: int | None = 20,
+        top_global_sources: int | None = 20,
+    ) -> dict:
         """
         Retourne les statistiques de consommation du jour.
         Relit toujours le fichier depuis le disque pour rester synchronisé
@@ -218,26 +230,41 @@ class QuotaManager:
         Utilisé par l'API Flask pour l'interface Quota.
         """
         with self._lock:
-            self._reload()  # resync depuis disque à chaque appel stats
+            self._sync_from_disk_if_needed()
         kw_limit    = int(self._config.get("per_keyword_daily_limit", DEFAULT_CONFIG["per_keyword_daily_limit"]))
         global_limit = int(self._config.get("global_daily_limit", DEFAULT_CONFIG["global_daily_limit"]))
         src_limit   = int(self._config.get("per_source_daily_limit", DEFAULT_CONFIG["per_source_daily_limit"]))
 
         keywords_stats = {}
-        for kw, data in self._state.get("keywords", {}).items():
+        keyword_items = sorted(
+            self._state.get("keywords", {}).items(),
+            key=lambda item: -int(item[1].get("total", 0)),
+        )
+        if top_keywords is not None and top_keywords > 0:
+            keyword_items = keyword_items[:top_keywords]
+
+        for kw, data in keyword_items:
+            sources_items = sorted(
+                data.get("sources", {}).items(),
+                key=lambda item: -int(item[1]),
+            )
+            if top_sources_per_keyword is not None and top_sources_per_keyword > 0:
+                sources_items = sources_items[:top_sources_per_keyword]
             keywords_stats[kw] = {
                 "total": data["total"],
                 "limit": kw_limit,
                 "pct": round(data["total"] / kw_limit * 100) if kw_limit > 0 else 0,
                 "sources": {
                     src: {"count": cnt, "limit": src_limit, "saturated": cnt >= src_limit}
-                    for src, cnt in data.get("sources", {}).items()
+                    for src, cnt in sources_items
                 },
             }
 
         entity_limit = int(self._config.get("per_entity_daily_limit", DEFAULT_CONFIG["per_entity_daily_limit"]))
         entity_counts = self._state.get("entities", {})
-        top_entities = sorted(entity_counts.items(), key=lambda x: -x[1])[:20]
+        entities_items = sorted(entity_counts.items(), key=lambda x: -x[1])
+        if top_entities is not None and top_entities > 0:
+            entities_items = entities_items[:top_entities]
         entities_stats = {
             name: {
                 "count": cnt,
@@ -245,12 +272,14 @@ class QuotaManager:
                 "pct": round(cnt / entity_limit * 100) if entity_limit > 0 else 0,
                 "saturated": cnt >= entity_limit,
             }
-            for name, cnt in top_entities
+            for name, cnt in entities_items
         }
 
         global_src_limit = int(self._config.get("global_source_daily_limit", DEFAULT_CONFIG["global_source_daily_limit"]))
         global_sources = self._state.get("global_sources", {})
-        top_sources = sorted(global_sources.items(), key=lambda x: -x[1])[:20]
+        global_sources_items = sorted(global_sources.items(), key=lambda x: -x[1])
+        if top_global_sources is not None and top_global_sources > 0:
+            global_sources_items = global_sources_items[:top_global_sources]
         global_sources_stats = {
             src: {
                 "count": cnt,
@@ -258,7 +287,7 @@ class QuotaManager:
                 "pct": round(cnt / global_src_limit * 100) if global_src_limit > 0 else 0,
                 "saturated": cnt >= global_src_limit,
             }
-            for src, cnt in top_sources
+            for src, cnt in global_sources_items
         }
 
         return {
@@ -310,6 +339,7 @@ class QuotaManager:
         )
         with self._lock:
             self._config = config
+            self._config_mtime_ns = self._safe_mtime_ns(QUOTA_CONFIG_PATH)
 
     # ─── Interne ─────────────────────────────────────────────────────────────
 
@@ -339,6 +369,69 @@ class QuotaManager:
         if self._state.get("date") != today:
             self._state = self._build_state_from_48h(today)
             self._persist()
+
+    def _sync_from_disk_if_needed(self) -> None:
+        """Resynchronise config/état depuis disque avec un coût borné.
+
+        - Pas plus d'une vérification toutes les N secondes (TTL court)
+        - Rechargement uniquement si mtime a changé
+        - Pas de rebuild 48h sur le chemin chaud des stats
+        """
+        now = time.monotonic()
+        if (now - self._last_disk_sync_ts) < self._disk_sync_interval_seconds:
+            return
+
+        self._last_disk_sync_ts = now
+        today = str(date.today())
+
+        config_mtime = self._safe_mtime_ns(QUOTA_CONFIG_PATH)
+        if config_mtime != self._config_mtime_ns:
+            self._config = self._load_config_from_disk()
+            self._config_mtime_ns = config_mtime
+
+        state_mtime = self._safe_mtime_ns(QUOTA_STATE_PATH)
+        if state_mtime != self._state_mtime_ns:
+            disk_state = self._load_state_from_disk(today)
+            if disk_state:
+                self._state = disk_state
+                self._state_mtime_ns = state_mtime
+
+    def _safe_mtime_ns(self, path: Path) -> int:
+        try:
+            return path.stat().st_mtime_ns
+        except OSError:
+            return 0
+
+    def _load_config_from_disk(self) -> dict:
+        if not QUOTA_CONFIG_PATH.exists():
+            return dict(DEFAULT_CONFIG)
+        try:
+            data = json.loads(QUOTA_CONFIG_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return {**DEFAULT_CONFIG, **data}
+        except Exception:
+            pass
+        return dict(DEFAULT_CONFIG)
+
+    def _load_state_from_disk(self, today: str) -> dict:
+        if not QUOTA_STATE_PATH.exists():
+            return {}
+        try:
+            data = json.loads(QUOTA_STATE_PATH.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                return {}
+            if data.get("date") != today:
+                return {}
+            if not isinstance(data.get("keywords", {}), dict):
+                return {}
+            if not isinstance(data.get("entities", {}), dict):
+                return {}
+            if not isinstance(data.get("global_sources", {}), dict):
+                data["global_sources"] = {}
+            data["global_count"] = int(data.get("global_count", 0))
+            return data
+        except Exception:
+            return {}
 
     def _build_state_from_48h(self, today: str) -> dict:
         """Construit l'état quota depuis les articles du jour présents dans 48-heures.json."""

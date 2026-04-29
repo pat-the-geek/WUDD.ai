@@ -239,18 +239,17 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose, o
   // ── Données ────────────────────────────────────────────────────────────────
   useEffect(() => {
     setLoading(true); setError(null)
-    const params = new URLSearchParams({ type: current.type, value: current.value })
+    const params = new URLSearchParams({
+      type: current.type,
+      value: current.value,
+      max_articles: '300',
+      compact: '1',
+    })
     fetch(`/api/entities/articles?${params}`)
       .then(r => r.json())
       .then(data => {
         if (data?.error) throw new Error(data.error)
-        const sorted = (Array.isArray(data) ? data : []).sort((a, b) => {
-          const parseD = raw => { const m = (raw||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? new Date(parseInt(m[3]), parseInt(m[2])-1, parseInt(m[1])) : new Date(raw||0) }
-          const ta = parseD(a['Date de publication']).getTime()
-          const tb = parseD(b['Date de publication']).getTime()
-          return tb - ta
-        })
-        setArticles(sorted)
+        setArticles(Array.isArray(data) ? data : [])
         setLoading(false)
       })
       .catch(e => { setError(e.message); setLoading(false) })

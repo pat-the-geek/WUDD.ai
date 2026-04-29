@@ -1319,7 +1319,7 @@ function QuotaTab() {
     try {
       const [cfgRes, statsRes] = await Promise.all([
         fetch('/api/quota/config'),
-        fetch('/api/quota/stats'),
+        fetch('/api/quota/stats?top_keywords=25&top_sources=5&top_entities=20&top_global_sources=20'),
       ])
       const cfg   = await cfgRes.json()
       const st    = await statsRes.json()

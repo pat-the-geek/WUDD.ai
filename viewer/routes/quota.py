@@ -56,7 +56,18 @@ def api_save_quota_config():
 def api_get_quota_stats():
     """Retourne les statistiques de consommation du jour."""
     from utils.quota import get_quota_manager
-    return jsonify(get_quota_manager().get_stats())
+    top_keywords = request.args.get("top_keywords", default=25, type=int)
+    top_sources = request.args.get("top_sources", default=5, type=int)
+    top_entities = request.args.get("top_entities", default=20, type=int)
+    top_global_sources = request.args.get("top_global_sources", default=20, type=int)
+    return jsonify(
+        get_quota_manager().get_stats(
+            top_keywords=top_keywords,
+            top_sources_per_keyword=top_sources,
+            top_entities=top_entities,
+            top_global_sources=top_global_sources,
+        )
+    )
 
 
 @quota_bp.route("/api/quota/reset", methods=["POST"])

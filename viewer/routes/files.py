@@ -27,12 +27,17 @@ from viewer.state import (
 
 files_bp = Blueprint("files", __name__)
 
+_DOUBLE_SCAN_SLEEP_SECONDS = max(
+    0.0, float(os.environ.get("VIEWER_FILES_DOUBLE_SCAN_SLEEP_SECONDS", "0.05"))
+)
+
 
 def _collect_files_with_double_scan(files1=None):
     """Refait un second scan et fusionne les résultats si le premier paraît incomplet."""
     if files1 is None:
         files1 = collect_files()
-    time.sleep(0.20)
+    if _DOUBLE_SCAN_SLEEP_SECONDS > 0:
+        time.sleep(_DOUBLE_SCAN_SLEEP_SECONDS)
     files2 = collect_files()
     by_path = {f["path"]: f for f in files1}
     by_path.update({f["path"]: f for f in files2})

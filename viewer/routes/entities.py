@@ -36,6 +36,11 @@ _DASHBOARD_CACHE_TTL = 300  # secondes
 _dashboard_cache: dict = {}           # {"result": ..., "ts": float}
 _dashboard_cache_lock = threading.Lock()
 
+# ── Cache TTL pour la liste d'articles d'une entité (ouverture de panel) ───
+_ENTITY_ARTICLES_CACHE_TTL = 90  # secondes
+_entity_articles_cache: dict = {}  # {(type, value, max, compact): {"result": ..., "ts": float}}
+_entity_articles_cache_lock = threading.Lock()
+
 # ── Cache mémoire pour images Wikimedia (chargé une seule fois depuis le disque) ─
 _images_cache_mem: dict | None = None   # None = pas encore chargé
 _images_cache_mem_lock = threading.Lock()
@@ -486,8 +491,38 @@ def api_entities_articles():
     """Retourne tous les articles contenant une entité donnée (type + valeur) via entity_index."""
     entity_type = request.args.get("type", "").strip()
     entity_value = request.args.get("value", "").strip()
+    max_articles = request.args.get("max_articles", default=300, type=int)
+    max_articles = max(1, min(max_articles or 300, 2000))
+    compact = request.args.get("compact", "0").strip().lower() in {"1", "true", "yes", "on"}
+
     if not entity_type or not entity_value:
         return jsonify({"error": "Paramètres type et value requis"}), 400
+
+    cache_key = (entity_type.upper(), entity_value.lower(), max_articles, compact)
+    with _entity_articles_cache_lock:
+        cached = _entity_articles_cache.get(cache_key)
+        if cached and (time.monotonic() - cached.get("ts", 0.0)) < _ENTITY_ARTICLES_CACHE_TTL:
+            return jsonify(cached.get("result", []))
+
+    compact_fields = {
+        "Date de publication",
+        "Sources",
+        "URL",
+        "Résumé",
+        "Images",
+        "entities",
+        "sentiment",
+        "score_sentiment",
+        "ton_editorial",
+        "score_ton",
+        "temps_lecture_minutes",
+        "temps_lecture_label",
+        "mot_cle",
+        "terme_declencheur",
+        "terme_and",
+        "fichier_source",
+        "rapports",
+    }
 
     seen_urls: set = set()
     results = []
@@ -495,23 +530,62 @@ def api_entities_articles():
 
     try:
         eidx = get_entity_index(PROJECT_ROOT)
-        articles_from_idx = eidx.load_articles(entity_type, entity_value)
-        if articles_from_idx:
+        refs = eidx.get_refs(entity_type, entity_value)
+        if refs:
             index_found_results = True
-            for article in articles_from_idx:
-                url = (article.get("URL") or "").strip()
-                resume_key = article.get("Résumé", "")[:150].strip()
-                if (url and url in seen_urls) or (resume_key and resume_key in seen_urls):
+            refs_cap = min(len(refs), max(max_articles * 8, 200))
+            refs = refs[:refs_cap]
+
+            refs_by_file: dict[str, list[tuple[int, int]]] = {}
+            for pos, ref in enumerate(refs):
+                rel_path = ref.get("file", "")
+                file_idx = ref.get("idx", -1)
+                if not rel_path or not isinstance(file_idx, int) or file_idx < 0:
                     continue
-                if url:
-                    seen_urls.add(url)
-                if resume_key:
-                    seen_urls.add(resume_key)
-                results.append(article)
+                refs_by_file.setdefault(rel_path, []).append((pos, file_idx))
+
+            file_order = sorted(
+                refs_by_file.items(),
+                key=lambda item: (-len(item[1]), min(p for p, _ in item[1])),
+            )
+
+            max_files_to_open = 25 if compact else 60
+            for rel_path, positions in file_order[:max_files_to_open]:
+                full_path = PROJECT_ROOT / rel_path
+                try:
+                    data = json.loads(full_path.read_text(encoding="utf-8", errors="replace"))
+                    if not isinstance(data, list):
+                        continue
+                except (json.JSONDecodeError, OSError):
+                    continue
+
+                for _, file_idx in sorted(positions, key=lambda p: p[0]):
+                    if not (0 <= file_idx < len(data)):
+                        continue
+                    article = data[file_idx]
+                    url = (article.get("URL") or "").strip()
+                    resume_key = article.get("Résumé", "")[:150].strip()
+                    if (url and url in seen_urls) or (resume_key and resume_key in seen_urls):
+                        continue
+                    if url:
+                        seen_urls.add(url)
+                    if resume_key:
+                        seen_urls.add(resume_key)
+                    if compact:
+                        results.append({k: article.get(k) for k in compact_fields if k in article})
+                    else:
+                        results.append(article)
+                    if len(results) >= max_articles:
+                        break
+                if len(results) >= max_articles:
+                    break
     except Exception:
         pass
 
-    if not index_found_results:
+    # En mode compact (UI panel), on évite le fallback rglob coûteux pour
+    # garantir un premier affichage rapide même si l'index est temporairement
+    # indisponible sur un worker.
+    if not index_found_results and not compact:
         # Fallback rglob : index indisponible, version incompatible, entité non indexée
         # (types DATE/MONEY/…), ou index non encore reconstruit après ajout d'articles.
         for data_dir in [PROJECT_ROOT / "data" / "articles", PROJECT_ROOT / "data" / "articles-from-rss"]:
@@ -544,9 +618,22 @@ def api_entities_articles():
                         seen_urls.add(url)
                     if resume_key:
                         seen_urls.add(resume_key)
-                    results.append(article)
+                    if compact:
+                        results.append({k: article.get(k) for k in compact_fields if k in article})
+                    else:
+                        results.append(article)
+                    if len(results) >= max_articles:
+                        break
+                if len(results) >= max_articles:
+                    break
+            if len(results) >= max_articles:
+                break
 
     results.sort(key=lambda a: a.get("Date de publication", ""), reverse=True)
+
+    with _entity_articles_cache_lock:
+        _entity_articles_cache[cache_key] = {"result": results, "ts": time.monotonic()}
+
     return jsonify(results)
 
 
