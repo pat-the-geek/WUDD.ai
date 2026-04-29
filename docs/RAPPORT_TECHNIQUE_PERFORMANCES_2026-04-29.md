@@ -231,6 +231,25 @@ Mesures locales sur stack Docker active (`analyse-actualites-viewer` + `analyse-
 Conclusion opérationnelle : les trois endpoints restent stables en 200, avec des médianes < 3 ms ;
 les pointes p99 demeurent contenues et compatibles avec l'objectif de réactivité UI.
 
+### Benchmark `enrich_sentiment` sync vs async (29/04 soir)
+
+Campagne réalisée sur 10 résumés réels extraits de `data/articles-from-rss/intelligence-artificielle.json`.
+
+Constat clé : le premier benchmark du pilote async révélait une divergence de provider.
+Le chemin synchrone utilisait correctement `AI_PROVIDER_NER=ollama`, alors que le batch async résolvait encore `AI_PROVIDER`.
+Le correctif appliqué dans `utils/async_enricher.py` aligne désormais le routage sur `AI_PROVIDER_NER`, puis retombe volontairement sur le fallback synchrone/parallélisé quand le provider effectif est Ollama, car ce backend n'a pas encore d'implémentation async native dans WUDD.ai.
+
+| Configuration | n | Succès | Temps total | Temps moyen/article | Gain |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Sync (`get_ner_client()` → Ollama) | 10 | 10/10 | 38.53 s | 3.85 s | ref |
+| Async demandé (`--use-async`, provider réel Ollama, fallback préservé) | 10 | 10/10 | 38.58 s | 3.86 s | 1.00x |
+
+Conclusion opérationnelle :
+
+- le pilote async sur `enrich_sentiment.py` est maintenant cohérent avec la configuration réelle du projet ;
+- avec `AI_PROVIDER_NER=ollama`, il n'apporte pas d'accélération mesurable à ce stade, ce qui est cohérent avec le fallback de compatibilité ;
+- le gain de parallélisation restera à mesurer avec un backend HTTP réellement exploitable en async (EurIA/Claude) ou avec une implémentation async native pour Ollama.
+
 ---
 
 ## Conclusion

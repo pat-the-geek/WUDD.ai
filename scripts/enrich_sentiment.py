@@ -34,9 +34,10 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from utils.config import get_config
-from utils.api_client import get_ai_client, get_ner_client
+from utils.api_client import get_ner_client
 from utils.logging import default_logger
 from utils.article_index import get_article_index
+from utils.async_enricher import AsyncEnricher
 
 _STATE_FILE = _PROJECT_ROOT / "data" / "enrich_sentiment_state.json"
 
@@ -81,6 +82,17 @@ def parse_args():
                         help="Affiche l'état Round-Robin et quitte")
     parser.add_argument("--max-articles", type=int, default=100, dest="max_articles",
                         help="Nombre maximum d'articles à enrichir par exécution (défaut: 100, -1 = illimité)")
+    parser.add_argument(
+        "--use-async",
+        action="store_true",
+        help="Active le pilote AsyncEnricher (batch asynchrone) pour l'analyse sentiment.",
+    )
+    parser.add_argument(
+        "--async-concurrency",
+        type=int,
+        default=10,
+        help="Nombre max d'appels simultanés en mode async (défaut : 10).",
+    )
     return parser.parse_args()
 
 
@@ -131,7 +143,8 @@ def collect_json_files(config, flux: str = None, keyword: str = None) -> list[Pa
 
 SAVE_EVERY = 50  # Sauvegarde intermédiaire toutes les N enrichissements
 
-def enrich_file(json_file: Path, client, dry_run: bool, force: bool, delay: float,
+def enrich_file(json_file: Path, client, async_enricher: AsyncEnricher | None, use_async: bool,
+                dry_run: bool, force: bool, delay: float,
                 max_articles: int = -1) -> tuple[int, int]:
     """Enrichit les articles d'un fichier JSON. Retourne (enrichis, ignorés).
 
@@ -151,62 +164,108 @@ def enrich_file(json_file: Path, client, dry_run: bool, force: bool, delay: floa
     skipped = 0
     modified = False
 
-    for article in articles:
-        resume = article.get("Résumé", "")
-        if not isinstance(resume, str) or len(resume) < 50:
-            skipped += 1
-            continue
+    if use_async and not dry_run and async_enricher is not None:
+        candidates: list[tuple[int, str]] = []
 
-        already_done = "sentiment" in article and "ton_editorial" in article
-        if already_done and not force:
-            skipped += 1
-            continue
+        for i, article in enumerate(articles):
+            resume = article.get("Résumé", "")
+            if not isinstance(resume, str) or len(resume) < 50:
+                skipped += 1
+                continue
 
-        # Plafond global du run atteint : arrêt propre (la sauvegarde finale suit)
-        if max_articles >= 0 and enriched >= max_articles:
-            break
+            already_done = "sentiment" in article and "ton_editorial" in article
+            if already_done and not force:
+                skipped += 1
+                continue
 
-        default_logger.info(
-            f"  Analyse sentiment : {article.get('Sources', '?')} — "
-            f"{article.get('Date de publication', '')[:10]}"
-        )
+            if max_articles >= 0 and len(candidates) >= max_articles:
+                break
 
-        if dry_run:
-            default_logger.info("  [DRY-RUN] Analyse simulée")
-            enriched += 1
-            continue
+            candidates.append((i, resume))
 
-        result = client.generate_sentiment(resume)
-        if result is None:
-            # echec_parse : réponse reçue mais JSON non extractible
-            article["enrichissement_statut"] = "echec_parse"
-            modified = True
-            default_logger.warning("  Réponse sentiment non parseable (echec_parse)")
-            skipped += 1
-        elif result:
-            article.update(result)
-            article["enrichissement_statut"] = "ok"
-            enriched += 1
-            modified = True
-        else:
-            # {} : echec_api (exception réseau)
-            article["enrichissement_statut"] = "echec_api"
-            modified = True
-            default_logger.warning("  Analyse sentiment vide ou erreur API")
-            skipped += 1
+        if candidates:
+            default_logger.info(
+                f"  Mode async sentiment : {len(candidates)} article(s) en batch "
+                f"(concurrency={async_enricher.concurrency})"
+            )
+            batch = [{"Résumé": resume} for _, resume in candidates]
+            batch_results = async_enricher.enrich_sentiment_batch(batch, timeout_per_request=30)
 
-        # Sauvegarde intermédiaire toutes les SAVE_EVERY enrichissements (atomique)
-        if modified and not dry_run and enriched % SAVE_EVERY == 0:
-            try:
-                _tmp = json_file.with_suffix(".tmp")
-                _tmp.write_text(json.dumps(articles, ensure_ascii=False, indent=2), encoding="utf-8")
-                _tmp.replace(json_file)
-                default_logger.info(f"  ↳ Sauvegarde intermédiaire ({enriched} enrichis) → {json_file.name}")
-            except OSError as e:
-                default_logger.error(f"  Erreur d'écriture {json_file}: {e}")
+            for pos, (article_idx, _) in enumerate(candidates):
+                article = articles[article_idx]
+                result = batch_results[pos] if pos < len(batch_results) else {}
+                if isinstance(result, dict) and result.get("sentiment"):
+                    article.update({
+                        "sentiment": result.get("sentiment"),
+                        "score_sentiment": result.get("score_sentiment"),
+                        "ton_editorial": result.get("ton_editorial"),
+                        "score_ton": result.get("score_ton"),
+                    })
+                    article["enrichissement_statut"] = "ok"
+                    enriched += 1
+                    modified = True
+                else:
+                    article["enrichissement_statut"] = "echec_api"
+                    modified = True
+                    skipped += 1
 
-        if delay > 0:
-            time.sleep(delay)
+    else:
+        for article in articles:
+            resume = article.get("Résumé", "")
+            if not isinstance(resume, str) or len(resume) < 50:
+                skipped += 1
+                continue
+
+            already_done = "sentiment" in article and "ton_editorial" in article
+            if already_done and not force:
+                skipped += 1
+                continue
+
+            # Plafond global du run atteint : arrêt propre (la sauvegarde finale suit)
+            if max_articles >= 0 and enriched >= max_articles:
+                break
+
+            default_logger.info(
+                f"  Analyse sentiment : {article.get('Sources', '?')} — "
+                f"{article.get('Date de publication', '')[:10]}"
+            )
+
+            if dry_run:
+                default_logger.info("  [DRY-RUN] Analyse simulée")
+                enriched += 1
+                continue
+
+            result = client.generate_sentiment(resume)
+            if result is None:
+                # echec_parse : réponse reçue mais JSON non extractible
+                article["enrichissement_statut"] = "echec_parse"
+                modified = True
+                default_logger.warning("  Réponse sentiment non parseable (echec_parse)")
+                skipped += 1
+            elif result:
+                article.update(result)
+                article["enrichissement_statut"] = "ok"
+                enriched += 1
+                modified = True
+            else:
+                # {} : echec_api (exception réseau)
+                article["enrichissement_statut"] = "echec_api"
+                modified = True
+                default_logger.warning("  Analyse sentiment vide ou erreur API")
+                skipped += 1
+
+            # Sauvegarde intermédiaire toutes les SAVE_EVERY enrichissements (atomique)
+            if modified and not dry_run and enriched % SAVE_EVERY == 0:
+                try:
+                    _tmp = json_file.with_suffix(".tmp")
+                    _tmp.write_text(json.dumps(articles, ensure_ascii=False, indent=2), encoding="utf-8")
+                    _tmp.replace(json_file)
+                    default_logger.info(f"  ↳ Sauvegarde intermédiaire ({enriched} enrichis) → {json_file.name}")
+                except OSError as e:
+                    default_logger.error(f"  Erreur d'écriture {json_file}: {e}")
+
+            if delay > 0:
+                time.sleep(delay)
 
     if modified and not dry_run:
         try:
@@ -215,7 +274,11 @@ def enrich_file(json_file: Path, client, dry_run: bool, force: bool, delay: floa
             _tmp.replace(json_file)
             default_logger.info(f"  Sauvegardé → {json_file.name}")
             # Mise à jour de l'article_index après enrichissement sentiment (proposition 1)
-            rel = str(json_file.relative_to(_PROJECT_ROOT)).replace("\\", "/")
+            try:
+                rel = str(json_file.relative_to(_PROJECT_ROOT)).replace("\\", "/")
+            except ValueError:
+                # Fichier hors projet (ex: test temporaire) : conserver un chemin stable.
+                rel = str(json_file)
             try:
                 get_article_index(_PROJECT_ROOT).update(articles, rel)
             except Exception as _idx_e:
@@ -248,7 +311,13 @@ def main():
         print(f"  Cycle complet estimé  : {total} jour(s)")
         return
 
-    client = get_ner_client()
+    client = None if args.use_async and not args.dry_run else get_ner_client()
+    async_enricher = None
+    if args.use_async and not args.dry_run:
+        async_enricher = AsyncEnricher(concurrency=max(1, args.async_concurrency))
+        default_logger.info(
+            f"[MODE ASYNC] AsyncEnricher activé (concurrency={max(1, args.async_concurrency)})"
+        )
 
     default_logger.info("=== Enrichissement sentiment WUDD.ai ===")
     if args.dry_run:
@@ -274,7 +343,8 @@ def main():
                 default_logger.info(f"Plafond de {limit} articles atteint — arrêt.")
                 break
             default_logger.info(f"→ {json_file.relative_to(config.project_root)}")
-            e, s = enrich_file(json_file, client, args.dry_run, args.force, args.delay,
+            e, s = enrich_file(json_file, client, async_enricher, args.use_async,
+                               args.dry_run, args.force, args.delay,
                                max_articles=remaining)
             total_enriched += e
             total_skipped += s
@@ -299,7 +369,8 @@ def main():
                 default_logger.info(f"Plafond de {limit} articles atteint — arrêt.")
                 break
             default_logger.info(f"→ {json_file.relative_to(config.project_root)}")
-            e, s = enrich_file(json_file, client, args.dry_run, args.force, args.delay,
+            e, s = enrich_file(json_file, client, async_enricher, args.use_async,
+                               args.dry_run, args.force, args.delay,
                                max_articles=remaining)
             total_enriched += e
             total_skipped += s
@@ -328,7 +399,8 @@ def main():
         default_logger.info(f"Mode Round-Robin — fichier {cur_idx + 1}/{total}")
         default_logger.info(f"→ {rel_path}")
 
-        e, s = enrich_file(json_file, client, args.dry_run, args.force, args.delay,
+        e, s = enrich_file(json_file, client, async_enricher, args.use_async,
+                   args.dry_run, args.force, args.delay,
                            max_articles=remaining)
         total_enriched += e
         total_skipped += s

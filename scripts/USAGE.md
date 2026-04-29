@@ -204,6 +204,8 @@ Le provider utilisé est déterminé par `AI_PROVIDER_NER` dans `.env` (via `get
 - Vide ou absent : même provider que `AI_PROVIDER` (EurIA ou Claude)
 - `ollama` : inférence locale Ollama (aucun token API consommé) — fallback automatique sur cloud si Ollama injoignable
 
+Sur macOS, utilisez `OLLAMA_HOST_LOCAL=localhost` dans `.env` pour les scripts lancés sur l'hôte. Le conteneur Docker reçoit `OLLAMA_HOST_DOCKER=host.docker.internal` via `docker-compose.yml`.
+
 **Arguments** :
 
 | Argument | Description | Défaut |
@@ -213,6 +215,8 @@ Le provider utilisé est déterminé par `AI_PROVIDER_NER` dans `.env` (via `get
 | `--dry-run` | Simulation sans appel API ni écriture | désactivé |
 | `--delay SEC` | Pause entre chaque appel API (secondes) | 1.0 |
 | `--force` | Re-traiter les articles ayant déjà le champ `entities` | désactivé |
+| `--use-async` | Active le pilote AsyncEnricher (batch asynchrone) | désactivé |
+| `--async-concurrency N` | Concurrence maximale en mode async | 10 |
 
 **Utilisation** :
 ```bash
@@ -221,6 +225,7 @@ python3 scripts/enrich_entities.py --flux Intelligence-artificielle
 python3 scripts/enrich_entities.py --keyword anthropic --delay 2.0
 python3 scripts/enrich_entities.py --dry-run
 python3 scripts/enrich_entities.py --force
+python3 scripts/enrich_entities.py --use-async --async-concurrency 15
 ```
 
 **Automatisation (cron)** — nuit à 02h00, round-robin 1 fichier/jour :
@@ -236,6 +241,12 @@ python3 scripts/enrich_entities.py --force
 
 Le provider utilisé est déterminé par `AI_PROVIDER_NER` (via `get_ner_client()`) — même logique que `enrich_entities.py`.
 
+Sur macOS, utilisez `OLLAMA_HOST_LOCAL=localhost` dans `.env` pour les scripts lancés sur l'hôte. Le conteneur Docker reçoit `OLLAMA_HOST_DOCKER=host.docker.internal` via `docker-compose.yml`.
+
+> État actuel (29/04/2026, v2.8.17) : `enrich_sentiment.py` expose `--use-async` et `--async-concurrency`.
+> Avec `AI_PROVIDER_NER=ollama`, le pilote async retombe volontairement sur le backend standard pour préserver la cohérence du provider et la fiabilité des résultats.
+> Benchmark local sur 10 résumés réels de `data/articles-from-rss/intelligence-artificielle.json` : `sync=38.53 s`, `async=38.58 s`, `10/10` succès dans les deux cas, donc pas de gain mesurable avec Ollama local à ce stade.
+
 **Arguments** :
 
 | Argument | Description | Défaut |
@@ -248,6 +259,8 @@ Le provider utilisé est déterminé par `AI_PROVIDER_NER` (via `get_ner_client(
 | `--delay SEC` | Pause entre appels API | 0.5 |
 | `--status` | Affiche les statistiques sans traitement | désactivé |
 | `--max-articles N` | Limiter le nombre d'articles à enrichir | 100 |
+| `--use-async` | Active le pilote AsyncEnricher (batch asynchrone) | désactivé |
+| `--async-concurrency N` | Concurrence maximale en mode async | 10 |
 
 **Utilisation** :
 ```bash
@@ -255,6 +268,7 @@ python3 scripts/enrich_sentiment.py
 python3 scripts/enrich_sentiment.py --keyword ia --force
 python3 scripts/enrich_sentiment.py --status
 python3 scripts/enrich_sentiment.py --dry-run
+python3 scripts/enrich_sentiment.py --use-async --async-concurrency 15
 ```
 
 **Automatisation (cron)** — nuit à 03h00 :

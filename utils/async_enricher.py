@@ -87,12 +87,21 @@ class AsyncEnricher:
             Liste des articles avec le champ "entities" ajouté ou mis à jour.
             Les articles sans "Résumé" sont retournés inchangés.
         """
+        provider = self._resolve_provider()
+        if provider == "ollama":
+            default_logger.info(
+                "[AsyncEnricher] Provider NER=ollama detecte — fallback synchrone pour "
+                "preserver le meme backend que le chemin standard."
+            )
+            return self._sync_fallback_entities(articles)
+
         if self.available:
             return asyncio.run(
                 self._async_enrich_batch(
                     articles,
                     task_type="entities",
                     timeout=timeout_per_request,
+                    provider=provider,
                 )
             )
         return self._sync_fallback_entities(articles)
@@ -113,12 +122,21 @@ class AsyncEnricher:
         Returns:
             Liste des articles avec les champs sentiment ajoutés.
         """
+        provider = self._resolve_provider()
+        if provider == "ollama":
+            default_logger.info(
+                "[AsyncEnricher] Provider NER=ollama detecte — fallback synchrone pour "
+                "preserver le meme backend que le chemin standard."
+            )
+            return self._sync_fallback_sentiment(articles)
+
         if self.available:
             return asyncio.run(
                 self._async_enrich_batch(
                     articles,
                     task_type="sentiment",
                     timeout=timeout_per_request,
+                    provider=provider,
                 )
             )
         return self._sync_fallback_sentiment(articles)
@@ -130,13 +148,12 @@ class AsyncEnricher:
         articles: list[dict],
         task_type: str,
         timeout: int,
+        provider: str,
     ) -> list[dict]:
         """Exécute le batch d'enrichissement de façon asynchrone."""
         from .config import get_config
-        import os as _os
 
         config = get_config()
-        provider = self._provider or _os.environ.get("AI_PROVIDER", "euria").strip().lower()
 
         semaphore = asyncio.Semaphore(self.concurrency)
         enriched = list(articles)  # copie superficielle
@@ -194,6 +211,26 @@ class AsyncEnricher:
             f"sur {len(articles)} articles."
         )
         return enriched
+
+    def _resolve_provider(self) -> str:
+        """Résout le provider effectif pour NER/sentiment.
+
+        Priorité :
+        - provider explicite passé au constructeur
+        - AI_PROVIDER_NER
+        - AI_PROVIDER
+        - fallback euria
+        """
+        import os as _os
+
+        if self._provider:
+            return self._provider.strip().lower()
+
+        ner_provider = _os.environ.get("AI_PROVIDER_NER", "").strip().lower()
+        if ner_provider:
+            return ner_provider
+
+        return _os.environ.get("AI_PROVIDER", "euria").strip().lower() or "euria"
 
     async def _enrich_one(
         self,

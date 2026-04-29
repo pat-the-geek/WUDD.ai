@@ -1,3 +1,27 @@
+# 29/04/2026 — Alignement AsyncEnricher sur AI_PROVIDER_NER (v2.8.17)
+
+## Async batch — sentiment / NER
+
+- `utils/async_enricher.py` : résolution du provider alignée sur `AI_PROVIDER_NER` puis `AI_PROVIDER`.
+- `utils/async_enricher.py` : quand `AI_PROVIDER_NER=ollama`, le batch async retombe sur le fallback synchrone/parallélisé pour conserver le même backend que le chemin standard.
+- benchmark réel sur `data/articles-from-rss/intelligence-artificielle.json` (10 résumés) : `sync_total=38.53s`, `async_total=38.58s`, `sync_ok=10/10`, `async_ok=10/10`.
+
+# 29/04/2026 — Pilote AsyncEnricher sur sentiment (v2.8.16)
+
+## Scripts — enrichissement sentiment
+
+- `scripts/enrich_sentiment.py` : ajout d'un mode pilote AsyncEnricher via `--use-async` et `--async-concurrency`.
+- mode synchrone conservé par défaut pour limiter le risque de régression en production.
+- `scripts/USAGE.md` : documentation des nouveaux arguments async pour `enrich_sentiment.py`.
+
+# 29/04/2026 — Documentation exploitation P2 sentiment (v2.8.15)
+
+## Scripts — clarification d'usage
+
+- `scripts/USAGE.md` : clarification explicite de l'état d'avancement `enrich_sentiment.py` (pas encore de mode async à date).
+- ajout des consignes d'hôte Ollama (`OLLAMA_HOST_LOCAL` / `OLLAMA_HOST_DOCKER`) dans la section sentiment pour cohérence avec l'exploitation de `enrich_entities.py`.
+- ajout d'une note opérationnelle "prochaine étape P2" pour la parité async sentiment + benchmark avant/après.
+
 # 29/04/2026 — Accélération chargement entités compactes (v2.8.14)
 
 ## Viewer — route entités
