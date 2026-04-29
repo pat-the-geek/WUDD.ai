@@ -1,7 +1,7 @@
 ---
 title: WUDD.ai — Feuille de route complète
-date: 2026-03-15
-version: 2.5.0
+date: 2026-04-29
+version: 2.8.14
 tags:
   - wudd
   - roadmap
@@ -13,7 +13,14 @@ statut: en cours
 ---
 
 # WUDD.ai — Feuille de route complète
-**Rapport de synthèse — 15 mars 2026 — v2.5.0**
+**Rapport de synthèse — 29 avril 2026 — v2.8.14**
+
+> Mise à jour de statut du 29/04/2026 : plusieurs items techniques de l'axe 1
+> sont déjà implémentés dans le code courant. Les cases ci-dessous reflètent
+> désormais l'état réel vérifié.
+
+> Addendum P1 (soir) : alignement documentaire finalisé sur les livraisons
+> v2.8.12 à v2.8.14 (quota, entités, runtime Docker viewer/worker).
 
 ---
 
@@ -33,7 +40,7 @@ statut: en cours
 
 ### 1.1 Architecture backend — Critique
 
-- [ ] **`[L]`** Découper `viewer/app.py` (4 822 lignes) en blueprints Flask
+- [x] **`[L]`** Découper `viewer/app.py` (4 822 lignes) en blueprints Flask
 	- `routes/files.py` — `/api/files`, `/api/content`, `/api/search`, `/api/download`
 	- `routes/entities.py` — `/api/entities/*`, `/api/search/entity`, `/api/entity-context`, `/api/watched-entities`, `/api/annotations`
 	- `routes/analytics.py` — `/api/alerts`, `/api/articles/top`, `/api/sources/*`, `/api/cross-flux`, `/api/analytics/*`, `/api/briefing`
@@ -43,15 +50,36 @@ statut: en cours
 	- `routes/scheduler.py` — `/api/scheduler`, `/api/scripts/*`
 	- `viewer/state.py` — état global partagé (`_rss_job`, `_bias_cache`)
 	- `viewer/helpers.py` — fonctions partagées (`safe_path()`, `collect_files()`, `_call_ai_blocking()`)
-- [ ] **`[S]`** Ajouter un **circuit breaker** dans `utils/api_client.py`
+- [x] **`[S]`** Ajouter un **circuit breaker** dans `utils/api_client.py`
 	- États OPEN / HALF-OPEN / CLOSED
 	- Fenêtre de grâce 5 minutes après N échecs consécutifs
 	- Log explicite à chaque transition d'état
-- [ ] **`[XS]`** Corriger les **collisions de cache entre providers IA** (`utils/cache.py`)
+- [x] **`[XS]`** Corriger les **collisions de cache entre providers IA** (`utils/cache.py`)
 	- Inclure le nom du provider (`AI_PROVIDER`) dans la clé MD5
 - [ ] **`[XS]`** Remplacer le **reset paresseux des quotas** par un job cron explicite
 	- Ajouter un job à 00:01 dans le crontab Docker
 	- `utils/quota.py` : forcer `reset_day()` au démarrage si date ≠ date du dernier état
+
+### 1.1 bis Checkpoint P1 — Vérification factuelle (29/04 soir)
+
+- [x] **`[XS]`** Aligner la documentation de référence avec l'implémentation réelle
+	- `docs/ameliorations/AMELIORATIONS.md` mis à jour
+	- `docs/RAPPORT_TECHNIQUE_PERFORMANCES_2026-04-29.md` actualisé (addendum post-correctifs)
+- [x] **`[S]`** Optimiser la latence d'ouverture du panneau entité
+	- route `/api/entities/articles` bornée en mode compact
+	- fallback disque complet désactivé en mode UI compact
+- [x] **`[S]`** Réduire la latence de l'onglet quotas
+	- `utils/quota.py` optimisé (sync mtime/TTL, payload borné)
+	- `/api/quota/stats` compact utilisé côté frontend
+- [x] **`[XS]`** Valider le runtime Docker après correctifs
+	- services `analyse-actualites-viewer` et `analyse-actualites-worker` démarrés
+	- endpoint `/api/runtime-info` opérationnel
+
+Preuves de traçabilité :
+
+- `CHANGELOG.md` : v2.8.12, v2.8.13, v2.8.14
+- `viewer/routes/entities.py`, `viewer/routes/quota.py`, `utils/quota.py`
+- `viewer/src/components/EntityArticlePanel.jsx`, `viewer/src/components/SettingsPanel.jsx`
 
 ### 1.2 Qualité du code — Moyen terme
 

@@ -1,3 +1,82 @@
+# 29/04/2026 — Accélération chargement entités compactes (v2.8.14)
+
+## Viewer — route entités
+
+- `viewer/routes/entities.py` : le fallback `rglob` complet est désormais désactivé en mode `compact=1` pour éviter les blocages lors de l'ouverture du panneau entité.
+- amélioration du temps de premier affichage pour les entités du dashboard (cas signalé : `PERSON:Jack Dorsey`).
+
+# 29/04/2026 — Optimisation chargement articles d'entité (v2.8.13)
+
+## Viewer — panneau entité
+
+- `viewer/routes/entities.py` : ajout d'un cache TTL mémoire (90s) sur `/api/entities/articles` pour éviter de relire les mêmes articles à chaque ouverture de panneau
+- `viewer/routes/entities.py` : ajout des paramètres `max_articles` et `compact` pour limiter le volume renvoyé et accélérer la réponse initiale
+- `viewer/src/components/EntityArticlePanel.jsx` : la requête de chargement passe en mode compact (`compact=1`) avec limite explicite (`max_articles=300`)
+- `viewer/src/components/EntityArticlePanel.jsx` : suppression du tri client redondant, le tri date restant pris en charge côté API
+
+# 29/04/2026 — Pilote AsyncEnricher + ajustement fallback /api/files (v2.8.12)
+
+## Exécution du plan performance — étapes 1/2/3
+
+- `scripts/enrich_entities.py` : ajout d'un mode pilote AsyncEnricher via `--use-async` et `--async-concurrency`
+- `scripts/USAGE.md` : documentation des nouveaux arguments async pour `enrich_entities.py`
+- `viewer/routes/files.py` : pause du double scan `/api/files` rendue configurable via `VIEWER_FILES_DOUBLE_SCAN_SLEEP_SECONDS` et abaissée par défaut
+- validation runtime Docker maintenue (`analyse-actualites-viewer` + `analyse-actualites-worker`) et contrôle de latence rapide sur `/api/runtime-info` (n=120, p50 ~2.6 ms, p95 ~22.9 ms)
+
+# 29/04/2026 — Calibration Gunicorn + découplage runtime Docker (v2.8.11)
+
+## Performance et exploitation — étapes 1 et 2 du plan
+
+- calibration initiale Gunicorn validée via test de charge léger sur `/api/runtime-info`
+- configuration conservée : `WUDD_GUNICORN_WORKERS=2`, `WUDD_GUNICORN_THREADS=4`, `WUDD_GUNICORN_TIMEOUT=120`
+- ajout de `--preload` dans Gunicorn pour éviter la double initialisation des index au boot multi-workers
+- `docker-compose.yml` découpé en deux services dédiés :
+  - `analyse-actualites-viewer` (viewer/API)
+  - `analyse-actualites-worker` (cron/batch)
+- `entrypoint.sh` passe en mode multi-rôle via `RUN_ROLE=viewer|worker|all`
+- documentation de déploiement mise à jour avec commandes de migration (gestion des orphelins)
+- rapport technique mis à jour avec les nouveaux statuts et mesures de référence
+
+# 29/04/2026 — Durcissement runtime viewer (v2.8.10)
+
+## Viewer Docker — bascule Gunicorn
+
+- le viewer en conteneur est désormais lancé via `gunicorn` sur `viewer.app:app` (au lieu de `python3 viewer/app.py`)
+- ajout de `gunicorn` dans `viewer/requirements.txt`
+- ajout de variables de tuning runtime dans l'entrypoint : `WUDD_VIEWER_PORT`, `WUDD_GUNICORN_WORKERS`, `WUDD_GUNICORN_THREADS`, `WUDD_GUNICORN_TIMEOUT`
+- mise à jour de la documentation de déploiement dans `docs/DEPLOY.md`
+- mise à jour du rapport `docs/RAPPORT_TECHNIQUE_PERFORMANCES_2026-04-29.md` (statut Gunicorn : partiellement traité)
+
+# 29/04/2026 — Nouveau rapport technique performances (v2.8.9)
+
+## Documentation — état des lieux performance et exploitation
+
+- ajout du rapport `docs/RAPPORT_TECHNIQUE_PERFORMANCES_2026-04-29.md`
+- consolidation de l'état réel du code au 29/04/2026 : optimisations livrées, points partiellement traités, et risques encore ouverts
+- clarification des écarts entre documentation historique (v2.5.0) et implémentation actuelle (v2.8.x)
+- proposition d'un plan d'action priorisé 30 jours (P1/P2/P3) avec indicateurs de suivi opérationnels
+
+# 29/04/2026 — Anti-doublons fichiers RSS keyword (v2.8.8)
+
+## Détection articles — stabilisation des noms de fichiers JSON
+
+- ajout de `utils/rss_file_naming.py` pour centraliser le nommage canonique des fichiers `data/articles-from-rss/<keyword>.json` (normalisation Unicode + slug stable)
+- `get-keyword-from-rss.py`, `flux_watcher.py` et `web_watcher.py` écrivent désormais toujours dans le fichier canonique du mot-clé
+- ces scripts absorbent aussi les alias existants (`keyword 2.json`, `keyword 3.json`, etc.) lors de la lecture, pour éviter les doublons d'URL et arrêter d'entretenir les copies suffixées
+- `utils/rolling_window.py` ignore les copies numérotées lors de la reconstruction de `48-heures.json` afin d'éviter la réintroduction de doublons depuis des fichiers jumeaux
+- ajout du script `scripts/cleanup_rss_duplicate_files.py` pour fusionner les alias de fichiers RSS, archiver les sources puis supprimer les copies
+- vérification et nettoyage des doublons en racine `data/` : `annotations 2.json`, `article_index 2.json`, `entity_index 2.json`
+- extension du script de cleanup pour couvrir aussi ces fichiers critiques en racine (fusion conservatrice pour `annotations`, suppression des copies suffixées)
+
+# 28/04/2026 — Configuration Ollama hôte/Docker durcie (v2.8.7)
+
+## Ollama — Résolution d'hôte et maintenance
+
+- séparation explicite de la configuration Ollama entre `OLLAMA_HOST_LOCAL` (hôte macOS) et `OLLAMA_HOST_DOCKER` (conteneur Docker), avec compatibilité descendante sur `OLLAMA_HOST`
+- `OllamaClient` choisit désormais automatiquement le bon hôte selon le contexte d'exécution, ce qui évite les bascules involontaires vers EurIA/Claude sur l'hôte quand `.env` était réglé pour Docker
+- la route viewer d'export Ollama réutilise la même logique de résolution pour rester cohérente avec le client partagé
+- documentation et exemples d'environnement mis à jour avec une procédure de maintenance Ollama courte et spécifique au Mac hôte
+
 # 22/04/2026 — Bascule EurIA vers Qwen/Qwen3.5-122B-A10B-FP8 (v2.8.6)
 
 ## IA — Modèle EurIA, fallback et harmonisation documentaire

@@ -1,7 +1,7 @@
 # WUDD.ai — Rapport d'améliorations logicielles
 
-**Date de mise à jour :** 15 mars 2026
-**Version courante :** 2.5.0
+**Date de mise à jour :** 29 avril 2026 (soir)
+**Version courante :** 2.8.14
 **Auteur :** Claude (Sonnet 4.6) — sessions de refactoring
 
 ---
@@ -247,6 +247,39 @@ Remplacement du `json.dump()` direct par le pattern `tmp → replace()`, élimin
 
 ## 5. Nouvelles propositions d'améliorations
 
+### Errata de statut — 29/04/2026
+
+Cette section contenait des propositions formulées en v2.5.0. Plusieurs points sont
+désormais implémentés dans le code courant. Statut vérifié au 29/04/2026 :
+
+- Fait : mise à jour des index après enrichissement dans `scripts/enrich_entities.py` et `scripts/enrich_sentiment.py`
+- Fait : `scripts/flux_watcher.py` utilise `utils/rolling_window.py`
+- Fait : `score_source` est alimenté à la création d'article dans `scripts/get-keyword-from-rss.py` et `scripts/web_watcher.py`
+- Fait : tests `parse_article_date()` présents dans `tests/test_date_utils.py`
+- Fait : tests rolling window présents dans `tests/test_rolling_window.py`
+- Fait : normalisation des clés d'entités en lowercase + forme canonique (`caps`) dans `utils/entity_index.py`
+- Fait : distinction `echec_parse` vs `echec_api` dans `utils/api_client.py` et les scripts d'enrichissement
+
+Points encore ouverts (à date) :
+
+- À faire : étendre l'usage async à `enrich_sentiment.py` (pilote déjà actif sur `enrich_entities.py`)
+- À faire : confirmer le tuning Gunicorn sous charge métier réelle (au-delà des tests légers)
+
+### Addendum P1 — Alignement documentaire (29/04 soir)
+
+Mise à jour de cohérence avec les livraisons effectives de la journée :
+
+- Fait : optimisation de `/api/entities/articles` (cache TTL, paramètres `max_articles`/`compact`, tri serveur, réduction du coût front)
+- Fait : désactivation du fallback disque complet `rglob` en mode compact pour accélérer l'ouverture du panneau entité
+- Fait : optimisation du chargement quota côté backend/API/UI (`get_stats` borné + synchronisation mtime/TTL)
+- Fait : déploiement Docker viewer/worker validé avec endpoint runtime opérationnel
+
+Preuves (références internes) :
+
+- `CHANGELOG.md` (entrées v2.8.12, v2.8.13, v2.8.14)
+- `docs/RAPPORT_TECHNIQUE_PERFORMANCES_2026-04-29.md` (section "Mise à jour post-correctifs du 29/04")
+- `viewer/routes/entities.py`, `viewer/routes/quota.py`, `viewer/src/components/EntityArticlePanel.jsx`, `viewer/src/components/SettingsPanel.jsx`
+
 L'analyse du code en v2.5.0 révèle les axes suivants, classés par priorité.
 
 ---
@@ -477,4 +510,4 @@ Ce rapport permettrait de détecter des régressions dans la qualité du pipelin
 
 ---
 
-*Rapport généré le 15 mars 2026 — WUDD.ai v2.5.0*
+*Rapport initial généré le 15 mars 2026 (v2.5.0), mis à jour en alignement P1 le 29 avril 2026 (soir, v2.8.14).*
