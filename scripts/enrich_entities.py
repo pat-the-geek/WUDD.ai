@@ -37,9 +37,10 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.logging import print_console, setup_logger
 from utils.config import get_config
-from utils.api_client import get_ai_client, get_ner_client
+from utils.api_client import get_ner_client
 from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
+from utils.async_enricher import AsyncEnricher
 
 logger = setup_logger(__name__)
 
@@ -77,6 +78,17 @@ def parse_args():
         "--force",
         action="store_true",
         help="Re-extraire les entités même si le champ 'entities' existe déjà.",
+    )
+    parser.add_argument(
+        "--use-async",
+        action="store_true",
+        help="Active le pilote AsyncEnricher (batch asynchrone) pour les appels NER.",
+    )
+    parser.add_argument(
+        "--async-concurrency",
+        type=int,
+        default=10,
+        help="Nombre max d'appels simultanés en mode async (défaut : 10).",
     )
     return parser.parse_args()
 
@@ -131,6 +143,8 @@ def collect_rss_files(rss_dir: Path, keyword_filter: str | None) -> list[tuple[P
 def enrich_file(
     json_file: Path,
     api_client,
+    async_enricher: AsyncEnricher | None,
+    use_async: bool,
     dry_run: bool,
     delay: float,
     force: bool,
@@ -151,63 +165,105 @@ def enrich_file(
 
     modified = False
 
-    for i, article in enumerate(articles):
-        stats["total"] += 1
+    if use_async and not dry_run and async_enricher is not None:
+        candidates: list[tuple[int, str]] = []
+        for i, article in enumerate(articles):
+            stats["total"] += 1
+            resume = article.get("Résumé", "").strip()
+            if not resume:
+                stats["ignores"] += 1
+                continue
+            if article.get("entities") and not force:
+                stats["deja_presents"] += 1
+                continue
+            candidates.append((i, resume))
 
-        resume = article.get("Résumé", "").strip()
-        if not resume:
-            stats["ignores"] += 1
-            continue
+        if candidates:
+            batch = [{"Résumé": resume} for _, resume in candidates]
+            batch_results = async_enricher.enrich_entities_batch(batch, timeout_per_request=60)
 
-        if article.get("entities") and not force:
-            stats["deja_presents"] += 1
-            continue
+            for pos, (article_idx, _) in enumerate(candidates):
+                article = articles[article_idx]
+                entities = (batch_results[pos] or {}).get("entities") if pos < len(batch_results) else None
+                if entities:
+                    article["entities"] = entities
+                    article["enrichissement_statut"] = "ok"
+                    modified = True
+                    stats["enrichis"] += 1
+                    nb_entites = sum(len(v) for v in entities.values())
+                    print_console(
+                        f"    Article {article_idx+1}/{len(articles)} — {article.get('Sources', '?')} "
+                        f"→ {nb_entites} entités ({len(entities)} types) [async]",
+                        level="debug",
+                    )
+                else:
+                    article["enrichissement_statut"] = "echec_api"
+                    modified = True
+                    stats["erreurs"] += 1
+                    print_console(
+                        f"    Article {article_idx+1}/{len(articles)} — {article.get('Sources', '?')} "
+                        f"→ réponse vide ou erreur API [async]",
+                        level="error",
+                    )
 
-        if dry_run:
-            print_console(
-                f"    [DRY-RUN] Article {i+1} — {article.get('Sources', '?')} "
-                f"({len(resume)} car.) → serait enrichi",
-                level="info",
-            )
-            stats["enrichis"] += 1
-            continue
+    if not use_async:
+        for i, article in enumerate(articles):
+            stats["total"] += 1
 
-        # Appel API via generate_entities() (parsing inclus)
-        entities = api_client.generate_entities(resume, timeout=60)
-        if entities is None:
-            # echec_parse : réponse reçue mais JSON non extractible
-            article["enrichissement_statut"] = "echec_parse"
-            modified = True
-            stats["erreurs"] += 1
-            print_console(
-                f"    Article {i+1}/{len(articles)} — {article.get('Sources', '?')} "
-                f"→ réponse non parseable (echec_parse)",
-                level="error",
-            )
-        elif entities:
-            article["entities"] = entities
-            article["enrichissement_statut"] = "ok"
-            modified = True
-            stats["enrichis"] += 1
-            nb_entites = sum(len(v) for v in entities.values())
-            print_console(
-                f"    Article {i+1}/{len(articles)} — {article.get('Sources', '?')} "
-                f"→ {nb_entites} entités ({len(entities)} types)",
-                level="debug",
-            )
-        else:
-            # {} : echec_api (exception réseau) ou aucune entité trouvée
-            article["enrichissement_statut"] = "echec_api"
-            modified = True
-            stats["erreurs"] += 1
-            print_console(
-                f"    Article {i+1}/{len(articles)} — {article.get('Sources', '?')} "
-                f"→ réponse vide ou erreur API",
-                level="error",
-            )
+            resume = article.get("Résumé", "").strip()
+            if not resume:
+                stats["ignores"] += 1
+                continue
 
-        if delay > 0:
-            time.sleep(delay)
+            if article.get("entities") and not force:
+                stats["deja_presents"] += 1
+                continue
+
+            if dry_run:
+                print_console(
+                    f"    [DRY-RUN] Article {i+1} — {article.get('Sources', '?')} "
+                    f"({len(resume)} car.) → serait enrichi",
+                    level="info",
+                )
+                stats["enrichis"] += 1
+                continue
+
+            # Appel API via generate_entities() (parsing inclus)
+            entities = api_client.generate_entities(resume, timeout=60)
+            if entities is None:
+                # echec_parse : réponse reçue mais JSON non extractible
+                article["enrichissement_statut"] = "echec_parse"
+                modified = True
+                stats["erreurs"] += 1
+                print_console(
+                    f"    Article {i+1}/{len(articles)} — {article.get('Sources', '?')} "
+                    f"→ réponse non parseable (echec_parse)",
+                    level="error",
+                )
+            elif entities:
+                article["entities"] = entities
+                article["enrichissement_statut"] = "ok"
+                modified = True
+                stats["enrichis"] += 1
+                nb_entites = sum(len(v) for v in entities.values())
+                print_console(
+                    f"    Article {i+1}/{len(articles)} — {article.get('Sources', '?')} "
+                    f"→ {nb_entites} entités ({len(entities)} types)",
+                    level="debug",
+                )
+            else:
+                # {} : echec_api (exception réseau) ou aucune entité trouvée
+                article["enrichissement_statut"] = "echec_api"
+                modified = True
+                stats["erreurs"] += 1
+                print_console(
+                    f"    Article {i+1}/{len(articles)} — {article.get('Sources', '?')} "
+                    f"→ réponse vide ou erreur API",
+                    level="error",
+                )
+
+            if delay > 0:
+                time.sleep(delay)
 
     # Sauvegarder uniquement si le fichier a été modifié
     if modified and not dry_run:
@@ -277,14 +333,29 @@ def main():
         print_console("[MODE DRY-RUN — aucun appel API, aucune sauvegarde]", level="info")
     print_console("", level="info")
 
-    api_client = None if args.dry_run else get_ner_client()
+    api_client = None if args.dry_run or args.use_async else get_ner_client()
+    async_enricher = None
+    if args.use_async and not args.dry_run:
+        async_enricher = AsyncEnricher(concurrency=max(1, args.async_concurrency))
+        print_console(
+            f"[MODE ASYNC] AsyncEnricher activé (concurrency={max(1, args.async_concurrency)})",
+            level="info",
+        )
 
     totaux = {"total": 0, "enrichis": 0, "deja_presents": 0, "erreurs": 0, "ignores": 0}
 
     for json_file, label in tagged_files:
         print_console(f"[{label}] {json_file.name}", level="info")
 
-        stats = enrich_file(json_file, api_client, args.dry_run, args.delay, args.force)
+        stats = enrich_file(
+            json_file,
+            api_client,
+            async_enricher,
+            args.use_async,
+            args.dry_run,
+            args.delay,
+            args.force,
+        )
 
         print_console(
             f"  total={stats['total']}  enrichis={stats['enrichis']}  "
