@@ -267,6 +267,10 @@ comme référence. Copier-le sur le Mac hôte avant de lancer Docker.
 > Homebrew peut régénérer son propre plist sans `OLLAMA_HOST=0.0.0.0` lors d'un
 > `brew upgrade ollama`.
 
+> **Configuration WUDD.ai** : garder `OLLAMA_HOST_LOCAL=localhost` dans `.env`
+> pour l'exécution sur l'hôte et injecter `OLLAMA_HOST_DOCKER=host.docker.internal`
+> uniquement dans `docker-compose.yml`.
+
 ---
 
 ### Problème : Variables `AI_PROVIDER_*` ignorées dans le cron Docker
@@ -335,5 +339,56 @@ git filter-branch --force --index-filter \
 
 ---
 
-**Dernière mise à jour** : 22 février 2026  
-**Version** : 3.0
+### Runtime viewer Docker : Gunicorn (durcissement)
+
+Le viewer est désormais démarré via Gunicorn dans le conteneur au lieu de
+`python3 viewer/app.py`.
+
+Variables de tuning :
+
+- `WUDD_VIEWER_PORT` (défaut `5050`)
+- `WUDD_GUNICORN_WORKERS` (défaut `2`)
+- `WUDD_GUNICORN_THREADS` (défaut `4`)
+- `WUDD_GUNICORN_TIMEOUT` (défaut `120` secondes)
+
+Commande (simplifiée) :
+
+```bash
+gunicorn --bind 0.0.0.0:${WUDD_VIEWER_PORT:-5050} \
+  --workers ${WUDD_GUNICORN_WORKERS:-2} \
+  --threads ${WUDD_GUNICORN_THREADS:-4} \
+  --timeout ${WUDD_GUNICORN_TIMEOUT:-120} \
+  viewer.app:app
+```
+
+### Runtime Docker séparé : viewer + worker
+
+Le `docker-compose.yml` est découpé en deux services :
+
+- `analyse-actualites-viewer` : API Flask/Gunicorn + frontend
+- `analyse-actualites-worker` : cron + batchs pipeline
+
+Commandes utiles :
+
+```bash
+# Build + démarrage des 2 services
+docker compose up -d --build --remove-orphans
+
+# État des services
+docker compose ps
+
+# Logs séparés
+docker compose logs -f analyse-actualites-viewer
+docker compose logs -f analyse-actualites-worker
+```
+
+En cas de migration depuis l'ancien service unique `analyse-actualites`,
+supprimer l'orphelin qui peut garder le port 5050 :
+
+```bash
+docker rm -f analyse-actualites || true
+docker compose up -d --build --remove-orphans
+```
+
+**Dernière mise à jour** : 29 avril 2026  
+**Version** : 3.1

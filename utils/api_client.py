@@ -2004,11 +2004,33 @@ class OllamaClient(EurIAClient):
     _provider_label: str = "Ollama"
 
     @staticmethod
-    def _ollama_host() -> str:
-        """Retourne l'hôte Ollama depuis OLLAMA_HOST (défaut localhost).
-        Dans Docker sur macOS, positionner OLLAMA_HOST=host.docker.internal."""
+    def _is_running_in_docker() -> bool:
         import os as _os
-        return _os.environ.get("OLLAMA_HOST", "localhost")
+        return _os.path.exists("/.dockerenv") or _os.environ.get("RUNNING_IN_DOCKER") == "1"
+
+    @staticmethod
+    def _ollama_host() -> str:
+        """Retourne l'hôte Ollama selon le contexte d'exécution.
+
+        Priorité :
+        - `OLLAMA_HOST_DOCKER` dans un conteneur
+        - `OLLAMA_HOST_LOCAL` sur l'hôte
+        - `OLLAMA_HOST` pour compatibilité descendante
+        - fallback implicite (`host.docker.internal` dans Docker, sinon `localhost`)
+        """
+        import os as _os
+        if OllamaClient._is_running_in_docker():
+            return (
+                _os.environ.get("OLLAMA_HOST_DOCKER", "").strip()
+                or _os.environ.get("OLLAMA_HOST", "").strip()
+                or "host.docker.internal"
+            )
+
+        return (
+            _os.environ.get("OLLAMA_HOST_LOCAL", "").strip()
+            or _os.environ.get("OLLAMA_HOST", "").strip()
+            or "localhost"
+        )
 
     @classmethod
     def _default_url(cls) -> str:
@@ -2120,7 +2142,7 @@ class OllamaClient(EurIAClient):
 
     @classmethod
     def is_available(cls) -> bool:
-        """Vérifie que le serveur Ollama répond (hôte défini par OLLAMA_HOST)."""
+        """Vérifie que le serveur Ollama répond sur l'hôte résolu."""
         import requests as _req
         try:
             r = _req.get(f"http://{cls._ollama_host()}:11434/api/tags", timeout=3)

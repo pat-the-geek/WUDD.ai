@@ -322,9 +322,23 @@ Le fichier `.env` n'est jamais commité (`.gitignore`). Référez-vous à `.env.
 | `AI_PROVIDER_NER` | Provider dédié NER/sentiment batch : `ollama` pour l'inférence locale, vide = idem `AI_PROVIDER` |
 | `AI_PROVIDER_SUMMARY` | Provider dédié aux résumés d'articles : `ollama` pour l'inférence locale, vide = idem `AI_PROVIDER` |
 | `OLLAMA_MODEL` | Modèle Ollama à utiliser (défaut : `qwen2.5:7b`) |
-| `OLLAMA_HOST` | Hôte Ollama (défaut : `localhost`, mettre `host.docker.internal` dans Docker) |
+| `OLLAMA_HOST_LOCAL` | Hôte Ollama pour l'exécution locale sur le Mac (recommandé : `localhost`) |
+| `OLLAMA_HOST_DOCKER` | Hôte Ollama utilisé dans le conteneur Docker (recommandé : `host.docker.internal` sur macOS) |
 | `OBSIDIAN_DIR` | Chemin absolu vers le vault Obsidian (export de notes, optionnel) |
 | `BACKUP_L1` / `BACKUP_L2` | Chemins de sauvegarde incrémentale de `data/` |
+
+#### Configuration Ollama propre (macOS + Docker)
+
+- Mettre `OLLAMA_HOST_LOCAL=localhost` dans `.env` pour toutes les exécutions lancées directement sur le Mac.
+- Laisser `docker-compose.yml` injecter `OLLAMA_HOST_DOCKER=host.docker.internal` pour le conteneur.
+- `OLLAMA_HOST` reste accepté pour compatibilité descendante, mais il n'est plus recommandé pour un projet exécuté à la fois sur l'hôte et dans Docker.
+
+#### Maintenance Ollama rapide
+
+- Vérifier la version : `ollama --version`
+- Mettre à jour : `brew upgrade ollama`
+- Redémarrer le LaunchAgent : `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.wudd.ollama.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.wudd.ollama.plist`
+- Vérifier l'API locale : `curl http://localhost:11434/api/tags`
 
 #### 2. Fichier de flux `config/flux_json_sources.json`
 

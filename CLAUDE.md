@@ -141,7 +141,8 @@ Required variables:
 | `AI_PROVIDER_NER` | Dedicated provider for NER/sentiment batch: `ollama` for local inference, empty = same as `AI_PROVIDER` |
 | `AI_PROVIDER_SUMMARY` | Dedicated provider for article summaries: `ollama` for local inference, empty = same as `AI_PROVIDER` |
 | `OLLAMA_MODEL` | Ollama model to use (default: `qwen2.5:7b`) |
-| `OLLAMA_HOST` | Ollama server host (default: `localhost`; use `host.docker.internal` inside Docker on macOS). **Important :** Ollama doit écouter sur `0.0.0.0` (pas `127.0.0.1`) pour être accessible depuis Docker sur macOS — voir `~/Library/LaunchAgents/com.wudd.ollama.plist` |
+| `OLLAMA_HOST_LOCAL` | Ollama server host for local host execution (recommended: `localhost`) |
+| `OLLAMA_HOST_DOCKER` | Ollama server host inside Docker on macOS (recommended: `host.docker.internal`) |
 
 **Never commit `.env` to git.** It is listed in `.gitignore`.
 
@@ -530,7 +531,7 @@ Coverage targets: `utils/` ≥ 80%, `scripts/` ≥ 60%, critical functions 100%.
 
 10. **Credibility-weighted scoring** — `utils/source_credibility.py` loads `config/sources_credibility.json` and provides a multiplier (0.0–1.0) per source. `utils/scoring.py` applies this multiplier to relevance scores so that highly-credible sources rank higher. Add new sources to `sources_credibility.json` rather than hardcoding scores in scripts.
 
-11. **NER provider separation (Option A)** — `get_ner_client()` in `utils/api_client.py` decouples NER/sentiment batch calls from the main AI provider. When `AI_PROVIDER_NER=ollama`, NER runs on local Ollama (no API cost, Metal/NPU acceleration on Apple Silicon); summaries, reports and synthesis remain on the cloud provider. Fallback to cloud is automatic if Ollama is unreachable. In Docker on macOS, set `OLLAMA_HOST=host.docker.internal` (already injected via `docker-compose.yml`). Never call `get_ai_client()` directly in enrichment scripts — use `get_ner_client()` instead.
+11. **NER provider separation (Option A)** — `get_ner_client()` in `utils/api_client.py` decouples NER/sentiment batch calls from the main AI provider. When `AI_PROVIDER_NER=ollama`, NER runs on local Ollama (no API cost, Metal/NPU acceleration on Apple Silicon); summaries, reports and synthesis remain on the cloud provider. Fallback to cloud is automatic if Ollama is unreachable. Use `OLLAMA_HOST_LOCAL=localhost` on the host and `OLLAMA_HOST_DOCKER=host.docker.internal` in Docker on macOS. Never call `get_ai_client()` directly in enrichment scripts — use `get_ner_client()` instead.
 
 12. **Summary provider separation (Option B)** — `get_summary_client()` in `utils/api_client.py` decouples article summary generation from the main AI provider. When `AI_PROVIDER_SUMMARY=ollama`, summaries run on local Ollama (no API cost). Returns `FallbackClient(OllamaClient, EurIAClient)` — fallback to cloud is automatic on exception or `None` result. Used by `flux_watcher.py`, `get-keyword-from-rss.py`, `web_watcher.py`, `repair_failed_summaries.py`, and `Get_data_from_JSONFile_AskSummary_v2.py`. Never call `get_ai_client()` directly in summarisation scripts — use `get_summary_client()` instead.
 

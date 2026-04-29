@@ -680,6 +680,8 @@ class TestOllamaClient:
     def test_ollama_host_default(self):
         from utils.api_client import OllamaClient
         with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("OLLAMA_HOST_LOCAL", None)
+            os.environ.pop("OLLAMA_HOST_DOCKER", None)
             os.environ.pop("OLLAMA_HOST", None)
             assert OllamaClient._ollama_host() == "localhost"
 
@@ -687,6 +689,34 @@ class TestOllamaClient:
         from utils.api_client import OllamaClient
         with patch.dict(os.environ, {"OLLAMA_HOST": "host.docker.internal"}):
             assert OllamaClient._ollama_host() == "host.docker.internal"
+
+    def test_ollama_host_local_preferred_on_host(self):
+        from utils.api_client import OllamaClient
+        with patch.object(OllamaClient, "_is_running_in_docker", return_value=False):
+            with patch.dict(
+                os.environ,
+                {
+                    "OLLAMA_HOST": "legacy-host",
+                    "OLLAMA_HOST_LOCAL": "localhost",
+                    "OLLAMA_HOST_DOCKER": "host.docker.internal",
+                },
+                clear=False,
+            ):
+                assert OllamaClient._ollama_host() == "localhost"
+
+    def test_ollama_host_docker_preferred_in_container(self):
+        from utils.api_client import OllamaClient
+        with patch.object(OllamaClient, "_is_running_in_docker", return_value=True):
+            with patch.dict(
+                os.environ,
+                {
+                    "OLLAMA_HOST": "legacy-host",
+                    "OLLAMA_HOST_LOCAL": "localhost",
+                    "OLLAMA_HOST_DOCKER": "host.docker.internal",
+                },
+                clear=False,
+            ):
+                assert OllamaClient._ollama_host() == "host.docker.internal"
 
     def test_default_url_uses_host(self):
         from utils.api_client import OllamaClient
@@ -840,10 +870,8 @@ class TestGetNerClient:
         from utils.api_client import EurIAClient, get_ner_client
         import utils.config as cfg_mod
 
-        env = {**_ENV_BASE, "ANTHROPIC_API_KEY": ""}
-        env.pop("AI_PROVIDER_NER", None)
+        env = {**_ENV_BASE, "ANTHROPIC_API_KEY": "", "AI_PROVIDER_NER": ""}
         with patch.dict(os.environ, env, clear=False):
-            os.environ.pop("AI_PROVIDER_NER", None)
             cfg_mod._config_instance = None
             try:
                 client = get_ner_client()
