@@ -405,16 +405,65 @@ def _parse_sentiment_response(raw: str) -> Optional[dict]:
     fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
     if fence:
         text = fence.group(1).strip()
+
+    def _extract_sentiment_fields(candidate: str) -> dict:
+        result = {}
+
+        sentiment_match = re.search(
+            r'"sentiment"\s*:\s*"(positif|neutre|négatif|negatif)"',
+            candidate,
+            flags=re.IGNORECASE,
+        )
+        if sentiment_match:
+            sentiment = sentiment_match.group(1).strip().lower().replace("negatif", "négatif")
+            if sentiment in _SENTIMENT_VALUES:
+                result["sentiment"] = sentiment
+
+        score_s_match = re.search(r'"score_sentiment"\s*:\s*([1-5])\b', candidate, flags=re.IGNORECASE)
+        if score_s_match:
+            result["score_sentiment"] = int(score_s_match.group(1))
+            if "sentiment" not in result:
+                if result["score_sentiment"] <= 2:
+                    result["sentiment"] = "négatif"
+                elif result["score_sentiment"] == 3:
+                    result["sentiment"] = "neutre"
+                else:
+                    result["sentiment"] = "positif"
+
+        ton_match = re.search(
+            r'"ton_editorial"\s*:\s*"(factuel|alarmiste|promotionnel|critique|analytique)"',
+            candidate,
+            flags=re.IGNORECASE,
+        )
+        if ton_match:
+            ton = ton_match.group(1).strip().lower()
+            if ton in _TON_VALUES:
+                result["ton_editorial"] = ton
+
+        score_t_match = re.search(r'"score_ton"\s*:\s*([1-5])\b', candidate, flags=re.IGNORECASE)
+        if score_t_match:
+            result["score_ton"] = int(score_t_match.group(1))
+
+        return result
+
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
         obj = re.search(r"\{[\s\S]*\}", text)
         if not obj:
+            fallback = _extract_sentiment_fields(text)
+            if fallback:
+                default_logger.debug("Réponse sentiment partielle — extraction par regex réussie")
+                return fallback
             default_logger.warning("Impossible d'extraire du JSON depuis la réponse sentiment")
             return None  # echec_parse : pas de JSON du tout
         try:
             data = json.loads(obj.group(0))
         except json.JSONDecodeError:
+            fallback = _extract_sentiment_fields(obj.group(0))
+            if fallback:
+                default_logger.debug("JSON sentiment tronqué — extraction par regex réussie")
+                return fallback
             default_logger.warning("JSON sentiment invalide après extraction")
             return None  # echec_parse : JSON malformé
     if not isinstance(data, dict):
@@ -426,6 +475,13 @@ def _parse_sentiment_response(raw: str) -> Optional[dict]:
     score_s = data.get("score_sentiment")
     if isinstance(score_s, (int, float)) and 1 <= score_s <= 5:
         result["score_sentiment"] = int(score_s)
+        if "sentiment" not in result:
+            if result["score_sentiment"] <= 2:
+                result["sentiment"] = "négatif"
+            elif result["score_sentiment"] == 3:
+                result["sentiment"] = "neutre"
+            else:
+                result["sentiment"] = "positif"
     ton = str(data.get("ton_editorial", "")).strip().lower()
     if ton in _TON_VALUES:
         result["ton_editorial"] = ton
@@ -1028,7 +1084,14 @@ class EurIAClient:
 
         prompt = _PROMPT_SENTIMENT_TEMPLATE.format(resume=resume.strip()[:3000])
         try:
-            raw = self.ask(prompt, max_attempts=2, timeout=timeout, max_tokens=150, enable_web_search=False)
+            raw = self.ask(
+                prompt,
+                max_attempts=2,
+                timeout=timeout,
+                max_tokens=300,
+                enable_web_search=False,
+                system_message=_EURIA_REASONING_RETRY_SYSTEM,
+            )
             return _parse_sentiment_response(raw)  # None = echec_parse
         except Exception as e:
             default_logger.warning(f"Analyse sentiment échouée : {e}")

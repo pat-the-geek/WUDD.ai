@@ -276,15 +276,23 @@ class AsyncEnricher:
         if task_type == "entities":
             prompt = _PROMPT_ENTITIES.format(resume=resume)
             max_tokens = 800
+            messages = [{"content": prompt, "role": "user"}]
         else:
             prompt = _PROMPT_SENTIMENT_TEMPLATE.format(resume=resume[:3000])
-            max_tokens = 150
+            max_tokens = 300
+            messages = [
+                {
+                    "role": "system",
+                    "content": "Réponds uniquement avec la réponse finale utile dans le champ content. "
+                    "N'inclus aucun raisonnement, aucune balise <think>, aucun commentaire méta.",
+                },
+                {"content": prompt, "role": "user"},
+            ]
 
         headers = config.get_api_headers()
 
         raw = ""
         for attempt in range(2):
-            messages = [{"content": prompt, "role": "user"}]
             if attempt == 1:
                 messages = [{
                     "role": "system",

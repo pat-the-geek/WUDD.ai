@@ -250,6 +250,23 @@ Conclusion opérationnelle :
 - avec `AI_PROVIDER_NER=ollama`, il n'apporte pas d'accélération mesurable à ce stade, ce qui est cohérent avec le fallback de compatibilité ;
 - le gain de parallélisation restera à mesurer avec un backend HTTP réellement exploitable en async (EurIA/Claude) ou avec une implémentation async native pour Ollama.
 
+### Correctif EurIA sentiment (suite du 29/04 soir)
+
+Le point bloquant sur EurIA a finalement été identifié puis corrigé :
+
+- le modèle émettait souvent un `reasoning` sans `content` final utile ;
+- avec un message système strict et un budget de sortie porté à `300`, le taux de réponses exploitables remonte fortement ;
+- le parseur sentiment tolère désormais les JSON partiels/tronqués et reconstruit `sentiment` à partir de `score_sentiment` quand ce champ textuel manque.
+
+Campagne de revalidation sur 5 résumés réels de `data/articles-from-rss/intelligence-artificielle.json` :
+
+| Configuration | n | Succès | Temps total | Temps moyen/article | Gain |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Sync EurIA corrigé | 5 | 4/5 | 5.84 s | 1.17 s | ref |
+| Async EurIA corrigé (`provider='euria'`, concurrency=5) | 5 | 4/5 | 3.04 s | 0.61 s | 1.93x |
+
+Conclusion pratique : le benchmark EurIA devient enfin lisible après correctif. Le gain async existe bien sur un backend HTTP compatible, même si un reliquat d'échec `1/5` subsiste encore sur cet échantillon court.
+
 ---
 
 ## Conclusion

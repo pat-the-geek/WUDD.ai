@@ -1,3 +1,12 @@
+# 29/04/2026 — Stabilisation sentiment EurIA sync/async (v2.8.18)
+
+## API client — parsing et budget de sortie
+
+- `utils/api_client.py` : `generate_sentiment()` EurIA impose désormais le message système anti-reasoning et augmente `max_tokens` à `300`.
+- `utils/api_client.py` : `_parse_sentiment_response()` sait extraire les champs utiles depuis un JSON tronqué et infère `sentiment` à partir de `score_sentiment` quand nécessaire.
+- `utils/async_enricher.py` : le chemin async EurIA sentiment utilise le même cadrage anti-reasoning et le même budget de sortie.
+- benchmark réel EurIA sur `data/articles-from-rss/intelligence-artificielle.json` (5 résumés) après correctif : `sync_total=5.84s`, `async_total=3.04s`, `sync_ok=4/5`, `async_ok=4/5`, `speedup=1.93x`.
+
 # 29/04/2026 — Alignement AsyncEnricher sur AI_PROVIDER_NER (v2.8.17)
 
 ## Async batch — sentiment / NER
