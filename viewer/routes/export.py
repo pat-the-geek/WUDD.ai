@@ -740,7 +740,7 @@ def api_chat_stream():
         from utils.api_client import OllamaClient as _OllamaClient
         if not _OllamaClient.is_available():
             return jsonify({"error": "Serveur Ollama injoignable. Démarrez-le : brew services start ollama"}), 503
-        ollama_host  = os.environ.get("OLLAMA_HOST", "localhost")
+        ollama_host  = _OllamaClient._ollama_host()
         ollama_model = os.environ.get("OLLAMA_MODEL", _OllamaClient._DEFAULT_MODEL).strip()
         ollama_url   = f"http://{ollama_host}:11434/v1/chat/completions"
         payload = {
