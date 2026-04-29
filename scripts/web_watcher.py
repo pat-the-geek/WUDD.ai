@@ -43,6 +43,7 @@ from utils.entity_index import get_entity_index
 from utils.logging import print_console
 from utils.quota import get_quota_manager
 from utils.rolling_window import update_rolling_window
+from utils.rss_file_naming import keyword_json_path, keyword_alias_paths
 from utils.source_credibility import CredibilityEngine
 
 _credibility = CredibilityEngine(PROJECT_ROOT)
@@ -554,15 +555,19 @@ def _process_source(
         return 0
 
     # Fichier de sortie pour ce keyword
-    out_path = OUTPUT_DIR / f"{keyword.replace(' ', '-').lower()}.json"
+    out_path = keyword_json_path(OUTPUT_DIR, keyword)
     existing_articles: list = []
     existing_urls: set = set()
-    if out_path.exists():
+    for alias_path in keyword_alias_paths(OUTPUT_DIR, keyword):
+        if not alias_path.exists():
+            continue
         try:
-            existing_articles = json.loads(out_path.read_text(encoding="utf-8"))
-            existing_urls = {a.get("URL", "") for a in existing_articles}
+            alias_articles = json.loads(alias_path.read_text(encoding="utf-8"))
+            if isinstance(alias_articles, list):
+                existing_articles.extend(a for a in alias_articles if isinstance(a, dict))
         except Exception:
-            pass
+            continue
+    existing_urls = {a.get("URL", "") for a in existing_articles if a.get("URL", "")}
 
     added = 0
     new_for_48h: list = []

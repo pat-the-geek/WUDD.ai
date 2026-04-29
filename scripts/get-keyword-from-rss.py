@@ -36,6 +36,7 @@ from utils.http_utils import fetch_and_extract_text, extract_top_n_largest_image
 from utils.logging import print_console
 from utils.quota import get_quota_manager
 from utils.rolling_window import update_rolling_window
+from utils.rss_file_naming import keyword_json_path, keyword_alias_paths
 from utils.source_credibility import CredibilityEngine
 
 # Constantes
@@ -285,13 +286,18 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                 if not matched:
                     continue
 
-                out_path = OUTPUT_DIR / f"{kw.replace(' ', '-').lower()}.json"
-                # Charger existant pour éviter doublons
-                if out_path.exists():
-                    with open(out_path, "r", encoding="utf-8") as f:
-                        existing_urls = {a["URL"] for a in json.load(f)}
-                else:
-                    existing_urls = set()
+                out_path = keyword_json_path(OUTPUT_DIR, kw)
+                # Charger existant pour éviter doublons (inclut les copies suffixées " 2", " 3", ...)
+                existing_urls = set()
+                for alias_path in keyword_alias_paths(OUTPUT_DIR, kw):
+                    if not alias_path.exists():
+                        continue
+                    try:
+                        with open(alias_path, "r", encoding="utf-8") as f:
+                            existing_urls.update(a.get("URL", "") for a in json.load(f) if isinstance(a, dict))
+                    except Exception:
+                        continue
+                existing_urls.discard("")
                 # Vérifier si déjà traité
                 if link in existing_urls or link in results[kw]:
                     print_console(f"    [Article {idx}] Déjà présent pour '{kw}', ignoré.", level="debug")
@@ -365,7 +371,7 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                     "score_source": round(_credibility.get_composite_score(feed_title)),
                     "mot_cle": kw,
                     "terme_declencheur": trigger_term,
-                    "fichier_source": str((OUTPUT_DIR / f"{kw.replace(' ', '-').lower()}.json").relative_to(PROJECT_ROOT)).replace("\\", "/"),
+                    "fichier_source": str(out_path.relative_to(PROJECT_ROOT)).replace("\\", "/"),
                 }
                 if and_term:
                     article["terme_and"] = and_term
@@ -399,14 +405,20 @@ for kw, articles in results.items():
     if not articles:
         print_console(f"Aucun article pour le mot-clé '{kw}', aucun fichier généré.", level="info")
         continue
-    out_path = OUTPUT_DIR / f"{kw.replace(' ', '-').lower()}.json"
-    # Charger existant pour éviter doublons
-    if out_path.exists():
-        with open(out_path, "r", encoding="utf-8") as f:
-            existing_list = json.load(f)
-        print_console(f"{len(existing_list)} articles déjà présents dans {out_path.name}")
-    else:
-        existing_list = []
+    out_path = keyword_json_path(OUTPUT_DIR, kw)
+    # Charger existant pour éviter doublons (inclut les copies suffixées " 2", " 3", ...)
+    existing_list = []
+    for alias_path in keyword_alias_paths(OUTPUT_DIR, kw):
+        if not alias_path.exists():
+            continue
+        try:
+            alias_list = json.loads(alias_path.read_text(encoding="utf-8"))
+            if isinstance(alias_list, list):
+                existing_list.extend(a for a in alias_list if isinstance(a, dict))
+        except Exception:
+            continue
+    if existing_list:
+        print_console(f"{len(existing_list)} articles déjà présents (fichiers alias inclus) pour {out_path.name}")
     # Déduplication avancée (URL + similarité de titre)
     dedup = Deduplicator(title_threshold=0.85)
     new_list = list(articles.values())

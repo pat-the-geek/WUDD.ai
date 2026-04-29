@@ -38,6 +38,7 @@ from utils.quota import get_quota_manager
 from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
 from utils.rolling_window import update_rolling_window
+from utils.rss_file_naming import keyword_json_path, keyword_alias_paths
 
 # ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -267,14 +268,17 @@ def main(dry_run: bool = False) -> None:
             if not matched:
                 continue
 
-            out_path = OUTPUT_DIR / f"{kw.replace(' ', '-').lower()}.json"
+            out_path = keyword_json_path(OUTPUT_DIR, kw)
             existing_urls: set = set()
-            if out_path.exists():
+            for alias_path in keyword_alias_paths(OUTPUT_DIR, kw):
+                if not alias_path.exists():
+                    continue
                 try:
-                    with open(out_path, "r", encoding="utf-8") as f:
-                        existing_urls = {a["URL"] for a in json.load(f)}
+                    with open(alias_path, "r", encoding="utf-8") as f:
+                        existing_urls.update(a.get("URL", "") for a in json.load(f) if isinstance(a, dict))
                 except Exception:
                     pass
+            existing_urls.discard("")
 
             if link in existing_urls:
                 print_console(f"  Déjà présent pour '{kw}' : {link[:60]}...", level="debug")

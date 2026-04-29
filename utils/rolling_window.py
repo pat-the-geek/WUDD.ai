@@ -25,6 +25,7 @@ from typing import Optional
 
 from .date_utils import parse_article_date, utc_now_naive
 from .logging import default_logger
+from .rss_file_naming import canonical_stem, is_numbered_copy
 
 _lock = threading.Lock()
 
@@ -89,11 +90,25 @@ def update_rolling_window(
 
             seen_urls: set[str] = set()
             collected: list[dict] = []
+
+            # Sélection d'un seul fichier par stem canonique pour ignorer les
+            # copies accidentelles du type "keyword 2.json".
+            selected_files: dict[str, Path] = {}
             for json_file in sorted(source_dir.glob("*.json")):
                 if json_file.resolve() == output_path.resolve():
                     continue
                 if "cache" in json_file.parts:
                     continue
+                stem_key = canonical_stem(json_file.stem)
+                current = selected_files.get(stem_key)
+                if current is None:
+                    selected_files[stem_key] = json_file
+                    continue
+                # Préférer le nom canonique (non numéroté) quand présent.
+                if is_numbered_copy(current) and not is_numbered_copy(json_file):
+                    selected_files[stem_key] = json_file
+
+            for json_file in selected_files.values():
                 try:
                     articles = json.loads(json_file.read_text(encoding="utf-8"))
                     if not isinstance(articles, list):
