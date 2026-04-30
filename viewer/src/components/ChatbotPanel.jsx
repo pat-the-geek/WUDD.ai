@@ -749,8 +749,9 @@ Voici ce que je peux faire pour vous :
       let buf = ''
       let accumulated = ''
       let firstChunk = true
+      let streamDone = false
 
-      while (true) {
+      while (!streamDone) {
         const { value, done } = await reader.read()
         if (done) break
         buf += decoder.decode(value, { stream: true })
@@ -763,7 +764,7 @@ Voici ce que je peux faire pour vous :
           if (line.startsWith('data: ')) raw = line.slice(6).trim()
           else raw = line.trim()
 
-          if (raw === '[DONE]') break
+          if (raw === '[DONE]') { streamDone = true; break }
           if (!raw) continue
 
           try {

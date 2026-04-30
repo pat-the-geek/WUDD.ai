@@ -1401,11 +1401,11 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [reportArticle, setReportArticle] = useState(null)
 
-  const { playing, currentIdx, start: podcastStart, stop: podcastStop } = usePodcast(articles)
-
   const topUrl = `/api/articles/top?n=${topN}&hours=${hours}`
   const { data: topData, loading, error, reload: load } = useFetchCache(topUrl, { ttl: 5 * 60 * 1000 })
   const articles = Array.isArray(topData) ? topData : []
+
+  const { playing, currentIdx, start: podcastStart, stop: podcastStop } = usePodcast(articles)
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
