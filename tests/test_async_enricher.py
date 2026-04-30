@@ -86,8 +86,9 @@ class TestEnrichEntitiesBatchAsync:
             coro.close()
             return expected
 
-        with patch("utils.async_enricher.asyncio.run", side_effect=run_and_close) as mock_run:
-            result = enricher.enrich_entities_batch(articles, timeout_per_request=30)
+        with patch.object(enricher, "_resolve_provider", return_value="euria"):
+            with patch("utils.async_enricher.asyncio.run", side_effect=run_and_close) as mock_run:
+                result = enricher.enrich_entities_batch(articles, timeout_per_request=30)
 
         mock_run.assert_called_once()
         assert result == expected
@@ -105,8 +106,9 @@ class TestEnrichEntitiesBatchAsync:
             coro.close()  # avoid "coroutine was never awaited" warning
             return articles
 
-        with patch("utils.async_enricher.asyncio.run", side_effect=capture_coro):
-            enricher.enrich_entities_batch(articles)
+        with patch.object(enricher, "_resolve_provider", return_value="euria"):
+            with patch("utils.async_enricher.asyncio.run", side_effect=capture_coro):
+                enricher.enrich_entities_batch(articles)
 
         assert len(coros_passed) == 1
         import inspect
@@ -175,8 +177,9 @@ class TestEnrichSentimentBatchAsync:
             coro.close()
             return expected
 
-        with patch("utils.async_enricher.asyncio.run", side_effect=run_and_close) as mock_run:
-            result = enricher.enrich_sentiment_batch(articles, timeout_per_request=20)
+        with patch.object(enricher, "_resolve_provider", return_value="euria"):
+            with patch("utils.async_enricher.asyncio.run", side_effect=run_and_close) as mock_run:
+                result = enricher.enrich_sentiment_batch(articles, timeout_per_request=20)
 
         mock_run.assert_called_once()
         assert result == expected
@@ -194,8 +197,9 @@ class TestEnrichSentimentBatchAsync:
             coro.close()
             return []
 
-        with patch("utils.async_enricher.asyncio.run", side_effect=capture):
-            enricher.enrich_sentiment_batch([{"Résumé": "test"}])
+        with patch.object(enricher, "_resolve_provider", return_value="euria"):
+            with patch("utils.async_enricher.asyncio.run", side_effect=capture):
+                enricher.enrich_sentiment_batch([{"Résumé": "test"}])
 
         assert len(coros_seen) == 1
 
@@ -299,7 +303,7 @@ class TestSyncFallbackEntities:
         ]
 
         enricher = AsyncEnricher()
-        with patch("utils.api_client.get_ai_client", return_value=mock_client):
+        with patch("utils.api_client.get_ner_client", return_value=mock_client):
             result = enricher._sync_fallback_entities(articles)
 
         assert len(result) == 2
@@ -340,7 +344,7 @@ class TestSyncFallbackSentiment:
         }
 
         enricher = AsyncEnricher()
-        with patch("utils.api_client.get_ai_client", return_value=mock_client):
+        with patch("utils.api_client.get_ner_client", return_value=mock_client):
             result = enricher._sync_fallback_sentiment(articles)
 
         assert result[0]["sentiment"] == "positif"
@@ -376,7 +380,7 @@ class TestSyncFallbackSentiment:
         mock_client.generate_sentiment.return_value = None
 
         enricher = AsyncEnricher()
-        with patch("utils.api_client.get_ai_client", return_value=mock_client):
+        with patch("utils.api_client.get_ner_client", return_value=mock_client):
             result = enricher._sync_fallback_sentiment(articles)
 
         assert "sentiment" not in result[0]

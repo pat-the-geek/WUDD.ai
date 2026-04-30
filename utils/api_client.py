@@ -469,13 +469,14 @@ def _parse_sentiment_response(raw: str) -> Optional[dict]:
     if not isinstance(data, dict):
         return {}
     result = {}
+    has_explicit_sentiment = "sentiment" in data
     sentiment = str(data.get("sentiment", "")).strip().lower()
     if sentiment in _SENTIMENT_VALUES:
         result["sentiment"] = sentiment
     score_s = data.get("score_sentiment")
     if isinstance(score_s, (int, float)) and 1 <= score_s <= 5:
         result["score_sentiment"] = int(score_s)
-        if "sentiment" not in result:
+        if "sentiment" not in result and not has_explicit_sentiment:
             if result["score_sentiment"] <= 2:
                 result["sentiment"] = "négatif"
             elif result["score_sentiment"] == 3:

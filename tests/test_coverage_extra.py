@@ -217,7 +217,8 @@ class TestQuotaCorruptFiles:
         state_path.write_text("bad json", encoding="utf-8")
 
         with patch("utils.quota.QUOTA_CONFIG_PATH", config_path), \
-             patch("utils.quota.QUOTA_STATE_PATH", state_path):
+             patch("utils.quota.QUOTA_STATE_PATH", state_path), \
+             patch("utils.quota.WUDD_48H_PATH", tmp_path / "data" / "nonexistent_48h.json"):
             qm = QuotaManager()
 
         # La machine doit démarrer sans crash avec un état frais
@@ -372,7 +373,8 @@ class TestQuotaStartupReset:
         state_path.write_text(json.dumps(state), encoding="utf-8")
 
         with patch("utils.quota.QUOTA_CONFIG_PATH", config_path), \
-             patch("utils.quota.QUOTA_STATE_PATH", state_path):
+             patch("utils.quota.QUOTA_STATE_PATH", state_path), \
+             patch("utils.quota.WUDD_48H_PATH", tmp_path / "data" / "nonexistent_48h.json"):
             qm = QuotaManager()
 
         # _startup_reset_if_stale doit avoir remis les compteurs à 0
@@ -427,7 +429,8 @@ class TestQuotaMaybeResetDay:
         state_path.parent.mkdir()
 
         with patch("utils.quota.QUOTA_CONFIG_PATH", config_path), \
-             patch("utils.quota.QUOTA_STATE_PATH", state_path):
+             patch("utils.quota.QUOTA_STATE_PATH", state_path), \
+             patch("utils.quota.WUDD_48H_PATH", tmp_path / "data" / "nonexistent_48h.json"):
             qm = QuotaManager()
             # Simuler un état d'un autre jour
             qm._state["date"] = "2000-01-01"

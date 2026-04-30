@@ -51,6 +51,7 @@ def quota_dir(tmp_path):
 @pytest.fixture()
 def quota_config(quota_dir):
     """Config quota par défaut dans tmp_path/config/quota.json."""
+    from datetime import date as _date
     cfg = {
         "enabled": True,
         "global_daily_limit": 20,
@@ -61,6 +62,16 @@ def quota_config(quota_dir):
         "summary_max_lines": 20,
     }
     (quota_dir / "config" / "quota.json").write_text(json.dumps(cfg), encoding="utf-8")
+    # Crée un état initial vide pour aujourd'hui afin d'éviter que
+    # _build_state_from_48h lise le vrai fichier 48-heures.json
+    state = {
+        "date": str(_date.today()),
+        "global_count": 0,
+        "keywords": {},
+        "entities": {},
+        "global_sources": {},
+    }
+    (quota_dir / "data" / "quota_state.json").write_text(json.dumps(state), encoding="utf-8")
     return quota_dir
 
 
@@ -372,7 +383,8 @@ class TestQuotaManagerPersistence:
         }
         state_file.write_text(json.dumps(stale_state), encoding="utf-8")
         with patch("utils.quota.QUOTA_CONFIG_PATH", quota_config / "config" / "quota.json"), \
-             patch("utils.quota.QUOTA_STATE_PATH", state_file):
+             patch("utils.quota.QUOTA_STATE_PATH", state_file), \
+             patch("utils.quota.WUDD_48H_PATH", quota_config / "data" / "nonexistent_48h.json"):
             qm = QuotaManager()
             # L'état doit avoir été réinitialisé
             assert qm.get_stats()["global"]["count"] == 0

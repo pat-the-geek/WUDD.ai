@@ -687,8 +687,11 @@ class TestOllamaClient:
 
     def test_ollama_host_from_env(self):
         from utils.api_client import OllamaClient
-        with patch.dict(os.environ, {"OLLAMA_HOST": "host.docker.internal"}):
-            assert OllamaClient._ollama_host() == "host.docker.internal"
+        with patch.object(OllamaClient, "_is_running_in_docker", return_value=False):
+            with patch.dict(os.environ, {"OLLAMA_HOST": "host.docker.internal"}, clear=False):
+                os.environ.pop("OLLAMA_HOST_LOCAL", None)
+                os.environ.pop("OLLAMA_HOST_DOCKER", None)
+                assert OllamaClient._ollama_host() == "host.docker.internal"
 
     def test_ollama_host_local_preferred_on_host(self):
         from utils.api_client import OllamaClient
@@ -720,8 +723,11 @@ class TestOllamaClient:
 
     def test_default_url_uses_host(self):
         from utils.api_client import OllamaClient
-        with patch.dict(os.environ, {"OLLAMA_HOST": "myhost"}):
-            url = OllamaClient._default_url()
+        with patch.object(OllamaClient, "_is_running_in_docker", return_value=False):
+            with patch.dict(os.environ, {"OLLAMA_HOST": "myhost"}, clear=False):
+                os.environ.pop("OLLAMA_HOST_LOCAL", None)
+                os.environ.pop("OLLAMA_HOST_DOCKER", None)
+                url = OllamaClient._default_url()
         assert "myhost" in url
         assert "11434" in url
         assert url.endswith("/v1/chat/completions")
