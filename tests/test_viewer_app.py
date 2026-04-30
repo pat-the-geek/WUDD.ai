@@ -1,0 +1,328 @@
+"""Tests d'intégration pour le viewer Flask.
+
+Couvre les routes critiques GET et quelques POST avec Flask test client.
+Les routes qui appellent l'IA (SSE streaming, synthèses) sont exclues car
+elles nécessitent des connexions réseau actives.
+
+Structure :
+  - TestRuntimeInfo        : GET /api/runtime-info
+  - TestFilesRoutes        : GET /api/files, GET /api/content, GET /api/search
+  - TestQuotaRoutes        : GET/POST /api/quota/config, GET /api/quota/stats, POST /api/quota/reset
+  - TestSettingsRoutes     : GET /api/keywords, GET /api/ai-providers, GET /api/env
+  - TestAnalyticsRoutes    : GET /api/alerts, GET /api/sources/bias, GET /api/articles/top
+  - TestEntityRoutes       : GET /api/entities/dashboard, GET /api/entities/timeline
+  - TestValidation         : POST avec body manquant/invalide → 400
+"""
+
+import importlib
+import json
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Fixture : application Flask de test
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.fixture(scope="module")
+def app(tmp_path_factory):
+    """Crée une instance Flask de test isolée."""
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setenv("WUDD_SKIP_STARTUP_REBUILD", "1")
+
+    # Éviter la pollution des modules déjà chargés
+    for mod in list(sys.modules.keys()):
+        if "viewer.app" in mod:
+            del sys.modules[mod]
+
+    import viewer.app as app_module
+    flask_app = app_module.app
+    flask_app.config["TESTING"] = True
+    flask_app.config["ACTIVE_VIEWER_PORT"] = 5059
+
+    yield flask_app
+    monkeypatch.undo()
+
+
+@pytest.fixture()
+def client(app):
+    with app.test_client() as c:
+        yield c
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/runtime-info
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestRuntimeInfo:
+    def test_returns_200(self, client):
+        resp = client.get("/api/runtime-info")
+        assert resp.status_code == 200
+
+    def test_contains_viewer_port(self, client):
+        data = client.get("/api/runtime-info").get_json()
+        assert "viewer_port" in data
+
+    def test_contains_project_root(self, client):
+        data = client.get("/api/runtime-info").get_json()
+        assert "project_root" in data
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/files
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestFilesRoutes:
+    def test_api_files_returns_list(self, client):
+        resp = client.get("/api/files")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, list)
+
+    def test_api_content_without_path_returns_400(self, client):
+        resp = client.get("/api/content")
+        assert resp.status_code == 400
+
+    def test_api_content_with_invalid_path_returns_400_or_404(self, client):
+        resp = client.get("/api/content?path=../../../etc/passwd")
+        assert resp.status_code in (400, 403, 404)
+
+    def test_api_search_returns_results(self, client):
+        resp = client.get("/api/search?q=test")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "results" in data or isinstance(data, list)
+
+    def test_api_search_empty_query_ok(self, client):
+        resp = client.get("/api/search?q=")
+        # Soit 200 (résultat vide) soit 400 (q requis)
+        assert resp.status_code in (200, 400)
+
+    def test_api_download_without_path_returns_400(self, client):
+        resp = client.get("/api/download")
+        assert resp.status_code == 400
+
+    def test_api_delete_without_path_returns_400(self, client):
+        resp = client.delete("/api/files")
+        assert resp.status_code in (400, 415, 422)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET/POST /api/quota/*
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestQuotaRoutes:
+    def test_get_quota_config_returns_200(self, client):
+        resp = client.get("/api/quota/config")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "enabled" in data
+        assert "global_daily_limit" in data
+
+    def test_get_quota_stats_returns_200(self, client):
+        resp = client.get("/api/quota/stats")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "global" in data
+
+    def test_post_quota_reset_returns_200(self, client):
+        resp = client.post("/api/quota/reset")
+        assert resp.status_code == 200
+
+    def test_post_quota_config_with_valid_body(self, client):
+        payload = {"global_daily_limit": 200, "enabled": True}
+        resp = client.post(
+            "/api/quota/config",
+            json=payload,
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+
+    def test_post_quota_config_without_body_returns_400(self, client):
+        resp = client.post(
+            "/api/quota/config",
+            data="",
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/keywords, /api/ai-providers, /api/env
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSettingsRoutes:
+    def test_get_keywords_returns_list(self, client):
+        resp = client.get("/api/keywords")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, list)
+
+    def test_get_ai_providers_returns_200(self, client):
+        resp = client.get("/api/ai-providers")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, dict) or isinstance(data, list)
+
+    def test_get_env_does_not_expose_bearer(self, client):
+        """Sécurité : la clé bearer ne doit jamais apparaître en clair."""
+        resp = client.get("/api/env")
+        assert resp.status_code == 200
+        body = resp.get_data(as_text=True)
+        assert "bearer" not in body.lower() or "***" in body or "****" in body
+
+    def test_get_flux_sources_returns_200(self, client):
+        resp = client.get("/api/flux-sources")
+        assert resp.status_code == 200
+
+    def test_get_rss_feeds_returns_200(self, client):
+        resp = client.get("/api/rss-feeds")
+        assert resp.status_code == 200
+
+    def test_get_web_sources_returns_200(self, client):
+        resp = client.get("/api/web-sources")
+        assert resp.status_code == 200
+
+    def test_get_ollama_status_returns_200_or_503(self, client):
+        resp = client.get("/api/ollama/status")
+        assert resp.status_code in (200, 503)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/alerts, /api/sources/bias, /api/articles/top
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestAnalyticsRoutes:
+    def test_get_alerts_returns_200(self, client):
+        resp = client.get("/api/alerts")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, list) or isinstance(data, dict)
+
+    def test_get_articles_top_returns_200(self, client):
+        resp = client.get("/api/articles/top")
+        assert resp.status_code == 200
+
+    def test_get_sources_bias_returns_200(self, client):
+        resp = client.get("/api/sources/bias")
+        assert resp.status_code == 200
+
+    def test_get_sources_credibility_returns_200(self, client):
+        resp = client.get("/api/sources/credibility")
+        assert resp.status_code == 200
+
+    def test_get_cross_flux_returns_200(self, client):
+        resp = client.get("/api/cross-flux")
+        assert resp.status_code == 200
+
+    def test_get_data_quality_returns_200(self, client):
+        resp = client.get("/api/data-quality")
+        assert resp.status_code == 200
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/entities/*
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestEntityRoutes:
+    def test_get_entity_dashboard_returns_200(self, client):
+        resp = client.get("/api/entities/dashboard")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, dict) or isinstance(data, list)
+
+    def test_get_entity_timeline_returns_200(self, client):
+        resp = client.get("/api/entities/timeline")
+        assert resp.status_code == 200
+
+    def test_get_entity_search_empty_returns_400_or_200(self, client):
+        resp = client.get("/api/entities/search")
+        # Query param 'q' ou 'entity' requis selon l'implémentation
+        assert resp.status_code in (200, 400)
+
+    def test_get_watched_entities_returns_200(self, client):
+        resp = client.get("/api/watched-entities")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, list) or isinstance(data, dict)
+
+    def test_get_annotations_returns_200(self, client):
+        resp = client.get("/api/annotations")
+        assert resp.status_code == 200
+
+    def test_get_entity_export_returns_200(self, client):
+        resp = client.get("/api/entities/export")
+        assert resp.status_code == 200
+
+    def test_post_invalidate_entity_dashboard_returns_200(self, client):
+        resp = client.post("/api/entities/dashboard/invalidate")
+        assert resp.status_code == 200
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Validation : POST avec body manquant ou invalide → 400
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestValidationPOST:
+    """Vérifie que les endpoints POST protégés par require_json_body() rejettent
+    les requêtes sans body ou avec Content-Type incorrect."""
+
+    def _post_no_body(self, client, url):
+        return client.post(url, data="")
+
+    def _post_wrong_ct(self, client, url):
+        return client.post(url, data='{"key":"value"}', content_type="text/plain")
+
+    def _post_invalid_json(self, client, url):
+        return client.post(url, data="invalide{{{", content_type="application/json")
+
+    def test_keywords_post_requires_json(self, client):
+        resp = self._post_wrong_ct(client, "/api/keywords")
+        assert resp.status_code in (400, 415)
+
+    def test_rss_check_post_invalid_json_returns_400(self, client):
+        resp = self._post_invalid_json(client, "/api/rss-feeds/check")
+        assert resp.status_code == 400
+
+    def test_watched_entities_post_requires_json(self, client):
+        resp = self._post_wrong_ct(client, "/api/watched-entities")
+        assert resp.status_code in (400, 415)
+
+    def test_annotations_post_requires_json(self, client):
+        resp = self._post_wrong_ct(client, "/api/annotations")
+        assert resp.status_code in (400, 415)
+
+    def test_quota_config_post_invalid_json_returns_400(self, client):
+        resp = self._post_invalid_json(client, "/api/quota/config")
+        assert resp.status_code == 400
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sécurité : path traversal
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestPathTraversalSecurity:
+    @pytest.mark.parametrize("path", [
+        "../../../etc/passwd",
+        "..%2F..%2F..%2Fetc%2Fpasswd",
+        "/etc/passwd",
+        "../../../../.env",
+    ])
+    def test_content_rejects_traversal(self, client, path):
+        resp = client.get(f"/api/content?path={path}")
+        assert resp.status_code in (400, 403, 404)
+
+    @pytest.mark.parametrize("path", [
+        "../../../etc/passwd",
+        "/etc/shadow",
+    ])
+    def test_download_rejects_traversal(self, client, path):
+        resp = client.get(f"/api/download?path={path}")
+        assert resp.status_code in (400, 403, 404)

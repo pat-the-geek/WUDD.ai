@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { useFetchCache } from '../hooks/useFetchCache'
 import { X, Tag, Loader2, BarChart2, FileText, Newspaper, List, Map, Images, Maximize2, Minimize2, TrendingUp, Search } from 'lucide-react'
 import EntityArticlePanel from './EntityArticlePanel'
 import EntityWorldMap from './EntityWorldMap'
@@ -107,8 +108,7 @@ function TypeSection({ section, maxMentions, onEntitySearch }) {
  *   onEntitySearch  {fn(val,type)} — ouvre EntitySearchModal pour une entité
  */
 export default function EntityDashboard({ onClose, onEntitySearch }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { data, loading } = useFetchCache('/api/entities/dashboard')
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [viewMode, setViewMode] = useState('list') // 'list' | 'map'
   const [isMaximized, setIsMaximized] = useState(false)
@@ -117,12 +117,6 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
   const [searchLoading, setSearchLoading] = useState(false)
   const searchDebounceRef = useRef(null)
 
-  useEffect(() => {
-    fetch('/api/entities/dashboard')
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
 
   // Recherche débouncée (300ms) via l'API backend
   useEffect(() => {

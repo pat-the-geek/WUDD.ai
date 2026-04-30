@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Optional
 
 from .date_utils import parse_article_date, utc_now_naive
+from .file_io import json_read, json_write
 from .logging import default_logger
 from .rss_file_naming import canonical_stem, is_numbered_copy
 
@@ -74,7 +75,7 @@ def update_rolling_window(
             _preserved_fields: dict[str, dict] = {}
             if output_path.exists():
                 try:
-                    _existing_out = json.loads(output_path.read_text(encoding="utf-8"))
+                    _existing_out = json_read(output_path)
                     if isinstance(_existing_out, list):
                         for _art in _existing_out:
                             _url = _art.get("URL", "")
@@ -110,7 +111,7 @@ def update_rolling_window(
 
             for json_file in selected_files.values():
                 try:
-                    articles = json.loads(json_file.read_text(encoding="utf-8"))
+                    articles = json_read(json_file)
                     if not isinstance(articles, list):
                         continue
                 except Exception:
@@ -138,7 +139,7 @@ def update_rolling_window(
             existing: list[dict] = []
             if output_path.exists():
                 try:
-                    existing = json.loads(output_path.read_text(encoding="utf-8"))
+                    existing = json_read(output_path)
                     if not isinstance(existing, list):
                         existing = []
                 except Exception:
@@ -167,20 +168,10 @@ def update_rolling_window(
         collected.sort(key=_sort_key, reverse=True)
 
         # Écriture atomique
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = output_path.with_suffix(".tmp")
         try:
-            tmp.write_text(
-                json.dumps(collected, ensure_ascii=False, indent=4),
-                encoding="utf-8",
-            )
-            tmp.replace(output_path)
+            json_write(output_path, collected, indent=4)
         except OSError as e:
             default_logger.error(f"rolling_window : erreur écriture {output_path} — {e}")
-            try:
-                tmp.unlink()
-            except OSError:
-                pass
 
         # ── Mise à jour immédiate de l'index entités (optimisation 2.2) ──────
         if update_entity_index and collected:

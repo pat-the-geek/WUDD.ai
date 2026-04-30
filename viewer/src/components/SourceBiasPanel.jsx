@@ -5,6 +5,7 @@
  * Bouton "Actualiser fiabilité" : lance enrich_source_credibility.py via SSE
  */
 import { useState, useEffect, useRef } from 'react'
+import { useFetchCache } from '../hooks/useFetchCache'
 import { X, RefreshCw, Eye, AlertTriangle, ShieldCheck, Terminal } from 'lucide-react'
 
 const SENTIMENT_COLORS = {
@@ -182,31 +183,23 @@ function EnrichConsole({ onClose, onDone }) {
 // ── Panel principal ────────────────────────────────────────────────────────
 
 export default function SourceBiasPanel({ onClose }) {
-  const [sources, setSources]       = useState([])
-  const [reliability, setReliability] = useState({})
-  const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [sortBy, setSortBy]         = useState('article_count')
   const [minArticles, setMinArticles] = useState(1)
   const [showEnrich, setShowEnrich] = useState(false)
 
-  const loadData = () => {
-    setLoading(true)
-    // Charger biais + crédibilité en parallèle
-    Promise.all([
-      fetch('/api/sources/bias').then(r => r.json()).catch(() => []),
-      fetch('/api/sources/credibility').then(r => r.json()).catch(() => ({ sources: [] })),
-    ]).then(([biasData, credData]) => {
-      setSources(Array.isArray(biasData) ? biasData : [])
-      // Construire index de crédibilité par nom
-      const credMap = {}
-      ;(credData.sources || []).forEach(s => { credMap[s.source] = s })
-      setReliability(credMap)
-      setLoading(false)
-    })
-  }
+  const { data: biasData,   loading: loadingBias,  reload: reloadBias }  = useFetchCache('/api/sources/bias')
+  const { data: credData,   loading: loadingCred,  reload: reloadCred }  = useFetchCache('/api/sources/credibility')
 
-  useEffect(() => { loadData() }, [])
+  const loading = loadingBias || loadingCred
+  const sources = Array.isArray(biasData) ? biasData : []
+  const reliability = (() => {
+    const credMap = {}
+    ;((credData?.sources) || []).forEach(s => { credMap[s.source] = s })
+    return credMap
+  })()
+
+  const loadData = () => { reloadBias(); reloadCred() }
 
   // Fusionner biais + crédibilité
   const merged = sources.map(s => ({

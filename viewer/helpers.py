@@ -8,7 +8,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from flask import abort
+from flask import abort, request
 
 
 def _resolve_project_root() -> Path:
@@ -49,6 +49,40 @@ def safe_path(relative: str) -> Path:
     if not resolved.exists():
         abort(404, "Fichier non trouvé")
     return resolved
+
+
+def require_json_body(
+    *,
+    expected_type: type | tuple[type, ...] = dict,
+    required_fields: list[str] | tuple[str, ...] | None = None,
+):
+    """Valide le body JSON et retourne les données parsées.
+
+    - Rejette les requêtes sans Content-Type JSON
+    - Rejette les payloads JSON invalides
+    - Valide le type racine attendu (dict, list, ...)
+    - Vérifie les champs obligatoires (pour les payloads dict)
+    """
+    if not request.is_json:
+        abort(400, "Content-Type JSON requis")
+
+    data = request.get_json(silent=True)
+    if data is None:
+        abort(400, "Body JSON invalide")
+
+    if not isinstance(data, expected_type):
+        if isinstance(expected_type, tuple):
+            names = ", ".join(t.__name__ for t in expected_type)
+        else:
+            names = expected_type.__name__
+        abort(400, f"Format invalide : {names} attendu")
+
+    if required_fields and isinstance(data, dict):
+        missing = [k for k in required_fields if k not in data]
+        if missing:
+            abort(400, f"Champs requis manquants : {', '.join(missing)}")
+
+    return data
 
 
 def collect_files() -> list:

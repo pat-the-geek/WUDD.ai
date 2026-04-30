@@ -56,9 +56,9 @@ statut: en cours
 	- Log explicite à chaque transition d'état
 - [x] **`[XS]`** Corriger les **collisions de cache entre providers IA** (`utils/cache.py`)
 	- Inclure le nom du provider (`AI_PROVIDER`) dans la clé MD5
-- [ ] **`[XS]`** Remplacer le **reset paresseux des quotas** par un job cron explicite
-	- Ajouter un job à 00:01 dans le crontab Docker
-	- `utils/quota.py` : forcer `reset_day()` au démarrage si date ≠ date du dernier état
+- [x] **`[XS]`** Remplacer le **reset paresseux des quotas** par un job cron explicite
+	- Job `1 0 * * *` présent dans `archives/crontab` (installé via `entrypoint.sh`)
+	- `utils/quota.py` : `reset_day()` publique + `_startup_reset_if_stale()` au démarrage si date ≠ aujourd'hui
 
 ### 1.1 bis Checkpoint P1 — Vérification factuelle (29/04 soir)
 
@@ -83,12 +83,17 @@ Preuves de traçabilité :
 
 ### 1.2 Qualité du code — Moyen terme
 
-- [ ] **`[S]`** Créer `utils/file_io.py` — wrapper centralisé `json_read()` / `json_write()` avec `ensure_ascii=False, indent=2` systématiques (pattern répété 30+ fois)
+- [x] **`[S]`** Créer `utils/file_io.py` — wrapper centralisé `json_read()` / `json_read_safe()` / `json_write()` / `json_write_compact()` avec `ensure_ascii=False` et écriture atomique systématiques
+	- Migré dans `utils/quota.py`, `utils/rolling_window.py`, `utils/synthesis_cache.py`, `utils/alert_calibrator.py`
+	- 1114 tests passés sans régression
 - [ ] **`[S]`** Créer `utils/entity_utils.py` — abstraire la boucle `for etype, evals in entities.items()` (dupliquée dans 4+ scripts)
-- [ ] **`[S]`** Valider les fichiers de configuration au démarrage via `jsonschema` dans `utils/config.py` (`quota.json`, `alert_rules.json`, `flux_json_sources.json`)
-- [ ] **`[M]`** Ajouter des **React Error Boundaries** dans `App.jsx` — envelopper `EntityGraph`, `EntityDashboard`, `ChatbotPanel` avec fallback gracieux
-- [ ] **`[M]`** Ajouter une **couche de cache frontend** (TTL 5 min) sur `EntityDashboard`, `TopArticlesPanel`, `SourceBiasPanel` — éviter les refetch à chaque ouverture
-- [ ] **`[S]`** Ajouter la **validation des requêtes POST Flask** sur les endpoints sensibles
+- [x] **`[S]`** Valider les fichiers de configuration au démarrage via `jsonschema` dans `utils/config.py` (`quota.json`, `alert_rules.json`, `flux_json_sources.json`, `keyword-to-search.json`)
+	- Schémas définis en tête de `utils/config.py` : `_SCHEMA_QUOTA`, `_SCHEMA_ALERT_RULES`, `_SCHEMA_FLUX_SOURCES`, `_SCHEMA_KEYWORD_SEARCH`
+	- Warnings non bloquants — un fichier invalide signalé sans empêcher le démarrage
+	- `jsonschema` optionnel — ignoré silencieusement si non installé
+- [x] **`[M]`** Ajouter des **React Error Boundaries** dans `App.jsx` — boundary `PanelErrorBoundary` appliquée à `EntityGraph` (KnowledgeGraph), `EntityDashboard`, `ChatbotPanel` avec fallback + actions Réessayer/Fermer
+- [x] **`[M]`** Ajouter une **couche de cache frontend** (TTL 5 min) sur `EntityDashboard`, `TopArticlesPanel`, `SourceBiasPanel` — hook `useFetchCache` (`viewer/src/hooks/useFetchCache.js`), cache `Map` module-level partagé, TTL 5 min, invalidation via `reload()`
+- [x] **`[S]`** Ajouter la **validation des requêtes POST Flask** sur les endpoints sensibles — helper partagé `require_json_body()` dans `viewer/helpers.py`, appliqué aux endpoints d’écriture sensibles (`/api/content`, `/api/article/refresh-resume`, `/api/articles/merge/*`, `/api/rss-feeds/save`, `/api/web-sources/*`, `/api/flux-sources`, `/api/env`, `/api/quota/config`, `/api/annotations`, `/api/watched-entities`)
 
 ### 1.3 Tests — Long terme
 
@@ -100,9 +105,9 @@ Preuves de traçabilité :
 
 ### 1.4 Monitoring — Long terme
 
-- [ ] **`[L]`** Ajouter des métriques Prometheus sur les jobs cron et appels API
-- [ ] **`[M]`** Documenter l'API Flask (OpenAPI/Swagger via flask-restx)
-- [ ] **`[M]`** Envisager SQLite au-delà de 50 000 articles pour les rebuilds d'index
+- [x] **`[L]`** Ajouter des métriques Prometheus sur les jobs cron et appels API — `utils/metrics.py` + endpoint `/metrics` + `tests/test_metrics.py` (42 tests)
+- [x] **`[M]`** Documenter l'API Flask (OpenAPI/Swagger via flask-restx) — `utils/openapi.py` + endpoints `/api/openapi.json` et `/api/docs` (Swagger UI CDN) + `tests/test_openapi.py` (31 tests)
+- [x] **`[M]`** Envisager SQLite au-delà de 50 000 articles pour les rebuilds d'index — Plan de migration documenté dans `docs/SQLITE_MIGRATION.md` (seuil 50k, architecture cible, estimation perf)
 
 ---
 
@@ -112,10 +117,14 @@ Preuves de traçabilité :
 
 > Actuellement : liste de favoris avec compteur statique, totalement déconnectée du reste du pipeline.
 
-- [ ] **`[M]`** **Connecter `watched_entities.json` à `trend_detector.py`** — les entités surveillées déclenchent automatiquement une alerte si leur ratio dépasse le seuil configuré
-- [ ] **`[M]`** **Prioriser les entités surveillées dans `generate_briefing.py`** — section "Veille prioritaire" systématique dans le briefing
-- [ ] **`[S]`** **Notifications push** quand une entité surveillée franchit un seuil — brancher sur `utils/exporters/webhook.py` existant
-- [ ] **`[S]`** **Mettre en cache le comptage des mentions** — remplacer le scan `rglob` à chaque ouverture par une lecture de `entity_index.json`
+- [x] **`[M]`** **Connecter `watched_entities.json` à `trend_detector.py`** — les entités surveillées déclenchent automatiquement une alerte si leur ratio dépasse `watched_threshold_ratio` (défaut 1.0, configurable dans `alert_rules.json`)
+	- Nouvelles fonctions `_load_watched_entities()` et `detect_watched_alerts()` dans `trend_detector.py`
+	- Flag `"watched": True` injecté sur chaque alerte (entités déjà en tendance marquées sans doublon)
+	- Entités surveillées non tendance ajoutées en tête de liste pour visibilité garantie
+	- Seuil dédié configurable : `config/alert_rules.json > global > watched_threshold_ratio`
+- [x] **`[M]`** **Prioriser les entités surveillées dans `generate_briefing.py`** — section "Veille prioritaire" systématique dans le briefing (`data/watched_entities.json` chargé, mentions sur la période calculées, niveau/ratio des alertes injectés si disponibles)
+- [x] **`[S]`** **Notifications push** quand une entité surveillée franchit un seuil — intégré dans `scripts/trend_detector.py` via `_send_notifications()` (fusion alertes par niveau + entités `watched=True` avec `ratio >= watched_threshold_ratio`, envoi via `utils/exporters/webhook.py`)
+- [x] **`[S]`** **Mettre en cache le comptage des mentions** — endpoint `/api/watched-entities` optimisé via `EntityIndex.get_refs()` (lecture `data/entity_index.json` + cutoff 24h/7j + arrêt anticipé), suppression du scan `rglob` des JSON à chaque ouverture
 - [ ] **`[M]`** **Historique de mentions** — courbe temporelle depuis `entity_timeline.json` visible dans `EntityWatchPanel`
 - [ ] **`[S]`** **Rapport hebdomadaire automatique** des entités surveillées — sauvegardé dans `rapports/markdown/_WUDD.AI_/`
 

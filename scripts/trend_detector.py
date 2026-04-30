@@ -51,11 +51,23 @@ _DEFAULT_MONITORED_TYPES = {
     "PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "LOC", "FAC"
 }
 
-_OUTPUT_FILE = _PROJECT_ROOT / "data" / "alertes.json"
-_RULES_FILE  = _PROJECT_ROOT / "config" / "alert_rules.json"
+_OUTPUT_FILE    = _PROJECT_ROOT / "data" / "alertes.json"
+_RULES_FILE     = _PROJECT_ROOT / "config" / "alert_rules.json"
+_WATCHED_FILE   = _PROJECT_ROOT / "data" / "watched_entities.json"
 
 
 # ── Chargement des règles ────────────────────────────────────────────────────
+
+def _load_watched_entities() -> list[dict]:
+    """Charge data/watched_entities.json. Retourne [] si absent ou invalide."""
+    if not _WATCHED_FILE.exists():
+        return []
+    try:
+        data = json.loads(_WATCHED_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
 
 def _load_alert_rules() -> dict:
     """Charge config/alert_rules.json. Retourne un dict vide si absent."""
@@ -366,6 +378,60 @@ def detect_trends(
     return alerts[:top_n]
 
 
+def detect_watched_alerts(
+    watched: list[dict],
+    counts_24h: dict[str, int],
+    counts_7j: dict[str, int],
+    rules: dict | None = None,
+    watched_threshold: float = 1.0,
+) -> list[dict]:
+    """Génère des alertes pour les entités surveillées.
+
+    Contrairement à detect_trends, ces alertes utilisent un seuil réduit
+    (défaut 1.0) pour être sensibles à toute hausse des entités que
+    l'utilisateur a explicitement ajoutées à sa liste de surveillance.
+    Une entité surveillée absent sur 24h génère tout de même une entrée
+    avec count_24h=0 pour signaler le silence.
+
+    Toutes les alertes produites portent le champ ``"watched": True``.
+    """
+    if not watched:
+        return []
+    if rules is None:
+        rules = {}
+    now_iso = datetime.now(timezone.utc).isoformat()
+    alerts: list[dict] = []
+    for w in watched:
+        etype = (w.get("type") or "").upper()
+        value = (w.get("value") or "").strip()
+        if not etype or not value:
+            continue
+        key = f"{etype}:{value}"
+        count_24h = counts_24h.get(key, 0)
+        count_7j  = counts_7j.get(key, 0)
+        avg_per_day_7j = count_7j / 7.0
+        if avg_per_day_7j == 0:
+            ratio = 999.9 if count_24h >= 1 else 0.0
+        else:
+            ratio = round(count_24h / avg_per_day_7j, 2)
+        if ratio < watched_threshold and count_24h == 0:
+            # Silence d’une entité surveillée : inclure quand même
+            niveau = "info"
+        else:
+            niveau = _niveau_from_rules(rules, ratio)
+        alerts.append({
+            "entity_type": etype,
+            "entity_value": value,
+            "count_24h": count_24h,
+            "count_7j": count_7j,
+            "ratio": ratio,
+            "niveau": niveau,
+            "detected_at": now_iso,
+            "watched": True,
+        })
+    return alerts
+
+
 def detect_silences(
     counts_24h: dict[str, int],
     counts_7j: dict[str, int],
@@ -461,9 +527,36 @@ def parse_args():
 def _send_notifications(alerts: list[dict], rules: dict) -> None:
     """Envoie des notifications webhook pour les alertes de niveau configuré."""
     notif_cfg = rules.get("notifications", {})
+    watched_threshold = rules.get("global", {}).get("watched_threshold_ratio", 1.0)
+
+    def _to_float(value, default=0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
 
     niveaux_notifies = set(notif_cfg.get("niveaux_notifies", ["élevé", "critique"]))
-    alertes_a_notifier = [a for a in alerts if a.get("niveau") in niveaux_notifies]
+    by_level = [a for a in alerts if a.get("niveau") in niveaux_notifies]
+
+    # Veille prioritaire : notifier explicitement les entités surveillées dès
+    # qu'elles franchissent le seuil dédié, même si leur niveau n'est pas élevé.
+    watched_crossing = [
+        a for a in alerts
+        if a.get("watched") is True
+        and int(a.get("count_24h", 0) or 0) > 0
+        and _to_float(a.get("ratio", 0.0), 0.0) >= float(watched_threshold)
+    ]
+
+    # Fusion sans doublon (clé type+valeur), priorité à l'alerte watched.
+    merged: dict[str, dict] = {}
+    for a in by_level:
+        key = f"{a.get('entity_type', '')}:{a.get('entity_value', '')}"
+        merged[key] = a
+    for a in watched_crossing:
+        key = f"{a.get('entity_type', '')}:{a.get('entity_value', '')}"
+        merged[key] = a
+
+    alertes_a_notifier = list(merged.values())
     if not alertes_a_notifier:
         return
 
@@ -473,12 +566,18 @@ def _send_notifications(alerts: list[dict], rules: dict) -> None:
         default_logger.warning("Module webhook introuvable, notifications ignorées.")
         return
 
-    results = notify_alerts(alertes_a_notifier, title="WUDD.ai · Alertes tendances")
+    results = notify_alerts(alertes_a_notifier, title="WUDD.ai · Alertes tendances & veille prioritaire")
     for platform, success in results.items():
         if success:
             default_logger.info(f"Notification {platform} envoyée.")
         else:
             default_logger.warning(f"Échec notification {platform}.")
+
+    if watched_crossing:
+        default_logger.info(
+            f"{len(watched_crossing)} entité(s) surveillée(s) notifiée(s) "
+            f"(seuil watched ≥ {watched_threshold})."
+        )
 
 
 def main():
@@ -544,6 +643,35 @@ def main():
             )
 
     all_alerts = alerts + silences
+
+    # ── Entités surveillées ──────────────────────────────────────────────────
+    # Charger la liste watched et générer des alertes à seuil réduit.
+    # Les entités déjà présentes dans all_alerts reçoivent juste le flag
+    # watched=True ; les autres sont ajoutées en tête (visibilité garantie).
+    watched_threshold = rules.get("global", {}).get("watched_threshold_ratio", 1.0)
+    watched_entities = _load_watched_entities()
+    if watched_entities:
+        watched_alerts = detect_watched_alerts(
+            watched_entities, counts_24h, counts_7j, rules=rules,
+            watched_threshold=watched_threshold,
+        )
+        # Déduplication : si une entité surveillée est déjà dans all_alerts,
+        # on lui ajoute watched=True et on ne la duplique pas.
+        existing_keys = {
+            f"{a['entity_type']}:{a['entity_value']}" for a in all_alerts
+        }
+        for wa in watched_alerts:
+            key = f"{wa['entity_type']}:{wa['entity_value']}"
+            if key in existing_keys:
+                for a in all_alerts:
+                    if f"{a['entity_type']}:{a['entity_value']}" == key:
+                        a["watched"] = True
+            else:
+                all_alerts.insert(0, wa)  # en tête pour visibilité
+        default_logger.info(
+            f"{len(watched_entities)} entité(s) surveillée(s) — "
+            f"{len(watched_alerts)} alerte(s) générée(s)"
+        )
 
     if args.dry_run:
         default_logger.info("[DRY-RUN] Résultats non sauvegardés.")

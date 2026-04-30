@@ -7,6 +7,7 @@ Routes :
   POST     /api/quota/reset
 """
 from flask import Blueprint, jsonify, request, abort
+from viewer.helpers import require_json_body
 
 quota_bp = Blueprint("quota", __name__)
 
@@ -25,9 +26,7 @@ def api_get_quota_config():
 def api_save_quota_config():
     """Sauvegarde la configuration des quotas."""
     from utils.quota import get_quota_manager
-    data = request.get_json(force=True)
-    if not isinstance(data, dict):
-        abort(400, "Format invalide : objet attendu")
+    data = require_json_body()
     # Validation basique des types
     for int_key in ("global_daily_limit", "per_keyword_daily_limit", "per_source_daily_limit",
                     "per_entity_daily_limit", "per_run_limit", "global_source_daily_limit",

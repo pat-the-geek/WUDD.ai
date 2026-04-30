@@ -29,7 +29,7 @@ import os
 from flask import Blueprint, jsonify, request, abort
 from pathlib import Path
 
-from viewer.helpers import PROJECT_ROOT
+from viewer.helpers import PROJECT_ROOT, require_json_body
 
 settings_bp = Blueprint("settings", __name__)
 
@@ -277,9 +277,7 @@ def api_resolve_rss_feed():
 def api_save_rss_feeds():
     """Sauvegarde la liste de flux dans data/WUDD.opml en respectant le format OPML."""
     import xml.etree.ElementTree as ET
-    feeds = request.get_json(force=True)
-    if not isinstance(feeds, list):
-        return jsonify({"error": "Données invalides"}), 400
+    feeds = require_json_body(expected_type=list)
     opml_path = PROJECT_ROOT / "data" / "WUDD.opml"
     try:
         root = ET.Element("opml", version="2.0")
@@ -374,9 +372,7 @@ def api_get_web_sources():
 @settings_bp.route("/api/web-sources/save", methods=["POST"])
 def api_save_web_sources():
     """Sauvegarde la liste des sources web dans config/web_sources.json."""
-    sources = request.get_json(force=True)
-    if not isinstance(sources, list):
-        return jsonify({"error": "Données invalides"}), 400
+    sources = require_json_body(expected_type=list)
     path = PROJECT_ROOT / "config" / "web_sources.json"
     try:
         tmp = path.with_suffix(".tmp")
@@ -391,7 +387,7 @@ def api_save_web_sources():
 def api_check_web_source():
     """Vérifie si une URL de sitemap ou de site est accessible. Body JSON: {"url": "..."}"""
     import requests as req
-    data = request.get_json(force=True) or {}
+    data = require_json_body(required_fields=["url"])
     url = data.get("url", "").strip()
     if not url:
         return jsonify({"ok": False, "error": "URL manquante"}), 400
@@ -415,7 +411,7 @@ def api_resolve_web_source():
     from bs4 import BeautifulSoup
     from urllib.parse import urlparse, urljoin
 
-    data = request.get_json(force=True) or {}
+    data = require_json_body(required_fields=["url"])
     url = data.get("url", "").strip()
     if not url or not url.startswith("http"):
         return jsonify({"ok": False, "error": "URL invalide"}), 400
@@ -514,9 +510,7 @@ def api_get_flux_sources():
 
 @settings_bp.route("/api/flux-sources", methods=["POST"])
 def api_save_flux_sources():
-    data = request.get_json(force=True)
-    if not isinstance(data, list):
-        abort(400, "Format invalide : tableau attendu")
+    data = require_json_body(expected_type=list)
     path = PROJECT_ROOT / "config" / "flux_json_sources.json"
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return jsonify({"ok": True})
@@ -550,7 +544,7 @@ def api_env_post():
 
     Body JSON : { key: str, value: str }
     """
-    body = request.get_json(force=True, silent=True) or {}
+    body = require_json_body(required_fields=["key", "value"])
     key = (body.get("key") or "").strip()
     value = str(body.get("value") or "")
 

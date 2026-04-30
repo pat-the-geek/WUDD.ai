@@ -38,6 +38,7 @@ from utils.article_index import get_article_index
 
 _BRIEFING_DIR = _PROJECT_ROOT / "rapports" / "markdown" / "_BRIEFING_"
 _ALERTS_FILE  = _PROJECT_ROOT / "data" / "alertes.json"
+_WATCHED_FILE = _PROJECT_ROOT / "data" / "watched_entities.json"
 
 _ENTITY_TYPES_PERTINENTS = {"PERSON", "ORG", "GPE", "PRODUCT", "EVENT"}
 
@@ -169,6 +170,68 @@ def load_alerts(project_root: Path) -> list[dict]:
         return []
 
 
+def load_watched_entities(project_root: Path) -> list[dict]:
+    """Charge les entités surveillées depuis data/watched_entities.json."""
+    if not _WATCHED_FILE.exists():
+        return []
+    try:
+        data = json.loads(_WATCHED_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def compute_watched_summary(
+    watched_entities: list[dict],
+    articles: list[dict],
+    alerts: list[dict],
+) -> list[dict]:
+    """Retourne un résumé des entités surveillées avec mentions sur la période."""
+    if not watched_entities:
+        return []
+
+    mentions: dict[str, int] = {}
+    alert_map: dict[str, dict] = {}
+
+    for a in alerts:
+        key = f"{(a.get('entity_type') or '').upper()}:{(a.get('entity_value') or '').strip().lower()}"
+        if key and key != ":":
+            alert_map[key] = a
+
+    for article in articles:
+        entities = article.get("entities", {})
+        if not isinstance(entities, dict):
+            continue
+        for etype, names in entities.items():
+            if not isinstance(names, list):
+                continue
+            etype_u = str(etype).upper()
+            for name in names:
+                if not isinstance(name, str) or not name.strip():
+                    continue
+                key = f"{etype_u}:{name.strip().lower()}"
+                mentions[key] = mentions.get(key, 0) + 1
+
+    rows: list[dict] = []
+    for w in watched_entities:
+        etype = (w.get("type") or "").strip().upper()
+        value = (w.get("value") or "").strip()
+        if not etype or not value:
+            continue
+        key = f"{etype}:{value.lower()}"
+        a = alert_map.get(key, {})
+        rows.append({
+            "type": etype,
+            "value": value,
+            "mentions": mentions.get(key, 0),
+            "niveau": a.get("niveau", "—"),
+            "ratio": a.get("ratio", "—"),
+        })
+
+    rows.sort(key=lambda r: r["mentions"], reverse=True)
+    return rows
+
+
 # ── Génération du Markdown ────────────────────────────────────────────────────
 
 def _sentiment_stats(articles: list[dict]) -> dict:
@@ -198,6 +261,7 @@ def build_briefing_markdown(
     top_articles: list[dict],
     top_entities: list[tuple],
     alerts: list[dict],
+    watched_summary: list[dict],
     ai_synthesis: str = "",
 ) -> str:
     """Génère le Markdown complet du briefing."""
@@ -248,6 +312,19 @@ def build_briefing_markdown(
                 f"ratio {a['ratio']} | {a['count_24h']} mentions/24h"
             )
         lines.append("")
+
+    # ── Veille prioritaire (entités surveillées) ───────────────────────────
+    lines += ["## 👀 Veille prioritaire", ""]
+    if watched_summary:
+        lines.append("| Entité | Type | Mentions (période) | Niveau | Ratio |")
+        lines.append("|--------|------|---------------------|--------|-------|")
+        for row in watched_summary:
+            lines.append(
+                f"| {row['value']} | {row['type']} | {row['mentions']} | {row['niveau']} | {row['ratio']} |"
+            )
+    else:
+        lines.append("*Aucune entité surveillée configurée.*")
+    lines.append("")
 
     # ── Top Entités ──────────────────────────────────────────────────────────
     lines += ["## 🏷️ Top 10 entités les plus mentionnées", ""]
@@ -511,6 +588,11 @@ def main():
     alerts = load_alerts(project_root)
     print_console(f"  → {len(alerts)} alerte(s) active(s)")
 
+    # Entités surveillées (section prioritaire)
+    watched_entities = load_watched_entities(project_root)
+    watched_summary = compute_watched_summary(watched_entities, articles, alerts)
+    print_console(f"  → {len(watched_summary)} entité(s) surveillée(s) traitée(s)")
+
     # Synthèse IA
     ai_synthesis = ""
     if not args.no_ai and not args.dry_run:
@@ -526,6 +608,7 @@ def main():
         top_articles=top_articles,
         top_entities=top_entities,
         alerts=alerts,
+        watched_summary=watched_summary,
         ai_synthesis=ai_synthesis,
     )
 

@@ -46,6 +46,8 @@ except ImportError:
     pass
 
 from flask import Flask, jsonify, send_from_directory
+from utils.metrics import register_metrics_endpoint, register_flask_instrumentation
+from utils.openapi import register_openapi_endpoints
 
 _DEFAULT_VIEWER_PORT = 5050
 
@@ -116,6 +118,13 @@ app.register_blueprint(self_learning_bp)
 app.register_blueprint(graph_bp)
 app.register_blueprint(youtube_bp)
 app.register_blueprint(gallery_bp)
+
+# ── Métriques Prometheus ──────────────────────────────────────────────────────
+register_metrics_endpoint(app)
+register_flask_instrumentation(app)
+
+# ── OpenAPI / Swagger UI ──────────────────────────────────────────────────────
+register_openapi_endpoints(app)
 
 
 # ── Rebuild des indexes au démarrage ─────────────────────────────────────────

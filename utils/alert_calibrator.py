@@ -21,6 +21,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
+from .file_io import json_read, json_write
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _FEEDBACK_PATH = _PROJECT_ROOT / "data" / "alert_feedback.json"
 _RULES_PATH    = _PROJECT_ROOT / "config" / "alert_rules.json"
@@ -47,7 +49,7 @@ def load_feedback() -> dict:
     """Charge le feedback d'alertes depuis data/alert_feedback.json."""
     if _FEEDBACK_PATH.exists():
         try:
-            return json.loads(_FEEDBACK_PATH.read_text(encoding="utf-8"))
+            return json_read(_FEEDBACK_PATH)
         except Exception:
             pass
     return {
@@ -58,10 +60,7 @@ def load_feedback() -> dict:
 
 
 def _save_feedback(data: dict) -> None:
-    _FEEDBACK_PATH.parent.mkdir(parents=True, exist_ok=True)
-    tmp = _FEEDBACK_PATH.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(_FEEDBACK_PATH)
+    json_write(_FEEDBACK_PATH, data)
 
 
 def record_alert(
@@ -272,7 +271,7 @@ def _load_thresholds() -> dict:
     if not _RULES_PATH.exists():
         return {"global_threshold_ratio": 2.0}
     try:
-        rules = json.loads(_RULES_PATH.read_text(encoding="utf-8"))
+        rules = json_read(_RULES_PATH)
         global_cfg = rules.get("global", {})
         return {
             "global_threshold_ratio": global_cfg.get("threshold_ratio", 2.0),
@@ -286,12 +285,9 @@ def _save_thresholds(new_thresholds: dict) -> None:
     if not _RULES_PATH.exists():
         return
     try:
-        rules = json.loads(_RULES_PATH.read_text(encoding="utf-8"))
+        rules = json_read(_RULES_PATH)
         if "global" in rules and "threshold_ratio" in new_thresholds:
             rules["global"]["threshold_ratio"] = new_thresholds["global_threshold_ratio"]
-        _RULES_PATH.write_text(
-            json.dumps(rules, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        json_write(_RULES_PATH, rules)
     except Exception:
         pass

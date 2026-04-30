@@ -10,6 +10,93 @@ from typing import Optional
 from dotenv import load_dotenv
 from .logging import default_logger
 
+# ── Schémas JSON pour la validation des fichiers de config ────────────────────
+
+_SCHEMA_QUOTA = {
+    "type": "object",
+    "required": ["enabled", "global_daily_limit"],
+    "properties": {
+        "enabled":                 {"type": "boolean"},
+        "global_daily_limit":      {"type": "integer", "minimum": 1},
+        "per_keyword_daily_limit": {"type": "integer", "minimum": 1},
+        "per_source_daily_limit":  {"type": "integer", "minimum": 1},
+        "per_entity_daily_limit":  {"type": "integer", "minimum": 1},
+        "per_run_limit":           {"type": "integer", "minimum": 0},
+        "global_source_daily_limit": {"type": "integer", "minimum": 0},
+        "adaptive_sorting":        {"type": "boolean"},
+        "summary_max_lines":       {"type": "integer", "minimum": 1},
+        "ignored_entity_types":    {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": True,
+}
+
+_SCHEMA_ALERT_RULES = {
+    "type": "object",
+    "properties": {
+        "global": {
+            "type": "object",
+            "required": ["threshold_ratio"],
+            "properties": {
+                "threshold_ratio":     {"type": "number", "exclusiveMinimum": 0},
+                "top":                 {"type": "integer", "minimum": 1},
+                "min_mentions_24h":    {"type": "integer", "minimum": 0},
+                "silence_baseline_avg": {"type": "number", "minimum": 0},
+                "watched_threshold_ratio": {"type": "number", "minimum": 0},
+            },
+        },
+        "types_entites": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "enabled":         {"type": "boolean"},
+                    "threshold_ratio": {"type": "number", "exclusiveMinimum": 0},
+                    "min_mentions":    {"type": "integer", "minimum": 0},
+                },
+            },
+        },
+        "notifications": {
+            "type": "object",
+            "properties": {
+                "niveaux_notifies": {"type": "array", "items": {"type": "string"}},
+                "webhook_discord":  {"type": ["boolean", "string"]},
+                "webhook_slack":    {"type": ["boolean", "string"]},
+                "ntfy":             {"type": ["boolean", "string"]},
+            },
+        },
+    },
+    "additionalProperties": True,
+}
+
+_SCHEMA_FLUX_SOURCES = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "required": ["title", "url"],
+        "properties": {
+            "title":   {"type": "string", "minLength": 1},
+            "url":     {"type": "string", "minLength": 1},
+            "cron":    {"type": "string"},
+            "timeout": {"type": "integer", "minimum": 1},
+        },
+        "additionalProperties": True,
+    },
+}
+
+_SCHEMA_KEYWORD_SEARCH = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "required": ["keyword"],
+        "properties": {
+            "keyword": {"type": "string", "minLength": 1},
+            "or":      {"type": "array", "items": {"type": "string"}},
+            "and":     {"type": "array", "items": {"type": "string"}},
+        },
+        "additionalProperties": True,
+    },
+}
+
 
 class Config:
     """Configuration centralisée de l'application.
@@ -142,9 +229,50 @@ class Config:
             error_msg = "\n".join(errors)
             default_logger.error(f"Erreurs de configuration:\n{error_msg}")
             raise ValueError(f"Configuration invalide:\n{error_msg}")
-        
+
+        # Validation des fichiers JSON de config (warnings non bloquants)
+        self._validate_config_files()
+
         default_logger.info("Configuration validée avec succès")
     
+    def _validate_config_files(self) -> None:
+        """Valide les fichiers JSON de configuration via jsonschema.
+
+        Les erreurs sont des warnings (non bloquants) : un fichier mal formé
+        ne doit pas empêcher le démarrage, mais doit être signalé clairement.
+        jsonschema est optionnel ; si absent, la validation est silencieusement
+        ignorée.
+        """
+        try:
+            import jsonschema  # noqa: PLC0415
+        except ImportError:
+            return  # Validation optionnelle — jsonschema non installé
+
+        import json as _json  # noqa: PLC0415
+
+        checks = [
+            (self.config_dir / "quota.json",              _SCHEMA_QUOTA,         "quota.json"),
+            (self.config_dir / "alert_rules.json",        _SCHEMA_ALERT_RULES,   "alert_rules.json"),
+            (self.config_dir / "flux_json_sources.json",  _SCHEMA_FLUX_SOURCES,  "flux_json_sources.json"),
+            (self.config_dir / "keyword-to-search.json",  _SCHEMA_KEYWORD_SEARCH, "keyword-to-search.json"),
+        ]
+
+        for path, schema, label in checks:
+            if not path.exists():
+                continue
+            try:
+                data = _json.loads(path.read_text(encoding="utf-8"))
+                jsonschema.validate(instance=data, schema=schema)
+            except _json.JSONDecodeError as exc:
+                default_logger.warning(f"[config] {label} — JSON invalide : {exc}")
+            except jsonschema.ValidationError as exc:
+                default_logger.warning(
+                    f"[config] {label} — schéma invalide : {exc.message} "
+                    f"(chemin : {' > '.join(str(p) for p in exc.absolute_path) or 'racine'})"
+                )
+            except Exception as exc:
+                default_logger.warning(f"[config] {label} — erreur inattendue : {exc}")
+
     def setup_directories(self):
         """Crée les répertoires nécessaires s'ils n'existent pas."""
         directories = [

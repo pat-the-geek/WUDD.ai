@@ -3,6 +3,7 @@
  * Style : cartes article identiques à la vue JSON, grille 2 colonnes, modal large.
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useFetchCache } from '../hooks/useFetchCache'
 import { X, Star, ExternalLink, RefreshCw, Clock, Tag, ChevronDown, ChevronUp, Maximize2, PlayCircle, Pause, Volume2, VolumeX, Eye, Pencil, Check, FileText, Radio, ZoomIn, ZoomOut, Terminal, Images } from 'lucide-react'
 import YouTubePanel from './YouTubePanel'
 import ArticleGalleryPanel from './ArticleGalleryPanel'
@@ -1394,9 +1395,6 @@ function DirectMode({ onReport }) {
 
 export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate, availableProviders = [] }) {
   const [activeTab, setActiveTab] = useState('top') // 'top' | 'direct'
-  const [articles, setArticles] = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState(null)
   const [hours, setHours]       = useState(48)
   const [topN, setTopN]         = useState(10)
   const [isMaximized, setIsMaximized] = useState(() => window.innerWidth < 768)
@@ -1405,17 +1403,9 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
 
   const { playing, currentIdx, start: podcastStart, stop: podcastStop } = usePodcast(articles)
 
-  const load = () => {
-    podcastStop()
-    setLoading(true)
-    setError(null)
-    fetch(`/api/articles/top?n=${topN}&hours=${hours}`)
-      .then(r => r.json())
-      .then(data => { setArticles(Array.isArray(data) ? data : []); setLoading(false) })
-      .catch(e => { setError(e.message); setLoading(false) })
-  }
-
-  useEffect(() => { load() }, [hours, topN])
+  const topUrl = `/api/articles/top?n=${topN}&hours=${hours}`
+  const { data: topData, loading, error, reload: load } = useFetchCache(topUrl, { ttl: 5 * 60 * 1000 })
+  const articles = Array.isArray(topData) ? topData : []
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }

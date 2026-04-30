@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react'
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, Component } from 'react'
 import Sidebar from './components/Sidebar'
 import FileViewer from './components/FileViewer'
 import RuntimeInfoPanel from './components/RuntimeInfoPanel'
@@ -233,6 +233,56 @@ function PanelFallback() {
       </div>
     </div>
   )
+}
+
+class PanelErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error, info) {
+    console.error(`[PanelErrorBoundary] ${this.props.panelName || 'panel'}`, error, info)
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false })
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-sm p-4">
+        <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            Une erreur est survenue dans {this.props.panelName || 'ce panneau'}
+          </h3>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Vous pouvez réessayer l'ouverture du panneau, ou le fermer pour continuer à utiliser l'application.
+          </p>
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              onClick={this.handleRetry}
+              className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+            >
+              Réessayer
+            </button>
+            <button
+              onClick={this.props.onClose}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 }
 
 const THEME_OPTIONS = [
@@ -1299,13 +1349,15 @@ export default function App() {
           />
         )}
         {dashboardOpen && (
-          <EntityDashboard
-            onClose={() => setDashboardOpen(false)}
-            onEntitySearch={(value, type) => {
-              setDashboardOpen(false)
-              setEntitySearch({ value, type })
-            }}
-          />
+          <PanelErrorBoundary panelName="EntityDashboard" onClose={() => setDashboardOpen(false)}>
+            <EntityDashboard
+              onClose={() => setDashboardOpen(false)}
+              onEntitySearch={(value, type) => {
+                setDashboardOpen(false)
+                setEntitySearch({ value, type })
+              }}
+            />
+          </PanelErrorBoundary>
         )}
         {alertsOpen && (
           <AlertsPanel
@@ -1331,7 +1383,9 @@ export default function App() {
           <ClusterView onClose={() => setClusterOpen(false)} />
         )}
         {graphOpen && (
-          <KnowledgeGraph onClose={() => setGraphOpen(false)} />
+          <PanelErrorBoundary panelName="EntityGraph" onClose={() => setGraphOpen(false)}>
+            <KnowledgeGraph onClose={() => setGraphOpen(false)} />
+          </PanelErrorBoundary>
         )}
         {watchOpen && (
           <EntityWatchPanel
@@ -1346,14 +1400,19 @@ export default function App() {
           <ComparePanel onClose={() => setCompareOpen(false)} />
         )}
         {chatOpen && (
-          <ChatbotPanel
+          <PanelErrorBoundary
+            panelName="ChatbotPanel"
             onClose={() => { setChatOpen(false); setChatEntityContext(null); setChatArticleContext(null); setChatFluxContext(null) }}
-            onFileSaved={refreshFiles}
-            initialFile={(chatEntityContext || chatArticleContext || chatFluxContext) ? null : selectedFile}
-            entityContext={chatEntityContext}
-            articleContext={chatArticleContext}
-            fluxContext={chatFluxContext}
-          />
+          >
+            <ChatbotPanel
+              onClose={() => { setChatOpen(false); setChatEntityContext(null); setChatArticleContext(null); setChatFluxContext(null) }}
+              onFileSaved={refreshFiles}
+              initialFile={(chatEntityContext || chatArticleContext || chatFluxContext) ? null : selectedFile}
+              entityContext={chatEntityContext}
+              articleContext={chatArticleContext}
+              fluxContext={chatFluxContext}
+            />
+          </PanelErrorBoundary>
         )}
       </Suspense>
       <Suspense fallback={<PanelFallback />}>

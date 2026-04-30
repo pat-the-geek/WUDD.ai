@@ -1,8 +1,8 @@
 # WUDD.ai — Rapport d'améliorations logicielles
 
-**Date de mise à jour :** 29 avril 2026 (soir)
-**Version courante :** 2.8.14
-**Auteur :** Claude (Sonnet 4.6) — sessions de refactoring
+**Date de mise à jour :** 30 avril 2026
+**Version courante :** 2.8.18
+**Auteur :** Sessions de refactoring assistées IA
 
 ---
 
@@ -276,7 +276,7 @@ Mise à jour de cohérence avec les livraisons effectives de la journée :
 
 Preuves (références internes) :
 
-- `CHANGELOG.md` (entrées v2.8.12, v2.8.13, v2.8.14)
+- `CHANGELOG.md` (entrées v2.8.12 à v2.8.18)
 - `docs/RAPPORT_TECHNIQUE_PERFORMANCES_2026-04-29.md` (section "Mise à jour post-correctifs du 29/04")
 - `viewer/routes/entities.py`, `viewer/routes/quota.py`, `viewer/src/components/EntityArticlePanel.jsx`, `viewer/src/components/SettingsPanel.jsx`
 
@@ -510,4 +510,4 @@ Ce rapport permettrait de détecter des régressions dans la qualité du pipelin
 
 ---
 
-*Rapport initial généré le 15 mars 2026 (v2.5.0), mis à jour en alignement P1 le 29 avril 2026 (soir, v2.8.14).*
+*Rapport initial généré le 15 mars 2026 (v2.5.0), mis à jour en alignement optimisation le 30 avril 2026 (v2.8.18).*

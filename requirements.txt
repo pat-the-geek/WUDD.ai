@@ -26,3 +26,6 @@ anthropic>=0.96.0,<1.0.0
 # Tests
 pytest>=9.0.3,<10.0.0
 pytest-cov>=7.1.0,<8.0.0
+
+# Métriques Prometheus (endpoint /metrics pour Grafana/Netdata)
+prometheus_client>=0.21.0

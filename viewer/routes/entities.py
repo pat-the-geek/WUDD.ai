@@ -24,9 +24,10 @@ import time
 from flask import Blueprint, jsonify, request, Response, stream_with_context
 from pathlib import Path
 
-from viewer.helpers import PROJECT_ROOT, _call_ai_blocking
+from viewer.helpers import PROJECT_ROOT, _call_ai_blocking, require_json_body
 from viewer.state import _annotations_lock
 from utils.article_index import get_article_index
+from utils.date_utils import parse_article_date
 from utils.entity_index import get_entity_index
 
 entities_bp = Blueprint("entities", __name__)
@@ -2135,7 +2136,7 @@ def api_annotations_post():
         tags         (list[str], optionnel, max 20 items)
         notes        (str, optionnel, max 5000 chars)
     """
-    body = request.get_json(force=True, silent=True) or {}
+    body = require_json_body(required_fields=["url"])
     url = (body.get("url") or "").strip()
     if not url:
         return jsonify({"error": "Le champ 'url' est obligatoire"}), 400
@@ -2197,65 +2198,45 @@ def api_watched_get():
     with _watched_lock:
         watched = _load_watched()
 
-    # Calcul rapide des mentions sur les 7 derniers jours
+    if not watched:
+        return jsonify([])
+
+    # Calcul rapide des mentions via entity_index.json (évite le scan rglob).
     from datetime import datetime, timedelta, timezone
     now = datetime.now(timezone.utc)
     cutoff_7d = now - timedelta(days=7)
     cutoff_24h = now - timedelta(hours=24)
 
-    counts_7d: dict[str, int] = {}
-    counts_24h: dict[str, int] = {}
-
-    for data_dir in [PROJECT_ROOT / "data" / "articles", PROJECT_ROOT / "data" / "articles-from-rss"]:
-        if not data_dir.exists():
-            continue
-        for json_file in data_dir.rglob("*.json"):
-            if "cache" in str(json_file):
+    try:
+        eidx = get_entity_index(PROJECT_ROOT)
+        result = []
+        for w in watched:
+            etype = (w.get("type") or "").strip().upper()
+            value = (w.get("value") or "").strip()
+            if not etype or not value:
                 continue
-            try:
-                arts = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
-                if not isinstance(arts, list):
+
+            refs = eidx.get_refs(etype, value)
+            mentions_7d = 0
+            mentions_24h = 0
+            for ref in refs:
+                dt = parse_article_date(ref.get("date", ""))
+                if dt is None:
                     continue
-            except (json.JSONDecodeError, OSError):
-                continue
-            for art in arts:
-                entities = art.get("entities", {})
-                if not isinstance(entities, dict):
-                    continue
-                # Parse date
-                date_str = art.get("Date de publication", "")
-                art_dt = None
-                for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d", "%d/%m/%Y"):
-                    try:
-                        art_dt = datetime.strptime(date_str[:19], fmt).replace(tzinfo=timezone.utc)
-                        break
-                    except ValueError:
-                        continue
-                if art_dt is None:
-                    try:
-                        from email.utils import parsedate_to_datetime
-                        art_dt = parsedate_to_datetime(date_str).astimezone(timezone.utc)
-                    except Exception:
-                        pass
+                dt = dt.replace(tzinfo=timezone.utc)
+                if dt < cutoff_7d:
+                    # refs triées décroissantes : on peut arrêter tôt
+                    break
+                mentions_7d += 1
+                if dt >= cutoff_24h:
+                    mentions_24h += 1
 
-                for w in watched:
-                    vals = entities.get(w["type"], [])
-                    _wv_lower = w["value"].lower()
-                    if isinstance(vals, list) and any(
-                        isinstance(v, str) and v.lower() == _wv_lower for v in vals
-                    ):
-                        key = f"{w['type']}:{w['value']}"
-                        if art_dt and art_dt >= cutoff_7d:
-                            counts_7d[key] = counts_7d.get(key, 0) + 1
-                        if art_dt and art_dt >= cutoff_24h:
-                            counts_24h[key] = counts_24h.get(key, 0) + 1
-
-    result = []
-    for w in watched:
-        key = f"{w['type']}:{w['value']}"
-        result.append({**w, "mentions_7d": counts_7d.get(key, 0), "mentions_24h": counts_24h.get(key, 0)})
-
-    return jsonify(result)
+            result.append({**w, "mentions_7d": mentions_7d, "mentions_24h": mentions_24h})
+        return jsonify(result)
+    except Exception:
+        # Fallback de sécurité : préserver l'API même si l'index est indisponible.
+        result = [{**w, "mentions_7d": 0, "mentions_24h": 0} for w in watched]
+        return jsonify(result)
 
 
 @entities_bp.route("/api/watched-entities", methods=["POST"])
@@ -2264,7 +2245,7 @@ def api_watched_post():
 
     Body JSON : { type: str, value: str, notes?: str }
     """
-    body = request.get_json(force=True, silent=True) or {}
+    body = require_json_body(required_fields=["type", "value"])
     etype = (body.get("type") or "").strip().upper()
     value = (body.get("value") or "").strip()
     if not etype or not value:

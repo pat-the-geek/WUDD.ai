@@ -40,6 +40,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
+from .file_io import json_read, json_write_compact
 from .logging import default_logger
 
 _CACHE_FILENAME = "synthesis_cache.json"
@@ -88,20 +89,15 @@ class SynthesisCache:
             return
         if self._cache_path.exists():
             try:
-                self._data = json.loads(self._cache_path.read_text(encoding="utf-8"))
+                self._data = json_read(self._cache_path)
             except (json.JSONDecodeError, OSError) as e:
                 default_logger.warning(f"Impossible de charger synthesis_cache.json : {e}")
                 self._data = {}
         self._loaded = True
 
     def _save(self) -> None:
-        tmp = self._cache_path.with_suffix(".tmp")
         try:
-            tmp.write_text(
-                json.dumps(self._data, ensure_ascii=False, separators=(",", ":")),
-                encoding="utf-8",
-            )
-            tmp.replace(self._cache_path)
+            json_write_compact(self._cache_path, self._data)
         except OSError as e:
             default_logger.error(f"Impossible de sauvegarder synthesis_cache.json : {e}")
 

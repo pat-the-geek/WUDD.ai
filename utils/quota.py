@@ -20,6 +20,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .date_utils import parse_article_date
+from .file_io import json_read, json_write
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 QUOTA_CONFIG_PATH = PROJECT_ROOT / "config" / "quota.json"
@@ -87,13 +88,7 @@ class QuotaManager:
 
     def _persist(self) -> None:
         """Écriture atomique de l'état dans data/quota_state.json."""
-        QUOTA_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        tmp = QUOTA_STATE_PATH.with_suffix(".tmp")
-        tmp.write_text(
-            json.dumps(self._state, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        tmp.replace(QUOTA_STATE_PATH)
+        json_write(QUOTA_STATE_PATH, self._state)
         self._state_mtime_ns = self._safe_mtime_ns(QUOTA_STATE_PATH)
 
     # ─── API publique ─────────────────────────────────────────────────────────
@@ -332,11 +327,7 @@ class QuotaManager:
                         "summary_max_lines"):
             if int_key in config:
                 config[int_key] = max(1, int(config[int_key]))
-        QUOTA_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        QUOTA_CONFIG_PATH.write_text(
-            json.dumps(config, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        json_write(QUOTA_CONFIG_PATH, config)
         with self._lock:
             self._config = config
             self._config_mtime_ns = self._safe_mtime_ns(QUOTA_CONFIG_PATH)
@@ -406,7 +397,7 @@ class QuotaManager:
         if not QUOTA_CONFIG_PATH.exists():
             return dict(DEFAULT_CONFIG)
         try:
-            data = json.loads(QUOTA_CONFIG_PATH.read_text(encoding="utf-8"))
+            data = json_read(QUOTA_CONFIG_PATH)
             if isinstance(data, dict):
                 return {**DEFAULT_CONFIG, **data}
         except Exception:
@@ -417,7 +408,7 @@ class QuotaManager:
         if not QUOTA_STATE_PATH.exists():
             return {}
         try:
-            data = json.loads(QUOTA_STATE_PATH.read_text(encoding="utf-8"))
+            data = json_read(QUOTA_STATE_PATH)
             if not isinstance(data, dict):
                 return {}
             if data.get("date") != today:
@@ -445,7 +436,7 @@ class QuotaManager:
         if not WUDD_48H_PATH.exists():
             return state
         try:
-            articles = json.loads(WUDD_48H_PATH.read_text(encoding="utf-8"))
+            articles = json_read(WUDD_48H_PATH)
         except Exception:
             return state
         if not isinstance(articles, list):

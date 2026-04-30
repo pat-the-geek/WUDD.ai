@@ -9,7 +9,7 @@ Routes :
 import json
 
 from flask import Blueprint, jsonify, request, abort
-from viewer.helpers import PROJECT_ROOT, safe_path
+from viewer.helpers import PROJECT_ROOT, safe_path, require_json_body
 from viewer.state import _invalidate_bias_cache
 
 merge_bp = Blueprint("merge", __name__)
@@ -30,7 +30,7 @@ def api_merge_search():
                         score_entites, score_bigrammes, has_obsidian, file_path}],
           source_url: str }
     """
-    data = request.get_json(force=True, silent=True) or {}
+    data = require_json_body()
     file_path   = data.get("file_path", "").strip()
     article_url = data.get("article_url", "").strip()
     days        = int(data.get("days", 7))
@@ -95,7 +95,7 @@ def api_merge_synthesize():
     Returns :
         { synthesis: str }  — texte généré par l'IA, ou fallback structuré si IA indisponible
     """
-    data           = request.get_json(force=True, silent=True) or {}
+    data           = require_json_body()
     source_article = data.get("source_article") or {}
     candidates     = data.get("candidates") or []
 
@@ -161,7 +161,7 @@ def api_merge_execute():
     Returns :
         { ok, primary_source, secondaries_count, archive_path, obsidian_updated }
     """
-    data             = request.get_json(force=True, silent=True) or {}
+    data             = require_json_body()
     source_url       = data.get("source_url", "").strip()
     source_file_path = data.get("source_file_path", "").strip()
     selected         = data.get("selected", [])

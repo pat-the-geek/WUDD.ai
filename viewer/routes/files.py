@@ -18,7 +18,7 @@ import time
 from flask import Blueprint, jsonify, request, abort, send_file, Response, stream_with_context
 from pathlib import Path
 
-from viewer.helpers import safe_path, collect_files, PROJECT_ROOT
+from viewer.helpers import safe_path, collect_files, PROJECT_ROOT, require_json_body
 from viewer.state import (
     _get_files_manifest,
     _invalidate_bias_cache,
@@ -91,9 +91,7 @@ def api_stream_content():
 
 @files_bp.route("/api/content", methods=["POST"])
 def api_save_content():
-    data = request.get_json(force=True)
-    if not data or "path" not in data or "content" not in data:
-        abort(400, "Champs 'path' et 'content' requis")
+    data = require_json_body(required_fields=["path", "content"])
     rel = data["path"]
     # Restriction : uniquement data/ et config/ sont modifiables
     if not (rel.startswith("data/") or rel.startswith("config/")):
@@ -254,7 +252,7 @@ def api_article_refresh_resume():
                  score_sentiment: int, ton_editorial: str, score_ton: int,
                  temps_lecture_minutes: float, temps_lecture_label: str }
     """
-    body = request.get_json(force=True, silent=True) or {}
+    body = require_json_body()
     rel_path = (body.get("file_path") or "").strip()
     article_url = (body.get("article_url") or "").strip()
     provider = (body.get("provider") or "auto").strip().lower()
