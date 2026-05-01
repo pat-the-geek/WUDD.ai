@@ -43,6 +43,11 @@ _ENTITY_ARTICLES_CACHE_TTL = 90  # secondes
 _entity_articles_cache: dict = {}  # {(type, value, max, compact): {"result": ..., "ts": float}}
 _entity_articles_cache_lock = threading.Lock()
 
+# ── Cache TTL pour les co-occurrences (graphe de relations) ────────────────
+_COOC_CACHE_TTL = 600  # secondes (10 min)
+_cooc_cache: dict = {}  # {cache_key: {"result": ..., "ts": float}}
+_cooc_cache_lock = threading.Lock()
+
 # ── Cache mémoire pour images Wikimedia (chargé une seule fois depuis le disque) ─
 _images_cache_mem: dict | None = None   # None = pas encore chargé
 _images_cache_mem_lock = threading.Lock()
@@ -944,6 +949,13 @@ def api_entities_cooccurrences():
     if not entity_type or not entity_value:
         return jsonify({"error": "Paramètres type et value requis"}), 400
 
+    # ── Cache TTL : même requête → réponse instantanée pendant 10 min ─────────
+    cache_key = (entity_type, entity_value.lower(), depth, limit_l1, limit_l2)
+    with _cooc_cache_lock:
+        entry = _cooc_cache.get(cache_key)
+        if entry is not None and (time.monotonic() - entry["ts"]) < _COOC_CACHE_TTL:
+            return jsonify(entry["result"])
+
     def node_id(t, v):
         return f"{t}:{v}"
 
@@ -1004,14 +1016,23 @@ def api_entities_cooccurrences():
     sorted_l1 = sorted(cooc_l1.items(), key=lambda x: x[1], reverse=True)[:limit_l1]
     top_l1_set: set[tuple[str, str]] = {k for k, _ in sorted_l1}
 
-    # ── Helper : nombre total d'articles pour une entité (via index ou fallback) ──
-    def get_total_count(etype, ev, fallback_count):
+    # ── Batch total_count : une seule passe sur l'index pour tous les nœuds L1 ──
+    def batch_total_counts(keys: list[tuple[str, str]]) -> dict[tuple[str, str], int]:
+        """Retourne {(type, value): total_count} pour tous les nœuds en une passe."""
+        result: dict[tuple[str, str], int] = {}
         if index_available and eidx is not None:
-            try:
-                return len(eidx.get_refs(etype, ev))
-            except Exception:
-                pass
-        return fallback_count
+            for etype, ev in keys:
+                try:
+                    result[(etype, ev)] = len(eidx.get_refs(etype, ev))
+                except Exception:
+                    result[(etype, ev)] = cooc_l1.get((etype, ev), 0)
+        else:
+            for etype, ev in keys:
+                result[(etype, ev)] = cooc_l1.get((etype, ev), 0)
+        return result
+
+    l1_keys = [(etype, ev) for (etype, ev), _ in sorted_l1]
+    total_counts = batch_total_counts(l1_keys)
 
     # ── Construction des nœuds / arêtes L1 ───────────────────────────────────
     central_total = len(central_articles)
@@ -1022,7 +1043,7 @@ def api_entities_cooccurrences():
     for (etype, ev), count in sorted_l1:
         nodes.append({"type": etype, "value": ev, "count": count,
                        "central": False, "level": 1,
-                       "total_count": get_total_count(etype, ev, count)})
+                       "total_count": total_counts.get((etype, ev), count)})
         edges.append({"source": node_id(entity_type, entity_value),
                        "target": node_id(etype, ev), "weight": count})
 
@@ -1075,23 +1096,34 @@ def api_entities_cooccurrences():
             for (etype, ev), count in top_for_l1:
                 l2_key = (etype, ev)
                 if l2_key not in added_l2:
+                    l2_total = count
+                    if index_available and eidx is not None:
+                        try:
+                            l2_total = len(eidx.get_refs(etype, ev))
+                        except Exception:
+                            pass
                     nodes.append({"type": etype, "value": ev, "count": count,
                                    "central": False, "level": 2,
-                                   "total_count": get_total_count(etype, ev, count)})
+                                   "total_count": l2_total})
                     added_l2.add(l2_key)
                     existing.add(l2_key)
                 edges.append({"source": node_id(l1_etype, l1_ev),
                                "target": node_id(etype, ev),
                                "weight": count})
 
-    return jsonify({"nodes": nodes, "edges": edges, "total_cooc": len(cooc_l1)})
+    result = {"nodes": nodes, "edges": edges, "total_cooc": len(cooc_l1)}
+    with _cooc_cache_lock:
+        _cooc_cache[cache_key] = {"result": result, "ts": time.monotonic()}
+    return jsonify(result)
 
 
 @entities_bp.route("/api/entities/dashboard/invalidate", methods=["POST"])
 def api_entities_dashboard_invalidate():
-    """Invalide le cache TTL du dashboard (à appeler après enrich ou import d'articles)."""
+    """Invalide le cache TTL du dashboard et des co-occurrences."""
     with _dashboard_cache_lock:
         _dashboard_cache.clear()
+    with _cooc_cache_lock:
+        _cooc_cache.clear()
     return jsonify({"status": "ok", "message": "Cache dashboard invalidé"})
 
 

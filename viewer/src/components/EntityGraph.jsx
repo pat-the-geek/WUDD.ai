@@ -52,7 +52,7 @@ function computeLayout(nodes, edgeTriples, kFactor = 1.0) {
   })
 
   const k = Math.sqrt((W * H) / n) * 0.90 * kFactor
-  const ITERS = 240
+  const ITERS = 80
 
   for (let it = 0; it < ITERS; it++) {
     const temp = Math.max(0.35, 7 * (1 - it / ITERS))
@@ -122,7 +122,8 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
   const [error, setError]       = useState(null)
   const [showNoise, setShowNoise] = useState(false)
   const [depth, setDepth]       = useState(1)     // 1 ou 2
-  const [spacing, setSpacing]   = useState(1.0)   // facteur d'espacement
+  const [spacing, setSpacing]   = useState(1.0)   // facteur d'espacement affiché
+  const [spacingCommitted, setSpacingCommitted] = useState(1.0)  // valeur confirmée (layout)
   const [tooltip, setTooltip]   = useState(null)
   // Taille proportionnelle au nombre total d'articles + animation de révélation
   const [sizeByTotal, setSizeByTotal] = useState(true)   // ON par défaut
@@ -297,6 +298,7 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
     setError(null)
     setData(null)
     setSpacing(1.0)    // reset espacement à chaque nouvelle entité
+    setSpacingCommitted(1.0)
     applyView(VIEW0)   // reset zoom à chaque nouvelle entité
     setTypeOrder([])   // reset ordre légende
     const params = new URLSearchParams({
@@ -340,10 +342,10 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
       e => idx[e.source] !== undefined && idx[e.target] !== undefined
     )
     const edgeTriples = filteredEdges.map(e => [idx[e.source], idx[e.target], e.weight])
-    const positions = computeLayout(filtered, edgeTriples, spacing)
+    const positions = computeLayout(filtered, edgeTriples, spacingCommitted)
 
     return { nodes: filtered, edges: filteredEdges, positions, nodeIndex: idx }
-  }, [data, showNoise, spacing])
+  }, [data, showNoise, spacingCommitted])
 
   // ── Métriques visuelles ────────────────────────────────────────────────────
   const maxWeight  = edges.length  > 0 ? Math.max(...edges.map(e => e.weight)) : 1
@@ -473,6 +475,8 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
           <span className="whitespace-nowrap">Liens</span>
           <input type="range" min="0.4" max="3.5" step="0.05" value={spacing}
             onChange={e => setSpacing(+e.target.value)}
+            onMouseUp={e => setSpacingCommitted(+e.target.value)}
+            onTouchEnd={e => setSpacingCommitted(+e.target.value)}
             className="w-16 accent-violet-500" title={`${spacing.toFixed(1)}×`} />
         </div>
 
