@@ -203,6 +203,14 @@ def api_scheduler():
             "log_file": PROJECT_ROOT / "rapports" / "cron_reading_notes.log",
         },
         {
+            "name": "Export Obsidian (7 derniers jours)",
+            "script": "export_obsidian.py --days 7",
+            "cron": "30 8 * * *",
+            "category": "Rapports & digests",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_export_obsidian.log",
+        },
+        {
             "name": "Rapport consommation IA quotidien",
             "script": "generate_ai_consumption_report.py",
             "cron": "15 8 * * *",

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, Rss, Mail, Webhook, Copy, Check, Download, Send, RefreshCw, ExternalLink, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { X, Rss, Mail, Webhook, Copy, Check, Download, Send, RefreshCw, ExternalLink, AlertTriangle, CheckCircle2, BookOpen } from 'lucide-react'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -432,12 +432,202 @@ function WebhookTab() {
   )
 }
 
+// ── Tab Obsidian ─────────────────────────────────────────────────────────────
+
+function ObsidianTab({ fluxes, keywords }) {
+  const [sourceType, setSourceType] = useState('all')   // 'all' | 'flux' | 'keyword'
+  const [flux, setFlux] = useState('')
+  const [keyword, setKeyword] = useState('')
+  const [days, setDays] = useState(7)
+  const [force, setForce] = useState(false)
+  const [dryRun, setDryRun] = useState(false)
+  const [noEntities, setNoEntities] = useState(false)
+  const [noSynthesis, setNoSynthesis] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState(null)  // { ok, message, stats }
+  const [obsidianConfig, setObsidianConfig] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/config/obsidian')
+      .then(r => r.json())
+      .then(d => setObsidianConfig(d))
+      .catch(() => {})
+  }, [])
+
+  const handleExport = async () => {
+    setLoading(true)
+    setStatus(null)
+    try {
+      const body = {
+        days: days || null,
+        force,
+        dry_run: dryRun,
+        no_entities: noEntities,
+        no_synthesis: noSynthesis,
+      }
+      if (sourceType === 'flux' && flux) body.flux = flux
+      if (sourceType === 'keyword' && keyword) body.keyword = keyword
+
+      const r = await fetch('/api/export/obsidian', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await r.json()
+      if (!r.ok || data.error) throw new Error(data.error || `HTTP ${r.status}`)
+      const total = data.total_créés ?? 0
+      const msg = dryRun
+        ? `Simulation : ${total} fichiers seraient créés (articles: ${data.articles_créés ?? 0}, entités: ${data.entités_créées ?? 0}, rapports: ${data.rapports_copiés ?? 0}, synthèses: ${data.synthèses_créées ?? 0})`
+        : `Export terminé : ${total} fichiers créés (articles: ${data.articles_créés ?? 0}, entités: ${data.entités_créées ?? 0}, rapports: ${data.rapports_copiés ?? 0}, synthèses: ${data.synthèses_créées ?? 0})`
+      setStatus({ ok: true, message: msg, stats: data })
+    } catch (e) {
+      setStatus({ ok: false, message: `Erreur : ${e.message}` })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const vaultName = obsidianConfig?.vault_name || null
+  const obsidianUrl = vaultName
+    ? `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=Veille%2F_INDEX`
+    : null
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Génère des notes <strong className="font-medium text-slate-700 dark:text-slate-300">Obsidian Markdown</strong> enrichies
+        (frontmatter YAML, liens internes, graphes Mermaid, géolocalisation) dans la structure{' '}
+        <code className="px-1 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-xs">Veille/</code> du vault.
+      </p>
+
+      {!obsidianConfig?.obsidian_dir && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 text-xs text-amber-700 dark:text-amber-400">
+          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+          <span><code>OBSIDIAN_DIR</code> non configurée dans <code>.env</code> — l'export sera impossible.</span>
+        </div>
+      )}
+
+      {/* Source */}
+      <div>
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Source</label>
+        <div className="flex gap-2 flex-wrap">
+          {[['all', 'Tout exporter'], ['flux', 'Un flux'], ['keyword', 'Un mot-clé']].map(([v, l]) => (
+            <button
+              key={v}
+              onClick={() => setSourceType(v)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                sourceType === v
+                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF]'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600'
+              }`}
+            >{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {sourceType === 'flux' && (
+        <div>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Flux</label>
+          <select
+            value={flux}
+            onChange={e => setFlux(e.target.value)}
+            className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+          >
+            <option value="">— Choisir un flux —</option>
+            {fluxes.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
+      )}
+
+      {sourceType === 'keyword' && (
+        <div>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Mot-clé</label>
+          <select
+            value={keyword}
+            onChange={e => setKeyword(e.target.value)}
+            className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+          >
+            <option value="">— Choisir un mot-clé —</option>
+            {keywords.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
+        </div>
+      )}
+
+      {/* Fenêtre temporelle */}
+      <div>
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
+          Fenêtre temporelle : <strong>{days ? `${days} jours` : 'illimitée'}</strong>
+        </label>
+        <div className="flex gap-2 flex-wrap">
+          {[7, 14, 30, 90, null].map(d => (
+            <button
+              key={d ?? 'all'}
+              onClick={() => setDays(d)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                days === d
+                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF]'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600'
+              }`}
+            >{d ? `${d}j` : 'Tout'}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Options avancées */}
+      <div>
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Options</label>
+        <div className="space-y-2">
+          {[
+            [force, setForce, 'Écraser les notes existantes (--force)'],
+            [dryRun, setDryRun, 'Simulation sans écriture (--dry-run)'],
+            [noEntities, setNoEntities, 'Ne pas exporter les notes entités'],
+            [noSynthesis, setNoSynthesis, 'Ne pas générer les synthèses'],
+          ].map(([val, setter, label]) => (
+            <label key={label} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={val}
+                onChange={e => setter(e.target.checked)}
+                className="rounded accent-blue-600"
+              />
+              <span className="text-xs text-slate-600 dark:text-slate-400">{label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {status && <StatusBanner ok={status.ok} message={status.message} />}
+
+      {/* Actions */}
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={handleExport}
+          disabled={loading || !obsidianConfig?.obsidian_dir}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] disabled:opacity-60 text-white transition-colors"
+        >
+          {loading ? <RefreshCw size={14} className="animate-spin" /> : <BookOpen size={14} />}
+          {dryRun ? 'Simuler' : 'Exporter vers Obsidian'}
+        </button>
+        {obsidianUrl && (
+          <a
+            href={obsidianUrl}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 transition-colors"
+          >
+            <ExternalLink size={14} /> Ouvrir dans Obsidian
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Panel principal ──────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'atom',       label: 'Atom XML',   Icon: Rss     },
-  { id: 'newsletter', label: 'Newsletter', Icon: Mail    },
-  { id: 'webhook',    label: 'Webhook',    Icon: Webhook },
+  { id: 'atom',       label: 'Atom XML',   Icon: Rss      },
+  { id: 'newsletter', label: 'Newsletter', Icon: Mail     },
+  { id: 'webhook',    label: 'Webhook',    Icon: Webhook  },
+  { id: 'obsidian',   label: 'Obsidian',   Icon: BookOpen },
 ]
 
 export default function ExportPanel({ onClose, files = [] }) {
@@ -508,6 +698,7 @@ export default function ExportPanel({ onClose, files = [] }) {
           {activeTab === 'atom'       && <AtomTab fluxes={fluxes} keywords={keywords} />}
           {activeTab === 'newsletter' && <NewsletterTab />}
           {activeTab === 'webhook'    && <WebhookTab />}
+          {activeTab === 'obsidian'   && <ObsidianTab fluxes={fluxes} keywords={keywords} />}
         </div>
       </div>
     </div>

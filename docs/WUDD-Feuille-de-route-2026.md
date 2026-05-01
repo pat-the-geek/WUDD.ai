@@ -1,7 +1,7 @@
 ---
 title: WUDD.ai — Feuille de route complète
 date: 2026-04-29
-version: 2.8.14
+version: 2.9.0
 tags:
   - wudd
   - roadmap
@@ -13,7 +13,7 @@ statut: en cours
 ---
 
 # WUDD.ai — Feuille de route complète
-**Rapport de synthèse — 29 avril 2026 — v2.8.14**
+**Rapport de synthèse — 29 avril 2026 — v2.9.0**
 
 > Mise à jour de statut du 29/04/2026 : plusieurs items techniques de l'axe 1
 > sont déjà implémentés dans le code courant. Les cases ci-dessous reflètent
@@ -21,6 +21,10 @@ statut: en cours
 
 > Addendum P1 (soir) : alignement documentaire finalisé sur les livraisons
 > v2.8.12 à v2.8.14 (quota, entités, runtime Docker viewer/worker).
+
+> Addendum P2 : **AXE 3 terminé à 100%** — 8 items restants implémentés :
+> `[[wikilinks]]` entités, Nominatim fallback, `entités_geo`, notes GPE/LOC,
+> frontmatter rapports, statut scheduler, template vault `samples/`.
 
 ---
 
@@ -86,7 +90,7 @@ Preuves de traçabilité :
 - [x] **`[S]`** Créer `utils/file_io.py` — wrapper centralisé `json_read()` / `json_read_safe()` / `json_write()` / `json_write_compact()` avec `ensure_ascii=False` et écriture atomique systématiques
 	- Migré dans `utils/quota.py`, `utils/rolling_window.py`, `utils/synthesis_cache.py`, `utils/alert_calibrator.py`
 	- 1114 tests passés sans régression
-- [ ] **`[S]`** Créer `utils/entity_utils.py` — abstraire la boucle `for etype, evals in entities.items()` (dupliquée dans 4+ scripts)
+- [x] **`[S]`** Créer `utils/entity_utils.py` — abstraire la boucle `for etype, evals in entities.items()` (dupliquée dans 4+ scripts)
 - [x] **`[S]`** Valider les fichiers de configuration au démarrage via `jsonschema` dans `utils/config.py` (`quota.json`, `alert_rules.json`, `flux_json_sources.json`, `keyword-to-search.json`)
 	- Schémas définis en tête de `utils/config.py` : `_SCHEMA_QUOTA`, `_SCHEMA_ALERT_RULES`, `_SCHEMA_FLUX_SOURCES`, `_SCHEMA_KEYWORD_SEARCH`
 	- Warnings non bloquants — un fichier invalide signalé sans empêcher le démarrage
@@ -97,11 +101,11 @@ Preuves de traçabilité :
 
 ### 1.3 Tests — Long terme
 
-- [ ] **`[L]`** Créer `tests/test_api_client.py` — fixtures mock, comportements d'erreur (429, 500, timeout)
-- [ ] **`[M]`** Créer `tests/test_cache.py` — TTL, éviction, collision de clés, provider différent
-- [ ] **`[M]`** Créer `tests/test_quota.py` — reset minuit, plafond par entité, adaptive sorting
-- [ ] **`[M]`** Créer `tests/test_http_utils.py` — retry, backoff, BeautifulSoup extraction
-- [ ] **`[XL]`** Créer `tests/test_viewer_app.py` — couverture des 62 endpoints Flask
+- [x] **`[L]`** Créer `tests/test_api_client.py` — fixtures mock, comportements d'erreur (429, 500, timeout)
+- [x] **`[M]`** Créer `tests/test_cache.py` — TTL, éviction, collision de clés, provider différent
+- [x] **`[M]`** Créer `tests/test_quota.py` — reset minuit, plafond par entité, adaptive sorting
+- [x] **`[M]`** Créer `tests/test_http_utils.py` — retry, backoff, BeautifulSoup extraction
+- [x] **`[XL]`** Créer `tests/test_viewer_app.py` — couverture des 62 endpoints Flask
 
 ### 1.4 Monitoring — Long terme
 
@@ -176,26 +180,26 @@ Preuves de traçabilité :
 
 ### 3.1 Infrastructure de base
 
-- [ ] **`[S]`** Ajouter `OBSIDIAN_VAULT_PATH` dans `.env.example` et `utils/config.py` avec validation
-- [ ] **`[S]`** Monter le vault comme volume dans `docker-compose.yml`
-- [ ] **`[XS]`** Créer la structure de dossiers : `Veille/articles/`, `Veille/entités/`, `Veille/rapports/`, `Veille/synthèses/`
-- [ ] **`[S]`** Créer `scripts/export_obsidian.py` — squelette avec argparse (`--flux`, `--keyword`, `--days`, `--dry-run`, `--force`)
+- [x] **`[S]`** Ajouter `OBSIDIAN_DIR` / `OBSIDIAN_VAULT_NAME` dans `.env.example` et `utils/config.py` avec validation
+- [x] **`[S]`** Monter le vault comme volume dans `docker-compose.yml`
+- [x] **`[XS]`** Créer la structure de dossiers : `Veille/articles/`, `Veille/entités/`, `Veille/rapports/`, `Veille/synthèses/`
+- [x] **`[S]`** Créer `scripts/export_obsidian.py` — CLI avec argparse (`--flux`, `--keyword`, `--days`, `--dry-run`, `--force`, `--no-entities`, `--no-synthesis`)
 
 ### 3.2 Notes articles
 
-- [ ] **`[M]`** Générateur de **frontmatter YAML complet** depuis le JSON article
+- [x] **`[M]`** Générateur de **frontmatter YAML complet** depuis le JSON article
 	- `title`, `date`, `source`, `url`, `flux`
 	- `sentiment`, `score_sentiment`, `ton_editorial`, `score_ton`
 	- `score_source`, `temps_lecture`, `tags`, `entités`
-- [ ] **`[S]`** Nommage des fichiers : `YYYY-MM-DD_source_slug-titre.md` (slug 40 caractères max)
-- [ ] **`[S]`** Corps de la note : Résumé, Entités avec liens `[[internes]]` par type, section Source avec crédibilité
-- [ ] **`[S]`** Insertion des images : `![](https://url-image)` depuis le champ `Images` existant
-- [ ] **`[S]`** Déduplication à l'export — ne pas réécrire si MD5 résumé inchangé (réutilise `utils/deduplication.py`)
+- [x] **`[S]`** Nommage des fichiers : `YYYY-MM-DD_source_slug-titre.md` (slug 40 caractères max)
+- [x] **`[S]`** Corps de la note : Résumé, Entités avec liens `[[internes]]` par type, section Source avec crédibilité
+- [x] **`[S]`** Insertion des images : `![](https://url-image)` depuis le champ `Images` existant
+- [x] **`[S]`** Déduplication à l'export — MD5 résumé implémenté dans `export_obsidian.py`
 
 ### 3.3 Notes d'entités avec diagrammes Mermaid
 
-- [ ] **`[M]`** Note par entité significative (≥ 5 mentions) dans `Veille/entités/` avec frontmatter complet
-- [ ] **`[M]`** **Diagramme de co-occurrences** `graph TD` depuis `entity_index.json` — Top 15 relations
+- [x] **`[M]`** Note par entité significative (≥ 5 mentions) dans `Veille/entités/` avec frontmatter complet
+- [x] **`[M]`** **Diagramme de co-occurrences** `graph TD` depuis `entity_index.json` — implémenté (Top relations)
 
 ```mermaid
 graph TD
@@ -205,7 +209,7 @@ graph TD
     OpenAI --- États_Unis["États-Unis"]
 ```
 
-- [ ] **`[M]`** **Timeline de couverture** `timeline` depuis `entity_timeline.json` — Top 10 articles par score
+- [x] **`[M]`** **Timeline de couverture** `timeline` depuis `entity_timeline.json` — implémenté
 
 ```mermaid
 timeline
@@ -215,7 +219,7 @@ timeline
     08 mars : Libération · Anthropic lève 2 milliards
 ```
 
-- [ ] **`[S]`** **Pie chart ton éditorial** `pie` depuis `/api/sources/bias` filtré sur l'entité
+- [x] **`[S]`** **Pie chart ton éditorial** `pie` depuis les articles enrichis filtrés sur l'entité (sentiments répartition)
 
 ```mermaid
 pie title Ton éditorial — Sources IA (30 derniers jours)
@@ -225,14 +229,14 @@ pie title Ton éditorial — Sources IA (30 derniers jours)
     "Critique" : 12
 ```
 
-- [ ] **`[S]`** Liste des 10 articles les plus récents en liens `[[internes]]` en fin de note
+- [x] **`[S]`** Liste des 10 articles les plus récents en liens `[[internes]]` en fin de note
 
 ### 3.4 Géolocalisation (Map View)
 
-- [ ] **`[S]`** Identifier la GPE principale par article (première entité GPE par fréquence)
-- [ ] **`[M]`** Résolution coordonnées GPS via `data/geocode_cache.json` puis Nominatim si absent
-- [ ] **`[S]`** Injecter `location: [lat, lon]` dans le frontmatter (coordonnée de la GPE principale)
-- [ ] **`[S]`** Injecter `entités_geo` — liste GPE/LOC avec coordonnées résolues
+- [x] **`[S]`** Identifier la GPE principale par article (première entité GPE/LOC disponible)
+- [x] **`[M]`** Résolution coordonnées GPS via `data/geocode_cache.json` puis Nominatim si absent
+- [x] **`[S]`** Injecter `location: [lat, lon]` dans le frontmatter (coordonnée de la GPE principale)
+- [x] **`[S]`** Injecter `entités_geo` — liste GPE/LOC avec coordonnées résolues
 
 ```yaml
 entités_geo:
@@ -242,33 +246,33 @@ entités_geo:
     location: [46.2276, 2.2137]
 ```
 
-- [ ] **`[S]`** Note géographique par entité GPE/LOC avec coordonnée GPS et backlinks articles
+- [x] **`[S]`** Note géographique par entité GPE/LOC avec coordonnée GPS et backlinks articles
 
 ### 3.5 Notes de synthèse
 
-- [ ] **`[S]`** Copier les rapports Markdown existants dans `Veille/rapports/` avec frontmatter ajouté
-- [ ] **`[S]`** Note de synthèse par flux (`Veille/synthèses/<flux>.md`) : statistiques, top entités liées, liens vers derniers rapports
-- [ ] **`[M]`** Note index globale (`Veille/synthèses/_INDEX.md`) : tableau de bord tous flux, top 20 entités cross-flux, alertes actives — "home page" de la veille dans Obsidian
+- [x] **`[S]`** Copier les rapports Markdown existants dans `Veille/rapports/` avec frontmatter ajouté
+- [x] **`[S]`** Note de synthèse par flux (`Veille/synthèses/<flux>.md`) : statistiques, top entités liées, liens vers derniers rapports
+- [x] **`[M]`** Note index globale (`Veille/synthèses/_INDEX.md`) : tableau de bord tous flux, top 20 entités cross-flux, alertes actives — "home page" de la veille dans Obsidian
 
 ### 3.6 Intégration dans le Viewer
 
-- [ ] **`[S]`** Endpoint Flask `POST /api/export/obsidian` — paramètres : `flux`, `keyword`, `days`, `force`, `include_geo`, `include_mermaid`
-- [ ] **`[M]`** Onglet **Obsidian** dans `ExportPanel.jsx`
+- [x] **`[S]`** Endpoint Flask `POST /api/export/obsidian` — paramètres : `flux`, `keyword`, `days`, `force`, `dry_run`, `no_entities`, `no_synthesis`
+- [x] **`[M]`** Onglet **Obsidian** dans `ExportPanel.jsx`
 	- Statut vault (chemin + accessible/inaccessible)
 	- Sélecteur source, slider période, checkboxes options (géo, Mermaid, rapports)
 	- Bouton "Exporter" avec streaming SSE du nombre de notes créées
-- [ ] **`[S]`** Bouton "Ouvrir dans Obsidian" via protocole `obsidian://open?vault=...`
-- [ ] **`[XS]`** Badge d'avertissement si `OBSIDIAN_VAULT_PATH` non configuré
+- [x] **`[S]`** Bouton "Ouvrir dans Obsidian" via protocole `obsidian://open?vault=...`
+- [x] **`[XS]`** Badge d'avertissement si `OBSIDIAN_DIR` non configuré
 
 ### 3.7 Automatisation
 
-- [ ] **`[S]`** Ajouter `export_obsidian.py` au crontab Docker — quotidien à 08:30 après les enrichissements
-- [ ] **`[XS]`** Exposer le statut du dernier export dans `/api/scheduler`
+- [x] **`[S]`** Ajouter `export_obsidian.py` au crontab Docker — quotidien à 08:30 après les enrichissements
+- [x] **`[XS]`** Exposer le statut du dernier export dans `/api/scheduler`
 
 ### 3.8 Documentation
 
-- [ ] **`[M]`** Créer `docs/OBSIDIAN.md` : prérequis, configuration, structure vault, format frontmatter, configuration Map View, requêtes Dataview exemples
-- [ ] **`[XS]`** Template de vault vide pré-configuré dans `samples/obsidian-vault-template/`
+- [x] **`[M]`** Créer `docs/OBSIDIAN.md` : prérequis, configuration, structure vault, format frontmatter, configuration Map View, requêtes Dataview exemples
+- [x] **`[XS]`** Template de vault vide pré-configuré dans `samples/obsidian-vault-template/`
 
 ---
 

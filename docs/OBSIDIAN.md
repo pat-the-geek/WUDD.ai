@@ -4,6 +4,38 @@ Ce document décrit la configuration requise pour exploiter pleinement les notes
 
 ---
 
+## Export automatisé vers le vault (`export_obsidian.py`)
+
+Le script `scripts/export_obsidian.py` exporte articles, entités, rapports et synthèses dans la structure `Veille/` du vault. Les notes incluent frontmatter YAML, liens internes `[[entité]]`, graphes Mermaid et géolocalisation.
+
+```bash
+# Exporter les 7 derniers jours
+python3 scripts/export_obsidian.py --days 7
+
+# Simulation sans écriture
+python3 scripts/export_obsidian.py --dry-run --days 7
+
+# Flux spécifique, forcer la réécriture
+python3 scripts/export_obsidian.py --flux Intelligence-artificielle --force
+```
+
+Structure générée :
+```
+Veille/
+├── articles/     # YYYY-MM-DD_source_slug-titre.md
+├── entités/      # Notes entités ≥ 5 mentions (Mermaid co-occ + pie + timeline)
+├── rapports/     # Copie des rapports existants
+└── synthèses/
+    ├── _INDEX.md
+    └── <flux>.md
+```
+
+L'export peut aussi être lancé depuis l'interface web **Export & Diffusion → onglet Obsidian**.
+
+**Cron Docker** : tous les jours à 8h30 — `30 8 * * * root cd /app && python3 scripts/export_obsidian.py --days 7`
+
+---
+
 ## Table des matières
 
 1. [Prérequis](#prérequis)

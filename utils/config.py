@@ -177,6 +177,11 @@ class Config:
         self.rapports_markdown_dir = self.project_root / "rapports" / "markdown"
         self.rapports_pdf_dir = self.project_root / "rapports" / "pdf"
         self.config_dir = self.project_root / "config"
+
+        # Obsidian — export vers vault local
+        _obsidian_raw = os.getenv("OBSIDIAN_DIR", "").strip()
+        self.obsidian_dir: Optional[Path] = Path(_obsidian_raw) if _obsidian_raw else None
+        self.obsidian_vault_name: str = os.getenv("OBSIDIAN_VAULT_NAME", "").strip()
     
     def _load_summary_max_lines(self) -> int:
         """Lit summary_max_lines depuis config/quota.json.

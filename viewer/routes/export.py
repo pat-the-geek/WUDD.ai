@@ -1083,6 +1083,60 @@ def api_entity_get_report_meta():
     return jsonify({"rapports": index.get(key, [])})
 
 
+@export_bp.route("/api/export/obsidian", methods=["POST"])
+def api_export_obsidian():
+    """Lance l'export complet WUDD.ai → vault Obsidian.
+
+    Corps JSON (tous optionnels) :
+        flux       (str)  — limiter à un flux spécifique
+        keyword    (str)  — limiter à un mot-clé RSS
+        days       (int)  — limiter aux N derniers jours
+        force      (bool) — écraser les notes existantes
+        dry_run    (bool) — simulation sans écriture
+        no_entities (bool) — ne pas exporter les notes entités
+        no_synthesis (bool) — ne pas générer les synthèses
+
+    Retourne un dict de statistiques.
+    """
+    import sys as _sys
+    _scripts_dir = str(PROJECT_ROOT / "scripts")
+    if _scripts_dir not in _sys.path:
+        _sys.path.insert(0, _scripts_dir)
+
+    from scripts.export_obsidian import run_export  # noqa: PLC0415
+
+    body = request.get_json(silent=True) or {}
+    flux = body.get("flux") or None
+    keyword = body.get("keyword") or None
+    days = body.get("days") or None
+    force = bool(body.get("force", False))
+    dry_run = bool(body.get("dry_run", False))
+    no_entities = bool(body.get("no_entities", False))
+    no_synthesis = bool(body.get("no_synthesis", False))
+
+    if days is not None:
+        try:
+            days = int(days)
+        except (TypeError, ValueError):
+            days = None
+
+    try:
+        stats = run_export(
+            flux=flux,
+            keyword=keyword,
+            days=days,
+            dry_run=dry_run,
+            force=force,
+            no_entities=no_entities,
+            no_synthesis=no_synthesis,
+        )
+        if "erreur" in stats:
+            return jsonify({"error": stats["erreur"]}), 400
+        return jsonify({"ok": True, **stats})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": f"Erreur export Obsidian : {exc}"}), 500
+
+
 @export_bp.route("/api/config/obsidian", methods=["GET"])
 def api_config_obsidian():
     """Retourne la configuration Obsidian pour construire les liens obsidian://.

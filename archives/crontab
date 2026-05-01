@@ -86,4 +86,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Rapports mensuels par mot-clé : dernier jour du mois à 6h00
 # Génère un rapport Markdown par fichier data/articles-from-rss/ pour la période courante
 0 6 28-31 * * root [ "$(date -d tomorrow +\%d)" = "01" ] && cd /app && python3 scripts/generate_keyword_reports.py 2>&1 | tee -a /app/rapports/cron_keyword_reports.log
+# Export Obsidian quotidien : 8h30, après la collecte de la nuit et les enrichissements
+# Génère notes articles, entités, rapports et synthèses dans le vault Obsidian (OBSIDIAN_DIR)
+30 8 * * * root cd /app && python3 scripts/export_obsidian.py --days 7 2>&1 | tee -a /app/rapports/cron_export_obsidian.log
 

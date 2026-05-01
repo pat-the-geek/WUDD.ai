@@ -285,6 +285,7 @@ The Docker container installs `archives/crontab` at startup and runs `cron -f` i
 | `generate_data_quality_report.py` | Generate a Markdown data-quality report (missing fields, API errors, quality score) for all article JSON files | `--dry-run`, `--dir articles\|rss`, `--output` |
 | `import_articles.py` | Import articles from an external JSON file into a flux or keyword source, with deduplication and index update | `--file`, `--flux`, `--keyword`, `--rss`, `--dry-run` |
 | `import_obsidian_reports.py` | Sync WUDD.ai Markdown reports from Obsidian back into article JSON and `data/entity_reports_index.json` (idempotent) | `--dry-run`, `--force` |
+| `export_obsidian.py` | Export articles, entités, rapports et synthèses vers vault Obsidian — frontmatter YAML, liens `[[internes]]`, Mermaid, géoloc | `--flux`, `--keyword`, `--days`, `--dry-run`, `--force`, `--no-entities`, `--no-synthesis` |
 | `migrate_build_indexes.py` | One-time migration: build `data/article_index.json` and `data/entity_index.json` from scratch | `--dry-run` |
 | `normalize_entity_index.py` | Migration v1→v2: normalize entity keys to lowercase in `data/entity_index.json` and add canonical display form (`caps`) | `--dry-run`, `--backup` |
 | `rebuild_48h.py` | Reconstruct `data/articles-from-rss/_WUDD.AI_/48-heures.json` by aggregating all articles from the last 48h | (none) |
