@@ -288,18 +288,18 @@ entités_geo:
 
 > Remplacer intégralement les 19 captures existantes dans `docs/Screen-captures/`
 
-- [ ] **`[XS]`** Supprimer les 19 anciennes captures dans `docs/Screen-captures/`
-- [ ] **`[XS]`** **Capture 1** — Interface principale : sidebar + liste articles JSON avec badges sentiment
-- [ ] **`[XS]`** **Capture 2** — Recherche full-text ⌘K : overlay avec résultats multi-flux surlignés
-- [ ] **`[XS]`** **Capture 3** — Rapport Markdown : rapport rendu avec image, sections et tableau sources
-- [ ] **`[XS]`** **Capture 4** — Dashboard entités vue Liste : compteurs + sections colorées par type NER
-- [ ] **`[XS]`** **Capture 5** — Graphe de co-occurrences : réseau force-layout d'une entité clé
-- [ ] **`[XS]`** **Capture 6** — Top Articles podium : 3 cartes avec 🥇🥈🥉, badges sentiment/ton/lecture
-- [ ] **`[XS]`** **Capture 7** — Tendances & Alertes : liste rouge/orange/jaune avec ratios
-- [ ] **`[XS]`** **Capture 8** — Terminal IA : conversation en cours avec réponse Markdown streamée
-- [ ] **`[XS]`** **Capture 9** — Biais éditoriaux : tableau avec barres tricolores et badges ton
-- [ ] **`[XS]`** **Capture 10** — Réglages Planification : tableau cron jobs avec statuts actifs
-- [ ] **`[XS]`** Mettre à jour les références aux captures dans `README.md` et `docs/ARCHITECTURE.md`
+- [x] **`[XS]`** Supprimer les 19 anciennes captures dans `docs/Screen-captures/`
+- [x] **`[XS]`** **Capture 1** — Interface principale : sidebar + liste articles JSON avec badges sentiment
+- [x] **`[XS]`** **Capture 2** — Recherche full-text ⌘K : overlay avec résultats multi-flux surlignés
+- [x] **`[XS]`** **Capture 3** — Rapport Markdown : rapport rendu avec image, sections et tableau sources
+- [x] **`[XS]`** **Capture 4** — Dashboard entités vue Liste : compteurs + sections colorées par type NER
+- [x] **`[XS]`** **Capture 5** — Graphe de co-occurrences : réseau force-layout d'une entité clé
+- [x] **`[XS]`** **Capture 6** — Top Articles podium : 3 cartes avec 🥇🥈🥉, badges sentiment/ton/lecture
+- [x] **`[XS]`** **Capture 7** — Tendances & Alertes : liste rouge/orange/jaune avec ratios
+- [x] **`[XS]`** **Capture 8** — Terminal IA : conversation en cours avec réponse Markdown streamée
+- [x] **`[XS]`** **Capture 9** — Biais éditoriaux : tableau avec barres tricolores et badges ton
+- [x] **`[XS]`** **Capture 10** — Réglages Planification : tableau cron jobs avec statuts actifs
+- [x] **`[XS]`** Mettre à jour les références aux captures dans `README.md` et `docs/ARCHITECTURE.md`
 
 ---
 

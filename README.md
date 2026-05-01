@@ -724,65 +724,81 @@ bash start-viewer.sh stop      # arrêter le conteneur Docker
 
 ### Captures d'écran
 
-**Explorateur d'articles**
+**Interface principale — sidebar + liste articles**
 
-![Explorateur d'articles](docs/Screen-captures/Explorateur-articles.png)
+![UI globale](docs/Screen-captures/01%20-%20UI%20globale.png)
 
-**Explorateur d'articles — vue d'ensemble**
+**Recherche full-text ⌘K — overlay avec résultats multi-flux**
 
-![Explorateur d'articles vue d'ensemble](docs/Screen-captures/Explorateur-articles-big-picture.png)
+![Recherche](docs/Screen-captures/02%20-%20Recherche.png)
 
-**Rapport complet d'un article**
+**Rapport Markdown rendu avec image et sources**
 
-![Rapport d'article](docs/Screen-captures/rapport-acticle.png)
+![Rapports](docs/Screen-captures/03%20-%20Rapports.png)
 
-**Rapport d'article avec diagramme Mermaid**
+**Rapport — graphe entités et relations**
 
-![Rapport d'article avec Mermaid](docs/Screen-captures/rapport-article-mermaid.png)
-
-**Actualités en direct avec carte géographique**
-
-![Direct News avec carte](docs/Screen-captures/Direct-News-avec-carte.png)
-
-**Cartographie des articles**
-
-![Cartographie des articles](docs/Screen-captures/Cartographie-articles.png)
+![Rapport graphe entités](docs/Screen-captures/03%20-%20Rapport%20-%20graphe%2C%20entit%C3%A9s.png)
 
 **Dashboard des entités nommées (NER)**
 
-![Dashboard entités](docs/Screen-captures/Dashboard-entit%C3%A9s.png)
+![Entités](docs/Screen-captures/04%20-%20Entit%C3%A9s.png)
 
-**Articles d'une entité — liste filtrée avec export**
+**Entités — indicateurs et compteurs**
 
-![Entité articles](docs/Screen-captures/Entit%C3%A9-articles.png)
+![Entités indicateurs](docs/Screen-captures/04%20-%20Entit%C3%A9s%20-%20Indicateurs.png)
 
-**Carte des relations d'une entité**
+**Entités — galerie d'images**
 
-![Entité map relations](docs/Screen-captures/Entit%C3%A9-map-relations.png)
+![Entités galerie](docs/Screen-captures/04%20-%20Entit%C3%A9s%20-%20Gallerie.png)
 
-**Rapport RAG d'une entité**
+**Entités — carte géographique**
 
-![Entité rapport RAG](docs/Screen-captures/Entit%C3%A9-rapport-RAG.png)
+![Entités carte](docs/Screen-captures/04%20-%20Entit%C3%A9s%20-%20Map.png)
 
-**Terminal IA avec contexte d'entité**
+**Graphe de co-occurrences**
 
-![Entité terminal IA contexte](docs/Screen-captures/Entit%C3%A9-terminal-ia-contexte.png)
+![Graphe de relation](docs/Screen-captures/05%20-%20Graphe%20de%20relation.png)
+
+**Top Articles — podium 🥇🥈🥉 avec badges**
+
+![Top articles](docs/Screen-captures/06%20-%20Top%20articles.png)
+
+**Top Articles — Direct News**
+
+![Top articles Direct](docs/Screen-captures/06%20-%20Top%20articles%20-%20Direct.png)
+
+**Tendances & Alertes — niveaux critique/élevé/modéré**
+
+![Tendances et alertes](docs/Screen-captures/07%20-%20Tendances%20et%20alertes.png)
+
+**Terminal IA — conversation avec réponse streamée**
+
+![Terminal IA](docs/Screen-captures/08%20-%20Terminal%20IA.png)
+
+**Biais éditoriaux et crédibilité des sources**
+
+![Biais crédibilité](docs/Screen-captures/09%20-%20Biais%20-%20Cr%C3%A9dibilit%C3%A9.png)
 
 **Réglages — Flux RSS**
 
-![Réglages RSS](docs/Screen-captures/R%C3%A9glages-RSS.png)
+![Réglages RSS](docs/Screen-captures/10%20-%20R%C3%A9glages%20-%20RSS.png)
+
+**Réglages — Mots-clés**
+
+![Réglages mots-clés](docs/Screen-captures/10%20-%20R%C3%A9glages%20-%20Mots-cl%C3%A9s.png)
+
+**Réglages — Planification cron**
+
+![Réglages planification](docs/Screen-captures/10%20-%20R%C3%A9glages%20-%20Planification.png)
 
 **Réglages — Quotas journaliers**
 
-![Réglages quotas](docs/Screen-captures/R%C3%A9glages-quotas.png)
+![Réglages quota](docs/Screen-captures/10%20-%20R%C3%A9glages%20-%20Quota.png)
 
-**Intégration Obsidian**
+**Réglages — Fiabilité des sources**
 
-![Obsidian integration](docs/Screen-captures/Obsidian-integration.png)
-
-**Graphe de connaissances**
-
-![Graphe de connaissances](docs/Screen-captures/Graph-de-connaissances.png)
+![Réglages fiabilité](docs/Screen-captures/10%20-%20R%C3%A9glages%20-%20Fiabilit%C3%A9.png)
 
 ### Prérequis
 
