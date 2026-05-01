@@ -31,6 +31,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
   const [filterTo, setFilterTo] = useState('')
   const [fileArticles, setFileArticles] = useState(null)
   const [fileLoading, setFileLoading] = useState(false)
+  const [semanticMode, setSemanticMode] = useState(false)
   const inputRef = useRef(null)
   const debounceRef = useRef(null)
 
@@ -96,18 +97,40 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
     if (query.length < 2) { setResults([]); return }
     setLoading(true)
     debounceRef.current = setTimeout(() => {
-      const params = new URLSearchParams({ q: query })
-      if (filterSentiment) params.set('sentiment', filterSentiment)
-      if (filterSource)    params.set('source', filterSource)
-      if (filterFrom)      params.set('date_from', filterFrom)
-      if (filterTo)        params.set('date_to', filterTo)
-      fetch(`/api/search?${params}`)
-        .then(r => r.json())
-        .then(data => { setResults(data); setActiveIdx(0); setLoading(false) })
-        .catch(() => setLoading(false))
+      if (semanticMode) {
+        // Recherche sémantique TF-IDF
+        const params = new URLSearchParams({ q: query, top_k: 10 })
+        fetch(`/api/search/semantic?${params}`)
+          .then(r => r.json())
+          .then(data => {
+            const items = (data.results || []).map((art, i) => ({
+              _type: 'article',
+              idx: i,
+              source: art['Sources'] || '',
+              date: (art['Date de publication'] || '').slice(0, 10),
+              resume: art['Résumé'] || '',
+              url: art['URL'] || '',
+              _similarity: art['_similarity'],
+            }))
+            setResults(items)
+            setActiveIdx(0)
+            setLoading(false)
+          })
+          .catch(() => setLoading(false))
+      } else {
+        const params = new URLSearchParams({ q: query })
+        if (filterSentiment) params.set('sentiment', filterSentiment)
+        if (filterSource)    params.set('source', filterSource)
+        if (filterFrom)      params.set('date_from', filterFrom)
+        if (filterTo)        params.set('date_to', filterTo)
+        fetch(`/api/search?${params}`)
+          .then(r => r.json())
+          .then(data => { setResults(data); setActiveIdx(0); setLoading(false) })
+          .catch(() => setLoading(false))
+      }
     }, 300)
     return () => clearTimeout(debounceRef.current)
-  }, [query, isArticleMode, filterSentiment, filterSource, filterFrom, filterTo])
+  }, [query, isArticleMode, filterSentiment, filterSource, filterFrom, filterTo, semanticMode])
 
   const handleKeyDown = (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)) }
@@ -150,6 +173,15 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
             className="flex-1 bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none"
           />
           {(loading || fileLoading) && <span className="text-xs text-slate-400 dark:text-slate-500 animate-pulse shrink-0">Recherche…</span>}
+          {!isArticleMode && (
+            <button
+              onClick={() => setSemanticMode(m => !m)}
+              title={semanticMode ? "Mode sémantique (TF-IDF) — cliquer pour revenir en exacte" : "Passer en recherche sémantique"}
+              className={`shrink-0 px-2 py-0.5 rounded-lg text-[10px] font-semibold border transition-colors ${semanticMode ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-400'}`}
+            >
+              {semanticMode ? '≈ sémantique' : '= exacte'}
+            </button>
+          )}
           {!isArticleMode && (
             <button
               onClick={() => setShowFilters(f => !f)}

@@ -225,11 +225,15 @@ function ImageLightbox({ url, alt, onClose }) {
   )
 }
 
-/** Panneau d'annotation inline (notes + tags). */
+/** Panneau d'annotation inline (notes + tags + statut workflow). */
 function AnnotationPanel({ annotation, onSave, onClose }) {
   const [notes, setNotes]   = useState(annotation?.notes ?? '')
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags]     = useState(annotation?.tags ?? [])
+  const [wfStatus, setWfStatus] = useState(annotation?.wf_status ?? '')
+
+  const WF_OPTIONS = ['', 'À traiter', 'En cours', 'Archivé']
+  const WF_COLORS = { '': 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400', 'À traiter': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', 'En cours': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300', 'Archivé': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' }
 
   const addTag = () => {
     const t = tagInput.trim()
@@ -242,7 +246,21 @@ function AnnotationPanel({ annotation, onSave, onClose }) {
 
   return (
     <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60">
-      {/* Tags */}
+      {/* Statut workflow */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Statut :</span>
+        <div className="flex gap-1">
+          {WF_OPTIONS.filter(o => o).map(opt => (
+            <button
+              key={opt}
+              onClick={() => setWfStatus(wfStatus === opt ? '' : opt)}
+              className={`text-[10px] px-2 py-0.5 rounded-full border font-medium transition-all ${wfStatus === opt ? WF_COLORS[opt] + ' border-current' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-400'}`}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="flex flex-wrap gap-2 mb-2">
         {tags.map(t => (
           <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 dark:bg-amber-800/50 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
@@ -277,7 +295,7 @@ function AnnotationPanel({ annotation, onSave, onClose }) {
           onClick={() => {
             const t = tagInput.trim()
             const finalTags = t && !tags.includes(t) ? [...tags, t] : tags
-            onSave({ notes, tags: finalTags })
+            onSave({ notes, tags: finalTags, wf_status: wfStatus })
             onClose()
           }}
           className="inline-flex items-center gap-1 text-[11px] px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors"
@@ -487,6 +505,8 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
   const isHidden    = annotation?.is_hidden ?? false
   const tags        = annotation?.tags ?? []
   const hasNote     = !!(annotation?.notes?.trim())
+  const wfStatus    = annotation?.wf_status ?? ''
+  const WF_BADGE_COLORS = { 'À traiter': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', 'En cours': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300', 'Archivé': 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' }
 
   const toggle = useCallback((field) => {
     if (onAnnotate && url) onAnnotate(url, { [field]: !(annotation?.[field] ?? false) })
@@ -614,6 +634,11 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
             )}
           </div>
           <SentimentBadge article={displayArticle} />
+          {wfStatus && (
+            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-current/30 ${WF_BADGE_COLORS[wfStatus] || ''}`}>
+              {wfStatus}
+            </span>
+          )}
           {titre && (
             <h3 className="mt-1.5 text-xl font-bold text-slate-800 dark:text-slate-100 leading-tight">
               {titre}

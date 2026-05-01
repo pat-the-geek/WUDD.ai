@@ -432,6 +432,122 @@ def detect_watched_alerts(
     return alerts
 
 
+def _linear_predict_minutes(values: list[float], interval_minutes: int = 60) -> float:
+    """Prévoit le prochain point via régression linéaire sur les dernières valeurs.
+
+    Args:
+        values           : liste de comptes horaires (du plus ancien au plus récent)
+        interval_minutes : intervalle entre chaque point (défaut 60 min)
+
+    Returns:
+        Valeur prévue au prochain intervalle. Retourne 0 si données insuffisantes.
+    """
+    n = len(values)
+    if n < 2:
+        return 0.0
+    # Régression linéaire simple : y = a*x + b
+    xs = list(range(n))
+    mean_x = sum(xs) / n
+    mean_y = sum(values) / n
+    denom = sum((x - mean_x) ** 2 for x in xs)
+    if denom == 0:
+        return mean_y
+    slope = sum((xs[i] - mean_x) * (values[i] - mean_y) for i in range(n)) / denom
+    intercept = mean_y - slope * mean_x
+    predicted = slope * n + intercept
+    return max(0.0, predicted)
+
+
+def _build_hourly_series(entity_key: str, project_root: "Path", hours: int = 6) -> list[float]:
+    """Construit une série horaire de mentions depuis entity_timeline.json.
+
+    Retourne une liste de `hours` valeurs (les plus récentes d'abord).
+    """
+    tl_path = project_root / "data" / "entity_timeline.json"
+    if not tl_path.exists():
+        return []
+    try:
+        timeline = json.loads(tl_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+    # Chercher la clé (format "TYPE:value" ou juste "value")
+    data = timeline.get(entity_key, timeline.get(entity_key.split(":", 1)[-1], None))
+    if not data or not isinstance(data, dict):
+        return []
+
+    mentions = data.get("mentions", [])
+    if not mentions:
+        return []
+
+    # Agréger par heure sur les `hours` dernières heures
+    now = datetime.now(timezone.utc)
+    hourly: dict[str, float] = {}
+    for m in mentions:
+        d = m.get("date", "")
+        try:
+            dt = datetime.fromisoformat(d.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if (now - dt).total_seconds() <= hours * 3600:
+                hour_key = dt.strftime("%Y-%m-%dT%H:00")
+                hourly[hour_key] = hourly.get(hour_key, 0) + m.get("count", 1)
+        except Exception:
+            pass
+
+    # Construire la série ordonnée par heure
+    sorted_keys = sorted(hourly.keys())
+    return [hourly[k] for k in sorted_keys]
+
+
+def add_predictions(alerts: list[dict], project_root: "Path") -> list[dict]:
+    """Ajoute le champ `prediction_seuil_dans_minutes` aux alertes en tendance.
+
+    Pour chaque alerte, construit une série horaire et projette le moment
+    où le seuil "élevé" (ratio ≥ 4.0) pourrait être atteint.
+
+    Args:
+        alerts       : liste d'alertes issues de detect_trends/detect_watched_alerts
+        project_root : racine du projet (pour accéder à entity_timeline.json)
+
+    Returns:
+        La même liste avec le champ `prediction_seuil_dans_minutes` ajouté.
+    """
+    SEUIL_CRITIQUE = 4.0  # ratio à partir duquel on prédit le seuil critique
+
+    for alert in alerts:
+        if alert.get("niveau") not in ("élevé", "critique", "modéré"):
+            continue
+        entity_key = f"{alert['entity_type']}:{alert['entity_value']}"
+        series = _build_hourly_series(entity_key, project_root, hours=6)
+        if len(series) < 2:
+            continue
+        # Projection : combien d'intervalles horaires jusqu'à SEUIL_CRITIQUE × avg ?
+        avg_per_day = alert.get("count_7j", 0) / 7.0
+        if avg_per_day <= 0:
+            continue
+        current_ratio = alert.get("ratio", 0)
+        if current_ratio >= SEUIL_CRITIQUE:
+            alert["prediction_seuil_dans_minutes"] = 0
+            continue
+        # Valeur prédite au prochain intervalle (60 min)
+        predicted_next = _linear_predict_minutes(series, interval_minutes=60)
+        predicted_ratio = predicted_next / avg_per_day if avg_per_day > 0 else 0
+        if predicted_ratio >= SEUIL_CRITIQUE:
+            # Atteint dans moins d'une heure
+            frac = (SEUIL_CRITIQUE - current_ratio) / max(predicted_ratio - current_ratio, 0.01)
+            minutes = int(frac * 60)
+            alert["prediction_seuil_dans_minutes"] = max(0, min(minutes, 60))
+        # Si la tendance linéaire dépasse le seuil à horizon 2-3h
+        elif len(series) >= 3:
+            predicted_2h = _linear_predict_minutes(series + [predicted_next], interval_minutes=60)
+            ratio_2h = predicted_2h / avg_per_day if avg_per_day > 0 else 0
+            if ratio_2h >= SEUIL_CRITIQUE:
+                alert["prediction_seuil_dans_minutes"] = 120
+
+    return alerts
+
+
 def detect_silences(
     counts_24h: dict[str, int],
     counts_7j: dict[str, int],
@@ -615,6 +731,12 @@ def main():
 
     alerts = detect_trends(counts_24h, counts_7j, threshold, top_n, rules=rules)
     default_logger.info(f"{len(alerts)} alerte(s) de tendance détectée(s)")
+
+    # Alertes prédictives : projeter le franchissement de seuil critique
+    alerts = add_predictions(alerts, project_root)
+    predicted_count = sum(1 for a in alerts if a.get("prediction_seuil_dans_minutes") is not None)
+    if predicted_count:
+        default_logger.info(f"{predicted_count} alerte(s) avec prédiction de seuil")
 
     if not alerts:
         default_logger.info("Aucune tendance significative détectée.")

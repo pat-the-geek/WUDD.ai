@@ -211,6 +211,14 @@ def api_scheduler():
             "log_file": PROJECT_ROOT / "rapports" / "cron_export_obsidian.log",
         },
         {
+            "name": "Rapport veille entités surveillées (hebdo)",
+            "script": "generate_watched_report.py",
+            "cron": "45 8 * * 1",
+            "category": "Rapports & digests",
+            "data_dir": None,
+            "log_file": PROJECT_ROOT / "rapports" / "cron_watched_report.log",
+        },
+        {
             "name": "Rapport consommation IA quotidien",
             "script": "generate_ai_consumption_report.py",
             "cron": "15 8 * * *",

@@ -1,0 +1,9 @@
+[
+  {
+    "username": "admin",
+    "password_hash": "",
+    "role": "admin",
+    "comment": "Remplir password_hash avec: python3 -c \"import hashlib; print(hashlib.sha256(b'votre_mot_de_passe').hexdigest())\"",
+    "enabled": false
+  }
+]

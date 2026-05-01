@@ -1,0 +1,16 @@
+[
+  {
+    "id": "default",
+    "name": "Profil par défaut",
+    "description": "Profil généraliste — toutes sources, toutes thématiques",
+    "entities": [],
+    "themes": [],
+    "sources": [],
+    "keywords": [],
+    "exclude_sources": [],
+    "exclude_keywords": [],
+    "top_n": 10,
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z"
+  }
+]

@@ -18,6 +18,7 @@ Routes :
 import datetime
 import json
 import os
+import sys
 import threading
 import time
 
@@ -2164,6 +2165,12 @@ def api_annotations_post():
         if "notes" in body:
             notes = str(body["notes"])[:5000]
             updated["notes"] = notes
+        if "wf_status" in body:
+            allowed = {"À traiter", "En cours", "Archivé", ""}
+            v = str(body["wf_status"]).strip()
+            if v not in allowed:
+                return jsonify({"error": f"wf_status invalide (valeurs: {sorted(allowed)})"}), 400
+            updated["wf_status"] = v
 
         updated["updated_at"] = now_iso
         if "created_at" not in updated:
@@ -2288,6 +2295,471 @@ def api_watched_delete():
         _save_watched(watched)
 
     return jsonify({"ok": True, "removed": len(watched) < before})
+
+
+@entities_bp.route("/api/entity-timeline", methods=["GET"])
+def api_entity_timeline():
+    """Retourne entity_timeline.json pour affichage des courbes dans EntityWatchPanel."""
+    tl_path = PROJECT_ROOT / "data" / "entity_timeline.json"
+    if not tl_path.exists():
+        return jsonify({})
+    try:
+        return jsonify(json.loads(tl_path.read_text(encoding="utf-8")))
+    except Exception:
+        return jsonify({})
+
+
+@entities_bp.route("/api/sources/health", methods=["GET"])
+def api_sources_health():
+    """Retourne le rapport de santé des sources (data/source_health.json).
+
+    Si le fichier n'existe pas encore, lance une analyse à la volée (rapide).
+    Paramètres :
+      refresh=1  — force une nouvelle analyse
+      days=14    — fenêtre d'analyse en jours
+    """
+    health_path = PROJECT_ROOT / "data" / "source_health.json"
+    days = int(request.args.get("days", 14))
+    force_refresh = request.args.get("refresh", "0") == "1"
+
+    if force_refresh or not health_path.exists():
+        try:
+            sys.path.insert(0, str(PROJECT_ROOT))
+            from scripts.check_source_health import run_check
+            run_check(PROJECT_ROOT, days=days, dry_run=False)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    if not health_path.exists():
+        return jsonify({"sources": [], "summary": {}})
+    try:
+        return jsonify(json.loads(health_path.read_text(encoding="utf-8")))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── Profils utilisateur ───────────────────────────────────────────────────────
+
+_PROFILES_PATH = PROJECT_ROOT / "config" / "user_profiles.json"
+_profiles_lock = threading.Lock()
+
+
+def _load_profiles() -> list[dict]:
+    if not _PROFILES_PATH.exists():
+        return []
+    try:
+        data = json.loads(_PROFILES_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _save_profiles(profiles: list[dict]) -> None:
+    _PROFILES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _PROFILES_PATH.write_text(json.dumps(profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+@entities_bp.route("/api/profiles", methods=["GET"])
+def api_profiles_get():
+    """Retourne la liste des profils utilisateur."""
+    return jsonify(_load_profiles())
+
+
+@entities_bp.route("/api/profiles", methods=["POST"])
+def api_profiles_post():
+    """Crée ou met à jour un profil utilisateur.
+
+    Body JSON : id (obligatoire), name, description, entities, themes, sources,
+                keywords, exclude_sources, exclude_keywords, top_n
+    """
+    body = require_json_body(required_fields=["id"])
+    pid = str(body.get("id", "")).strip()
+    if not pid:
+        return jsonify({"error": "L'id est obligatoire"}), 400
+
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+
+    with _profiles_lock:
+        profiles = _load_profiles()
+        existing = next((p for p in profiles if p.get("id") == pid), None)
+        if existing:
+            idx = profiles.index(existing)
+            updated = dict(existing)
+        else:
+            updated = {"id": pid, "created_at": now_iso}
+            idx = None
+
+        for field in ("name", "description", "top_n"):
+            if field in body:
+                updated[field] = body[field]
+        for field in ("entities", "themes", "sources", "keywords", "exclude_sources", "exclude_keywords"):
+            if field in body:
+                v = body[field]
+                if not isinstance(v, list):
+                    return jsonify({"error": f"'{field}' doit être une liste"}), 400
+                updated[field] = [str(x).strip() for x in v if str(x).strip()]
+
+        updated["updated_at"] = now_iso
+
+        if idx is not None:
+            profiles[idx] = updated
+        else:
+            profiles.append(updated)
+        _save_profiles(profiles)
+
+    return jsonify({"ok": True, "profile": updated})
+
+
+@entities_bp.route("/api/profiles/<profile_id>", methods=["DELETE"])
+def api_profiles_delete(profile_id: str):
+    """Supprime un profil utilisateur."""
+    with _profiles_lock:
+        profiles = _load_profiles()
+        new_profiles = [p for p in profiles if p.get("id") != profile_id]
+        if len(new_profiles) == len(profiles):
+            return jsonify({"error": "Profil introuvable"}), 404
+        _save_profiles(new_profiles)
+    return jsonify({"ok": True})
+
+
+# ── Comparaison couverture sources ────────────────────────────────────────────
+
+@entities_bp.route("/api/sources/coverage", methods=["GET"])
+def api_sources_coverage():
+    """Compare comment les sources couvrent une entité ou un sujet donné.
+
+    Paramètres :
+      entity  — nom de l'entité à analyser (ex: "OpenAI")
+      days    — fenêtre en jours (défaut 7)
+      type    — type NER optionnel pour filtrer (ex: "ORG")
+
+    Retourne pour chaque source : nb articles, sentiment moyen, ton éditorial
+    dominant, liste d'URL avec résumé court.
+    """
+    entity_query = (request.args.get("entity") or "").strip().lower()
+    days = min(int(request.args.get("days", 7)), 90)
+    etype_filter = (request.args.get("type") or "").strip().upper()
+
+    if not entity_query:
+        return jsonify({"error": "Paramètre 'entity' obligatoire"}), 400
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cutoff = now - datetime.timedelta(days=days)
+
+    # Agréger les articles par source
+    source_data: dict[str, dict] = {}
+
+    for source_dir in [PROJECT_ROOT / "data" / "articles-from-rss",
+                        PROJECT_ROOT / "data" / "articles"]:
+        if not source_dir.exists():
+            continue
+        for json_file in sorted(source_dir.rglob("*.json"),
+                                key=lambda f: f.stat().st_mtime, reverse=True)[:40]:
+            if "cache" in str(json_file) or "index" in json_file.name:
+                continue
+            try:
+                data = json.loads(json_file.read_text(encoding="utf-8"))
+                if not isinstance(data, list):
+                    continue
+            except Exception:
+                continue
+
+            for art in data:
+                # Filtre date
+                d = art.get("Date de publication", "") or ""
+                try:
+                    dt = datetime.datetime.fromisoformat(d.replace("Z", "+00:00"))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=datetime.timezone.utc)
+                    if dt < cutoff:
+                        continue
+                except Exception:
+                    pass
+
+                # Vérifier la présence de l'entité
+                resume = str(art.get("Résumé", "") or "").lower()
+                art_ents = art.get("entities", {}) or {}
+                found = False
+
+                # Chercher dans les entités NER
+                for etype, vals in art_ents.items():
+                    if etype_filter and etype != etype_filter:
+                        continue
+                    if isinstance(vals, list):
+                        for v in vals:
+                            if entity_query in str(v).lower():
+                                found = True
+                                break
+                    if found:
+                        break
+
+                # Chercher dans le résumé si pas trouvé dans NER
+                if not found and entity_query in resume:
+                    found = True
+
+                if not found:
+                    continue
+
+                src = str(art.get("Sources", "")) or "Inconnu"
+                if src not in source_data:
+                    source_data[src] = {
+                        "source": src,
+                        "count": 0,
+                        "sentiments": [],
+                        "tons": [],
+                        "articles": [],
+                    }
+
+                source_data[src]["count"] += 1
+                sent = art.get("sentiment", "")
+                if sent:
+                    source_data[src]["sentiments"].append(sent)
+                ton = art.get("ton_editorial", "")
+                if ton:
+                    source_data[src]["tons"].append(ton)
+                source_data[src]["articles"].append({
+                    "url": art.get("URL", ""),
+                    "date": (art.get("Date de publication") or "")[:10],
+                    "resume": str(art.get("Résumé", "") or "")[:200],
+                })
+
+    # Calculer les métriques agrégées
+    result = []
+    for src, sd in sorted(source_data.items(), key=lambda x: -x[1]["count"]):
+        sentiments = sd["sentiments"]
+        tons = sd["tons"]
+        # Mode sentiment
+        sent_mode = max(set(sentiments), key=sentiments.count) if sentiments else None
+        # Mode ton
+        ton_mode = max(set(tons), key=tons.count) if tons else None
+
+        result.append({
+            "source": src,
+            "count": sd["count"],
+            "sentiment_dominant": sent_mode,
+            "ton_dominant": ton_mode,
+            "articles": sd["articles"][:5],  # Max 5 articles par source
+        })
+
+    return jsonify({
+        "entity": entity_query,
+        "days": days,
+        "sources_count": len(result),
+        "sources": result,
+    })
+
+
+# ── Veille concurrentielle ────────────────────────────────────────────────────
+
+@entities_bp.route("/api/competitive/targets", methods=["GET"])
+def api_competitive_targets_get():
+    """Retourne la liste des cibles de veille concurrentielle."""
+    rules_path = PROJECT_ROOT / "config" / "alert_rules.json"
+    try:
+        rules = json.loads(rules_path.read_text(encoding="utf-8"))
+        targets = rules.get("veille_concurrentielle", {}).get("targets", [])
+        return jsonify({"targets": targets})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@entities_bp.route("/api/competitive/targets", methods=["POST"])
+def api_competitive_targets_post():
+    """Ajoute ou met à jour une cible de veille concurrentielle.
+
+    Body JSON : name (obligatoire), type (défaut: ORG), aliases (liste optionnelle)
+    """
+    body = require_json_body(required_fields=["name"])
+    name = str(body.get("name", "")).strip()
+    if not name:
+        return jsonify({"error": "'name' est obligatoire"}), 400
+    etype = str(body.get("type", "ORG")).strip().upper()
+    aliases = body.get("aliases", [])
+    if not isinstance(aliases, list):
+        aliases = []
+    aliases = [str(a).strip() for a in aliases if str(a).strip()]
+
+    rules_path = PROJECT_ROOT / "config" / "alert_rules.json"
+    try:
+        rules = json.loads(rules_path.read_text(encoding="utf-8"))
+        vc = rules.setdefault("veille_concurrentielle", {"enabled": True, "targets": []})
+        targets = vc.setdefault("targets", [])
+        existing = next((t for t in targets if t.get("name", "").lower() == name.lower()), None)
+        if existing:
+            existing["type"] = etype
+            existing["aliases"] = aliases
+        else:
+            targets.append({"name": name, "type": etype, "aliases": aliases})
+        rules_path.write_text(json.dumps(rules, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"ok": True, "name": name})
+
+
+@entities_bp.route("/api/competitive/targets/<target_name>", methods=["DELETE"])
+def api_competitive_targets_delete(target_name: str):
+    """Supprime une cible de veille concurrentielle."""
+    rules_path = PROJECT_ROOT / "config" / "alert_rules.json"
+    try:
+        rules = json.loads(rules_path.read_text(encoding="utf-8"))
+        targets = rules.get("veille_concurrentielle", {}).get("targets", [])
+        new_targets = [t for t in targets if t.get("name", "").lower() != target_name.lower()]
+        rules["veille_concurrentielle"]["targets"] = new_targets
+        rules_path.write_text(json.dumps(rules, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"ok": True})
+
+
+@entities_bp.route("/api/competitive/report", methods=["GET"])
+def api_competitive_report():
+    """Rapport de veille concurrentielle : mentions des cibles sur N jours.
+
+    Paramètres : days (défaut 7)
+    """
+    days = min(int(request.args.get("days", 7)), 90)
+    rules_path = PROJECT_ROOT / "config" / "alert_rules.json"
+
+    try:
+        rules = json.loads(rules_path.read_text(encoding="utf-8"))
+        targets = rules.get("veille_concurrentielle", {}).get("targets", [])
+    except Exception:
+        targets = []
+
+    if not targets:
+        return jsonify({"targets": [], "days": days, "message": "Aucune cible configurée"})
+
+    # Pour chaque cible, compter les mentions via /api/sources/coverage logic
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cutoff = now - datetime.timedelta(days=days)
+    report = []
+
+    for target in targets:
+        name = target.get("name", "")
+        aliases = target.get("aliases", [])
+        search_terms = [name.lower()] + [a.lower() for a in aliases]
+        count = 0
+        sources: set[str] = set()
+        sentiments: list[str] = []
+        recent_urls: list[str] = []
+
+        for source_dir in [PROJECT_ROOT / "data" / "articles-from-rss",
+                            PROJECT_ROOT / "data" / "articles"]:
+            if not source_dir.exists():
+                continue
+            for json_file in sorted(source_dir.rglob("*.json"),
+                                    key=lambda f: f.stat().st_mtime, reverse=True)[:20]:
+                if "cache" in str(json_file) or "index" in json_file.name:
+                    continue
+                try:
+                    data = json.loads(json_file.read_text(encoding="utf-8"))
+                    if not isinstance(data, list):
+                        continue
+                except Exception:
+                    continue
+                for art in data:
+                    resume = str(art.get("Résumé", "") or "").lower()
+                    if not any(t in resume for t in search_terms):
+                        continue
+                    d = art.get("Date de publication", "") or ""
+                    try:
+                        dt = datetime.datetime.fromisoformat(d.replace("Z", "+00:00"))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=datetime.timezone.utc)
+                        if dt < cutoff:
+                            continue
+                    except Exception:
+                        pass
+                    count += 1
+                    src = str(art.get("Sources", ""))
+                    if src:
+                        sources.add(src)
+                    sent = art.get("sentiment", "")
+                    if sent:
+                        sentiments.append(sent)
+                    url = art.get("URL", "")
+                    if url and len(recent_urls) < 5:
+                        recent_urls.append(url)
+
+        sent_mode = max(set(sentiments), key=sentiments.count) if sentiments else None
+        report.append({
+            "name": name,
+            "type": target.get("type", "ORG"),
+            "aliases": aliases,
+            "count": count,
+            "sources_count": len(sources),
+            "sentiment_dominant": sent_mode,
+            "recent_urls": recent_urls,
+        })
+
+    report.sort(key=lambda r: -r["count"])
+    return jsonify({"targets": report, "days": days})
+
+
+# ── Recherche sémantique ──────────────────────────────────────────────────────
+
+_semantic_index_built = False
+_semantic_index_lock = threading.Lock()
+
+
+def _ensure_semantic_index(project_root: Path) -> None:
+    """Construit l'index TF-IDF sémantique à la demande."""
+    global _semantic_index_built
+    with _semantic_index_lock:
+        if _semantic_index_built:
+            return
+        articles: list[dict] = []
+        for source_dir in [project_root / "data" / "articles-from-rss",
+                            project_root / "data" / "articles"]:
+            if not source_dir.exists():
+                continue
+            for json_file in sorted(source_dir.rglob("*.json"),
+                                    key=lambda f: f.stat().st_mtime, reverse=True)[:30]:
+                if "cache" in str(json_file) or "index" in json_file.name:
+                    continue
+                try:
+                    data = json.loads(json_file.read_text(encoding="utf-8"))
+                    if isinstance(data, list):
+                        articles.extend(data)
+                except Exception:
+                    continue
+        try:
+            from utils.vector_search import build_search_index
+            build_search_index(articles, project_root)
+            _semantic_index_built = True
+        except Exception:
+            pass
+
+
+@entities_bp.route("/api/search/semantic", methods=["GET"])
+def api_search_semantic():
+    """Recherche sémantique TF-IDF sur les résumés d'articles.
+
+    Paramètres :
+      q      — requête de recherche (obligatoire)
+      top_k  — nombre de résultats (défaut 10, max 50)
+
+    Retourne les articles les plus similaires avec _similarity score.
+    """
+    query = (request.args.get("q") or "").strip()
+    if not query:
+        return jsonify({"error": "Paramètre 'q' obligatoire"}), 400
+    top_k = min(int(request.args.get("top_k", 10)), 50)
+
+    _ensure_semantic_index(PROJECT_ROOT)
+
+    try:
+        from utils.vector_search import get_vector_search
+        vs = get_vector_search(PROJECT_ROOT)
+        results = vs.search(query, top_k=top_k)
+        return jsonify({
+            "query": query,
+            "engine": vs.engine,
+            "count": len(results),
+            "results": results,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2497,3 +2969,96 @@ def api_entities_export():
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Cache-Control"] = "no-cache"
     return resp
+
+
+# ── Propagation narratifs ─────────────────────────────────────────────────────
+
+@entities_bp.route("/api/narrative/propagation", methods=["GET"])
+def api_narrative_propagation():
+    """Détecte et retourne la propagation des narratifs entre sources.
+
+    Params GET :
+      entity  — filtre par entité/mot-clé (optionnel)
+      days    — fenêtre temporelle en jours (défaut: 14)
+      refresh — 1 pour forcer le recalcul (sinon utilise le cache fichier 1h)
+    """
+    entity = request.args.get("entity", "").strip() or None
+    days = max(1, min(90, int(request.args.get("days", 14))))
+    force = request.args.get("refresh", "0") == "1"
+
+    output_path = PROJECT_ROOT / "data" / "narrative_propagation.json"
+
+    # Utiliser le cache fichier si disponible et < 1h
+    if not force and output_path.exists():
+        try:
+            cached = json.loads(output_path.read_text(encoding="utf-8"))
+            import datetime as _dt
+            generated = _dt.datetime.fromisoformat(cached.get("generated_at", "2000-01-01"))
+            if generated.tzinfo is None:
+                generated = generated.replace(tzinfo=_dt.timezone.utc)
+            age_minutes = (_dt.datetime.now(_dt.timezone.utc) - generated).total_seconds() / 60
+            if age_minutes < 60 and cached.get("days_window") == days and cached.get("entity_filter") == entity:
+                return jsonify(cached)
+        except Exception:
+            pass
+
+    try:
+        sys.path.insert(0, str(PROJECT_ROOT))
+        from scripts.detect_narrative_propagation import detect_narrative_propagation
+        results = detect_narrative_propagation(
+            project_root=PROJECT_ROOT,
+            entity=entity,
+            days=days,
+            dry_run=False,
+        )
+        output = {
+            "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+            "days_window": days,
+            "entity_filter": entity,
+            "narratives_count": len(results),
+            "narratives": results,
+        }
+        return jsonify(output)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+# ── Analyse réseau d'influence (Louvain) ──────────────────────────────────────
+
+@entities_bp.route("/api/sources/influence-network", methods=["GET"])
+def api_sources_influence_network():
+    """Construit et retourne le graphe d'influence des sources.
+
+    Params GET :
+      days    — fenêtre temporelle en jours (défaut: 30)
+      refresh — 1 pour forcer le recalcul (sinon cache fichier 2h)
+    """
+    days = max(1, min(90, int(request.args.get("days", 30))))
+    force = request.args.get("refresh", "0") == "1"
+
+    cache_path = PROJECT_ROOT / "data" / "influence_network.json"
+
+    if not force and cache_path.exists():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            import datetime as _dt
+            generated = _dt.datetime.fromisoformat(cached.get("generated_at", "2000-01-01"))
+            if generated.tzinfo is None:
+                generated = generated.replace(tzinfo=_dt.timezone.utc)
+            age_minutes = (_dt.datetime.now(_dt.timezone.utc) - generated).total_seconds() / 60
+            if age_minutes < 120 and cached.get("days_window") == days:
+                return jsonify(cached)
+        except Exception:
+            pass
+
+    try:
+        from utils.network_analysis import build_influence_report
+        report = build_influence_report(PROJECT_ROOT, days=days)
+        # Sauvegarder pour le cache
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        return jsonify(report)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+

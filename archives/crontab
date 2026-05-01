@@ -90,3 +90,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Génère notes articles, entités, rapports et synthèses dans le vault Obsidian (OBSIDIAN_DIR)
 30 8 * * * root cd /app && python3 scripts/export_obsidian.py --days 7 2>&1 | tee -a /app/rapports/cron_export_obsidian.log
 
+# Rapport hebdomadaire entités surveillées : lundi 8h45 après l'export Obsidian
+45 8 * * 1 root cd /app && python3 scripts/generate_watched_report.py 2>&1 | tee -a /app/rapports/cron_watched_report.log
+# Suivi santé sources : quotidien 6h45 (avant les rapports du matin)
+45 6 * * * root cd /app && python3 scripts/check_source_health.py 2>&1 | tee -a /app/rapports/cron_source_health.log
+# Digest personnalisé par profil : quotidien 8h20 (après les enrichissements)
+20 8 * * * root cd /app && python3 scripts/generate_personal_digest.py 2>&1 | tee -a /app/rapports/cron_personal_digest.log

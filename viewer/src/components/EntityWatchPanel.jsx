@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { X, Eye, Plus, Trash2, RefreshCw, TrendingUp, Bell } from 'lucide-react'
+import { X, Eye, Plus, Trash2, RefreshCw, TrendingUp, Bell, BarChart2, ChevronDown, ChevronUp } from 'lucide-react'
 
 const ENTITY_TYPE_FR = {
   PERSON: 'Personne', ORG: 'Organisation', GPE: 'Lieu/Pays',
@@ -34,6 +34,87 @@ function TrendChip({ count24h, count7d }) {
   )
 }
 
+/** Mini sparkline SVG depuis les données timeline (30 derniers jours). */
+function MentionSparkline({ entityKey, timeline }) {
+  if (!timeline || !entityKey) return null
+  const data = timeline[entityKey] || timeline[entityKey?.split(':')[1]] || null
+  if (!data) return null
+
+  // Construire un tableau de 30 jours (date → count)
+  const mentions = data.mentions || []
+  if (mentions.length < 2) return null
+
+  const sorted = [...mentions].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+  const last30 = sorted.slice(-30)
+  const maxVal = Math.max(...last30.map(m => m.count || 0), 1)
+  const W = 80
+  const H = 24
+  const pts = last30.map((m, i) => {
+    const x = (i / (last30.length - 1)) * W
+    const y = H - ((m.count || 0) / maxVal) * H
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+
+  return (
+    <svg width={W} height={H} className="overflow-visible" title="Historique 30 jours">
+      <polyline
+        points={pts}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        className="text-blue-400 dark:text-blue-500"
+      />
+    </svg>
+  )
+}
+
+/** Détail historique de mentions — graphe SVG pleine largeur + table des 10 dernières dates. */
+function MentionHistoryDetail({ entityKey, timeline, entity }) {
+  const data = timeline[entityKey] || timeline[entityKey?.split(':')[1]] || null
+  if (!data) return <p className="text-xs text-slate-400 italic">Aucune donnée de timeline disponible.</p>
+
+  const mentions = [...(data.mentions || [])].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+  const last60 = mentions.slice(-60)
+  if (last60.length < 2) return <p className="text-xs text-slate-400 italic">Historique insuffisant.</p>
+
+  const maxVal = Math.max(...last60.map(m => m.count || 0), 1)
+  const W = 400
+  const H = 48
+  const pts = last60.map((m, i) => {
+    const x = (i / (last60.length - 1)) * W
+    const y = H - ((m.count || 0) / maxVal) * H
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  const fillPts = `0,${H} ${pts} ${W},${H}`
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        Historique de mentions — {entity.value} ({last60.length} points, {last60[0]?.date?.slice(0,10)} → {last60[last60.length-1]?.date?.slice(0,10)})
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-12 overflow-visible">
+        <defs>
+          <linearGradient id={`grad-${entityKey}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <polygon points={fillPts} fill={`url(#grad-${entityKey})`} />
+        <polyline points={pts} fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+      <div className="flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+        {last60.slice(-10).reverse().map((m, i) => (
+          <span key={i} className="flex items-center gap-1">
+            <span>{m.date?.slice(0,10)}</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">{m.count}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function EntityWatchPanel({ onClose, onOpenArticles }) {
   const [entities, setEntities] = useState([])
   const [loading, setLoading]   = useState(true)
@@ -41,12 +122,20 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
   const [newType, setNewType]   = useState('PERSON')
   const [newValue, setNewValue] = useState('')
   const [saving, setSaving]     = useState(false)
+  const [timeline, setTimeline] = useState({})
+  const [expandedKey, setExpandedKey] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
-    fetch('/api/watched-entities')
-      .then(r => r.json())
-      .then(d => { setEntities(d); setLoading(false) })
+    Promise.all([
+      fetch('/api/watched-entities').then(r => r.json()),
+      fetch('/api/entity-timeline').then(r => r.json()).catch(() => ({})),
+    ])
+      .then(([ents, tl]) => {
+        setEntities(ents)
+        setTimeline(tl)
+        setLoading(false)
+      })
       .catch(() => { setError('Erreur de chargement'); setLoading(false) })
   }, [])
 
@@ -156,46 +245,72 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
                 <tr className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-200/50 dark:border-slate-700/50">
                   <th className="text-left px-5 py-2.5">Entité</th>
                   <th className="text-left px-4 py-2.5">Activité</th>
+                  <th className="text-left px-4 py-2.5 w-24">
+                    <span className="flex items-center gap-1"><BarChart2 size={10} /> 30j</span>
+                  </th>
                   <th className="text-left px-4 py-2.5">Ajoutée le</th>
                   <th className="px-4 py-2.5 w-20"></th>
                 </tr>
               </thead>
               <tbody>
-                {entities.sort((a, b) => (b.mentions_24h || 0) - (a.mentions_24h || 0)).map((e, i) => (
-                  <tr key={i} className="border-b border-slate-200/40 dark:border-slate-700/40 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${TYPE_COLORS[e.type] || 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
-                          {ENTITY_TYPE_FR[e.type] || e.type}
-                        </span>
-                        <button
-                          onClick={() => onOpenArticles?.(e.type, e.value)}
-                          className="font-medium text-slate-800 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors text-left"
-                        >
-                          {e.value}
-                        </button>
-                      </div>
-                      {e.notes && <p className="text-[11px] text-slate-400 mt-0.5 ml-1">{e.notes}</p>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <TrendChip count24h={e.mentions_24h || 0} count7d={e.mentions_7d || 0} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-slate-400">
-                        {e.added_at ? new Date(e.added_at).toLocaleDateString('fr-FR') : '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => removeEntity(e.type, e.value)}
-                        title="Ne plus surveiller"
-                        className="p-1 text-slate-300 dark:text-slate-600 hover:text-red-500 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {entities.sort((a, b) => (b.mentions_24h || 0) - (a.mentions_24h || 0)).map((e, i) => {
+                  const entityKey = `${e.type}:${e.value?.toLowerCase()}`
+                  const isExpanded = expandedKey === entityKey
+                  return (
+                    <>
+                      <tr key={i} className="border-b border-slate-200/40 dark:border-slate-700/40 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${TYPE_COLORS[e.type] || 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'}`}>
+                              {ENTITY_TYPE_FR[e.type] || e.type}
+                            </span>
+                            <button
+                              onClick={() => onOpenArticles?.(e.type, e.value)}
+                              className="font-medium text-slate-800 dark:text-slate-200 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors text-left"
+                            >
+                              {e.value}
+                            </button>
+                          </div>
+                          {e.notes && <p className="text-[11px] text-slate-400 mt-0.5 ml-1">{e.notes}</p>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <TrendChip count24h={e.mentions_24h || 0} count7d={e.mentions_7d || 0} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => setExpandedKey(isExpanded ? null : entityKey)}
+                            className="flex items-center gap-1 text-slate-400 hover:text-blue-500 transition-colors"
+                            title={isExpanded ? "Masquer l'historique" : "Voir l'historique"}
+                          >
+                            <MentionSparkline entityKey={entityKey} timeline={timeline} />
+                            {isExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-slate-400">
+                            {e.added_at ? new Date(e.added_at).toLocaleDateString('fr-FR') : '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => removeEntity(e.type, e.value)}
+                            title="Ne plus surveiller"
+                            className="p-1 text-slate-300 dark:text-slate-600 hover:text-red-500 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr key={`${i}-detail`} className="bg-slate-50/70 dark:bg-slate-800/30 border-b border-slate-200/30 dark:border-slate-700/30">
+                          <td colSpan={5} className="px-5 py-3">
+                            <MentionHistoryDetail entityKey={entityKey} timeline={timeline} entity={e} />
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  )
+                })}
               </tbody>
             </table>
           )}

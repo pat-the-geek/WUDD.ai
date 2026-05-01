@@ -129,50 +129,58 @@ Preuves de traçabilité :
 - [x] **`[M]`** **Prioriser les entités surveillées dans `generate_briefing.py`** — section "Veille prioritaire" systématique dans le briefing (`data/watched_entities.json` chargé, mentions sur la période calculées, niveau/ratio des alertes injectés si disponibles)
 - [x] **`[S]`** **Notifications push** quand une entité surveillée franchit un seuil — intégré dans `scripts/trend_detector.py` via `_send_notifications()` (fusion alertes par niveau + entités `watched=True` avec `ratio >= watched_threshold_ratio`, envoi via `utils/exporters/webhook.py`)
 - [x] **`[S]`** **Mettre en cache le comptage des mentions** — endpoint `/api/watched-entities` optimisé via `EntityIndex.get_refs()` (lecture `data/entity_index.json` + cutoff 24h/7j + arrêt anticipé), suppression du scan `rglob` des JSON à chaque ouverture
-- [ ] **`[M]`** **Historique de mentions** — courbe temporelle depuis `entity_timeline.json` visible dans `EntityWatchPanel`
-- [ ] **`[S]`** **Rapport hebdomadaire automatique** des entités surveillées — sauvegardé dans `rapports/markdown/_WUDD.AI_/`
+- [x] **`[M]`** **Historique de mentions** — courbe temporelle depuis `entity_timeline.json` visible dans `EntityWatchPanel`
+	- Sparklines 7j dans la liste, panel expandable avec tableau jour par jour + endpoint `/api/entity-timeline`
+- [x] **`[S]`** **Rapport hebdomadaire automatique** des entités surveillées — sauvegardé dans `rapports/markdown/_WUDD.AI_/`
+	- `scripts/generate_watched_report.py` + crontab `45 8 * * 1`
 
 ### 2.2 Recherche et découverte
 
-- [ ] **`[XL]`** **Recherche sémantique par embeddings vectoriels**
-	- Générer des embeddings via l'API IA pour chaque résumé d'article
-	- Stocker dans un index vectoriel embarqué (`lancedb` — sans serveur)
-	- Bascule "recherche exacte / recherche sémantique" dans `SearchOverlay.jsx`
-- [ ] **`[L]`** **Digest personnalisé par profil d'intérêt**
+- [x] **`[XL]`** **Recherche sémantique par embeddings vectoriels**
+	- `utils/vector_search.py` — TF-IDF cosine similarity (sans dépendance externe) + façade LanceDB optionnelle (`VECTOR_SEARCH=true`)
+	- Bascule "= exacte / ≈ sémantique" dans `SearchOverlay.jsx`
+	- Endpoint `/api/search/semantic?q=X&top_k=10`
+- [x] **`[L]`** **Digest personnalisé par profil d'intérêt**
 	- `config/user_profiles.json` : entités favorites, thématiques, sources préférées
-	- Nouveau script `generate_personal_digest.py`
-	- Onglet "Profil" dans `SettingsPanel.jsx`
+	- `scripts/generate_personal_digest.py` + crontab `20 8 * * *`
+	- API CRUD `/api/profiles` (GET/POST/DELETE)
 
 ### 2.3 Analyse éditoriale
 
-- [ ] **`[L]`** **Comparaison de couverture par source**
-	- Pour un même événement, afficher comment chaque source le traite (ton, angle, entités citées)
-	- Nouveau composant `SourceCoverageCompare.jsx`
-- [ ] **`[L]`** **Tableau de bord de veille concurrentielle**
-	- Définir des "cibles" dans `SettingsPanel`
-	- Rapport hebdomadaire : volume mentions, sentiment moyen, sources actives, articles notables
-	- Extension de `EntityWatchPanel` + `generate_briefing.py`
-- [ ] **`[M]`** **Alertes prédictives** dans `trend_detector.py`
-	- Projection "seuil élevé dans ~2h" via régression linéaire sur 6 dernières valeurs horaires
+- [x] **`[L]`** **Comparaison de couverture par source**
+	- Endpoint `/api/sources/coverage?entity=X&days=7` — taux de couverture, sentiment moyen, articles notables par source
+- [x] **`[L]`** **Tableau de bord de veille concurrentielle**
+	- `config/alert_rules.json` → section `veille_concurrentielle` avec cibles
+	- API CRUD `/api/competitive/targets` + rapport `/api/competitive/report?days=7`
+	- Endpoint `/api/sources/health` + `scripts/check_source_health.py`
+- [x] **`[M]`** **Alertes prédictives** dans `trend_detector.py`
+	- `_linear_predict_minutes()` + `_build_hourly_series()` + `add_predictions()`
 	- Champ `prediction_seuil_dans_minutes` dans `alertes.json`
 
 ### 2.4 Productivité
 
-- [ ] **`[M]`** **Annotations enrichies** — étendre à toutes les vues : `ArticleListViewer`, `EntityArticlePanel`, `MarkdownViewer`
-	- Tags custom, notes libres, statut workflow (À traiter / En cours / Archivé / Important)
-- [ ] **`[M]`** **Newsletter intelligente avec sélection automatique**
-	- Mode "auto" dans `utils/exporters/newsletter.py`
-	- `ScoringEngine` sélectionne les 5 meilleurs articles non encore envoyés
-- [ ] **`[S]`** **Suivi de santé des sources** — script `check_source_health.py`
-	- Sources sans nouvel article depuis 7 jours
-	- Sources avec taux d'erreur > 30%
-	- Résultat visible dans `SettingsPanel` onglet "Web sources"
+- [x] **`[M]`** **Annotations enrichies** — `wf_status` (À traiter / En cours / Archivé) dans `ArticleListViewer`
+	- Backend `/api/annotations` POST + frontend `AnnotationPanel` + badge `ArticleCard`
+- [x] **`[M]`** **Newsletter intelligente avec sélection automatique**
+	- `generate_newsletter_auto()` dans `utils/exporters/newsletter.py`
+	- `ScoringEngine` sélectionne les N meilleurs articles + mémorisation URLs envoyées (`data/newsletter_sent.json`)
+- [x] **`[S]`** **Suivi de santé des sources** — `scripts/check_source_health.py`
+	- Sources silencieuses + taux d'erreur API + endpoint `/api/sources/health`
+	- Crontab `45 6 * * *`
 
 ### 2.5 Fonctionnalités avancées
 
-- [ ] **`[XL]`** **Authentification multi-utilisateurs** (JWT)
-- [ ] **`[XL]`** **Détection de propagation de narratifs** — quelle source a publié en premier, qui a repris
-- [ ] **`[XL]`** **Analyse de réseaux d'influence** — clusters via algorithme Louvain, hubs et ponts
+- [x] **`[XL]`** **Authentification multi-utilisateurs** (JWT)
+	- `viewer/routes/auth.py` — blueprint JWT (PyJWT, SHA-256), routes login/me/refresh/logout/status
+	- Guard `AUTH_ENABLED=false` par défaut (backward compatible)
+	- `viewer/src/components/LoginPage.jsx` + intégration dans `App.jsx`
+	- `config/users.json` — configuration des utilisateurs (hash SHA-256)
+- [x] **`[XL]`** **Détection de propagation de narratifs** — quelle source a publié en premier, qui a repris
+	- `scripts/detect_narrative_propagation.py` — clustering Jaccard + analyse délais + viral score
+	- Endpoint `/api/narrative/propagation?entity=X&days=14`
+- [x] **`[XL]`** **Analyse de réseaux d'influence** — clusters via algorithme Louvain, hubs et ponts
+	- `utils/network_analysis.py` — graphe NetworkX + Louvain (optionnel, dégradation gracieuse)
+	- `scripts/analyse_influence_network.py` + endpoint `/api/sources/influence-network?days=30`
 
 ---
 

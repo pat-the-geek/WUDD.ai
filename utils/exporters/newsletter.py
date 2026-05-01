@@ -277,3 +277,109 @@ def send_newsletter(
     except Exception as e:
         default_logger.error(f"Erreur envoi SMTP : {e}")
         return False
+
+
+# ── Newsletter intelligente ────────────────────────────────────────────────────
+
+def generate_newsletter_auto(
+    project_root: Path,
+    top_n: int = 5,
+    days: int = 7,
+    exclude_sent: bool = True,
+    title: str | None = None,
+    dry_run: bool = False,
+) -> str:
+    """Génère une newsletter avec les meilleurs articles non encore envoyés.
+
+    Utilise ``ScoringEngine`` pour sélectionner les `top_n` articles les plus
+    pertinents des `days` derniers jours. Les URLs des articles envoyés sont
+    mémorisées dans ``data/newsletter_sent.json`` pour éviter les doublons.
+
+    Args:
+        project_root  : racine du projet
+        top_n         : nombre d'articles à inclure (défaut 5)
+        days          : fenêtre de collecte en jours (défaut 7)
+        exclude_sent  : exclure les articles déjà envoyés (défaut True)
+        title         : titre de la newsletter (auto si None)
+        dry_run       : si True, ne met pas à jour newsletter_sent.json
+
+    Returns:
+        HTML de la newsletter.
+    """
+    from datetime import timedelta
+    from ..scoring import ScoringEngine
+
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=days)
+    if title is None:
+        title = f"Sélection WUDD.ai — {now.strftime('%d %B %Y')}"
+
+    # Charger la liste des URLs déjà envoyées
+    sent_path = project_root / "data" / "newsletter_sent.json"
+    sent_urls: set[str] = set()
+    if exclude_sent and sent_path.exists():
+        try:
+            sent_data = json.loads(sent_path.read_text(encoding="utf-8"))
+            sent_urls = set(sent_data if isinstance(sent_data, list) else [])
+        except Exception:
+            pass
+
+    # Collecter les articles récents depuis toutes les sources
+    articles: list[dict] = []
+    for source_dir in [project_root / "data" / "articles-from-rss",
+                        project_root / "data" / "articles"]:
+        if not source_dir.exists():
+            continue
+        for json_file in sorted(source_dir.rglob("*.json"),
+                                key=lambda f: f.stat().st_mtime, reverse=True)[:20]:
+            if "cache" in str(json_file) or "index" in json_file.name:
+                continue
+            try:
+                data = json.loads(json_file.read_text(encoding="utf-8"))
+                if not isinstance(data, list):
+                    continue
+                for art in data:
+                    d = art.get("Date de publication", "")
+                    try:
+                        dt = datetime.fromisoformat(d.replace("Z", "+00:00").replace("/", "-")
+                                                    if "T" in d
+                                                    else datetime.strptime(d, "%d/%m/%Y")
+                                                    .replace(tzinfo=timezone.utc)
+                                                    .isoformat())
+                        if hasattr(dt, "tzinfo"):
+                            pass
+                    except Exception:
+                        pass
+                    url = art.get("URL", "")
+                    if url and url not in sent_urls:
+                        articles.append(art)
+            except Exception:
+                continue
+
+    if not articles:
+        default_logger.warning("[newsletter_auto] Aucun article éligible trouvé")
+        return generate_newsletter_html([], title=title)
+
+    # Scorer les articles
+    try:
+        scoring = ScoringEngine()
+        scored = scoring.rate_articles(articles)
+        scored.sort(key=lambda a: a.get("score_pertinence", 0), reverse=True)
+    except Exception as e:
+        default_logger.warning(f"[newsletter_auto] ScoringEngine indisponible ({e}), tri par date")
+        scored = sorted(articles, key=lambda a: a.get("Date de publication", ""), reverse=True)
+
+    top_articles = scored[:top_n]
+    default_logger.info(f"[newsletter_auto] {len(top_articles)} articles sélectionnés sur {len(articles)} éligibles")
+
+    # Mettre à jour la liste des URLs envoyées
+    if not dry_run and top_articles:
+        new_urls = [a.get("URL", "") for a in top_articles if a.get("URL")]
+        all_sent = list(sent_urls | set(new_urls))
+        try:
+            sent_path.parent.mkdir(parents=True, exist_ok=True)
+            sent_path.write_text(json.dumps(all_sent, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception as e:
+            default_logger.warning(f"[newsletter_auto] Impossible de sauvegarder newsletter_sent.json : {e}")
+
+    return generate_newsletter_html(top_articles, title=title)

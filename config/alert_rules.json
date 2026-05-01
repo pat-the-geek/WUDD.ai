@@ -29,5 +29,10 @@
     "webhook_discord": false,
     "webhook_slack":   false,
     "ntfy":            false
+  },
+  "veille_concurrentielle": {
+    "enabled": true,
+    "targets": [],
+    "comment": "Ajoutez ici les entités concurrentes à surveiller. Ex: [{\"name\": \"OpenAI\", \"type\": \"ORG\", \"aliases\": [\"GPT\", \"ChatGPT\"]}]"
   }
 }

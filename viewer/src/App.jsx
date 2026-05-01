@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect, useCallback, useRef, Component } f
 import Sidebar from './components/Sidebar'
 import FileViewer from './components/FileViewer'
 import RuntimeInfoPanel from './components/RuntimeInfoPanel'
+import LoginPage from './components/LoginPage'
 import { Search, Settings, Sun, Moon, Monitor, BarChart2, Terminal, Menu, Clock, TrendingUp, Star, Eye, EyeOff, Share2, Layers, Bell, ArrowLeftRight, ChevronDown, ChevronRight, MoreHorizontal, Newspaper, Filter, Tag, BookOpen, Network } from 'lucide-react'
 import wuddLogo from './assets/wudd-prism-floyd.svg'
 
@@ -315,6 +316,56 @@ function applyTheme(theme) {
 export default function App() {
   const nextRssLabel = useNextRssCountdown()
   const rssStatus = useRssStatus()
+
+  // ── Auth JWT (optionnel — activé si AUTH_ENABLED=true dans .env) ──────────
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authRequired, setAuthRequired] = useState(false)
+  const [authUser, setAuthUser] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/auth/status')
+      .then(r => r.ok ? r.json() : { auth_enabled: false })
+      .then(data => {
+        if (!data.auth_enabled) {
+          setAuthRequired(false)
+          setAuthChecked(true)
+          return
+        }
+        setAuthRequired(true)
+        const token = localStorage.getItem('wudd_token')
+        if (!token) { setAuthChecked(true); return }
+        fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(me => {
+            if (me?.username) setAuthUser(me)
+            else { localStorage.removeItem('wudd_token'); localStorage.removeItem('wudd_username') }
+          })
+          .catch(() => {})
+          .finally(() => setAuthChecked(true))
+      })
+      .catch(() => setAuthChecked(true))
+  }, [])
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-slate-400 text-sm animate-pulse">Chargement…</div>
+      </div>
+    )
+  }
+
+  if (authRequired && !authUser) {
+    return <LoginPage onLogin={data => setAuthUser(data)} />
+  }
+
+  return <AppShell nextRssLabel={nextRssLabel} rssStatus={rssStatus} authUser={authUser} onLogout={() => {
+    localStorage.removeItem('wudd_token')
+    localStorage.removeItem('wudd_username')
+    setAuthUser(null)
+  }} />
+}
+
+function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
   const [files, setFiles] = useState([])
   const [selectedFile, setSelectedFile] = useState(null)
   const [fileContent, setFileContent] = useState(null)
