@@ -122,6 +122,7 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
   const [error, setError]       = useState(null)
   const [showNoise, setShowNoise] = useState(false)
   const [depth, setDepth]       = useState(1)     // 1 ou 2
+  const [days, setDays]         = useState(90)    // filtre temporel : 0=tout, sinon N jours
   const [spacing, setSpacing]   = useState(1.0)   // facteur d'espacement affiché
   const [spacingCommitted, setSpacingCommitted] = useState(1.0)  // valeur confirmée (layout)
   const [tooltip, setTooltip]   = useState(null)
@@ -303,12 +304,13 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
     setTypeOrder([])   // reset ordre légende
     const params = new URLSearchParams({
       type: entityType, value: entityValue, depth, limit: 40, limit_l2: 4,
+      ...(days > 0 ? { days } : {}),
     })
     fetch(`/api/entities/cooccurrences?${params}`)
       .then(r => r.json())
       .then(d => { if (d.error) throw new Error(d.error); setData(d); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })
-  }, [entityType, entityValue, depth, applyView])
+  }, [entityType, entityValue, depth, days, applyView])
 
   // ── Animation de révélation des tailles proportionnelles ──────────────────
   // Quand on active sizeByTotal ou qu'on charge un nouveau graphe en mode total,
@@ -456,6 +458,16 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
             className={`px-2 py-1 transition-colors border-l border-slate-200 dark:border-slate-700 ${depth === 2 ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
             Niv.2
           </button>
+        </div>
+
+        {/* Période */}
+        <div className="flex shrink-0 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden text-[11px]">
+          {[{label:'7j',val:7},{label:'30j',val:30},{label:'90j',val:90},{label:'Tout',val:0}].map(({label,val},i) => (
+            <button key={val} onClick={() => setDays(val)}
+              className={`px-2 py-1 transition-colors ${i > 0 ? 'border-l border-slate-200 dark:border-slate-700' : ''} ${days === val ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Dates/nombres */}

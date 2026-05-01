@@ -950,12 +950,21 @@ def api_entities_cooccurrences():
     if depth >= 2:
         limit_l1 = min(limit_l1, 12)
     limit_l2 = min(int(request.args.get("limit_l2", 4)), 15)
+    # Filtre temporel : 0 = tout l'historique, sinon N derniers jours
+    days_filter = max(0, int(request.args.get("days", 0)))
 
     if not entity_type or not entity_value:
         return jsonify({"error": "Paramètres type et value requis"}), 400
 
+    # ── Calcul de la date de coupure ──────────────────────────────────────────
+    from datetime import datetime, timedelta, timezone
+    cutoff_date_str = ""
+    if days_filter > 0:
+        cutoff_dt = datetime.now(timezone.utc) - timedelta(days=days_filter)
+        cutoff_date_str = cutoff_dt.strftime("%Y-%m-%d")
+
     # ── Cache TTL : même requête → réponse instantanée pendant 10 min ─────────
-    cache_key = (entity_type, entity_value.lower(), depth, limit_l1, limit_l2)
+    cache_key = (entity_type, entity_value.lower(), depth, limit_l1, limit_l2, days_filter)
     with _cooc_cache_lock:
         entry = _cooc_cache.get(cache_key)
         if entry is not None and (time.monotonic() - entry["ts"]) < _COOC_CACHE_TTL:
@@ -970,7 +979,8 @@ def api_entities_cooccurrences():
     central_articles: list[dict] = []
     try:
         eidx = get_entity_index(PROJECT_ROOT)
-        central_articles = eidx.load_articles(entity_type, entity_value)
+        central_articles = eidx.load_articles(entity_type, entity_value,
+                                              cutoff_date=cutoff_date_str)
         index_available = True
     except Exception:
         pass
@@ -990,6 +1000,13 @@ def api_entities_cooccurrences():
                     if not isinstance(arts, list):
                         continue
                     for art in arts:
+                        # Filtre date fallback
+                        if cutoff_date_str:
+                            pub = art.get("Date de publication", "")
+                            from utils.date_utils import parse_date
+                            dt = parse_date(pub)
+                            if dt and dt.strftime("%Y-%m-%d") < cutoff_date_str:
+                                continue
                         ents = art.get("entities", {})
                         if not isinstance(ents, dict):
                             continue
@@ -1061,7 +1078,8 @@ def api_entities_cooccurrences():
             # Charger uniquement les articles du nœud L1 (pas tous les articles)
             if index_available and eidx is not None:
                 try:
-                    l1_articles = eidx.load_articles(l1_etype, l1_ev)
+                    l1_articles = eidx.load_articles(l1_etype, l1_ev,
+                                                     cutoff_date=cutoff_date_str)
                 except Exception:
                     l1_articles = []
             else:

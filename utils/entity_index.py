@@ -335,6 +335,7 @@ class EntityIndex:
         entity_type: str,
         entity_value: str,
         max_articles: int = 0,
+        cutoff_date: str = "",
     ) -> list[dict]:
         """Charge et retourne les articles complets mentionnant l'entité.
 
@@ -344,11 +345,16 @@ class EntityIndex:
             entity_type  : type NER
             entity_value : valeur de l'entité
             max_articles : limite optionnelle (0 = pas de limite)
+            cutoff_date  : date ISO minimum "YYYY-MM-DD" — filtre les refs avant
+                           de lire les fichiers JSON (évite les I/O inutiles)
 
         Returns:
             Articles complets triés par date décroissante.
         """
         refs = self.get_refs(entity_type, entity_value)
+        if cutoff_date:
+            # refs triées par date décroissante : dès qu'une ref est < cutoff, on coupe
+            refs = [r for r in refs if r.get("date", "") >= cutoff_date]
         if max_articles > 0:
             refs = refs[:max_articles]
         if not refs:
