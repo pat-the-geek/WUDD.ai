@@ -127,16 +127,31 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
 
   const load = useCallback(() => {
     setLoading(true)
+    setError(null)
+    // Timeout sécurisé : 5s pour chaque fetch
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
     Promise.all([
-      fetch('/api/watched-entities').then(r => r.json()),
-      fetch('/api/entity-timeline').then(r => r.json()).catch(() => ({})),
+      fetch('/api/watched-entities', { signal: controller.signal })
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+        .catch(e => { console.error('watched-entities fetch failed:', e); return [] }),
+      fetch('/api/entity-timeline', { signal: controller.signal })
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+        .catch(() => ({}))
     ])
       .then(([ents, tl]) => {
+        if (!Array.isArray(ents)) ents = []
+        if (!tl || typeof tl !== 'object') tl = {}
         setEntities(ents)
         setTimeline(tl)
         setLoading(false)
       })
-      .catch(() => { setError('Erreur de chargement'); setLoading(false) })
+      .catch(e => {
+        console.error('EntityWatchPanel.load error:', e)
+        setError('Erreur de chargement (délai dépassé?)')
+        setLoading(false)
+      })
+      .finally(() => clearTimeout(timeout))
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -145,15 +160,16 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
     if (!newValue.trim()) return
     setSaving(true)
     try {
-      await fetch('/api/watched-entities', {
+      const r = await fetch('/api/watched-entities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: newType, value: newValue.trim() }),
       })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
       setNewValue('')
-      load()
+      load()  // Recharger la liste
     } catch (e) {
-      setError(String(e))
+      setError(`Erreur : ${String(e)}`)
     } finally {
       setSaving(false)
     }
@@ -161,12 +177,13 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
 
   const removeEntity = async (type, value) => {
     try {
-      await fetch(`/api/watched-entities?type=${encodeURIComponent(type)}&value=${encodeURIComponent(value)}`, {
+      const r = await fetch(`/api/watched-entities?type=${encodeURIComponent(type)}&value=${encodeURIComponent(value)}`, {
         method: 'DELETE',
       })
-      load()
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      load()  // Recharger la liste
     } catch (e) {
-      setError(String(e))
+      setError(`Erreur : ${String(e)}`)
     }
   }
 

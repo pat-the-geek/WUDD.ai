@@ -43,6 +43,11 @@ _ENTITY_ARTICLES_CACHE_TTL = 90  # secondes
 _entity_articles_cache: dict = {}  # {(type, value, max, compact): {"result": ..., "ts": float}}
 _entity_articles_cache_lock = threading.Lock()
 
+# ── Cache TTL pour les entités surveillées (refresh toutes les 60s) ────────
+_WATCHED_CACHE_TTL = 60  # secondes
+_watched_cache: dict = {}  # {"result": ..., "ts": float}
+_watched_cache_lock = threading.Lock()
+
 # ── Cache TTL pour les co-occurrences (graphe de relations) ────────────────
 _COOC_CACHE_TTL = 600  # secondes (10 min)
 _cooc_cache: dict = {}  # {cache_key: {"result": ..., "ts": float}}
@@ -1119,11 +1124,13 @@ def api_entities_cooccurrences():
 
 @entities_bp.route("/api/entities/dashboard/invalidate", methods=["POST"])
 def api_entities_dashboard_invalidate():
-    """Invalide le cache TTL du dashboard et des co-occurrences."""
+    """Invalide les caches TTL du dashboard, co-occurrences et entités surveillées."""
     with _dashboard_cache_lock:
         _dashboard_cache.clear()
     with _cooc_cache_lock:
         _cooc_cache.clear()
+    with _watched_cache_lock:
+        _watched_cache.clear()
     return jsonify({"status": "ok", "message": "Cache dashboard invalidé"})
 
 
@@ -2233,12 +2240,24 @@ def api_annotations_delete():
 
 @entities_bp.route("/api/watched-entities", methods=["GET"])
 def api_watched_get():
-    """Retourne les entités surveillées avec leur volume de mentions récentes."""
+    """Retourne les entités surveillées avec leur volume de mentions récentes.
+    
+    Résultat en cache 60s pour éviter les calculs répétés sur l'index.
+    """
+    # ── Cache TTL : même requête → réponse instantanée pendant 60s ─────────
+    with _watched_cache_lock:
+        entry = _watched_cache.get("result")
+        if entry is not None and (time.monotonic() - entry["ts"]) < _WATCHED_CACHE_TTL:
+            return jsonify(entry["result"])
+
     with _watched_lock:
         watched = _load_watched()
 
     if not watched:
-        return jsonify([])
+        result = []
+        with _watched_cache_lock:
+            _watched_cache["result"] = {"result": result, "ts": time.monotonic()}
+        return jsonify(result)
 
     # Calcul rapide des mentions via entity_index.json (évite le scan rglob).
     from datetime import datetime, timedelta, timezone
@@ -2271,10 +2290,17 @@ def api_watched_get():
                     mentions_24h += 1
 
             result.append({**w, "mentions_7d": mentions_7d, "mentions_24h": mentions_24h})
+        
+        # ── Mise en cache du résultat ──
+        with _watched_cache_lock:
+            _watched_cache["result"] = {"result": result, "ts": time.monotonic()}
+        
         return jsonify(result)
     except Exception:
         # Fallback de sécurité : préserver l'API même si l'index est indisponible.
         result = [{**w, "mentions_7d": 0, "mentions_24h": 0} for w in watched]
+        with _watched_cache_lock:
+            _watched_cache["result"] = {"result": result, "ts": time.monotonic()}
         return jsonify(result)
 
 
@@ -2298,6 +2324,8 @@ def api_watched_post():
                 if "notes" in body:
                     w["notes"] = str(body["notes"])[:500]
                 _save_watched(watched)
+                with _watched_cache_lock:
+                    _watched_cache.clear()
                 return jsonify({"ok": True, "action": "updated"})
         # Ajout
         entry = {
@@ -2308,7 +2336,9 @@ def api_watched_post():
         }
         watched.append(entry)
         _save_watched(watched)
-
+    
+    with _watched_cache_lock:
+        _watched_cache.clear()
     return jsonify({"ok": True, "action": "added"})
 
 
@@ -2325,7 +2355,10 @@ def api_watched_delete():
         before = len(watched)
         watched = [w for w in watched if not (w["type"] == etype and w["value"] == value)]
         _save_watched(watched)
-
+    
+    with _watched_cache_lock:
+        _watched_cache.clear()
+    
     return jsonify({"ok": True, "removed": len(watched) < before})
 
 
