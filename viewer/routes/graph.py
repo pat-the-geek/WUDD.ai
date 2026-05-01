@@ -12,7 +12,7 @@ from pathlib import Path
 
 from viewer.helpers import PROJECT_ROOT
 from utils.article_index import get_article_index
-from utils.entity_index import EntityIndex
+from utils.entity_index import EntityIndex, get_entity_index
 
 graph_bp = Blueprint("graph", __name__)
 
@@ -157,23 +157,64 @@ def api_graph_knowledge():
         total_nodes   = 0
         total_edges   = 0
 
-        # ── 1. Chargement des métadonnées via article_index ──────────────────
-        try:
-            aidx  = get_article_index(PROJECT_ROOT)
-            metas = aidx.get_articles()
-        except Exception:
-            metas = []
+        def _in_date_range(day: str) -> bool:
+            if not day:
+                return True
+            if date_from and day < date_from:
+                return False
+            if date_to and day > date_to:
+                return False
+            return True
 
-        # Tri par date décroissante pour un ordre stable
-        metas.sort(key=lambda m: m.get("date_iso", ""), reverse=True)
-
-        # ── 2. Regroupement par fichier (scan complet des correspondances) ───
+        # ── 1. Chargement ciblé des refs via entity_index (évite scan global) ─
         by_file: dict[str, list[tuple[int, dict]]] = {}
-        for meta in metas:
-            f   = meta.get("file", "")
-            idx = meta.get("idx", -1)
-            if f and idx >= 0:
+        fast_path_ok = False
+        try:
+            eidx = get_entity_index(PROJECT_ROOT)
+            refs_map: dict[tuple[str, int], dict] = {}
+
+            for entity_key in selected_entities:
+                if ":" not in entity_key:
+                    continue
+                ner_type, value = entity_key.split(":", 1)
+                refs = eidx.get_refs(ner_type, value)
+                for ref in refs:
+                    f = ref.get("file", "")
+                    idx = ref.get("idx", -1)
+                    if not f or not isinstance(idx, int) or idx < 0:
+                        continue
+                    day = (ref.get("date", "") or "")[:10]
+                    if (date_from or date_to) and not _in_date_range(day):
+                        continue
+                    refs_map[(f, idx)] = {"date_iso": day, "file": f, "idx": idx}
+
+            for (f, idx), meta in refs_map.items():
                 by_file.setdefault(f, []).append((idx, meta))
+
+            for f in by_file:
+                by_file[f].sort(key=lambda x: x[1].get("date_iso", ""), reverse=True)
+
+            fast_path_ok = True
+        except Exception:
+            fast_path_ok = False
+
+        # ── 1bis. Fallback : article_index complet si entity_index indisponible ─
+        if not fast_path_ok:
+            try:
+                aidx = get_article_index(PROJECT_ROOT)
+                metas = aidx.get_articles()
+            except Exception:
+                metas = []
+
+            metas.sort(key=lambda m: m.get("date_iso", ""), reverse=True)
+            for meta in metas:
+                day = (meta.get("date_iso") or meta.get("date", ""))[:10]
+                if (date_from or date_to) and not _in_date_range(day):
+                    continue
+                f = meta.get("file", "")
+                idx = meta.get("idx", -1)
+                if f and idx >= 0:
+                    by_file.setdefault(f, []).append((idx, meta))
 
         # Candidats retenus par entités sélectionnées (avant règle <20)
         candidates: list[dict] = []
@@ -243,9 +284,11 @@ def api_graph_knowledge():
                     }
                 )
 
-        # ── 3. Règle métier : < 20 => tout afficher, sinon plage de dates ───
+        # ── 3. Règle métier / filtrage date final ─────────────────────────────
         matched_total = len(candidates)
-        date_limited = matched_total >= 20
+        # Si une plage de dates est explicitement demandée, l'appliquer toujours.
+        # Sinon garder le comportement historique (<20 => pas de limite date).
+        date_limited = bool(date_from or date_to) or (matched_total >= 20)
 
         if date_limited:
             filtered_candidates: list[dict] = []
