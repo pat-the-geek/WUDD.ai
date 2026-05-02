@@ -363,13 +363,15 @@ Local web interface for browsing, reading and editing generated JSON/Markdown fi
 | `ExportPanel.jsx` | Data export interface |
 | `SchedulerPanel.jsx` | Cron job scheduling interface |
 | `SourceBiasPanel.jsx` | Source credibility and editorial bias visualization |
-| `TopArticlesPanel.jsx` | Top articles ranking — podium style (🥇🥈🥉 + numbered circles), mobile bottom sheet |
+| `TopArticlesPanel.jsx` | Top articles ranking — podium style (🥇🥈🥉 + numbered circles), mobile bottom sheet. Mode Direct : **face detection** via `useFacePosition` — ambient background et vignettes Leaflet recentrés automatiquement sur les visages détectés (TinyFaceDetector, fallback `50% 25%`) |
 | `TTSButton.jsx` | Text-to-speech button for article content |
 | `ArticleFullReportDialog.jsx` | Full-report modal for a single article — streamed Markdown via SSE, entity avatar band, main image, Mermaid diagrams; actions: copy, download .md, print/PDF, regenerate, full-screen |
 | `EntityFullReportDialog.jsx` | Full-report modal for an entity — progressive SSE streaming (info → RAG → articles), Mermaid mindmap + pie chart; actions: copy, local export, Obsidian export, regenerate, full-screen |
 | `SimilarArticlesPanel.jsx` | Panel showing articles similar to the current one (similarity score, color-coded); allows selecting and merging articles via `article_merger` backend endpoint |
 | `KeywordForceGraph.jsx` | Force-directed graph of WUDD.ai keywords; props: `{ keywords }` array of `{keyword, or, and}`; zoom/pan, "Liens" slider (0.4–3.5x), "Sous-termes" toggle; used in SettingsPanel and cross-flux report |
 | `FluxBarChart.jsx` | Horizontal SVG bar chart for top RSS flux by article count; props: `{ items }` array of `{name, count, letter}`; letters from Python alphabetical assignment; used in cross-flux report |
+| `src/utils/faceDetection.js` | Utilitaire face-api.js — charge TinyFaceDetector depuis `/models/` (singleton lazy), détecte le visage dominant et retourne un `object-position` CSS centré dessus. Cache URL → position, fallback `"50% 25%"`. |
+| `src/hooks/useFacePosition.js` | Hook React `useFacePosition(imageUrl, initialPosition)` — retourne `"X% Y%"` calculé par `faceDetection.js`, démarre avec `initialPosition` pendant le calcul asynchrone. |
 
 ### Using Config
 

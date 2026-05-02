@@ -1,3 +1,16 @@
+# 02/05/2026 — Détection de visages dans le mode Direct (v2.8.20)
+
+## Viewer — face detection dans Direct RSS
+
+- `viewer/src/utils/faceDetection.js` : utilitaire de détection de visages basé sur **face-api.js** (TinyFaceDetector). Charge le modèle (~190 KB) une seule fois depuis `/models/`, détecte le visage dominant et calcule un `object-position` CSS centré dessus. Cache URL → position, fallback `50% 25%` si pas de visage ou CORS bloqué.
+- `viewer/src/hooks/useFacePosition.js` : hook React `useFacePosition(imageUrl, initialPosition)` — retourne `"X% Y%"` dès que la détection est faite, en commençant par `initialPosition` pendant le calcul.
+- `viewer/public/models/` : modèle TinyFaceDetector (`tiny_face_detector_model-shard1` + manifest JSON) servi statiquement par Vite/Flask.
+- `viewer/src/components/TopArticlesPanel.jsx` — **ambient background** : utilise `useFacePosition(ambientImg)` pour recentrer dynamiquement l'image floue de fond sur le visage détecté.
+- `viewer/src/components/TopArticlesPanel.jsx` — **vignettes Leaflet** : un effet surveille `articleEntities` ; pour chaque URL d'image d'entité (PERSON/ORG/PRODUCT), `detectFaceObjectPosition()` est appelé et le résultat stocké dans `facePositions` ; `makeThumbIcon` applique la bonne position à chaque `<img style="object-position">` dans les marqueurs de la carte.
+- `viewer/package.json` : ajout de la dépendance `face-api.js ^0.22.2`.
+
+---
+
 # 02/05/2026 — Accélération galerie d'images article (v2.8.19)
 
 ## Viewer — route galerie + panneau article

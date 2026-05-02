@@ -14,6 +14,8 @@ import EntityHighlighter from './EntityHighlighter'
 import EntityArticlePanel from './EntityArticlePanel'
 import ArticleFullReportDialog from './ArticleFullReportDialog'
 import TTSButton, { stopAll } from './TTSButton'
+import useFacePosition from '../hooks/useFacePosition'
+import { detectFaceObjectPosition } from '../utils/faceDetection'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -587,7 +589,7 @@ function MapRefGetter({ mapRef }) {
   return null
 }
 
-function makeThumbIcon(images, zIndexBase, thumbSize) {
+function makeThumbIcon(images, zIndexBase, thumbSize, facePositions = {}) {
   const n = images.length
   const offset = 5
   const totalW = thumbSize + (n - 1) * offset
@@ -598,13 +600,14 @@ function makeThumbIcon(images, zIndexBase, thumbSize) {
     if (img.url) {
       // Fallback : si l'image ne charge pas, affiche les initiales de l'entité
       const initials = (img.name || '?').slice(0, 2).toUpperCase()
+      const objPos = facePositions[img.url] || '50% 25%'
       return `<div style="position:absolute;top:${depth * offset}px;left:${depth * offset}px;
         width:${thumbSize}px;height:${thumbSize}px;border-radius:6px;
         border:2px solid rgba(255,255,255,0.75);box-shadow:0 2px 10px rgba(0,0,0,0.7);
         background:#1c2128;z-index:${n - depth};overflow:hidden;">
         <img src="${img.url.replace(/"/g, '%22')}"
           title="${img.name.replace(/"/g, '')}"
-          style="width:100%;height:100%;object-fit:cover;display:block;"
+          style="width:100%;height:100%;object-fit:cover;object-position:${objPos};display:block;"
           onerror="this.style.display='none';this.nextSibling.style.display='flex'"/>
         <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;
           font-size:${Math.round(thumbSize * 0.35)}px;font-weight:700;color:#58a6ff;
@@ -645,7 +648,7 @@ const mapBtnStyle = {
   userSelect: 'none',
 }
 
-function DirectMapOverlay({ markers, onEntityClick, thumbSize = 44 }) {
+function DirectMapOverlay({ markers, onEntityClick, thumbSize = 44, facePositions = {} }) {
   const containerRef = useRef(null)
   const mapRef       = useRef(null)
 
@@ -664,7 +667,7 @@ function DirectMapOverlay({ markers, onEntityClick, thumbSize = 44 }) {
         />
         {markers.map((m) => {
           const { entity } = m
-          const icon = makeThumbIcon([{ url: entity.url, name: entity.name }], m.zIndex, thumbSize)
+          const icon = makeThumbIcon([{ url: entity.url, name: entity.name }], m.zIndex, thumbSize, facePositions)
           return (
             <Marker key={m.articleId} position={[m.lat, m.lon]}
               icon={icon} zIndexOffset={m.zIndex * 100}
@@ -767,6 +770,39 @@ function DirectMode({ onReport }) {
   const [ambientImg, setAmbientImg] = useState(null)
   const [ambientKey, setAmbientKey] = useState(0)
   const lastAmbientRef = useRef(null)
+
+  // ── Face detection — ambient background ──────────────────────────────────────
+  const ambientPosition = useFacePosition(ambientImg, '50% 25%')
+
+  // ── Face detection — vignettes carte ─────────────────────────────────────
+  // facePositions : { [imageUrl]: "X% Y%" } — mis à jour de manière asynchrone
+  const [facePositions, setFacePositions] = useState({})
+  const pendingFaceRef = useRef(new Set()) // évite les appels en double
+
+  // Quand articleEntities change, lancer la détection pour les nouvelles URLs d'images
+  useEffect(() => {
+    const newUrls = []
+    Object.values(articleEntities).forEach(data => {
+      const allImgs = [
+        ...(data.entities.PERSON  || []).map(n => data.images?.[n]?.url).filter(Boolean),
+        ...(data.entities.ORG     || []).map(n => data.images?.[n]?.url).filter(Boolean),
+        ...(data.entities.PRODUCT || []).map(n => data.images?.[n]?.url).filter(Boolean),
+      ]
+      allImgs.forEach(url => {
+        if (!facePositions[url] && !pendingFaceRef.current.has(url)) {
+          newUrls.push(url)
+          pendingFaceRef.current.add(url)
+        }
+      })
+    })
+    if (!newUrls.length) return
+    newUrls.forEach(url => {
+      detectFaceObjectPosition(url).then(pos => {
+        pendingFaceRef.current.delete(url)
+        setFacePositions(prev => prev[url] === pos ? prev : { ...prev, [url]: pos })
+      })
+    })
+  }, [articleEntities]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Déverrouillage iOS : l'AudioContext doit être créé + unpausé lors d'un
   // geste utilisateur, sinon Safari mobile bloque silencieusement tous les sons.
@@ -1221,7 +1257,7 @@ function DirectMode({ onReport }) {
       {mapVisible && (
         <>
           <div data-map-pane className="shrink-0" style={{ height: `${mapHeightPct}%`, minHeight: 80, isolation: 'isolate', position: 'relative' }}>
-            <DirectMapOverlay markers={mapMarkers} onEntityClick={handleEntityClickFromMap} thumbSize={thumbSize} />
+            <DirectMapOverlay markers={mapMarkers} onEntityClick={handleEntityClickFromMap} thumbSize={thumbSize} facePositions={facePositions} />
             {/* Overlay spinner pendant l'enrichissement */}
             {enrichingFromMap && (
               <div style={{
@@ -1295,7 +1331,7 @@ function DirectMode({ onReport }) {
               alt=""
               style={{
                 width: '100%', height: '100%',
-                objectFit: 'cover', objectPosition: 'center',
+                objectFit: 'cover', objectPosition: ambientPosition,
                 filter: 'blur(10px) saturate(1.8)',
                 transform: 'scale(1.1)',
                 display: 'block',

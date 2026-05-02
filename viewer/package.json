@@ -12,6 +12,7 @@
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/literata": "^5.2.8",
+    "face-api.js": "^0.22.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.8.0",
     "mermaid": "^11.14.0",
@@ -23,9 +24,9 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.2.3",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
-    "@tailwindcss/vite": "^4.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "jsdom": "^26.1.0",
     "tailwindcss": "^4.2.3",
