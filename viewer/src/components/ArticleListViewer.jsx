@@ -10,6 +10,7 @@ import ArticleGalleryPanel from './ArticleGalleryPanel'
 import EntityHighlighter from './EntityHighlighter'
 import { openInObsidian } from '../utils/obsidian'
 import TTSButton from './TTSButton'
+import useFacePosition from '../hooks/useFacePosition'
 import SimilarArticlesPanel from './SimilarArticlesPanel'
 
 const loadEntityArticlePanel = () => import('./EntityArticlePanel')
@@ -493,6 +494,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
   const imgUrl   = firstImage(article['Images'])
   const date     = formatDate(article['Date de publication'])
   const time     = formatTime(article['Date de publication'])
+  const imgPosition = useFacePosition(imgUrl, '50% 25%')
 
   // Rapport badges : union de article['rapports'] et localRapports, sans doublons (même fichier)
   const existingFiles = new Set((article['rapports'] || []).map(r => r.fichier))
@@ -578,6 +580,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
           title="Agrandir l'image"
         >
           <img src={imgUrl} alt={(titre || article['Sources']) ?? ''} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            style={{ objectPosition: imgPosition }}
             loading="lazy" onError={e => { e.currentTarget.closest('button').style.display = 'none' }} />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/30" />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
