@@ -1031,7 +1031,11 @@ def run_export(
 
     Retourne un dict de statistiques.
     """
-    config = get_config()
+    # Export Obsidian désactivé — génération dans Veille/articles, Veille/entités, etc. supprimée
+    _print("[export] Export Obsidian désactivé.")
+    return {"désactivé": True, "total_créés": 0}
+
+    config = get_config()  # noqa: unreachable
     project_root = config.project_root
 
     vault_dir = config.obsidian_dir
