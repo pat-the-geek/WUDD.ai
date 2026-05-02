@@ -474,6 +474,7 @@ function hasObsidianReport(article, localReportsByUrl) {
 
 /** Carte article complète (vue grille / large) — style Liquid Glass. */
 function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, onWarmEntityDialog, onWarmReportDialog, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged, localRapports = [], onOpenFile }) {
+  const heroRef = useRef(null)
   const [expanded, setExpanded]                   = useState(index < 3)
   const [lightbox, setLightbox]                   = useState(false)
   const [noteOpen, setNoteOpen]                   = useState(false)
@@ -484,6 +485,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
   const [showSimilar, setShowSimilar]             = useState(false)
   const [youtubeOpen, setYoutubeOpen]             = useState(false)
   const [galleryOpen, setGalleryOpen]             = useState(false)
+  const [shouldDetectFace, setShouldDetectFace]   = useState(false)
 
   const displayArticle = localEnrichment ? { ...article, ...localEnrichment } : article
 
@@ -494,7 +496,31 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
   const imgUrl   = firstImage(article['Images'])
   const date     = formatDate(article['Date de publication'])
   const time     = formatTime(article['Date de publication'])
-  const imgPosition = useFacePosition(imgUrl, '50% 25%')
+  const imgPosition = useFacePosition(imgUrl, '50% 25%', shouldDetectFace)
+
+  // Détecter les visages uniquement pour les cartes visibles/proches du viewport.
+  useEffect(() => {
+    if (!imgUrl || shouldDetectFace) return
+    const el = heroRef.current
+    if (!el) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setShouldDetectFace(true)
+      return
+    }
+    const obs = new IntersectionObserver((entries) => {
+      const entry = entries[0]
+      if (entry?.isIntersecting) {
+        setShouldDetectFace(true)
+        obs.disconnect()
+      }
+    }, {
+      root: null,
+      rootMargin: '300px 0px',
+      threshold: 0.01,
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [imgUrl, shouldDetectFace])
 
   // Rapport badges : union de article['rapports'] et localRapports, sans doublons (même fichier)
   const existingFiles = new Set((article['rapports'] || []).map(r => r.fichier))
@@ -574,6 +600,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
       )}
       {imgUrl && (
         <button
+          ref={heroRef}
           type="button"
           onClick={() => setLightbox(true)}
           className={`group relative w-full ${isLarge ? 'h-[432px] sm:h-[576px]' : 'h-44 sm:h-52'} overflow-hidden bg-slate-100 dark:bg-slate-900 block text-left`}

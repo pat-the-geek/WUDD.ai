@@ -13,11 +13,11 @@ import { detectFaceObjectPosition } from '../utils/faceDetection'
 
 const FALLBACK = '50% 25%'
 
-export default function useFacePosition(imageUrl, initialPosition = FALLBACK) {
+export default function useFacePosition(imageUrl, initialPosition = FALLBACK, enabled = true) {
   const [objectPosition, setObjectPosition] = useState(initialPosition)
 
   useEffect(() => {
-    if (!imageUrl) {
+    if (!enabled || !imageUrl) {
       setObjectPosition(initialPosition)
       return
     }
@@ -31,7 +31,7 @@ export default function useFacePosition(imageUrl, initialPosition = FALLBACK) {
     })
 
     return () => { cancelled = true }
-  }, [imageUrl]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [imageUrl, enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return objectPosition
 }
