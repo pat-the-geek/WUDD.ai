@@ -30,12 +30,48 @@ export default function ArticleGalleryPanel({ article, filePath, onClose }) {
 
   const url = (article?.URL || '').trim()
   const source = article?.Sources || ''
-  const existing = useMemo(() => (Array.isArray(article?.galerie) ? article.galerie : []), [article?.galerie])
+  const hasPersistedGallery = Array.isArray(article?.galerie)
+  const existing = useMemo(() => {
+    if (Array.isArray(article?.galerie) && article.galerie.length > 0) {
+      return article.galerie
+    }
+
+    if (!Array.isArray(article?.Images) || article.Images.length === 0) {
+      return []
+    }
+
+    return article.Images
+      .map((img) => {
+        const imageUrl = (img?.URL || img?.url || '').trim()
+        if (!imageUrl) return null
+
+        const width = Number(img?.width ?? img?.Width ?? 0) || 0
+        const height = Number(img?.height ?? img?.Height ?? 0) || 0
+        const area = Number(img?.area ?? img?.Area ?? (width * height)) || (width * height)
+
+        return {
+          URL: imageUrl,
+          width,
+          height,
+          area,
+          title: (img?.title || '').trim(),
+          alt: (img?.alt || '').trim(),
+          copyright: (img?.copyright || '').trim(),
+        }
+      })
+      .filter(Boolean)
+  }, [article?.galerie, article?.Images])
 
   useEffect(() => {
     if (!url) {
       setLoading(false)
       setError('URL article manquante')
+      return
+    }
+
+    if (hasPersistedGallery) {
+      setImages(existing)
+      setLoading(false)
       return
     }
 
@@ -48,9 +84,13 @@ export default function ArticleGalleryPanel({ article, filePath, onClose }) {
     setLoading(true)
     setError('')
 
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 9000)
+
     fetch('/api/article/gallery', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({ article_url: url, file_path: filePath, max: 12 }),
     })
       .then(r => r.json())
@@ -58,9 +98,23 @@ export default function ArticleGalleryPanel({ article, filePath, onClose }) {
         if (d.error) throw new Error(d.error)
         setImages(Array.isArray(d.gallery) ? d.gallery : [])
       })
-      .catch(e => setError(e.message || 'Erreur lors du chargement de la galerie'))
-      .finally(() => setLoading(false))
-  }, [url, filePath, existing.length])
+      .catch((e) => {
+        if (e?.name === 'AbortError') {
+          setError('Chargement trop long (timeout). Réessayez dans quelques secondes.')
+          return
+        }
+        setError(e.message || 'Erreur lors du chargement de la galerie')
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId)
+        setLoading(false)
+      })
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [url, filePath, existing, hasPersistedGallery])
 
   useEffect(() => {
     const handler = e => { if (e.key === 'Escape') onClose() }

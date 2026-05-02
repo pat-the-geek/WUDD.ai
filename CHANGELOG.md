@@ -1,3 +1,17 @@
+# 02/05/2026 — Accélération galerie d'images article (v2.8.19)
+
+## Viewer — route galerie + panneau article
+
+- `viewer/routes/gallery.py` : correction du cache des galeries vides (`galerie: []`) pour éviter les refetch HTTP répétés sur les articles sans images exploitables.
+- `viewer/routes/gallery.py` : ajout d'un cache mémoire runtime (TTL 10 min) sur `/api/article/gallery` pour accélérer les ouvertures successives d'un même article.
+- `viewer/routes/gallery.py` : fallback immédiat sur le champ `Images` déjà présent dans l'article, avec persistance dans `galerie` pour rendre les ouvertures suivantes instantanées.
+- `viewer/routes/gallery.py` : optimisation de recherche des fichiers cibles via `article_index.get_by_url()` (O(1)) en lecture, scan complet conservé uniquement pour les mises à jour multi-fichiers.
+- `viewer/routes/gallery.py` : suppression d'une relecture coûteuse du fichier JSON hint sur le chemin chaud quand l'URL est déjà trouvée dans l'index.
+- `viewer/routes/gallery.py` : validation URL rapide côté endpoint (sans résolution DNS bloquante) avec garde-fou corpus obligatoire (`article_index` ou présence dans le fichier hint).
+- `viewer/routes/gallery.py` : réduction du timeout d'extraction d'images distantes (12s → 8s) pour limiter l'attente sur sites lents.
+- `viewer/src/components/ArticleGalleryPanel.jsx` : affichage instantané des images existantes (`galerie` puis `Images`) avant enrichissement backend.
+- `viewer/src/components/ArticleGalleryPanel.jsx` : ajout d'un timeout client avec `AbortController` (9s) pour éviter un blocage UI prolongé en cas de réseau lent.
+
 # 29/04/2026 — Stabilisation sentiment EurIA sync/async (v2.8.18)
 
 ## API client — parsing et budget de sortie

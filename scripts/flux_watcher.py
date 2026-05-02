@@ -206,6 +206,9 @@ def main(dry_run: bool = False) -> None:
     api_client = get_summary_client()
     new_articles_all: list = []
 
+    # Titres déjà traités dans ce passage (dédup cross-sources par titre exact)
+    _seen_titles: set[str] = set()
+
     # Charger les URLs masquées — ces articles ne seront pas réimportés
     _annotations_path = PROJECT_ROOT / "data" / "annotations.json"
     _hidden_urls: set[str] = set()
@@ -284,6 +287,12 @@ def main(dry_run: bool = False) -> None:
                 print_console(f"  Déjà présent pour '{kw}' : {link[:60]}...", level="debug")
                 continue
 
+            # Déduplication par titre exact cross-sources dans ce passage
+            _title_key = title.strip().lower()
+            if _title_key in _seen_titles:
+                print_console(f"  Titre déjà traité par une autre source, ignoré : {title[:70]}", level="debug")
+                continue
+
             # Vérifier si l'article est masqué par l'utilisateur
             if link in _hidden_urls:
                 print_console(f"  Article masqué, ignoré pour '{kw}' : {link[:60]}...", level="debug")
@@ -346,6 +355,7 @@ def main(dry_run: bool = False) -> None:
             existing_list.append(article)
             _write_atomic(out_path, existing_list)
             print_console(f"  ✓ Ajouté dans {out_path.name}")
+            _seen_titles.add(title.strip().lower())
             # Pour les flux bypassQuota, on n'incrémente pas les compteurs
             # afin de ne pas consommer le quota des autres flux.
             if not bypass_quota:

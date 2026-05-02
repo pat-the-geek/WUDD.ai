@@ -193,6 +193,9 @@ results = {kw_obj["keyword"]: {} for kw_obj in keywords}
 # Structure : url → {combined, entities, images, error}
 _processed_in_run: dict[str, dict] = {}
 
+# Titres déjà traités dans ce passage (dédup cross-sources par titre exact)
+_seen_titles: set[str] = set()
+
 # Charger les URLs masquées (annotations avec is_hidden=true) — ces articles ne seront pas réimportés
 _annotations_path = PROJECT_ROOT / "data" / "annotations.json"
 _hidden_urls: set[str] = set()
@@ -302,6 +305,11 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                 if link in existing_urls or link in results[kw]:
                     print_console(f"    [Article {idx}] Déjà présent pour '{kw}', ignoré.", level="debug")
                     continue
+                # Déduplication par titre exact cross-sources dans ce passage
+                _title_key = title.strip().lower()
+                if _title_key in _seen_titles:
+                    print_console(f"    [Article {idx}] Titre déjà traité par une autre source, ignoré : {title[:70]}", level="debug")
+                    continue
                 # Vérifier si l'article est masqué par l'utilisateur
                 if link in _hidden_urls:
                     print_console(f"    [Article {idx}] Article masqué, ignoré pour '{kw}'.", level="debug")
@@ -382,6 +390,7 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                     if _field in combined:
                         article[_field] = combined[_field]
                 results[kw][link] = article
+                _seen_titles.add(title.strip().lower())
                 # Pour les flux bypassQuota, on n'incrémente pas les compteurs
                 # afin de ne pas consommer le quota des autres flux.
                 if not bypass_quota:
