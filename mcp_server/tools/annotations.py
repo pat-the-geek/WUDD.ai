@@ -62,6 +62,14 @@ def tool_create_annotation(
         if wf_status is not None:
             body["wf_status"] = str(wf_status).strip()
         data = client.post(_ENDPOINT, json_body=body)
+        if isinstance(data, dict):
+            annotation = data.get("annotation")
+            data = {
+                "action": "upserted",
+                "url": data.get("url", article_url),
+                "annotation": annotation if isinstance(annotation, dict) else {},
+                **data,
+            }
         return success(
             "create_annotation",
             data,
@@ -85,6 +93,12 @@ def tool_delete_annotation(
         if not article_url:
             raise BadRequestError("Le paramètre url est requis")
         data = client.delete(_ENDPOINT, params={"url": article_url})
+        if isinstance(data, dict):
+            data = {
+                "action": "deleted",
+                "url": data.get("url", article_url),
+                **data,
+            }
         return success(
             "delete_annotation",
             data,

@@ -463,6 +463,77 @@ class TestEntityIndex:
         assert ("PRODUCT", "ChatGPT") in {(item["type"], item["value"]) for item in cooc}
         assert all(item["type"] != "EVENT" for item in cooc)
 
+    def test_canonicalisation_ciblee_recentre_trump_et_conseil_federal(self, tmp_root):
+        from utils.entity_index import EntityIndex
+
+        (tmp_root / "config" / "entity_canonicalization.json").write_text(
+            json.dumps(
+                {
+                    "aliases": [
+                        {
+                            "canonical": {"type": "PERSON", "value": "Donald Trump"},
+                            "aliases": [
+                                {"type": "GPE", "value": "Trump"},
+                                {"type": "NORP", "value": "Trump"},
+                                {"type": "DATE", "value": "Trump"},
+                            ],
+                        },
+                        {
+                            "canonical": {"type": "ORG", "value": "Conseil Fédéral"},
+                            "aliases": [
+                                {"type": "PERSON", "value": "Conseil fédéral"},
+                                {"type": "PERSON", "value": "Conseil Fédéral"},
+                            ],
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        articles = [
+            {
+                "URL": "http://test.com/trump-a",
+                "Date de publication": "2026-01-02",
+                "Résumé": "Trump mal typé en lieu.",
+                "entities": {"GPE": ["Trump"]},
+            },
+            {
+                "URL": "http://test.com/trump-b",
+                "Date de publication": "2026-01-03",
+                "Résumé": "Trump mal typé en NORP.",
+                "entities": {"NORP": ["Trump"]},
+            },
+            {
+                "URL": "http://test.com/trump-c",
+                "Date de publication": "2026-01-04",
+                "Résumé": "Trump mal typé en date.",
+                "entities": {"DATE": ["Trump"]},
+            },
+            {
+                "URL": "http://test.com/suisse-a",
+                "Date de publication": "2026-01-05",
+                "Résumé": "Le Conseil fédéral décide.",
+                "entities": {"PERSON": ["Conseil fédéral"]},
+            },
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        trump_refs = idx.get_canonical_refs("PERSON", "Donald Trump")
+        trump_search = idx.search_values("Trump")
+        conseil_refs = idx.get_canonical_refs("ORG", "Conseil Fédéral")
+        conseil_search = idx.search_values("Conseil fédéral")
+
+        assert len(trump_refs) == 3
+        assert trump_search[0]["type"] == "PERSON"
+        assert trump_search[0]["top"][0]["value"] == "Donald Trump"
+        assert all(item["value"] != "Trump" for item in trump_search[0]["top"])
+        assert len(conseil_refs) == 1
+        assert conseil_search[0]["type"] == "ORG"
+        assert conseil_search[0]["top"][0]["value"] == "Conseil Fédéral"
+
     def test_load_articles_canonicalize_utilise_alias(self, tmp_root):
         from utils.entity_index import EntityIndex
 

@@ -2405,9 +2405,10 @@ def api_entities_timeline():
             all_types=all_types,
             include_structural=include_structural,
         )
-        top_entities = build_top_entities(raw, top_n=top_n)
-        top_keys = {e["key"] for e in top_entities}
+        preliminary_top = build_top_entities(raw, top_n=top_n)
+        top_keys = {e["key"] for e in preliminary_top}
         filled = fill_missing_dates({k: v for k, v in raw.items() if k in top_keys}, days=days)
+        top_entities = build_top_entities(filled, top_n=top_n)
         query_info = _build_entity_query_info(
             entity=entity,
             entity_type=etype,

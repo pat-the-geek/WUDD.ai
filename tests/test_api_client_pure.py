@@ -137,6 +137,16 @@ class TestParseEntitiesResponse:
         result = _parse_entities_response(raw)
         assert result == {"LAW": ["Cloud Act"]}
 
+    def test_reclassifies_short_false_positive_trump_to_person(self):
+        raw = json.dumps({"GPE": ["Trump"], "NORP": ["Trump"], "DATE": ["Trump"]})
+        result = _parse_entities_response(raw)
+        assert result == {"PERSON": ["Donald Trump"]}
+
+    def test_reclassifies_conseil_federal_person_to_org(self):
+        raw = json.dumps({"PERSON": ["Conseil fédéral"]})
+        result = _parse_entities_response(raw)
+        assert result == {"ORG": ["Conseil Fédéral"]}
+
 
 # ─────────────────────────────────────────────────────────────
 # _parse_sentiment_response

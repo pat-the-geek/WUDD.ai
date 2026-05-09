@@ -33,7 +33,17 @@
     {
       "canonical": { "type": "PERSON", "value": "Donald Trump" },
       "aliases": [
-        { "type": "PERSON", "value": "Trump" }
+        { "type": "PERSON", "value": "Trump" },
+        { "type": "GPE", "value": "Trump" },
+        { "type": "NORP", "value": "Trump" },
+        { "type": "DATE", "value": "Trump" }
+      ]
+    },
+    {
+      "canonical": { "type": "ORG", "value": "Conseil Fédéral" },
+      "aliases": [
+        { "type": "PERSON", "value": "Conseil fédéral" },
+        { "type": "PERSON", "value": "Conseil Fédéral" }
       ]
     },
     {

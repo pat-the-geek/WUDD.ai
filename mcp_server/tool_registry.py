@@ -114,7 +114,7 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
         description=(
             "Retourne les articles liés à une entité. Supporte les modes strict, "
             "canonical, contains et aggregate, avec all_types pour agréger plusieurs "
-            "types NER."
+            "types NER. compact=1 limite la réponse aux champs essentiels."
         ),
     )
     def get_entity_articles(

@@ -167,6 +167,7 @@ WUDD.ai applique désormais un post-traitement léger sur les sorties NER pour c
 - les montants explicites sont recentrés vers `MONEY` ;
 - les années et dates explicites sont recentrées vers `DATE` ;
 - les lois et règlements nommés sont recentrés vers `LAW` lorsqu'ils ont été classés ailleurs.
+- certains faux positifs courts très récurrents sont recentrés vers leur type canonique métier (ex. `Trump` vers `PERSON`, `Conseil fédéral` vers `ORG`) ;
 - certaines variantes culturelles mal classées peuvent aussi être rabattues vers `WORK_OF_ART` via la canonicalisation configurée.
 
 Ce correctif ne remplace pas la qualité du modèle amont, mais il réduit les faux positifs les plus coûteux pour l'exploration analytique.

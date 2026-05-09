@@ -317,6 +317,21 @@ class TestEntityRoutes:
         assert data["advanced_options"]["include_structural"]["default"] is False
         assert data["top_entities"][0]["type"] == "DATE"
 
+    def test_get_entity_timeline_aggregate_uses_filled_series_for_total(self, client):
+        build_results = [
+            [{"key": "PERSON:Trump", "type": "PERSON", "value": "Trump", "total": 877}],
+            [{"key": "PERSON:Trump", "type": "PERSON", "value": "Trump", "total": 121}],
+        ]
+        with patch("scripts.entity_timeline.collect_timeline", return_value={"PERSON:Trump": {"2026-05-09": 121}}), \
+             patch("scripts.entity_timeline.fill_missing_dates", return_value={"PERSON:Trump": {"2026-05-09": 121}}), \
+             patch("scripts.entity_timeline.build_top_entities", side_effect=build_results), \
+             patch("viewer.routes.entities.resolve_entity_matches", return_value=[{"type": "PERSON", "value": "Donald Trump", "count": 2}]):
+            resp = client.get("/api/entities/timeline?days=30&entity=Trump&type=PERSON&match_mode=aggregate")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["top_entities"][0]["total"] == 121
+
     def test_get_entity_search_empty_returns_400_or_200(self, client):
         resp = client.get("/api/entities/search")
         # Query param 'q' ou 'entity' requis selon l'implémentation

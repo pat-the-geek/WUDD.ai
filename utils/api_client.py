@@ -12,6 +12,7 @@ import os
 import re
 import time
 import threading
+import unicodedata
 import requests
 from typing import Optional
 from .logging import default_logger
@@ -317,6 +318,26 @@ _YEAR_RE = re.compile(r"^(?:19|20)\d{2}$")
 _DATE_RE = re.compile(
     rf"(?i)^(?:{_MONTH_NAMES_RE})\s+(?:19|20)\d{{2}}$|^\d{{1,2}}[/-]\d{{1,2}}[/-]\d{{2,4}}$"
 )
+_EXACT_ENTITY_OVERRIDES = {
+    ("GPE", "trump"): ("PERSON", "Donald Trump"),
+    ("NORP", "trump"): ("PERSON", "Donald Trump"),
+    ("DATE", "trump"): ("PERSON", "Donald Trump"),
+    ("PERSON", "conseil federal"): ("ORG", "Conseil Fédéral"),
+}
+
+
+def _fold_entity_value(value: str) -> str:
+    normalized = " ".join((value or "").strip().split())
+    normalized = (
+        normalized.replace("’", "'")
+        .replace("`", "'")
+        .replace("´", "'")
+        .replace("–", "-")
+        .replace("—", "-")
+    )
+    normalized = unicodedata.normalize("NFKD", normalized)
+    normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    return normalized.lower()
 
 
 def _normalize_money_value(value: str) -> str | None:
@@ -342,6 +363,10 @@ def _normalize_entity_candidate(entity_type: str, entity_value: str) -> tuple[st
     cleaned_value = " ".join((entity_value or "").strip().split())
     if not cleaned_type or not cleaned_value:
         return cleaned_type, cleaned_value
+
+    exact_override = _EXACT_ENTITY_OVERRIDES.get((cleaned_type, _fold_entity_value(cleaned_value)))
+    if exact_override:
+        return exact_override
 
     money_value = _normalize_money_value(cleaned_value)
     if money_value:

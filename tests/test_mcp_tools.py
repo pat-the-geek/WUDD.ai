@@ -226,6 +226,37 @@ def test_create_annotation_tool_respects_write_toggle():
     assert payload["error"]["code"] == "FORBIDDEN"
 
 
+def test_create_annotation_tool_adds_stable_action_fields():
+    server = _make_server()
+    result = asyncio.run(
+        server.call_tool(
+            "create_annotation",
+            {"url": "https://example.com/article", "tags": ["ia"]},
+        )
+    )
+
+    payload = result.structured_content
+    assert payload["ok"] is True
+    assert payload["data"]["action"] == "upserted"
+    assert payload["data"]["url"] == "https://example.com/article"
+    assert payload["data"]["annotation"]["tags"] == ["ia"]
+
+
+def test_delete_annotation_tool_adds_stable_action_fields():
+    server = _make_server()
+    result = asyncio.run(
+        server.call_tool(
+            "delete_annotation",
+            {"url": "https://example.com/article"},
+        )
+    )
+
+    payload = result.structured_content
+    assert payload["ok"] is True
+    assert payload["data"]["action"] == "deleted"
+    assert payload["data"]["url"] == "https://example.com/article"
+
+
 def test_export_dataset_returns_download_url():
     server = _make_server()
     result = asyncio.run(
