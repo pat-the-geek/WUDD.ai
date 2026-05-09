@@ -414,6 +414,41 @@ class TestEntityRoutes:
         assert data["nodes"][0]["type"] == "LAW"
         assert data["nodes"][0]["value"] == "AI Act"
 
+    def test_get_entity_cooccurrences_falls_back_to_search_counts_for_structural_nodes(self, client):
+        mock_idx = MagicMock()
+        mock_idx.load_articles.return_value = [
+            {
+                "entities": {
+                    "ORG": ["OpenAI", "Microsoft"],
+                    "DATE": ["2026"],
+                }
+            }
+        ]
+
+        def _canonical_refs(etype, value):
+            if etype == "DATE":
+                return []
+            return [{"file": "x", "idx": 0, "date": "2026-05-09"}]
+
+        mock_idx.get_canonical_refs.side_effect = _canonical_refs
+        mock_idx.search_values.return_value = [
+            {
+                "type": "DATE",
+                "unique_count": 1,
+                "mention_count": 689,
+                "top": [{"value": "2026", "count": 689}],
+            }
+        ]
+
+        with patch("viewer.routes.entities.get_entity_index", return_value=mock_idx):
+            resp = client.get("/api/entities/cooccurrences?type=ORG&value=OpenAI")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        date_node = next(node for node in data["nodes"] if node["type"] == "DATE" and node["value"] == "2026")
+        assert date_node["total_count"] == 689
+        assert data["meta"]["total_count_scope"].startswith("Couverture corpus")
+
     def test_get_entity_dashboard_supports_structural_opt_in(self, client):
         from viewer.routes import entities as entities_module
 
@@ -439,6 +474,43 @@ class TestEntityRoutes:
         assert data["include_structural"] is True
         assert {item["type"] for item in data["by_type"]} == {"MONEY", "ORG"}
         mock_idx.get_all_entries.assert_called_once_with(include_structural=True)
+
+    def test_get_entity_dashboard_exposes_sentiment_sample_coverage(self, client):
+        from viewer.routes import entities as entities_module
+
+        entities_module._dashboard_cache.clear()
+        mock_idx = MagicMock()
+        mock_idx.get_all_entries.return_value = {
+            "ORG:OpenAI": [{"file": "x", "idx": 1, "date": "2026-05-09"}],
+        }
+        mock_aidx = MagicMock()
+        mock_aidx.stats.return_value = {"total_files": 1, "total": 2, "with_entities": 2}
+        mock_db = MagicMock()
+        mock_db.available = True
+        mock_db.reading_time_stats.return_value = {
+            "avg_minutes": 2.0,
+            "median_minutes": 2.0,
+            "total_articles": 100,
+        }
+        mock_db.sentiment_distribution.return_value = [
+            {"sentiment": "neutre", "count": 20, "pct": 50.0},
+            {"sentiment": "positif", "count": 20, "pct": 50.0},
+        ]
+        mock_db.article_stats_by_source.return_value = [{"source": "OpenAI", "article_count": 4}]
+
+        with patch("viewer.routes.entities.get_entity_index", return_value=mock_idx), \
+             patch("viewer.routes.entities.get_article_index", return_value=mock_aidx), \
+             patch("viewer.routes.entities.get_entity_canonicalizer") as mock_canonicalizer, \
+             patch("utils.db.get_db", return_value=mock_db):
+            mock_canonicalizer.return_value.is_noise.return_value = False
+            resp = client.get("/api/entities/dashboard?include_structural=1")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        meta = data["duckdb_stats"]["sentiment_7j_meta"]
+        assert meta["sample_size"] == 40
+        assert meta["coverage_pct_of_reading_time_7j"] == 40.0
+        assert "sentiment non vide" in meta["basis"]
 
     def test_get_watched_entities_returns_200(self, client):
         resp = client.get("/api/watched-entities")

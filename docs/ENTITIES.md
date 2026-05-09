@@ -91,6 +91,7 @@ Conséquences pratiques :
 - Le **graphe** sert à lire une relation ; son `count` mesure une co-présence dans les mêmes articles, pas un nombre de mentions par jour.
 - Le **`total_count` d'un voisin** dans le graphe est aujourd'hui calculé sur **l'ensemble du corpus indexé**, même si le graphe est filtré avec `days`.
 - Le **`total_count` du nœud central** suit en revanche la fenêtre active du graphe, car il est dérivé des articles centraux déjà filtrés.
+- L'endpoint renvoie désormais aussi `meta.total_count_scope` et `meta.edge_weight_scope` pour expliciter cette différence directement dans la réponse.
 
 En pratique, il est donc normal que :
 
@@ -145,6 +146,14 @@ Pour un client MCP, la bonne posture n'est pas de supposer une canonicalisation 
 3. `aggregate` et `all_types=1` servent à l'analyse transverse d'un sujet sémantiquement fragmenté.
 
 `canonical` ne doit toutefois pas être confondu avec `aggregate` : il fusionne les variantes exactes d'un même libellé (ex. apostrophes typographiques, accents, casse) et les alias explicites, mais il ne regroupe pas les formulations longues ou les événements apparentés.
+
+### Couverture de `sentiment_7j`
+
+Dans `duckdb_stats`, le bloc `sentiment_7j` décrit uniquement les articles RSS des 7 derniers jours **ayant un champ `sentiment` non vide**. La réponse expose maintenant `duckdb_stats.sentiment_7j_meta` avec :
+
+- `sample_size` : nombre d'articles réellement inclus dans la distribution ;
+- `coverage_pct_of_reading_time_7j` : part de cet échantillon par rapport au volume analytique 7 jours exposé par `reading_time_7j.total_articles` ;
+- `basis` : rappel textuel du critère d'inclusion.
 
 ### Types structurels et types atypiques
 

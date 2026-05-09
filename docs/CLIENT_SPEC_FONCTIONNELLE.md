@@ -231,6 +231,7 @@ Le dashboard masque par défaut les types structurels (`DATE`, `MONEY`, etc.) po
   - `count` = poids relationnel dans le graphe courant (articles partagés entre deux entités)
   - `total_count` = volume d'articles total du nœud, utilisé comme contexte visuel
   - ce `total_count` n'est pas comparable directement à la timeline quotidienne
+  - la réponse doit exposer une métadonnée explicative (`meta.total_count_scope`, `meta.edge_weight_scope`) pour éviter les contresens côté client
 
 **Calendrier :**
 - Grille mensuelle des mentions
@@ -257,6 +258,8 @@ Le moteur entités de WUDD.ai doit être présenté comme **riche mais sous-expo
 Pour un client natif ou MCP, la recommandation est de rendre visibles les choix `strict`, `canonical`, `contains`, `aggregate` dans l'UI ou dans les descriptions de tools, afin que l'utilisateur comprenne qu'il peut passer d'une exploration large à une lecture analytique rigoureuse sans changer d'outil.
 
 WUDD.ai applique également un post-traitement léger sur les sorties NER pour corriger les erreurs manifestes les plus coûteuses (`MONEY`, `DATE`, `LAW`) avant indexation, ainsi que quelques faux positifs courts très récurrents (`Trump` recentré vers `PERSON`, `Conseil fédéral` vers `ORG`). Côté lecture, `match_mode=canonical` fusionne aussi les variantes Unicode exactes d'un même libellé sans basculer dans l'agrégation sémantique large de `aggregate`. Cela améliore l'exploitabilité sans changer l'API publique.
+
+Dans le dashboard, la distribution `duckdb_stats.sentiment_7j` doit être lue comme un **échantillon documenté** et non comme une mesure implicite de tout le corpus 7 jours. La réponse expose maintenant `duckdb_stats.sentiment_7j_meta` avec la taille d'échantillon, le taux de couverture et la base de calcul.
 
 Point d'exploitation important pour le client : après une évolution du schéma d'indexation, le backend doit reconstruire `entity_index.json` puis `entity_stats.json`. Sans cette réindexation, la recherche et le dashboard peuvent continuer à exposer un ancien typage du corpus même si les articles bruts sont déjà corrigés.
 

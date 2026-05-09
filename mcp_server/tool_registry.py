@@ -92,8 +92,10 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
         name="search_entities",
         description=(
             "Recherche des entités par nom pour cartographier les variantes disponibles "
-            "avant une timeline ou un agrégat. include_structural=1 expose aussi "
-            "les types structurels (DATE, MONEY, ...)."
+            "avant une timeline ou un agrégat. Le moteur normalise casse, accents "
+            "et apostrophes côté requête, et peut enrichir la requête via "
+            "expanded_terms pour certaines abréviations. include_structural=1 "
+            "expose aussi les types structurels (DATE, MONEY, ...)."
         ),
     )
     def search_entities(q: str | None = None, include_structural: bool = False) -> dict:
@@ -163,7 +165,15 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
             include_structural=include_structural,
         )
 
-    @server.tool(name="get_entity_cooccurrences", description="Construit le graphe de cooccurrences d'une entité.")
+    @server.tool(
+        name="get_entity_cooccurrences",
+        description=(
+            "Construit le graphe de cooccurrences d'une entité. days filtre les "
+            "articles source du graphe, depth=2 active le niveau 2 avec limit_l2, "
+            "et total_count représente la couverture corpus du nœud plutôt que le "
+            "poids local de l'arête."
+        ),
+    )
     def get_entity_cooccurrences(
         type: str | None = None,
         value: str | None = None,
@@ -216,7 +226,14 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
     def list_watched_entities() -> dict:
         return tool_list_watched_entities(client)
 
-    @server.tool(name="watch_entity", description="Ajoute une entité à la watchlist.")
+    @server.tool(
+        name="watch_entity",
+        description=(
+            "Ajoute une entité à la watchlist et vérifie la persistance par relecture "
+            "immédiate. La réponse expose persisted=true/false, le nombre de lectures "
+            "de vérification et les tentatives POST effectuées."
+        ),
+    )
     def watch_entity(
         type: str | None = None,
         value: str | None = None,

@@ -149,6 +149,43 @@ def test_watch_entity_tool_preserves_canonical_payload():
     assert payload["data"]["value"] == "AI Act"
 
 
+def test_watch_entity_tool_retries_until_persisted():
+    class _DelayedWatchClient(_FakeViewerClient):
+        def __init__(self):
+            super().__init__()
+            self._watched = [{"type": "ORG", "value": "OpenAI", "mentions_24h": 2, "mentions_7d": 8}]
+            self._watch_posts = 0
+
+        def get(self, path: str, params=None, **kwargs):
+            if path == "/api/watched-entities":
+                self.last_get = {"path": path, "params": params}
+                return list(self._watched)
+            return super().get(path, params=params, **kwargs)
+
+        def post(self, path: str, json_body=None, **kwargs):
+            if path == "/api/watched-entities":
+                self._watch_posts += 1
+                if self._watch_posts == 1:
+                    return {"ok": True, "action": "added", "type": "ORG", "value": "Apple"}
+                self._watched.append({"type": "ORG", "value": "Apple", "mentions_24h": 0, "mentions_7d": 0})
+                return {"ok": True, "action": "updated", "type": "ORG", "value": "Apple"}
+            return super().post(path, json_body=json_body, **kwargs)
+
+    server = _make_server(client=_DelayedWatchClient())
+    result = asyncio.run(
+        server.call_tool(
+            "watch_entity",
+            {"type": "ORG", "value": "Apple", "notes": "Veille"},
+        )
+    )
+
+    payload = result.structured_content
+    assert payload["ok"] is True
+    assert payload["data"]["persisted"] is True
+    assert payload["data"]["post_attempts"] == 2
+    assert payload["data"]["action"] == "updated"
+
+
 def test_get_entity_timeline_tool_forwards_match_mode_and_all_types():
     client = _FakeViewerClient()
     server = _make_server(client=client)

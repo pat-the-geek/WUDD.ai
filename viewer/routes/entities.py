@@ -448,6 +448,23 @@ def api_entities_dashboard():
     }
     cache_bucket = "structural" if include_structural else "default"
 
+    def _build_duckdb_stats_payload(db) -> dict:
+        reading_time_7j = db.reading_time_stats(days=7)
+        sentiment_7j = db.sentiment_distribution(days=7)
+        sample_size = sum(int(row.get("count", 0)) for row in sentiment_7j if isinstance(row, dict))
+        denominator = int((reading_time_7j or {}).get("total_articles") or 0)
+        coverage_pct = round((100.0 * sample_size / denominator), 1) if denominator > 0 else None
+        return {
+            "reading_time_7j": reading_time_7j,
+            "sentiment_7j": sentiment_7j,
+            "sentiment_7j_meta": {
+                "sample_size": sample_size,
+                "coverage_pct_of_reading_time_7j": coverage_pct,
+                "basis": "Articles RSS des 7 derniers jours avec champ sentiment non vide.",
+            },
+            "source_count_30j": len(db.article_stats_by_source(days=30)),
+        }
+
     # ── 1. Cache TTL mémoire ──────────────────────────────────────────────────
     with _dashboard_cache_lock:
         cached_entry = _dashboard_cache.get(cache_bucket, {})
@@ -476,11 +493,7 @@ def api_entities_dashboard():
                         from utils.db import get_db as _gdb
                         _db = _gdb(PROJECT_ROOT)
                         if _db.available:
-                            duckdb_stats = {
-                                "reading_time_7j":  _db.reading_time_stats(days=7),
-                                "sentiment_7j":     _db.sentiment_distribution(days=7),
-                                "source_count_30j": len(_db.article_stats_by_source(days=30)),
-                            }
+                            duckdb_stats = _build_duckdb_stats_payload(_db)
                     except Exception:
                         pass
                     # total_files depuis le precomputed peut être None si généré par une
@@ -621,13 +634,7 @@ def api_entities_dashboard():
         from utils.db import get_db
         db = get_db(PROJECT_ROOT)
         if db.available:
-            rt = db.reading_time_stats(days=7)
-            sd = db.sentiment_distribution(days=7)
-            duckdb_stats = {
-                "reading_time_7j":  rt,
-                "sentiment_7j":     sd,
-                "source_count_30j": len(db.article_stats_by_source(days=30)),
-            }
+            duckdb_stats = _build_duckdb_stats_payload(db)
     except Exception:
         pass
 
@@ -1257,7 +1264,7 @@ def api_entities_cooccurrences():
                 if canonicalizer.is_noise(etype, ev):
                     continue
                 canonical_type, canonical_value = canonicalizer.canonicalize(etype, ev)
-                if f"{canonical_type}:{canonical_value}" == target_key:
+                if canonicalizer.canonical_key(etype, ev) == target_key:
                     continue
                 key = (canonical_type, canonical_value)
                 cooc_l1[key] = cooc_l1.get(key, 0) + 1
@@ -1266,18 +1273,48 @@ def api_entities_cooccurrences():
     top_l1_set: set[tuple[str, str]] = {k for k, _ in sorted_l1}
 
     # ── Batch total_count : une seule passe sur l'index pour tous les nœuds L1 ──
+    def resolve_total_count(etype: str, ev: str, fallback: int) -> int:
+        if not index_available or eidx is None:
+            return fallback
+        try:
+            total = len(eidx.get_canonical_refs(etype, ev))
+            if total > 0:
+                return total
+        except Exception:
+            pass
+        try:
+            groups = eidx.search_values(
+                ev,
+                entity_type=etype,
+                include_structural=etype in STRUCTURAL_ENTITY_TYPES,
+                limit_per_type=25,
+            )
+            query_norm = canonicalizer.normalize_for_matching(ev)
+            best = 0
+            for group in groups:
+                if str(group.get("type") or "").strip().upper() != etype:
+                    continue
+                top_items = group.get("top", [])
+                if not isinstance(top_items, list):
+                    continue
+                for item in top_items:
+                    candidate = str(item.get("value") or "").strip()
+                    if not candidate:
+                        continue
+                    if canonicalizer.normalize_for_matching(candidate) != query_norm:
+                        continue
+                    best = max(best, int(item.get("count", 0)))
+            if best > 0:
+                return best
+        except Exception:
+            pass
+        return fallback
+
     def batch_total_counts(keys: list[tuple[str, str]]) -> dict[tuple[str, str], int]:
         """Retourne {(type, value): total_count} pour tous les nœuds en une passe."""
         result: dict[tuple[str, str], int] = {}
-        if index_available and eidx is not None:
-            for etype, ev in keys:
-                try:
-                    result[(etype, ev)] = len(eidx.get_canonical_refs(etype, ev))
-                except Exception:
-                    result[(etype, ev)] = cooc_l1.get((etype, ev), 0)
-        else:
-            for etype, ev in keys:
-                result[(etype, ev)] = cooc_l1.get((etype, ev), 0)
+        for etype, ev in keys:
+            result[(etype, ev)] = resolve_total_count(etype, ev, cooc_l1.get((etype, ev), 0))
         return result
 
     l1_keys = [(etype, ev) for (etype, ev), _ in sorted_l1]
@@ -1342,7 +1379,7 @@ def api_entities_cooccurrences():
                         co_key = (canonical_type, canonical_value)
                         if co_key == (l1_etype, l1_ev):
                             continue
-                        if f"{canonical_type}:{canonical_value}" == target_key:
+                        if canonicalizer.canonical_key(etype, ev) == target_key:
                             continue  # évite l'arête de retour vers le centre
                         cooc_l2_for_l1[co_key] = cooc_l2_for_l1.get(co_key, 0) + 1
 
@@ -1355,12 +1392,7 @@ def api_entities_cooccurrences():
             for (etype, ev), count in top_for_l1:
                 l2_key = (etype, ev)
                 if l2_key not in added_l2:
-                    l2_total = count
-                    if index_available and eidx is not None:
-                        try:
-                            l2_total = len(eidx.get_canonical_refs(etype, ev))
-                        except Exception:
-                            pass
+                    l2_total = resolve_total_count(etype, ev, count)
                     nodes.append({"type": etype, "value": ev, "count": count,
                                    "central": False, "level": 2,
                                    "total_count": l2_total})
@@ -1370,7 +1402,16 @@ def api_entities_cooccurrences():
                                "target": node_id(etype, ev),
                                "weight": count})
 
-    result = {"nodes": nodes, "edges": edges, "total_cooc": len(cooc_l1)}
+    result = {
+        "nodes": nodes,
+        "edges": edges,
+        "total_cooc": len(cooc_l1),
+        "meta": {
+            "days_filter": days_filter,
+            "edge_weight_scope": "Poids calculé sur les articles co-occurrents dans la fenêtre courante.",
+            "total_count_scope": "Couverture corpus du nœud sur l'index canonique; peut dépasser le poids local des arêtes.",
+        },
+    }
     with _cooc_cache_lock:
         _cooc_cache[cache_key] = {"result": result, "ts": time.monotonic()}
     return jsonify(result)
