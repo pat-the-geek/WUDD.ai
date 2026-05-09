@@ -14,16 +14,22 @@ from mcp_server.tool_registry import register_tools
 class _FakeViewerClient:
     heavy_timeout = 30
 
+    def __init__(self):
+        self.last_get = None
+
     def build_url(self, path: str) -> str:
         return f"http://viewer:5050{path}"
 
     def get(self, path: str, params=None, **_kwargs):
+        self.last_get = {"path": path, "params": params}
         if path == "/api/runtime-info":
             return {"viewer_port": 5050, "project_root": "/app"}
         if path == "/api/entities/search":
             return {"by_type": [{"type": "ORG", "top": [{"value": "OpenAI", "count": 3}]}]}
         if path == "/api/entities/articles":
             return [{"URL": "https://example.com", "Résumé": "Article"}]
+        if path == "/api/entities/timeline":
+            return {"timeline": {}, "top_entities": [], "window_days": params.get("days", 30)}
         if path == "/api/search":
             return [{"path": "data/articles/demo.json", "matches": [{"line": 1, "text": "OpenAI"}]}]
         if path == "/api/watched-entities":
@@ -49,7 +55,7 @@ class _FakeViewerClient:
         raise AssertionError(f"Unexpected DELETE path: {path}")
 
 
-def _make_server(enable_write_tools: bool = True) -> FastMCP:
+def _make_server(enable_write_tools: bool = True, client: _FakeViewerClient | None = None) -> FastMCP:
     server = FastMCP("test-mcp")
     config = MCPConfig(
         project_root=Path.cwd(),
@@ -63,7 +69,7 @@ def _make_server(enable_write_tools: bool = True) -> FastMCP:
         log_level="INFO",
         streamable_http_path="/mcp",
     )
-    register_tools(server, _FakeViewerClient(), config)
+    register_tools(server, client or _FakeViewerClient(), config)
     return server
 
 
@@ -113,6 +119,29 @@ def test_watch_entity_tool_preserves_canonical_payload():
     assert payload["ok"] is True
     assert payload["data"]["type"] == "LAW"
     assert payload["data"]["value"] == "AI Act"
+
+
+def test_get_entity_timeline_tool_forwards_match_mode_and_all_types():
+    client = _FakeViewerClient()
+    server = _make_server(client=client)
+    result = asyncio.run(
+        server.call_tool(
+            "get_entity_timeline",
+            {
+                "days": 30,
+                "entity": "Trump",
+                "type": "PERSON",
+                "match_mode": "aggregate",
+                "all_types": True,
+            },
+        )
+    )
+
+    payload = result.structured_content
+    assert payload["ok"] is True
+    assert client.last_get["path"] == "/api/entities/timeline"
+    assert client.last_get["params"]["match_mode"] == "aggregate"
+    assert client.last_get["params"]["all_types"] == "1"
 
 
 def test_create_annotation_tool_respects_write_toggle():

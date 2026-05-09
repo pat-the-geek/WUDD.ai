@@ -213,6 +213,9 @@ Source : `GET /api/entities/dashboard`
 - Liste des articles mentionnant cette entité
 - Source : `/api/entities/articles?type=...&value=...`
 - Même format que `ArticleCard`
+- Paramètres avancés :
+  - `match_mode=strict|canonical|contains|aggregate`
+  - `all_types=1` pour agréger un sujet sur plusieurs types NER
 
 **Graphe :**
 - Visualisation des co-occurrences (entités liées)
@@ -229,6 +232,11 @@ Source : `GET /api/entities/dashboard`
 - Source : `/api/entities/timeline?type=...&value=...`
 - Intensité de couleur = nombre de mentions par jour
 - Cette timeline mesure une **évolution quotidienne** ; elle ne doit pas être comparée directement au `total_count` du graphe, qui est un compteur de couverture globale par nœud
+- Paramètres avancés :
+  - `match_mode=strict` pour une variante exacte
+  - `match_mode=canonical` pour appliquer les alias connus
+  - `match_mode=contains` pour le comportement historique large
+  - `match_mode=aggregate&all_types=1` pour obtenir une vue cross-variant / cross-type sur un sujet fragmenté
 
 ---
 

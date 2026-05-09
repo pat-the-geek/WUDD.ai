@@ -41,6 +41,13 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 
 from utils.logging import default_logger
 from utils.entity_canonicalization import get_entity_canonicalizer
+from utils.entity_matching import (
+    build_aggregate_key,
+    default_timeline_match_mode,
+    load_match_refs,
+    normalize_match_mode,
+    resolve_entity_matches,
+)
 
 # ── Constantes ───────────────────────────────────────────────────────────────
 
@@ -83,6 +90,8 @@ def _collect_timeline_from_index(
     days: int,
     entity_filter: str | None,
     type_filter: str | None,
+    match_mode: str | None = None,
+    all_types: bool = False,
 ) -> dict[str, dict[str, int]] | None:
     """Construit la timeline depuis l'entity_index sans scan rglob.
 
@@ -91,7 +100,8 @@ def _collect_timeline_from_index(
     try:
         from utils.entity_index import get_entity_index
         eidx = get_entity_index(project_root)
-        all_entries = eidx.get_all_entries(canonicalize=True)
+        mode = normalize_match_mode(match_mode, default=default_timeline_match_mode())
+        all_entries = eidx.get_all_entries(canonicalize=(mode != "strict"))
     except Exception:
         return None
 
@@ -102,14 +112,44 @@ def _collect_timeline_from_index(
     cutoff = now - timedelta(days=days) if days > 0 else None
 
     monitored = _MONITORED_TYPES
-    if type_filter and type_filter.upper() in _MONITORED_TYPES:
+    if type_filter and type_filter.upper() in _MONITORED_TYPES and not all_types:
         monitored = {type_filter.upper()}
 
     canonicalizer = get_entity_canonicalizer(project_root)
-    entity_filter_lower = None
     if entity_filter:
-        _, canonical_value = canonicalizer.canonicalize(type_filter or "", entity_filter)
-        entity_filter_lower = canonical_value.lower()
+        matches = resolve_entity_matches(
+            project_root,
+            entity_filter,
+            type_filter,
+            match_mode=mode,
+            all_types=all_types,
+        )
+        if not matches:
+            return {}
+
+        cutoff_date_str = cutoff.strftime("%Y-%m-%d") if cutoff else ""
+        if mode == "aggregate":
+            date_counts: dict[str, int] = defaultdict(int)
+            refs = load_match_refs(
+                project_root,
+                matches,
+                canonicalize=(mode != "strict"),
+                cutoff_date=cutoff_date_str,
+            )
+            for ref in refs:
+                date_str = str(ref.get("date", ""))[:10]
+                if date_str:
+                    date_counts[date_str] += 1
+            if not date_counts:
+                return {}
+            return {build_aggregate_key(entity_filter, type_filter, all_types=all_types): dict(date_counts)}
+
+        matched_lookup = {
+            f'{str(match["type"]).upper()}:{str(match["value"])}'
+            for match in matches
+        }
+    else:
+        matched_lookup = None
 
     timeline: dict[str, dict[str, int]] = {}
 
@@ -119,7 +159,7 @@ def _collect_timeline_from_index(
         etype, _, value = key.partition(":")
         if etype not in monitored:
             continue
-        if entity_filter_lower and entity_filter_lower not in value.lower():
+        if matched_lookup is not None and key not in matched_lookup:
             continue
 
         date_counts: dict[str, int] = defaultdict(int)
@@ -148,6 +188,8 @@ def collect_timeline(
     days: int = 30,
     entity_filter: str | None = None,
     type_filter: str | None = None,
+    match_mode: str | None = None,
+    all_types: bool = False,
 ) -> dict[str, dict[str, int]]:
     """Construit la série chronologique des mentions d'entités.
 
@@ -158,12 +200,21 @@ def collect_timeline(
         days          : fenêtre temporelle en jours (0 = pas de limite)
         entity_filter : filtrer sur une valeur d'entité spécifique (insensible à la casse)
         type_filter   : filtrer sur un type d'entité (ex: "PERSON")
+        match_mode    : strict, canonical, contains ou aggregate
+        all_types     : agréger ou rechercher sur tous les types NER
 
     Returns:
         { "TYPE:valeur" : { "YYYY-MM-DD" : count, ... }, ... }
     """
     # Tentative via entity_index (évite le scan rglob complet)
-    result = _collect_timeline_from_index(project_root, days, entity_filter, type_filter)
+    result = _collect_timeline_from_index(
+        project_root,
+        days,
+        entity_filter,
+        type_filter,
+        match_mode=match_mode,
+        all_types=all_types,
+    )
     if result is not None:
         default_logger.info("  [entity_index] Timeline construite sans scan rglob")
         return result
@@ -181,14 +232,36 @@ def collect_timeline(
     ]
 
     monitored = _MONITORED_TYPES
-    if type_filter and type_filter.upper() in _MONITORED_TYPES:
+    if type_filter and type_filter.upper() in _MONITORED_TYPES and not all_types:
         monitored = {type_filter.upper()}
 
     canonicalizer = get_entity_canonicalizer(project_root)
-    entity_filter_lower = None
+    mode = normalize_match_mode(match_mode, default=default_timeline_match_mode())
+    matched_lookup = None
     if entity_filter:
-        _, canonical_value = canonicalizer.canonicalize(type_filter or "", entity_filter)
-        entity_filter_lower = canonical_value.lower()
+        matches = resolve_entity_matches(
+            project_root,
+            entity_filter,
+            type_filter,
+            match_mode=mode,
+            all_types=all_types,
+        )
+        if not matches:
+            return {}
+        if mode == "aggregate":
+            aggregate_key = build_aggregate_key(entity_filter, type_filter, all_types=all_types)
+            matched_lookup = {
+                (str(match["type"]).upper(), str(match["value"]))
+                for match in matches
+            }
+        else:
+            matched_lookup = {
+                (str(match["type"]).upper(), str(match["value"]))
+                for match in matches
+            }
+            aggregate_key = None
+    else:
+        aggregate_key = None
 
     for scan_dir in scan_dirs:
         if not scan_dir.exists():
@@ -227,11 +300,13 @@ def collect_timeline(
                         if canonicalizer.is_noise(etype, v):
                             continue
                         canonical_type, canonical_value = canonicalizer.canonicalize(etype, v)
-                        if canonical_type not in monitored:
+                        current_type = canonical_type if mode != "strict" else etype
+                        current_value = canonical_value if mode != "strict" else v
+                        if current_type not in monitored:
                             continue
-                        if entity_filter_lower and entity_filter_lower not in canonical_value.lower():
+                        if matched_lookup is not None and (current_type, current_value) not in matched_lookup:
                             continue
-                        key = f"{canonical_type}:{canonical_value}"
+                        key = aggregate_key or f"{current_type}:{current_value}"
                         timeline[key][date_str] += 1
 
     return {k: dict(v) for k, v in timeline.items()}

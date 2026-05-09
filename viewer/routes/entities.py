@@ -31,6 +31,12 @@ from utils.article_index import get_article_index
 from utils.entity_canonicalization import get_entity_canonicalizer
 from utils.date_utils import parse_article_date
 from utils.entity_index import get_entity_index
+from utils.entity_matching import (
+    default_timeline_match_mode,
+    load_match_refs,
+    normalize_match_mode,
+    resolve_entity_matches,
+)
 
 entities_bp = Blueprint("entities", __name__)
 
@@ -117,6 +123,23 @@ def _save_watched(data: list) -> None:
 def _canonicalize_watched_entity(entity_type: str, entity_value: str) -> tuple[str, str]:
     canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
     return canonicalizer.canonicalize(entity_type, entity_value)
+
+
+def _build_entity_query_info(
+    *,
+    entity: str | None,
+    entity_type: str | None,
+    match_mode: str,
+    all_types: bool,
+    matched_entities: list[dict] | None = None,
+) -> dict:
+    return {
+        "entity": (entity or "").strip(),
+        "type": (entity_type or "").strip().upper(),
+        "match_mode": match_mode,
+        "all_types": bool(all_types),
+        "matched_entities": matched_entities or [],
+    }
 
 
 def _timeline_cache_file(days: int, top_n: int) -> Path:
@@ -566,17 +589,21 @@ def api_entities_articles():
     max_articles = request.args.get("max_articles", default=300, type=int)
     max_articles = max(1, min(max_articles or 300, 2000))
     compact = request.args.get("compact", "0").strip().lower() in {"1", "true", "yes", "on"}
+    match_mode = normalize_match_mode(request.args.get("match_mode"), default="canonical")
+    all_types = request.args.get("all_types", "0").strip().lower() in {"1", "true", "yes", "on"}
 
-    if not entity_type or not entity_value:
-        return jsonify({"error": "Paramètres type et value requis"}), 400
+    if not entity_value or (not entity_type and not all_types):
+        return jsonify({"error": "Paramètre value requis, et type sauf si all_types=1"}), 400
 
     canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
-    entity_type, entity_value = canonicalizer.canonicalize(entity_type, entity_value)
-
-    canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
-    entity_type, entity_value = canonicalizer.canonicalize(entity_type, entity_value)
-
-    cache_key = (entity_type.upper(), entity_value.lower(), max_articles, compact)
+    cache_key = (
+        entity_type.upper(),
+        entity_value.lower(),
+        max_articles,
+        compact,
+        match_mode,
+        all_types,
+    )
     with _entity_articles_cache_lock:
         cached = _entity_articles_cache.get(cache_key)
         if cached and (time.monotonic() - cached.get("ts", 0.0)) < _ENTITY_ARTICLES_CACHE_TTL:
@@ -608,7 +635,18 @@ def api_entities_articles():
 
     try:
         eidx = get_entity_index(PROJECT_ROOT)
-        refs = eidx.get_canonical_refs(entity_type, entity_value)
+        matches = resolve_entity_matches(
+            PROJECT_ROOT,
+            entity_value,
+            entity_type,
+            match_mode=match_mode,
+            all_types=all_types,
+        )
+        refs = load_match_refs(
+            PROJECT_ROOT,
+            matches,
+            canonicalize=(match_mode != "strict"),
+        )
         if refs:
             index_found_results = True
             refs_cap = min(len(refs), max(max_articles * 8, 200))
@@ -666,6 +704,20 @@ def api_entities_articles():
     if not index_found_results and not compact:
         # Fallback rglob : index indisponible, version incompatible, entité non indexée
         # (types DATE/MONEY/…), ou index non encore reconstruit après ajout d'articles.
+        matches = resolve_entity_matches(
+            PROJECT_ROOT,
+            entity_value,
+            entity_type,
+            match_mode=match_mode,
+            all_types=all_types,
+        )
+        matched_keys = {
+            (
+                str(match.get("type") or "").strip().upper(),
+                str(match.get("value") or "").strip(),
+            )
+            for match in matches
+        }
         for data_dir in [PROJECT_ROOT / "data" / "articles", PROJECT_ROOT / "data" / "articles-from-rss"]:
             if not data_dir.exists():
                 continue
@@ -682,16 +734,23 @@ def api_entities_articles():
                     entities = article.get("entities", {})
                     if not isinstance(entities, dict):
                         continue
-                    values = entities.get(entity_type, [])
-                    target_key = canonicalizer.canonical_key(entity_type, entity_value)
-                    if not (
-                        isinstance(values, list)
-                        and any(
-                            isinstance(v, str)
-                            and canonicalizer.canonical_key(entity_type, v) == target_key
-                            for v in values
-                        )
-                    ):
+                    matched = False
+                    for article_type, values in entities.items():
+                        if not isinstance(values, list):
+                            continue
+                        for raw_value in values:
+                            if not isinstance(raw_value, str) or not raw_value.strip():
+                                continue
+                            current_type = article_type.strip().upper()
+                            current_value = raw_value.strip()
+                            if match_mode != "strict":
+                                current_type, current_value = canonicalizer.canonicalize(current_type, current_value)
+                            if (current_type, current_value) in matched_keys:
+                                matched = True
+                                break
+                        if matched:
+                            break
+                    if not matched:
                         continue
                     url = (article.get("URL") or "").strip()
                     resume_key = article.get("Résumé", "")[:150].strip()
@@ -2239,6 +2298,11 @@ def api_entities_timeline():
         top_n      = int(request.args.get("top", 30))
         entity     = request.args.get("entity") or None
         etype      = request.args.get("type")   or None
+        match_mode = normalize_match_mode(
+            request.args.get("match_mode"),
+            default=default_timeline_match_mode(),
+        )
+        all_types  = request.args.get("all_types", "0").strip().lower() in {"1", "true", "yes", "on"}
         regenerate = request.args.get("regenerate") == "1"
 
         timeline_file = _timeline_cache_file(days, top_n)
@@ -2253,16 +2317,37 @@ def api_entities_timeline():
         _sys.path.insert(0, str(PROJECT_ROOT))
         from scripts.entity_timeline import collect_timeline, fill_missing_dates, build_top_entities
 
-        raw = collect_timeline(PROJECT_ROOT, days=days, entity_filter=entity, type_filter=etype)
+        raw = collect_timeline(
+            PROJECT_ROOT,
+            days=days,
+            entity_filter=entity,
+            type_filter=etype,
+            match_mode=match_mode,
+            all_types=all_types,
+        )
         top_entities = build_top_entities(raw, top_n=top_n)
         top_keys = {e["key"] for e in top_entities}
         filled = fill_missing_dates({k: v for k, v in raw.items() if k in top_keys}, days=days)
+        query_info = _build_entity_query_info(
+            entity=entity,
+            entity_type=etype,
+            match_mode=match_mode,
+            all_types=all_types,
+            matched_entities=resolve_entity_matches(
+                PROJECT_ROOT,
+                entity,
+                etype,
+                match_mode=match_mode,
+                all_types=all_types,
+            ) if entity else [],
+        )
 
         result = {
             "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
             "window_days": days,
             "top_entities": top_entities,
             "timeline": filled,
+            "query": query_info,
         }
 
         # Sauvegarder le cache si requête sans filtre

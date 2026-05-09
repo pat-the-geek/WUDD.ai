@@ -98,6 +98,32 @@ En pratique, il est donc normal que :
 - un voisin ait un `total_count` élevé mais un `count` faible dans une fenêtre courte ;
 - deux graphes avec des `days` différents gardent des tailles de nœuds proches tout en changeant fortement leurs poids d'arêtes.
 
+### Paramètres de matching des endpoints entité
+
+Les endpoints `GET /api/entities/timeline` et `GET /api/entities/articles` acceptent désormais deux paramètres pour piloter le niveau d'agrégation :
+
+| Paramètre | Valeurs | Effet |
+| --- | --- | --- |
+| `match_mode` | `strict`, `canonical`, `contains`, `aggregate` | Choisit la stratégie de résolution de l'entité demandée |
+| `all_types` | `0` / `1` | Quand activé, autorise une recherche ou un agrégat sur tous les types NER |
+
+#### Sémantique de `match_mode`
+
+| Mode | Comportement |
+| --- | --- |
+| `strict` | Match exact sur la valeur brute dans le type demandé |
+| `canonical` | Match exact après application des alias configurés (`Trump` → `Donald Trump` si alias explicite) |
+| `contains` | Match large par inclusion textuelle dans le type demandé — c'est le mode historique de la timeline |
+| `aggregate` | Agrège toutes les variantes remontées par la recherche d'entités ; avec `all_types=1`, l'agrégat traverse tous les types NER |
+
+#### Recommandation analytique
+
+Pour un sujet politique ou institutionnel fragmenté (ex. `Trump`, `Macron`, `Conseil fédéral`) :
+
+1. lancer `search_entities` pour cartographier les variantes ;
+2. utiliser `match_mode=aggregate`;
+3. activer `all_types=1` si l'analyse doit couvrir à la fois la personne, l'administration, les événements et les labels militants associés.
+
 ---
 
 ## 3. Les 18 types d'entités reconnus

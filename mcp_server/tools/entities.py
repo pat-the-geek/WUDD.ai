@@ -44,6 +44,8 @@ def tool_get_entity_articles(
     value: str | None = None,
     max_articles: int = 100,
     compact: bool = True,
+    match_mode: str | None = None,
+    all_types: bool = False,
 ) -> dict:
     started_at = time.perf_counter()
     endpoint = "/api/entities/articles"
@@ -51,17 +53,18 @@ def tool_get_entity_articles(
     try:
         normalized_type = (entity_type or "").strip().upper()
         entity_value = (value or "").strip()
-        if not normalized_type or not entity_value:
-            raise BadRequestError("Les paramètres type et value sont requis")
+        if not entity_value or (not normalized_type and not all_types):
+            raise BadRequestError("Le paramètre value est requis, et type sauf si all_types=true")
         capped_max = max(1, min(int(max_articles), 200))
         if capped_max != int(max_articles):
             warnings.append("large_result_capped")
-        params = {
-            "type": normalized_type,
-            "value": entity_value,
-            "max_articles": capped_max,
-            "compact": "1" if compact else "0",
-        }
+        params = {"value": entity_value, "max_articles": capped_max, "compact": "1" if compact else "0"}
+        if normalized_type:
+            params["type"] = normalized_type
+        if match_mode:
+            params["match_mode"] = str(match_mode).strip().lower()
+        if all_types:
+            params["all_types"] = "1"
         data = client.get(endpoint, params=params, timeout=client.heavy_timeout)
         return success(
             "get_entity_articles",
@@ -80,6 +83,8 @@ def tool_get_entity_timeline(
     top: int = 30,
     entity: str | None = None,
     entity_type: str | None = None,
+    match_mode: str | None = None,
+    all_types: bool = False,
 ) -> dict:
     started_at = time.perf_counter()
     endpoint = "/api/entities/timeline"
@@ -92,6 +97,10 @@ def tool_get_entity_timeline(
             params["entity"] = entity.strip()
         if entity_type:
             params["type"] = entity_type.strip().upper()
+        if match_mode:
+            params["match_mode"] = str(match_mode).strip().lower()
+        if all_types:
+            params["all_types"] = "1"
         data = client.get(endpoint, params=params, timeout=client.heavy_timeout)
         return success(
             "get_entity_timeline",

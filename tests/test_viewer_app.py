@@ -273,6 +273,26 @@ class TestEntityRoutes:
         data = resp.get_json()
         assert data["window_days"] == 90
 
+    def test_get_entity_timeline_supports_match_mode_and_all_types(self, client):
+        with patch("scripts.entity_timeline.collect_timeline", return_value={"ALL:Trump": {"2026-05-09": 3}}) as mock_collect, \
+             patch("scripts.entity_timeline.build_top_entities", return_value=[{"key": "ALL:Trump", "type": "ALL", "value": "Trump", "total": 3}]), \
+             patch("scripts.entity_timeline.fill_missing_dates", return_value={"ALL:Trump": {"2026-05-09": 3}}), \
+             patch("viewer.routes.entities.resolve_entity_matches", return_value=[{"type": "PERSON", "value": "Donald Trump", "count": 2}]):
+            resp = client.get("/api/entities/timeline?days=30&entity=Trump&type=PERSON&match_mode=aggregate&all_types=1")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["query"]["match_mode"] == "aggregate"
+        assert data["query"]["all_types"] is True
+        mock_collect.assert_called_once_with(
+            PROJECT_ROOT,
+            days=30,
+            entity_filter="Trump",
+            type_filter="PERSON",
+            match_mode="aggregate",
+            all_types=True,
+        )
+
     def test_get_entity_search_empty_returns_400_or_200(self, client):
         resp = client.get("/api/entities/search")
         # Query param 'q' ou 'entity' requis selon l'implémentation
@@ -339,6 +359,37 @@ class TestEntityRoutes:
         assert resp.status_code == 200
         data = resp.get_json()
         assert isinstance(data, list) or isinstance(data, dict)
+
+    def test_get_entity_articles_supports_aggregate_matching(self, client, tmp_path):
+        from viewer.routes import entities as entities_module
+
+        source_file = tmp_path / "articles.json"
+        source_file.write_text(
+            json.dumps(
+                [
+                    {"URL": "https://example.com/a", "Date de publication": "2026-05-09", "Résumé": "Donald Trump."},
+                    {"URL": "https://example.com/b", "Date de publication": "2026-05-08", "Résumé": "Trump Administration."},
+                ]
+            ),
+            encoding="utf-8",
+        )
+        entities_module._entity_articles_cache.clear()
+
+        with patch.object(entities_module, "PROJECT_ROOT", tmp_path), \
+             patch("viewer.routes.entities.resolve_entity_matches", return_value=[
+                 {"type": "PERSON", "value": "Donald Trump", "count": 2},
+                 {"type": "ORG", "value": "Trump Administration", "count": 1},
+             ]), \
+             patch("viewer.routes.entities.load_match_refs", return_value=[
+                 {"file": "articles.json", "idx": 0, "date": "2026-05-09"},
+                 {"file": "articles.json", "idx": 1, "date": "2026-05-08"},
+             ]):
+            resp = client.get("/api/entities/articles?type=PERSON&value=Trump&match_mode=aggregate&all_types=1")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data) == 2
+        assert data[0]["URL"] == "https://example.com/a"
 
     def test_watched_entities_post_canonicalizes_entity(self, client, tmp_path):
         from viewer.routes import entities as entities_module

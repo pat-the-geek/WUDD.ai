@@ -634,6 +634,67 @@ class TestEntityIndex:
         assert ai_search[0]["top"][0]["value"] == "AI Act"
         assert rgpd_search[0]["type"] == "LAW"
 
+    def test_entity_matching_resout_strict_canonical_contains_et_aggregate(self, tmp_root):
+        from utils.entity_index import EntityIndex
+        from utils.entity_matching import load_match_refs, resolve_entity_matches
+
+        (tmp_root / "config" / "entity_canonicalization.json").write_text(
+            json.dumps(
+                {
+                    "aliases": [
+                        {
+                            "canonical": {"type": "PERSON", "value": "Donald Trump"},
+                            "aliases": [{"type": "PERSON", "value": "Trump"}],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        articles = [
+            {
+                "URL": "http://test.com/trump-a",
+                "Date de publication": "2026-01-05",
+                "Résumé": "Trump prend la parole.",
+                "entities": {"PERSON": ["Trump"]},
+            },
+            {
+                "URL": "http://test.com/trump-b",
+                "Date de publication": "2026-01-06",
+                "Résumé": "Donald Trump revient.",
+                "entities": {"PERSON": ["Donald Trump"]},
+            },
+            {
+                "URL": "http://test.com/trump-c",
+                "Date de publication": "2026-01-07",
+                "Résumé": "Donald Trump Jr. intervient.",
+                "entities": {"PERSON": ["Donald Trump Jr."]},
+            },
+            {
+                "URL": "http://test.com/trump-d",
+                "Date de publication": "2026-01-08",
+                "Résumé": "La Trump Administration réagit.",
+                "entities": {"ORG": ["Trump Administration"]},
+            },
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        strict_matches = resolve_entity_matches(tmp_root, "Trump", "PERSON", match_mode="strict")
+        canonical_matches = resolve_entity_matches(tmp_root, "Trump", "PERSON", match_mode="canonical")
+        contains_matches = resolve_entity_matches(tmp_root, "Trump", "PERSON", match_mode="contains")
+        aggregate_matches = resolve_entity_matches(tmp_root, "Trump", match_mode="aggregate", all_types=True)
+        aggregate_refs = load_match_refs(tmp_root, aggregate_matches, canonicalize=True)
+
+        assert strict_matches == [{"type": "PERSON", "value": "Trump", "count": 1}]
+        assert canonical_matches == [{"type": "PERSON", "value": "Donald Trump", "count": 2}]
+        assert ("PERSON", "Donald Trump Jr.") in {(m["type"], m["value"]) for m in contains_matches}
+        assert ("PERSON", "Donald Trump") in {(m["type"], m["value"]) for m in aggregate_matches}
+        assert ("ORG", "Trump Administration") in {(m["type"], m["value"]) for m in aggregate_matches}
+        assert len(aggregate_refs) == 4
+
 
 # ── Tests SynthesisCache ──────────────────────────────────────────────────────
 

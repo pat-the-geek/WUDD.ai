@@ -102,6 +102,8 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
         value: str | None = None,
         max_articles: int = 100,
         compact: bool = True,
+        match_mode: str | None = None,
+        all_types: bool = False,
     ) -> dict:
         return tool_get_entity_articles(
             client,
@@ -109,6 +111,8 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
             value=value,
             max_articles=max_articles,
             compact=compact,
+            match_mode=match_mode,
+            all_types=all_types,
         )
 
     @server.tool(name="get_entity_timeline", description="Retourne la timeline des mentions d'entités.")
@@ -117,6 +121,8 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
         top: int = 30,
         entity: str | None = None,
         type: str | None = None,
+        match_mode: str | None = None,
+        all_types: bool = False,
     ) -> dict:
         return tool_get_entity_timeline(
             client,
@@ -124,6 +130,8 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
             top=top,
             entity=entity,
             entity_type=type,
+            match_mode=match_mode,
+            all_types=all_types,
         )
 
     @server.tool(name="get_entity_cooccurrences", description="Construit le graphe de cooccurrences d'une entité.")
