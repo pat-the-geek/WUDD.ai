@@ -1,3 +1,16 @@
+# 09/05/2026 — Durcissement analytics entités et tri articles (v2.8.21)
+
+## Viewer / MCP — entités, dashboard et annotations
+
+- `viewer/routes/entities.py` : `/api/entities/cooccurrences` utilise désormais un comptage canonique direct pour fiabiliser `total_count` sur les types structurels (`DATE`, `MONEY`, etc.), avec fallback conservé vers la recherche si nécessaire.
+- `utils/entity_index.py` : ajout de `get_canonical_ref_count()` pour compter une entité canonique sans dépendre d'un chemin de lookup d'affichage.
+- `viewer/routes/entities.py` : le dashboard expose `duckdb_stats.enrichment_7j` pour rendre visible la complétude du pipeline (`enrichissement_pct`, couvertures entités/sentiment/source/éditorial).
+- `utils/db.py` : ajout de `enrichment_coverage(days=7)` pour calculer ces métriques de couverture via DuckDB.
+- `viewer/routes/entities.py` : `/api/entities/articles` accepte `sort_by=date|score_source|score_ton|relevance` et conserve en mode `compact=1` les champs éditoriaux enrichis (`score_source`, `enrichissement_statut`, etc.), le différentiel principal restant le champ `Titre`.
+- `mcp_server/tool_registry.py` : descriptions MCP enrichies pour `get_entity_dashboard`, `get_entity_articles`, `list_annotations` et `create_annotation` (workflow `wf_status`, `is_hidden`, tri et couverture d'enrichissement).
+
+---
+
 # 02/05/2026 — Détection de visages dans le mode Direct (v2.8.20)
 
 ## Viewer — face detection dans Direct RSS

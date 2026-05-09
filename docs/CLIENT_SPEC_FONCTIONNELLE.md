@@ -217,9 +217,11 @@ Le dashboard masque par défaut les types structurels (`DATE`, `MONEY`, etc.) po
 - Source : `/api/entities/articles?type=...&value=...`
 - Même format que `ArticleCard`
 - Principe important : la couche de canonicalisation n'est pas "faible" ou absente ; elle est disponible mais doit être activée via les paramètres avancés selon le niveau d'agrégation attendu
+- `compact=1` ne retire essentiellement que `Titre` ; les champs éditoriaux enrichis (`sentiment`, `score_sentiment`, `ton_editorial`, `score_ton`, `score_source`, `enrichissement_statut`) restent présents quand l'article les possède
 - Paramètres avancés :
   - `match_mode=strict|canonical|contains|aggregate`
   - `all_types=1` pour agréger un sujet sur plusieurs types NER
+  - `sort_by=date|score_source|score_ton|relevance` pour piloter l'ordre serveur selon l'usage (chronologie, qualité source, tonalité, ordre de pertinence)
   - toute autre valeur de `match_mode` doit produire une erreur `400`
 
 **Graphe :**
@@ -260,6 +262,12 @@ Pour un client natif ou MCP, la recommandation est de rendre visibles les choix 
 WUDD.ai applique également un post-traitement léger sur les sorties NER pour corriger les erreurs manifestes les plus coûteuses (`MONEY`, `DATE`, `LAW`) avant indexation, ainsi que quelques faux positifs courts très récurrents (`Trump` recentré vers `PERSON`, `Conseil fédéral` vers `ORG`). Côté lecture, `match_mode=canonical` fusionne aussi les variantes Unicode exactes d'un même libellé sans basculer dans l'agrégation sémantique large de `aggregate`. Cela améliore l'exploitabilité sans changer l'API publique.
 
 Dans le dashboard, la distribution `duckdb_stats.sentiment_7j` doit être lue comme un **échantillon documenté** et non comme une mesure implicite de tout le corpus 7 jours. La réponse expose maintenant `duckdb_stats.sentiment_7j_meta` avec la taille d'échantillon, le taux de couverture et la base de calcul.
+
+Le dashboard expose aussi `duckdb_stats.enrichment_7j`, qui transforme la "représentativité sentiment" en **indicateur opérationnel de complétion** :
+
+- `enrichissement_pct` mesure la part des articles RSS 7 jours déjà marqués `enrichissement_statut="ok"` ;
+- `sentiment_coverage_pct`, `score_source_coverage_pct`, `entities_coverage_pct` et `editorial_ready_pct` détaillent la couverture par couche d'enrichissement ;
+- ces métriques doivent être lues comme un suivi de pipeline, pas comme un signal éditorial.
 
 Point d'exploitation important pour le client : après une évolution du schéma d'indexation, le backend doit reconstruire `entity_index.json` puis `entity_stats.json`. Sans cette réindexation, la recherche et le dashboard peuvent continuer à exposer un ancien typage du corpus même si les articles bruts sont déjà corrigés.
 
@@ -502,6 +510,8 @@ Source : `GET /api/analytics/clusters?days=7`
 - Notes et tags locaux sur les articles
 - Persistance via l'API backend : `POST /api/annotations`
 - Visible dans ArticleDetailView et ArticleCard (badge si annotée)
+- `wf_status` supporte quatre états francisés : `""`, `À traiter`, `En cours`, `Archivé`
+- `is_hidden=true` masque une annotation sans la supprimer ; elle reste persistée et relisible via l'API
 
 ---
 

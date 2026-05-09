@@ -425,6 +425,8 @@ class TestEntityRoutes:
             }
         ]
 
+        mock_idx.get_canonical_ref_count.return_value = 0
+
         def _canonical_refs(etype, value):
             if etype == "DATE":
                 return []
@@ -448,6 +450,33 @@ class TestEntityRoutes:
         date_node = next(node for node in data["nodes"] if node["type"] == "DATE" and node["value"] == "2026")
         assert date_node["total_count"] == 689
         assert data["meta"]["total_count_scope"].startswith("Couverture corpus")
+
+    def test_get_entity_cooccurrences_uses_direct_canonical_count_when_available(self, client):
+        mock_idx = MagicMock()
+        mock_idx.load_articles.return_value = [
+            {
+                "entities": {
+                    "ORG": ["OpenAI", "Microsoft"],
+                    "DATE": ["2026"],
+                }
+            }
+        ]
+
+        def _canonical_count(etype, value):
+            if etype == "DATE" and value == "2026":
+                return 689
+            return 12
+
+        mock_idx.get_canonical_ref_count.side_effect = _canonical_count
+        mock_idx.search_values.return_value = []
+
+        with patch("viewer.routes.entities.get_entity_index", return_value=mock_idx):
+            resp = client.get("/api/entities/cooccurrences?type=ORG&value=OpenAI")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        date_node = next(node for node in data["nodes"] if node["type"] == "DATE" and node["value"] == "2026")
+        assert date_node["total_count"] == 689
 
     def test_get_entity_dashboard_supports_structural_opt_in(self, client):
         from viewer.routes import entities as entities_module
@@ -496,6 +525,14 @@ class TestEntityRoutes:
             {"sentiment": "neutre", "count": 20, "pct": 50.0},
             {"sentiment": "positif", "count": 20, "pct": 50.0},
         ]
+        mock_db.enrichment_coverage.return_value = {
+            "total_articles": 100,
+            "with_entities": 60,
+            "with_sentiment": 25,
+            "with_score_source": 70,
+            "editorial_ready": 18,
+            "ok_status": 12,
+        }
         mock_db.article_stats_by_source.return_value = [{"source": "OpenAI", "article_count": 4}]
 
         with patch("viewer.routes.entities.get_entity_index", return_value=mock_idx), \
@@ -511,6 +548,10 @@ class TestEntityRoutes:
         assert meta["sample_size"] == 40
         assert meta["coverage_pct_of_reading_time_7j"] == 40.0
         assert "sentiment non vide" in meta["basis"]
+        enrichment = data["duckdb_stats"]["enrichment_7j"]
+        assert enrichment["enrichissement_pct"] == 12.0
+        assert enrichment["sentiment_coverage_pct"] == 25.0
+        assert "complétude du pipeline" in enrichment["basis"]
 
     def test_get_watched_entities_returns_200(self, client):
         resp = client.get("/api/watched-entities")
@@ -555,6 +596,66 @@ class TestEntityRoutes:
         assert resp.status_code == 400
         data = resp.get_json()
         assert "match_mode invalide" in data["error"]
+
+    def test_get_entity_articles_rejects_invalid_sort_by(self, client):
+        resp = client.get("/api/entities/articles?type=PERSON&value=Trump&sort_by=quality")
+
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert "sort_by invalide" in data["error"]
+        assert "relevance" in data["allowed_sort_by"]
+
+    def test_get_entity_articles_sorts_by_score_source_and_keeps_compact_scoring_fields(self, client, tmp_path):
+        from viewer.routes import entities as entities_module
+
+        source_file = tmp_path / "articles.json"
+        source_file.write_text(
+            json.dumps(
+                [
+                    {
+                        "URL": "https://example.com/a",
+                        "Date de publication": "2026-05-08",
+                        "Résumé": "Article A",
+                        "Titre": "Titre A",
+                        "score_source": 55,
+                        "score_ton": 3,
+                        "sentiment": "neutre",
+                        "enrichissement_statut": "ok",
+                    },
+                    {
+                        "URL": "https://example.com/b",
+                        "Date de publication": "2026-05-09",
+                        "Résumé": "Article B",
+                        "Titre": "Titre B",
+                        "score_source": 82,
+                        "score_ton": 5,
+                        "sentiment": "positif",
+                        "enrichissement_statut": "ok",
+                    },
+                ]
+            ),
+            encoding="utf-8",
+        )
+        entities_module._entity_articles_cache.clear()
+
+        with patch.object(entities_module, "PROJECT_ROOT", tmp_path), \
+             patch("viewer.routes.entities.resolve_entity_matches", return_value=[
+                 {"type": "ORG", "value": "AI Act", "count": 2},
+             ]), \
+             patch("viewer.routes.entities.load_match_refs", return_value=[
+                 {"file": "articles.json", "idx": 0, "date": "2026-05-08"},
+                 {"file": "articles.json", "idx": 1, "date": "2026-05-09"},
+             ]):
+            resp = client.get(
+                "/api/entities/articles?type=ORG&value=AI%20Act&compact=1&sort_by=score_source"
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert [item["URL"] for item in data] == ["https://example.com/b", "https://example.com/a"]
+        assert data[0]["score_source"] == 82
+        assert data[0]["enrichissement_statut"] == "ok"
+        assert "Titre" not in data[0]
 
     def test_watched_entities_post_canonicalizes_entity(self, client, tmp_path):
         from viewer.routes import entities as entities_module

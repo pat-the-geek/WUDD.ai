@@ -58,6 +58,7 @@ def tool_get_entity_articles(
     value: str | None = None,
     max_articles: int = 100,
     compact: bool = True,
+    sort_by: str = "date",
     match_mode: str | None = None,
     all_types: bool = False,
 ) -> dict:
@@ -70,6 +71,11 @@ def tool_get_entity_articles(
         if not entity_value or (not normalized_type and not all_types):
             raise BadRequestError("Le paramètre value est requis, et type sauf si all_types=true")
         normalized_match_mode = None
+        normalized_sort = str(sort_by or "date").strip().lower()
+        if normalized_sort not in {"date", "score_source", "score_ton", "relevance"}:
+            raise BadRequestError(
+                "sort_by invalide (valeurs: date, score_source, score_ton, relevance)"
+            )
         if match_mode is not None and str(match_mode).strip():
             try:
                 normalized_match_mode = normalize_match_mode(str(match_mode), default="canonical")
@@ -78,7 +84,12 @@ def tool_get_entity_articles(
         capped_max = max(1, min(int(max_articles), 200))
         if capped_max != int(max_articles):
             warnings.append("large_result_capped")
-        params = {"value": entity_value, "max_articles": capped_max, "compact": "1" if compact else "0"}
+        params = {
+            "value": entity_value,
+            "max_articles": capped_max,
+            "compact": "1" if compact else "0",
+            "sort_by": normalized_sort,
+        }
         if normalized_type:
             params["type"] = normalized_type
         if normalized_match_mode:

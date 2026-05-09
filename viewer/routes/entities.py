@@ -67,6 +67,8 @@ _ENTITY_SEARCH_CACHE_TTL = 120  # secondes
 _entity_search_cache: dict = {}  # {(query, type): {"result": ..., "ts": float}}
 _entity_search_cache_lock = threading.Lock()
 
+_ENTITY_ARTICLE_SORT_FIELDS = ("date", "score_source", "score_ton", "relevance")
+
 # ── Cache mémoire pour images Wikimedia (chargé une seule fois depuis le disque) ─
 _images_cache_mem: dict | None = None   # None = pas encore chargé
 _images_cache_mem_lock = threading.Lock()
@@ -94,6 +96,66 @@ def _save_annotations(data: dict) -> None:
     tmp = _ANNOTATIONS_FILE.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(_ANNOTATIONS_FILE)
+
+
+def _parse_entity_article_sort(sort_by: str | None) -> str:
+    value = (sort_by or "date").strip().lower()
+    if value not in _ENTITY_ARTICLE_SORT_FIELDS:
+        raise ValueError(
+            "sort_by invalide (valeurs: "
+            + ", ".join(_ENTITY_ARTICLE_SORT_FIELDS)
+            + ")"
+        )
+    return value
+
+
+def _article_sort_timestamp(article: dict) -> float:
+    dt = parse_article_date(str(article.get("Date de publication", "")))
+    if dt is None:
+        return 0.0
+    return dt.timestamp()
+
+
+def _numeric_article_field(article: dict, field: str) -> float | None:
+    raw = article.get(field)
+    if raw in (None, ""):
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _sort_entity_articles(results: list[dict], sort_by: str) -> list[dict]:
+    if sort_by == "relevance":
+        results.sort(
+            key=lambda a: (
+                int(a.get("_sort_relevance_rank", 10**9)),
+                -float(a.get("_sort_date_ts", 0.0)),
+            )
+        )
+        return results
+
+    if sort_by == "date":
+        results.sort(
+            key=lambda a: (
+                float(a.get("_sort_date_ts", 0.0)),
+                -int(a.get("_sort_relevance_rank", 10**9)),
+            ),
+            reverse=True,
+        )
+        return results
+
+    results.sort(
+        key=lambda a: (
+            _numeric_article_field(a, sort_by) is not None,
+            _numeric_article_field(a, sort_by) or float("-inf"),
+            float(a.get("_sort_date_ts", 0.0)),
+            -int(a.get("_sort_relevance_rank", 10**9)),
+        ),
+        reverse=True,
+    )
+    return results
 
 
 # ── Entités surveillées ───────────────────────────────────────────────────────
@@ -451,9 +513,18 @@ def api_entities_dashboard():
     def _build_duckdb_stats_payload(db) -> dict:
         reading_time_7j = db.reading_time_stats(days=7)
         sentiment_7j = db.sentiment_distribution(days=7)
+        enrichment_7j = db.enrichment_coverage(days=7)
         sample_size = sum(int(row.get("count", 0)) for row in sentiment_7j if isinstance(row, dict))
         denominator = int((reading_time_7j or {}).get("total_articles") or 0)
         coverage_pct = round((100.0 * sample_size / denominator), 1) if denominator > 0 else None
+        enrichment_total = int((enrichment_7j or {}).get("total_articles") or 0)
+
+        def _coverage(field: str) -> float | None:
+            value = int((enrichment_7j or {}).get(field) or 0)
+            if enrichment_total <= 0:
+                return None
+            return round((100.0 * value / enrichment_total), 1)
+
         return {
             "reading_time_7j": reading_time_7j,
             "sentiment_7j": sentiment_7j,
@@ -461,6 +532,15 @@ def api_entities_dashboard():
                 "sample_size": sample_size,
                 "coverage_pct_of_reading_time_7j": coverage_pct,
                 "basis": "Articles RSS des 7 derniers jours avec champ sentiment non vide.",
+            },
+            "enrichment_7j": {
+                **(enrichment_7j or {}),
+                "enrichissement_pct": _coverage("ok_status"),
+                "entities_coverage_pct": _coverage("with_entities"),
+                "sentiment_coverage_pct": _coverage("with_sentiment"),
+                "score_source_coverage_pct": _coverage("with_score_source"),
+                "editorial_ready_pct": _coverage("editorial_ready"),
+                "basis": "Articles RSS des 7 derniers jours ; indicateur de complétude du pipeline d'enrichissement.",
             },
             "source_count_30j": len(db.article_stats_by_source(days=30)),
         }
@@ -671,6 +751,10 @@ def api_entities_articles():
     max_articles = max(1, min(max_articles or 300, 2000))
     compact = request.args.get("compact", "0").strip().lower() in {"1", "true", "yes", "on"}
     try:
+        sort_by = _parse_entity_article_sort(request.args.get("sort_by"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "allowed_sort_by": list(_ENTITY_ARTICLE_SORT_FIELDS)}), 400
+    try:
         match_mode = normalize_match_mode(request.args.get("match_mode"), default="canonical")
     except ValueError as exc:
         return jsonify({"error": str(exc), "allowed_match_modes": allowed_match_modes()}), 400
@@ -685,6 +769,7 @@ def api_entities_articles():
         entity_value.lower(),
         max_articles,
         compact,
+        sort_by,
         match_mode,
         all_types,
     )
@@ -704,11 +789,13 @@ def api_entities_articles():
         "score_sentiment",
         "ton_editorial",
         "score_ton",
+        "score_source",
         "temps_lecture_minutes",
         "temps_lecture_label",
         "mot_cle",
         "terme_declencheur",
         "terme_and",
+        "enrichissement_statut",
         "fichier_source",
         "rapports",
     }
@@ -771,10 +858,14 @@ def api_entities_articles():
                         seen_urls.add(url)
                     if resume_key:
                         seen_urls.add(resume_key)
-                    if compact:
-                        results.append({k: article.get(k) for k in compact_fields if k in article})
-                    else:
-                        results.append(article)
+                    payload = (
+                        {k: article.get(k) for k in compact_fields if k in article}
+                        if compact
+                        else dict(article)
+                    )
+                    payload["_sort_relevance_rank"] = int(len(results))
+                    payload["_sort_date_ts"] = _article_sort_timestamp(article)
+                    results.append(payload)
                     if len(results) >= max_articles:
                         break
                 if len(results) >= max_articles:
@@ -844,10 +935,14 @@ def api_entities_articles():
                         seen_urls.add(url)
                     if resume_key:
                         seen_urls.add(resume_key)
-                    if compact:
-                        results.append({k: article.get(k) for k in compact_fields if k in article})
-                    else:
-                        results.append(article)
+                    payload = (
+                        {k: article.get(k) for k in compact_fields if k in article}
+                        if compact
+                        else dict(article)
+                    )
+                    payload["_sort_relevance_rank"] = int(len(results))
+                    payload["_sort_date_ts"] = _article_sort_timestamp(article)
+                    results.append(payload)
                     if len(results) >= max_articles:
                         break
                 if len(results) >= max_articles:
@@ -855,7 +950,10 @@ def api_entities_articles():
             if len(results) >= max_articles:
                 break
 
-    results.sort(key=lambda a: a.get("Date de publication", ""), reverse=True)
+    results = _sort_entity_articles(results, sort_by)
+    for article in results:
+        article.pop("_sort_relevance_rank", None)
+        article.pop("_sort_date_ts", None)
 
     with _entity_articles_cache_lock:
         _entity_articles_cache[cache_key] = {"result": results, "ts": time.monotonic()}
@@ -1277,7 +1375,11 @@ def api_entities_cooccurrences():
         if not index_available or eidx is None:
             return fallback
         try:
-            total = len(eidx.get_canonical_refs(etype, ev))
+            count_resolver = getattr(eidx, "get_canonical_ref_count", None)
+            if callable(count_resolver):
+                total = int(count_resolver(etype, ev))
+            else:
+                total = len(eidx.get_canonical_refs(etype, ev))
             if total > 0:
                 return total
         except Exception:

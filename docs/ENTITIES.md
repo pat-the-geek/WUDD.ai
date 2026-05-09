@@ -105,12 +105,13 @@ Point important : le diagnostic "couche de canonicalisation faible" est trompeur
 
 Autrement dit, WUDD.ai dispose déjà d'un moteur d'entités puissant ; il doit surtout être **appelé avec le bon mode** selon l'usage analytique recherché.
 
-Les endpoints `GET /api/entities/timeline` et `GET /api/entities/articles` acceptent désormais deux paramètres pour piloter le niveau d'agrégation :
+Les endpoints `GET /api/entities/timeline` et `GET /api/entities/articles` acceptent désormais plusieurs paramètres pour piloter le niveau d'agrégation et du tri :
 
 | Paramètre | Valeurs | Effet |
 | --- | --- | --- |
 | `match_mode` | `strict`, `canonical`, `contains`, `aggregate` | Choisit la stratégie de résolution de l'entité demandée |
 | `all_types` | `0` / `1` | Quand activé, autorise une recherche ou un agrégat sur tous les types NER |
+| `sort_by` (`/articles`) | `date`, `score_source`, `score_ton`, `relevance` | Contrôle l'ordre des articles renvoyés |
 
 Toute autre valeur de `match_mode` est rejetée avec une erreur HTTP `400` pour éviter les replis silencieux vers le mode par défaut.
 
@@ -147,6 +148,18 @@ Pour un client MCP, la bonne posture n'est pas de supposer une canonicalisation 
 
 `canonical` ne doit toutefois pas être confondu avec `aggregate` : il fusionne les variantes exactes d'un même libellé (ex. apostrophes typographiques, accents, casse) et les alias explicites, mais il ne regroupe pas les formulations longues ou les événements apparentés.
 
+### Sémantique de `compact` sur `/api/entities/articles`
+
+Le paramètre `compact=1` ne transforme pas l'endpoint en mode "résumé pauvre". Il retire surtout le champ `Titre` et conserve les champs directement utiles à l'analyse :
+
+- métadonnées de base (`Date de publication`, `Sources`, `URL`, `Résumé`, `Images`) ;
+- champs NER (`entities`) ;
+- champs éditoriaux déjà enrichis (`sentiment`, `score_sentiment`, `ton_editorial`, `score_ton`, `score_source`, `enrichissement_statut`) ;
+- champs de lecture (`temps_lecture_minutes`, `temps_lecture_label`) ;
+- métadonnées d'origine (`fichier_source`, `terme_declencheur`, etc.).
+
+Pour un usage RAG, panel entité ou note de veille, `compact=1` reste donc généralement suffisant.
+
 ### Couverture de `sentiment_7j`
 
 Dans `duckdb_stats`, le bloc `sentiment_7j` décrit uniquement les articles RSS des 7 derniers jours **ayant un champ `sentiment` non vide**. La réponse expose maintenant `duckdb_stats.sentiment_7j_meta` avec :
@@ -154,6 +167,13 @@ Dans `duckdb_stats`, le bloc `sentiment_7j` décrit uniquement les articles RSS 
 - `sample_size` : nombre d'articles réellement inclus dans la distribution ;
 - `coverage_pct_of_reading_time_7j` : part de cet échantillon par rapport au volume analytique 7 jours exposé par `reading_time_7j.total_articles` ;
 - `basis` : rappel textuel du critère d'inclusion.
+
+La réponse expose aussi `duckdb_stats.enrichment_7j`, qui sert à lire l'état du pipeline plutôt qu'une vérité implicite sur tout le corpus :
+
+- `total_articles` : volume RSS observé sur 7 jours ;
+- `with_entities`, `with_sentiment`, `with_score_source`, `editorial_ready`, `ok_status` : compteurs de complétude par étape ;
+- `enrichissement_pct` : part des articles marqués `enrichissement_statut="ok"` ;
+- `sentiment_coverage_pct`, `score_source_coverage_pct`, `entities_coverage_pct`, `editorial_ready_pct` : taux de couverture détaillés.
 
 ### Types structurels et types atypiques
 

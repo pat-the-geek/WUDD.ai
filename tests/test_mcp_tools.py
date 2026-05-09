@@ -119,6 +119,22 @@ def test_get_entity_dashboard_tool_forwards_structural_opt_in():
     assert client.last_get["params"]["include_structural"] == "1"
 
 
+def test_get_entity_articles_tool_forwards_sort_by():
+    client = _FakeViewerClient()
+    server = _make_server(client=client)
+    result = asyncio.run(
+        server.call_tool(
+            "get_entity_articles",
+            {"type": "ORG", "value": "AI Act", "sort_by": "score_source"},
+        )
+    )
+
+    payload = result.structured_content
+    assert payload["ok"] is True
+    assert client.last_get["path"] == "/api/entities/articles"
+    assert client.last_get["params"]["sort_by"] == "score_source"
+
+
 def test_watch_entity_tool_returns_added_action():
     server = _make_server()
     result = asyncio.run(

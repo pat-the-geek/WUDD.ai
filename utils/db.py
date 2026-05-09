@@ -294,6 +294,68 @@ class ArticleDB:
         rows = self._exec(sql)
         return rows[0] if rows else {"avg_minutes": None, "median_minutes": None, "total_articles": 0}
 
+    def enrichment_coverage(self, days: int = 7) -> dict:
+        """Mesure la complétude d'enrichissement éditorial sur une fenêtre.
+
+        Returns:
+            Dict {total_articles, with_entities, with_sentiment, with_score_source,
+                  editorial_ready, ok_status}
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        glob = self._glob_pattern("articles-from-rss/*.json")
+        sql = f"""
+            SELECT
+                COUNT(*) AS total_articles,
+                SUM(
+                    CASE
+                        WHEN entities IS NOT NULL
+                         AND TRIM(CAST(entities AS VARCHAR)) NOT IN ('', '{{}}')
+                        THEN 1 ELSE 0
+                    END
+                ) AS with_entities,
+                SUM(
+                    CASE
+                        WHEN sentiment IS NOT NULL
+                         AND TRIM(CAST(sentiment AS VARCHAR)) != ''
+                        THEN 1 ELSE 0
+                    END
+                ) AS with_sentiment,
+                SUM(
+                    CASE
+                        WHEN "score_source" IS NOT NULL
+                        THEN 1 ELSE 0
+                    END
+                ) AS with_score_source,
+                SUM(
+                    CASE
+                        WHEN sentiment IS NOT NULL
+                         AND TRIM(CAST(sentiment AS VARCHAR)) != ''
+                         AND ton_editorial IS NOT NULL
+                         AND TRIM(CAST(ton_editorial AS VARCHAR)) != ''
+                         AND TRY_CAST(score_sentiment AS DOUBLE) IS NOT NULL
+                         AND TRY_CAST(score_ton AS DOUBLE) IS NOT NULL
+                        THEN 1 ELSE 0
+                    END
+                ) AS editorial_ready,
+                SUM(
+                    CASE
+                        WHEN TRIM(COALESCE(CAST(enrichissement_statut AS VARCHAR), '')) = 'ok'
+                        THEN 1 ELSE 0
+                    END
+                ) AS ok_status
+            FROM read_json_auto('{glob}', ignore_errors=true)
+            WHERE "Date de publication" >= '{cutoff}'
+        """
+        rows = self._exec(sql)
+        return rows[0] if rows else {
+            "total_articles": 0,
+            "with_entities": 0,
+            "with_sentiment": 0,
+            "with_score_source": 0,
+            "editorial_ready": 0,
+            "ok_status": 0,
+        }
+
     def source_bias_stats(self) -> list[dict]:
         """Agrège les statistiques de biais éditorial par source (pour /api/sources/bias).
 

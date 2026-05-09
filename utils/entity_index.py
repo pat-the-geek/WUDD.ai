@@ -371,6 +371,46 @@ class EntityIndex:
         refs = entries.get(display_key, [])
         return sorted(refs, key=lambda r: r.get("date", ""), reverse=True)
 
+    def get_canonical_ref_count(self, entity_type: str, entity_value: str) -> int:
+        """Retourne le nombre de refs canoniques pour une entité.
+
+        Utilise d'abord le bucket canonique pré-agrégé, puis retombe sur un
+        balayage direct de l'index brut si le lookup d'affichage n'est pas
+        encore disponible pour cette variante.
+        """
+        include_structural = entity_type in STRUCTURAL_ENTITY_TYPES
+        entries = self.get_all_entries(
+            canonicalize=True,
+            include_structural=include_structural,
+        )
+        bucket_key = self._canonical_key(entity_type, entity_value)
+        with self._lock:
+            lookup = dict(self._canonical_lookup.get(include_structural, {}))
+            raw_index = dict(self._data.get("index", {}))
+            caps = dict(self._data.get("caps", {}))
+        display_key = lookup.get(bucket_key, "")
+        if display_key:
+            refs = entries.get(display_key, [])
+            if refs:
+                return len(refs)
+
+        seen: set[tuple[str, int]] = set()
+        for key, refs in raw_index.items():
+            if ":" not in key or not isinstance(refs, list):
+                continue
+            etype, _, name_lower = key.partition(":")
+            display = caps.get(key, name_lower)
+            if not display:
+                continue
+            canonical_type, _ = self._canonicalize_entity(etype, display)
+            if not include_structural and canonical_type in STRUCTURAL_ENTITY_TYPES:
+                continue
+            if self._canonical_key(etype, display) != bucket_key:
+                continue
+            for ref in refs:
+                seen.add((ref.get("file", ""), ref.get("idx", -1)))
+        return len(seen)
+
     def get_display_name(self, entity_type: str, entity_value: str) -> str:
         """Retourne la forme canonique d'affichage de l'entité (caps).
 

@@ -105,7 +105,9 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
         name="get_entity_dashboard",
         description=(
             "Retourne les statistiques NER globales. include_structural=1 ajoute "
-            "les types structurels (DATE, MONEY, ...), masqués par défaut."
+            "les types structurels (DATE, MONEY, ...), masqués par défaut. "
+            "duckdb_stats expose aussi sentiment_7j comme échantillon documenté "
+            "et enrichment_7j comme taux de complétude du pipeline RSS."
         ),
     )
     def get_entity_dashboard(include_structural: bool = False) -> dict:
@@ -116,7 +118,10 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
         description=(
             "Retourne les articles liés à une entité. Supporte les modes strict, "
             "canonical, contains et aggregate, avec all_types pour agréger plusieurs "
-            "types NER. compact=1 limite la réponse aux champs essentiels."
+            "types NER. compact=1 retire surtout le champ Titre mais conserve les "
+            "champs éditoriaux déjà enrichis (sentiment, ton, score_source, "
+            "enrichissement_statut). sort_by accepte date, score_source, score_ton "
+            "ou relevance."
         ),
     )
     def get_entity_articles(
@@ -124,6 +129,7 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
         value: str | None = None,
         max_articles: int = 100,
         compact: bool = True,
+        sort_by: str = "date",
         match_mode: str | None = None,
         all_types: bool = False,
     ) -> dict:
@@ -133,6 +139,7 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
             value=value,
             max_articles=max_articles,
             compact=compact,
+            sort_by=sort_by,
             match_mode=match_mode,
             all_types=all_types,
         )
@@ -192,11 +199,23 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
             days=days,
         )
 
-    @server.tool(name="list_annotations", description="Liste les annotations d'articles.")
+    @server.tool(
+        name="list_annotations",
+        description=(
+            "Liste les annotations d'articles, y compris les statuts éditoriaux "
+            "et le flag is_hidden lorsqu'ils sont présents."
+        ),
+    )
     def list_annotations(url: str | None = None) -> dict:
         return tool_list_annotations(client, url=url)
 
-    @server.tool(name="create_annotation", description="Crée ou met à jour une annotation.")
+    @server.tool(
+        name="create_annotation",
+        description=(
+            "Crée ou met à jour une annotation. wf_status accepte '', 'À traiter', "
+            "'En cours' et 'Archivé'. is_hidden masque l'annotation sans la supprimer."
+        ),
+    )
     def create_annotation(
         url: str | None = None,
         is_important: bool | None = None,
