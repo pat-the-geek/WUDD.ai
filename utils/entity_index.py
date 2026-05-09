@@ -38,10 +38,19 @@ from .logging import default_logger
 _INDEX_VERSION = 2
 _INDEX_FILENAME = "entity_index.json"
 
-# Types d'entités indexés (filtrage des types peu utiles pour la recherche)
+# Types structurels : utiles pour l'analyse ponctuelle, mais masqués par défaut
+# dans les vues de découverte pour éviter de noyer le signal principal.
+STRUCTURAL_ENTITY_TYPES: frozenset[str] = frozenset(
+    {"DATE", "TIME", "CARDINAL", "ORDINAL", "PERCENT", "MONEY", "QUANTITY"}
+)
+
+# Types d'entités indexés.
+# WORK_OF_ART est indexé par défaut ; les types structurels sont indexés pour
+# permettre une exposition opt-in côté API (`include_structural=1`).
 _INDEXED_ENTITY_TYPES = {
     "PERSON", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "NORP", "FAC", "LAW",
-}
+    "WORK_OF_ART",
+} | STRUCTURAL_ENTITY_TYPES
 
 
 def _cap_score(s: str) -> int:
@@ -100,7 +109,7 @@ class EntityIndex:
         self._lock = threading.Lock()
         self._data: dict = {"version": _INDEX_VERSION, "index": {}, "caps": {}}
         self._search_entries: list[dict] | None = None
-        self._canonical_entries: dict[str, list[dict]] | None = None
+        self._canonical_entries: dict[bool, dict[str, list[dict]]] = {}
         self._loaded = False
 
     # ── Chargement / sauvegarde ─────────────────────────────────────────────
@@ -117,7 +126,7 @@ class EntityIndex:
                         raw["caps"] = {}
                     self._data = raw
                     self._search_entries = None
-                    self._canonical_entries = None
+                    self._canonical_entries = {}
                 elif isinstance(raw, dict) and raw.get("version") in (1, None):
                     # Migration automatique v1 → v2 : normaliser les clés en minuscules
                     # et construire le dict caps pour conserver la forme canonique.
@@ -154,7 +163,7 @@ class EntityIndex:
                         "caps": new_caps,
                     }
                     self._search_entries = None
-                    self._canonical_entries = None
+                    self._canonical_entries = {}
                     # Persister la version migrée pour éviter de remigrer à chaque démarrage
                     try:
                         self._save()
@@ -251,7 +260,7 @@ class EntityIndex:
                         added += 1
 
             self._search_entries = None
-            self._canonical_entries = None
+            self._canonical_entries = {}
             self._save()
             return added
 
@@ -308,7 +317,7 @@ class EntityIndex:
         with self._lock:
             self._data = {"version": _INDEX_VERSION, "index": new_index, "caps": new_caps}
             self._search_entries = None
-            self._canonical_entries = None
+            self._canonical_entries = {}
             self._save()
             self._loaded = True
             return total_refs
@@ -333,7 +342,10 @@ class EntityIndex:
 
     def get_canonical_refs(self, entity_type: str, entity_value: str) -> list[dict]:
         """Retourne les refs de toutes les variantes aliasées d'une entité."""
-        entries = self.get_all_entries(canonicalize=True)
+        entries = self.get_all_entries(
+            canonicalize=True,
+            include_structural=entity_type in STRUCTURAL_ENTITY_TYPES,
+        )
         refs = entries.get(self._canonical_key(entity_type, entity_value), [])
         return sorted(refs, key=lambda r: r.get("date", ""), reverse=True)
 
@@ -420,7 +432,15 @@ class EntityIndex:
             Liste de dict {type, value, count} triée par count décroissant.
             Le champ "value" contient la forme d'affichage capitalisée (caps).
         """
-        counter = Counter({k: len(v) for k, v in self.get_all_entries(canonicalize=True).items()})
+        counter = Counter(
+            {
+                k: len(v)
+                for k, v in self.get_all_entries(
+                    canonicalize=True,
+                    include_structural=False,
+                ).items()
+            }
+        )
         results = []
         for key, count in counter.most_common(top_n):
             if ":" in key:
@@ -471,21 +491,32 @@ class EntityIndex:
             for (etype, ev), cnt in cooc.most_common(top_n)
         ]
 
-    def get_all_entries(self, canonicalize: bool = False) -> dict[str, list[dict]]:
+    def get_all_entries(
+        self,
+        canonicalize: bool = False,
+        *,
+        include_structural: bool = False,
+    ) -> dict[str, list[dict]]:
         """Retourne une copie de l'index complet {entity_key: [{file, idx, date}]}.
 
         Les clés utilisent la forme d'affichage canonique (caps) pour la valeur,
         afin que les appelants obtiennent "ORG:OpenAI" et non "ORG:openai".
+
+        Args:
+            canonicalize: Fusionne les alias via la canonicalisation si activé.
+            include_structural: Inclut les types structurels (DATE, MONEY, ...)
+                quand True. Les surfaces de découverte peuvent les masquer par
+                défaut pour garder un signal lisible.
 
         Utilisé par entity_timeline.py, cross_flux_analysis.py et le viewer
         pour construire leurs agrégats sans scan rglob.
         """
         with self._lock:
             self._load()
-            if canonicalize and self._canonical_entries is not None:
+            if canonicalize and include_structural in self._canonical_entries:
                 return {
                     key: list(refs)
-                    for key, refs in self._canonical_entries.items()
+                    for key, refs in self._canonical_entries[include_structural].items()
                 }
         caps = self._data.get("caps", {})
         result: dict[str, list[dict]] = {}
@@ -498,8 +529,12 @@ class EntityIndex:
                     if self._is_noise_entity(etype, display):
                         continue
                     canonical_type, canonical_value = self._canonicalize_entity(etype, display)
+                    if not include_structural and canonical_type in STRUCTURAL_ENTITY_TYPES:
+                        continue
                     display_key = f"{canonical_type}:{canonical_value}"
                 else:
+                    if not include_structural and etype in STRUCTURAL_ENTITY_TYPES:
+                        continue
                     display_key = f"{etype}:{display}"
             else:
                 display_key = k
@@ -515,7 +550,7 @@ class EntityIndex:
             refs.sort(key=lambda r: r.get("date", ""), reverse=True)
         if canonicalize:
             with self._lock:
-                self._canonical_entries = {
+                self._canonical_entries[include_structural] = {
                     key: list(refs)
                     for key, refs in result.items()
                 }
@@ -527,6 +562,7 @@ class EntityIndex:
         entity_type: Optional[str] = None,
         *,
         limit_per_type: int = 100,
+        include_structural: bool = False,
     ) -> list[dict]:
         """Recherche des entités par sous-chaîne sans copier tout l'index.
 
@@ -559,6 +595,7 @@ class EntityIndex:
             return []
 
         normalized_type = (entity_type or "").strip().upper()
+        include_structural = include_structural or normalized_type in STRUCTURAL_ENTITY_TYPES
         capped_limit = max(1, min(int(limit_per_type), 500))
 
         with self._lock:
@@ -593,6 +630,8 @@ class EntityIndex:
                 canonical_type = str(entry_data["canonical_type"])
                 canonical_value = str(entry_data["canonical_value"])
                 if normalized_type and etype != normalized_type and canonical_type != normalized_type:
+                    continue
+                if not include_structural and canonical_type in STRUCTURAL_ENTITY_TYPES:
                     continue
                 score = self._search_match_score_from_norm(str(entry_data["norm_value"]), match_terms)
                 if score <= 0:

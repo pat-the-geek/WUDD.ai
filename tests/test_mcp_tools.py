@@ -26,6 +26,8 @@ class _FakeViewerClient:
             return {"viewer_port": 5050, "project_root": "/app"}
         if path == "/api/entities/search":
             return {"by_type": [{"type": "ORG", "top": [{"value": "OpenAI", "count": 3}]}]}
+        if path == "/api/entities/dashboard":
+            return {"by_type": [], "include_structural": bool(params and params.get("include_structural") == "1")}
         if path == "/api/entities/articles":
             return [{"URL": "https://example.com", "Résumé": "Article"}]
         if path == "/api/entities/timeline":
@@ -91,6 +93,32 @@ def test_search_entities_tool_returns_grouped_results():
     assert payload["data"]["by_type"][0]["type"] == "ORG"
 
 
+def test_search_entities_tool_forwards_structural_opt_in():
+    client = _FakeViewerClient()
+    server = _make_server(client=client)
+    result = asyncio.run(
+        server.call_tool("search_entities", {"q": "2026", "include_structural": True})
+    )
+
+    payload = result.structured_content
+    assert payload["ok"] is True
+    assert client.last_get["path"] == "/api/entities/search"
+    assert client.last_get["params"]["include_structural"] == "1"
+
+
+def test_get_entity_dashboard_tool_forwards_structural_opt_in():
+    client = _FakeViewerClient()
+    server = _make_server(client=client)
+    result = asyncio.run(
+        server.call_tool("get_entity_dashboard", {"include_structural": True})
+    )
+
+    payload = result.structured_content
+    assert payload["ok"] is True
+    assert client.last_get["path"] == "/api/entities/dashboard"
+    assert client.last_get["params"]["include_structural"] == "1"
+
+
 def test_watch_entity_tool_returns_added_action():
     server = _make_server()
     result = asyncio.run(
@@ -142,6 +170,26 @@ def test_get_entity_timeline_tool_forwards_match_mode_and_all_types():
     assert client.last_get["path"] == "/api/entities/timeline"
     assert client.last_get["params"]["match_mode"] == "aggregate"
     assert client.last_get["params"]["all_types"] == "1"
+
+
+def test_get_entity_timeline_tool_rejects_invalid_match_mode():
+    server = _make_server()
+    result = asyncio.run(
+        server.call_tool(
+            "get_entity_timeline",
+            {
+                "days": 30,
+                "entity": "Trump",
+                "type": "PERSON",
+                "match_mode": "exact",
+            },
+        )
+    )
+
+    payload = result.structured_content
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "BAD_REQUEST"
+    assert "match_mode invalide" in payload["error"]["message"]
 
 
 def test_create_annotation_tool_respects_write_toggle():

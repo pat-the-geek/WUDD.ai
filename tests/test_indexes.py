@@ -580,6 +580,69 @@ class TestEntityIndex:
         result = idx.search_values("nLPD")
         assert result[0]["top"][0]["value"] == "Nouvelle loi sur la protection des données"
 
+    def test_search_values_masque_les_types_structurels_par_defaut(self, tmp_root):
+        from utils.entity_index import EntityIndex
+
+        articles = [
+            {
+                "URL": "http://test.com/date-a",
+                "Date de publication": "2026-01-04",
+                "Résumé": "Échéance en 2026.",
+                "entities": {"DATE": ["2026"], "MONEY": ["30 milliards de dollars"]},
+            }
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        assert idx.search_values("2026") == []
+        assert idx.search_values("milliards") == []
+
+    def test_search_values_peut_inclure_les_types_structurels_sur_demande(self, tmp_root):
+        from utils.entity_index import EntityIndex
+
+        articles = [
+            {
+                "URL": "http://test.com/date-b",
+                "Date de publication": "2026-01-05",
+                "Résumé": "Budget 2026 de 30 milliards de dollars.",
+                "entities": {"DATE": ["2026"], "MONEY": ["30 milliards de dollars"]},
+            }
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        date_result = idx.search_values("2026", include_structural=True)
+        money_result = idx.search_values("milliards", include_structural=True)
+
+        assert date_result[0]["type"] == "DATE"
+        assert date_result[0]["top"][0]["value"] == "2026"
+        assert money_result[0]["type"] == "MONEY"
+        assert money_result[0]["top"][0]["value"] == "30 milliards de dollars"
+
+    def test_work_of_art_est_indexe_par_defaut(self, tmp_root):
+        from utils.entity_index import EntityIndex
+
+        articles = [
+            {
+                "URL": "http://test.com/woa-a",
+                "Date de publication": "2026-01-06",
+                "Résumé": "Le rapport Dune fascine.",
+                "entities": {"WORK_OF_ART": ["Dune"]},
+            }
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        result = idx.search_values("Dune")
+        assert result[0]["type"] == "WORK_OF_ART"
+        assert result[0]["top"][0]["value"] == "Dune"
+
     def test_canonicalisation_juridique_fusionne_ai_act_et_rgpd(self, tmp_root):
         from utils.entity_index import EntityIndex
 

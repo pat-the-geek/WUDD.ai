@@ -30,8 +30,9 @@ from viewer.state import _annotations_lock
 from utils.article_index import get_article_index
 from utils.entity_canonicalization import get_entity_canonicalizer
 from utils.date_utils import parse_article_date
-from utils.entity_index import get_entity_index
+from utils.entity_index import STRUCTURAL_ENTITY_TYPES, get_entity_index
 from utils.entity_matching import (
+    allowed_match_modes,
     default_timeline_match_mode,
     load_match_refs,
     normalize_match_mode,
@@ -42,7 +43,7 @@ entities_bp = Blueprint("entities", __name__)
 
 # ── Cache TTL pour le dashboard (stats globales — rafraîchi toutes les 5 min) ─
 _DASHBOARD_CACHE_TTL = 300  # secondes
-_dashboard_cache: dict = {}           # {"result": ..., "ts": float}
+_dashboard_cache: dict = {}           # {"default": {"result": ..., "ts": float}, "structural": {...}}
 _dashboard_cache_lock = threading.Lock()
 
 # ── Cache TTL pour la liste d'articles d'une entité (ouverture de panel) ───
@@ -151,13 +152,14 @@ def _timeline_cache_file(days: int, top_n: int) -> Path:
     return _TIMELINE_CACHE_DIR / f"entity_timeline_{safe_days}d_top{safe_top}.json"
 
 
-def _build_search_query_info(query: str) -> dict:
+def _build_search_query_info(query: str, *, include_structural: bool = False) -> dict:
     canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
     expanded_terms = canonicalizer.expand_search_terms(query)
     return {
         "original": query,
         "expanded_terms": expanded_terms,
         "short_query": canonicalizer.is_short_query(query),
+        "include_structural": bool(include_structural),
     }
 
 
@@ -304,11 +306,14 @@ def api_entities_search():
     sur toutes les entrées de l'index (pas seulement le top 50 par type).
     """
     q = request.args.get("q", "").strip()
+    include_structural = request.args.get("include_structural", "0").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
     if len(q) < 2:
-        return jsonify({"by_type": [], "query": _build_search_query_info(q)})
+        return jsonify({"by_type": [], "query": _build_search_query_info(q, include_structural=include_structural)})
 
     q_lower = q.lower()
-    cache_key = (q_lower, "")
+    cache_key = (q_lower, "", include_structural)
     canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
 
     with _entity_search_cache_lock:
@@ -320,13 +325,19 @@ def api_entities_search():
     try:
         eidx = get_entity_index(PROJECT_ROOT)
         if hasattr(eidx, "search_values"):
-            result = {"by_type": eidx.search_values(q), "query": _build_search_query_info(q)}
+            result = {
+                "by_type": eidx.search_values(q, include_structural=include_structural),
+                "query": _build_search_query_info(q, include_structural=include_structural),
+            }
             with _entity_search_cache_lock:
                 _entity_search_cache[cache_key] = {"result": result, "ts": time.monotonic()}
             return jsonify(result)
 
         by_type: dict[str, dict[str, int]] = {}
-        all_entries = eidx.get_all_entries(canonicalize=True)  # Compatibilité vieux mocks/tests
+        all_entries = eidx.get_all_entries(
+            canonicalize=True,
+            include_structural=include_structural,
+        )  # Compatibilité vieux mocks/tests
         for key, refs in all_entries.items():
             parts = key.split(":", 1)
             if len(parts) != 2:
@@ -363,6 +374,8 @@ def api_entities_search():
                     if not ents or not isinstance(ents, dict):
                         continue
                     for etype, values in ents.items():
+                        if not include_structural and etype in STRUCTURAL_ENTITY_TYPES:
+                            continue
                         if not isinstance(values, list):
                             continue
                         for v in values:
@@ -386,7 +399,7 @@ def api_entities_search():
             "top": [{"value": v, "count": c} for v, c in sorted_values[:100]],
         })
     result_types.sort(key=lambda x: x["mention_count"], reverse=True)
-    result = {"by_type": result_types, "query": _build_search_query_info(q)}
+    result = {"by_type": result_types, "query": _build_search_query_info(q, include_structural=include_structural)}
     with _entity_search_cache_lock:
         _entity_search_cache[cache_key] = {"result": result, "ts": time.monotonic()}
     return jsonify(result)
@@ -402,16 +415,22 @@ def api_entities_dashboard():
       3. Calcul live via entity_index (O(index_keys), pas de I/O fichier)
       4. Fallback rglob Python si entity_index indisponible
     """
+    include_structural = request.args.get("include_structural", "0").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+    cache_bucket = "structural" if include_structural else "default"
+
     # ── 1. Cache TTL mémoire ──────────────────────────────────────────────────
     with _dashboard_cache_lock:
-        cached = _dashboard_cache.get("result")
-        cached_ts = _dashboard_cache.get("ts", 0.0)
+        cached_entry = _dashboard_cache.get(cache_bucket, {})
+        cached = cached_entry.get("result")
+        cached_ts = cached_entry.get("ts", 0.0)
         if cached is not None and (time.monotonic() - cached_ts) < _DASHBOARD_CACHE_TTL:
             return jsonify(cached)
 
     # ── 2. Fichier entity_stats.json pré-calculé (cache chaud nightly) ────────
     _stats_file = PROJECT_ROOT / "data" / "entity_stats.json"
-    if _stats_file.exists():
+    if not include_structural and _stats_file.exists():
         try:
             precomp = json.loads(_stats_file.read_text(encoding="utf-8"))
             # Valide si le fichier a moins de 25 heures (laisser passer la 1re nuit)
@@ -449,21 +468,27 @@ def api_entities_dashboard():
                         "total_with_entities":  precomp.get("total_with_entities", 0),
                         "by_type":              precomp.get("by_type", []),
                         "duckdb_stats":         duckdb_stats,
+                        "include_structural":   False,
                         "_source":              "precomputed",
                     }
                     with _dashboard_cache_lock:
-                        _dashboard_cache["result"] = result_payload
-                        _dashboard_cache["ts"] = time.monotonic()
+                        _dashboard_cache[cache_bucket] = {
+                            "result": result_payload,
+                            "ts": time.monotonic(),
+                        }
                     return jsonify(result_payload)
         except Exception:
             pass  # Continuer vers le calcul live
 
     by_type: dict[str, dict[str, int]] = {}
     total_with_entities = 0
+    canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
 
     try:
         eidx = get_entity_index(PROJECT_ROOT)
-        all_entries = eidx.get_all_entries()  # { "TYPE:value": [{file, idx, date}, ...] }
+        all_entries = eidx.get_all_entries(
+            include_structural=include_structural
+        )  # { "TYPE:value": [{file, idx, date}, ...] }
 
         # Compter les mentions depuis l'index (O(k) sur les clés)
         for key, refs in all_entries.items():
@@ -522,6 +547,8 @@ def api_entities_dashboard():
                         continue
                     has_ent = False
                     for etype, values in ents.items():
+                        if not include_structural and etype in STRUCTURAL_ENTITY_TYPES:
+                            continue
                         if not isinstance(values, list) or not values:
                             continue
                         has_ent = True
@@ -573,11 +600,14 @@ def api_entities_dashboard():
         "total_with_entities": total_with_entities,
         "by_type": result_types,
         "duckdb_stats": duckdb_stats,
+        "include_structural": include_structural,
     }
     # Stocker dans le cache TTL
     with _dashboard_cache_lock:
-        _dashboard_cache["result"] = result_payload
-        _dashboard_cache["ts"] = time.monotonic()
+        _dashboard_cache[cache_bucket] = {
+            "result": result_payload,
+            "ts": time.monotonic(),
+        }
     return jsonify(result_payload)
 
 
@@ -589,7 +619,10 @@ def api_entities_articles():
     max_articles = request.args.get("max_articles", default=300, type=int)
     max_articles = max(1, min(max_articles or 300, 2000))
     compact = request.args.get("compact", "0").strip().lower() in {"1", "true", "yes", "on"}
-    match_mode = normalize_match_mode(request.args.get("match_mode"), default="canonical")
+    try:
+        match_mode = normalize_match_mode(request.args.get("match_mode"), default="canonical")
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "allowed_match_modes": allowed_match_modes()}), 400
     all_types = request.args.get("all_types", "0").strip().lower() in {"1", "true", "yes", "on"}
 
     if not entity_value or (not entity_type and not all_types):
@@ -2356,6 +2389,8 @@ def api_entities_timeline():
             timeline_file.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
 
         return jsonify(result)
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "allowed_match_modes": allowed_match_modes()}), 400
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 

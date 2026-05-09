@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from .entity_canonicalization import get_entity_canonicalizer
-from .entity_index import get_entity_index
+from .entity_index import STRUCTURAL_ENTITY_TYPES, get_entity_index
 
 _DEFAULT_MATCH_MODE = "canonical"
 _TIMELINE_MATCH_MODE = "contains"
-_ALLOWED_MATCH_MODES = {"strict", "canonical", "contains", "aggregate"}
+_ALLOWED_MATCH_MODES = ("strict", "canonical", "contains", "aggregate")
 
 
 def _clean_query(value: str | None) -> str:
@@ -19,9 +19,16 @@ def _clean_query(value: str | None) -> str:
 
 def normalize_match_mode(match_mode: str | None, *, default: str = _DEFAULT_MATCH_MODE) -> str:
     mode = (match_mode or "").strip().lower()
+    if not mode:
+        return default
     if mode in _ALLOWED_MATCH_MODES:
         return mode
-    return default
+    allowed = ", ".join(_ALLOWED_MATCH_MODES)
+    raise ValueError(f"match_mode invalide: {mode}. Valeurs autorisées: {allowed}")
+
+
+def allowed_match_modes() -> tuple[str, ...]:
+    return _ALLOWED_MATCH_MODES
 
 
 def default_timeline_match_mode() -> str:
@@ -75,7 +82,10 @@ def resolve_entity_matches(
                 )
         return matches
 
-    entries = eidx.get_all_entries(canonicalize=(mode != "strict"))
+    entries = eidx.get_all_entries(
+        canonicalize=(mode != "strict"),
+        include_structural=normalized_type in STRUCTURAL_ENTITY_TYPES,
+    )
     if mode == "canonical":
         query_type = normalized_type if normalized_type and not all_types else ""
         _, resolved_query = canonicalizer.canonicalize(query_type, query_clean)

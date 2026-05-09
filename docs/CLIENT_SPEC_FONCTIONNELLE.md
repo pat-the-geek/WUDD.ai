@@ -165,12 +165,15 @@ Correspond à `GET /api/search` avec paramètres.
 - Onglet "Entités" dans la vue recherche
 - Source : `GET /api/search/entity?q=...&type=...`
 - Résultats avec type NER + nb d'articles associés
+- Variante analytique : `GET /api/entities/search?q=...&include_structural=1` pour inclure aussi les types structurels ; `WORK_OF_ART` est indexé nativement
 
 ---
 
 ### 3.5 Tableau de Bord Entités (`EntityDashboardView`)
 
 Source : `GET /api/entities/dashboard`
+
+Le dashboard masque par défaut les types structurels (`DATE`, `MONEY`, etc.) pour conserver une vue éditoriale lisible. Un mode avancé `include_structural=1` permet de les réintégrer pour des analyses spécialisées.
 
 **Sections :**
 
@@ -213,9 +216,11 @@ Source : `GET /api/entities/dashboard`
 - Liste des articles mentionnant cette entité
 - Source : `/api/entities/articles?type=...&value=...`
 - Même format que `ArticleCard`
+- Principe important : la couche de canonicalisation n'est pas "faible" ou absente ; elle est disponible mais doit être activée via les paramètres avancés selon le niveau d'agrégation attendu
 - Paramètres avancés :
   - `match_mode=strict|canonical|contains|aggregate`
   - `all_types=1` pour agréger un sujet sur plusieurs types NER
+  - toute autre valeur de `match_mode` doit produire une erreur `400`
 
 **Graphe :**
 - Visualisation des co-occurrences (entités liées)
@@ -232,11 +237,23 @@ Source : `GET /api/entities/dashboard`
 - Source : `/api/entities/timeline?type=...&value=...`
 - Intensité de couleur = nombre de mentions par jour
 - Cette timeline mesure une **évolution quotidienne** ; elle ne doit pas être comparée directement au `total_count` du graphe, qui est un compteur de couverture globale par nœud
+- Le mode par défaut privilégie la compatibilité historique ; pour exploiter toute la puissance du moteur sémantique, le client doit exposer les options de matching au lieu de supposer un comportement unique
 - Paramètres avancés :
   - `match_mode=strict` pour une variante exacte
   - `match_mode=canonical` pour appliquer les alias connus
   - `match_mode=contains` pour le comportement historique large
   - `match_mode=aggregate&all_types=1` pour obtenir une vue cross-variant / cross-type sur un sujet fragmenté
+  - les valeurs non reconnues de `match_mode` doivent être rejetées explicitement
+
+### 3.6.1 Positionnement produit de l'API entités
+
+Le moteur entités de WUDD.ai doit être présenté comme **riche mais sous-exposé** :
+
+- la documentation minimale d'un client MCP peut donner l'impression d'un simple mode "fusion oui/non" ;
+- en réalité, l'API expose déjà **quatre stratégies de matching** et une agrégation cross-type ;
+- la limite principale est donc l'accessibilité documentaire de ces options, pas la capacité du backend.
+
+Pour un client natif ou MCP, la recommandation est de rendre visibles les choix `strict`, `canonical`, `contains`, `aggregate` dans l'UI ou dans les descriptions de tools, afin que l'utilisateur comprenne qu'il peut passer d'une exploration large à une lecture analytique rigoureuse sans changer d'outil.
 
 ---
 

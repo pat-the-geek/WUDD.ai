@@ -88,15 +88,35 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
     def get_cross_flux_analysis(days: int = 30, min_flux: int = 2, top: int = 30) -> dict:
         return tool_get_cross_flux_analysis(client, days=days, min_flux=min_flux, top=top)
 
-    @server.tool(name="search_entities", description="Recherche des entités par nom.")
-    def search_entities(q: str | None = None) -> dict:
-        return tool_search_entities(client, q=q)
+    @server.tool(
+        name="search_entities",
+        description=(
+            "Recherche des entités par nom pour cartographier les variantes disponibles "
+            "avant une timeline ou un agrégat. include_structural=1 expose aussi "
+            "les types structurels (DATE, MONEY, ...)."
+        ),
+    )
+    def search_entities(q: str | None = None, include_structural: bool = False) -> dict:
+        return tool_search_entities(client, q=q, include_structural=include_structural)
 
-    @server.tool(name="get_entity_dashboard", description="Retourne les statistiques NER globales.")
-    def get_entity_dashboard() -> dict:
-        return tool_get_entity_dashboard(client)
+    @server.tool(
+        name="get_entity_dashboard",
+        description=(
+            "Retourne les statistiques NER globales. include_structural=1 ajoute "
+            "les types structurels (DATE, MONEY, ...), masqués par défaut."
+        ),
+    )
+    def get_entity_dashboard(include_structural: bool = False) -> dict:
+        return tool_get_entity_dashboard(client, include_structural=include_structural)
 
-    @server.tool(name="get_entity_articles", description="Retourne les articles liés à une entité.")
+    @server.tool(
+        name="get_entity_articles",
+        description=(
+            "Retourne les articles liés à une entité. Supporte les modes strict, "
+            "canonical, contains et aggregate, avec all_types pour agréger plusieurs "
+            "types NER."
+        ),
+    )
     def get_entity_articles(
         type: str | None = None,
         value: str | None = None,
@@ -115,7 +135,13 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
             all_types=all_types,
         )
 
-    @server.tool(name="get_entity_timeline", description="Retourne la timeline des mentions d'entités.")
+    @server.tool(
+        name="get_entity_timeline",
+        description=(
+            "Retourne la timeline des mentions d'entités. Le matching peut être strict, "
+            "canonical, contains ou aggregate, avec all_types pour une vue cross-type."
+        ),
+    )
     def get_entity_timeline(
         days: int = 30,
         top: int = 30,

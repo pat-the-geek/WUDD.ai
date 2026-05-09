@@ -293,6 +293,14 @@ class TestEntityRoutes:
             all_types=True,
         )
 
+    def test_get_entity_timeline_rejects_invalid_match_mode(self, client):
+        resp = client.get("/api/entities/timeline?days=30&entity=Trump&type=PERSON&match_mode=exact")
+
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert "match_mode invalide" in data["error"]
+        assert "strict" in data["allowed_match_modes"]
+
     def test_get_entity_search_empty_returns_400_or_200(self, client):
         resp = client.get("/api/entities/search")
         # Query param 'q' ou 'entity' requis selon l'implémentation
@@ -316,7 +324,28 @@ class TestEntityRoutes:
         data = resp.get_json()
         assert data["by_type"][0]["top"][0]["value"] == "OpenAI"
         assert data["query"]["original"] == "OpenAI"
-        mock_idx.search_values.assert_called_once_with("OpenAI")
+        assert data["query"]["include_structural"] is False
+        mock_idx.search_values.assert_called_once_with("OpenAI", include_structural=False)
+
+    def test_get_entity_search_supports_structural_opt_in(self, client):
+        mock_idx = MagicMock()
+        mock_idx.search_values.return_value = [
+            {
+                "type": "MONEY",
+                "unique_count": 1,
+                "mention_count": 2,
+                "top": [{"value": "30 milliards de dollars", "count": 2}],
+            }
+        ]
+
+        with patch("viewer.routes.entities.get_entity_index", return_value=mock_idx):
+            resp = client.get("/api/entities/search?q=milliards&include_structural=1")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["query"]["include_structural"] is True
+        assert data["by_type"][0]["type"] == "MONEY"
+        mock_idx.search_values.assert_called_once_with("milliards", include_structural=True)
 
     def test_get_entity_search_returns_expanded_query_metadata(self, client):
         with patch(
@@ -354,6 +383,32 @@ class TestEntityRoutes:
         assert data["nodes"][0]["type"] == "LAW"
         assert data["nodes"][0]["value"] == "AI Act"
 
+    def test_get_entity_dashboard_supports_structural_opt_in(self, client):
+        from viewer.routes import entities as entities_module
+
+        entities_module._dashboard_cache.clear()
+        mock_idx = MagicMock()
+        mock_idx.get_all_entries.return_value = {
+            "MONEY:30 milliards de dollars": [{"file": "x", "idx": 0, "date": "2026-05-09"}],
+            "ORG:OpenAI": [{"file": "x", "idx": 1, "date": "2026-05-09"}],
+        }
+        mock_aidx = MagicMock()
+        mock_aidx.stats.return_value = {"total_files": 1, "total": 2, "with_entities": 2}
+
+        with patch("viewer.routes.entities.get_entity_index", return_value=mock_idx), \
+             patch("viewer.routes.entities.get_article_index", return_value=mock_aidx), \
+             patch("viewer.routes.entities.get_entity_canonicalizer") as mock_canonicalizer, \
+             patch("utils.db.get_db") as mock_db:
+            mock_canonicalizer.return_value.is_noise.return_value = False
+            mock_db.return_value.available = False
+            resp = client.get("/api/entities/dashboard?include_structural=1")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["include_structural"] is True
+        assert {item["type"] for item in data["by_type"]} == {"MONEY", "ORG"}
+        mock_idx.get_all_entries.assert_called_once_with(include_structural=True)
+
     def test_get_watched_entities_returns_200(self, client):
         resp = client.get("/api/watched-entities")
         assert resp.status_code == 200
@@ -390,6 +445,13 @@ class TestEntityRoutes:
         data = resp.get_json()
         assert len(data) == 2
         assert data[0]["URL"] == "https://example.com/a"
+
+    def test_get_entity_articles_rejects_invalid_match_mode(self, client):
+        resp = client.get("/api/entities/articles?type=PERSON&value=Trump&match_mode=full")
+
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert "match_mode invalide" in data["error"]
 
     def test_watched_entities_post_canonicalizes_entity(self, client, tmp_path):
         from viewer.routes import entities as entities_module

@@ -1,4 +1,5 @@
 # Exclure la configuration sensible
+data/
 config/flux_json_sources.json
 
 # Fichiers de configuration Claude Desktop (permissions locales)

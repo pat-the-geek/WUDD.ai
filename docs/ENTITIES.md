@@ -100,12 +100,18 @@ En pratique, il est donc normal que :
 
 ### Paramètres de matching des endpoints entité
 
+Point important : le diagnostic "couche de canonicalisation faible" est trompeur. La couche existe bien dans WUDD.ai, elle est exposée par l'API, et elle est même plus riche qu'un simple choix binaire entre fusion ou non-fusion. Le vrai enjeu est documentaire : sans explicitation des paramètres optionnels, un client MCP ou une intégration tierce reste sur le comportement historique et sous-exploite le moteur sémantique.
+
+Autrement dit, WUDD.ai dispose déjà d'un moteur d'entités puissant ; il doit surtout être **appelé avec le bon mode** selon l'usage analytique recherché.
+
 Les endpoints `GET /api/entities/timeline` et `GET /api/entities/articles` acceptent désormais deux paramètres pour piloter le niveau d'agrégation :
 
 | Paramètre | Valeurs | Effet |
 | --- | --- | --- |
 | `match_mode` | `strict`, `canonical`, `contains`, `aggregate` | Choisit la stratégie de résolution de l'entité demandée |
 | `all_types` | `0` / `1` | Quand activé, autorise une recherche ou un agrégat sur tous les types NER |
+
+Toute autre valeur de `match_mode` est rejetée avec une erreur HTTP `400` pour éviter les replis silencieux vers le mode par défaut.
 
 #### Sémantique de `match_mode`
 
@@ -123,6 +129,33 @@ Pour un sujet politique ou institutionnel fragmenté (ex. `Trump`, `Macron`, `Co
 1. lancer `search_entities` pour cartographier les variantes ;
 2. utiliser `match_mode=aggregate`;
 3. activer `all_types=1` si l'analyse doit couvrir à la fois la personne, l'administration, les événements et les labels militants associés.
+
+#### Lecture produit
+
+Ce comportement doit être présenté comme un **point fort** du système :
+
+- le mode par défaut reste simple et compatible avec l'historique ;
+- les modes optionnels permettent d'augmenter la précision ou l'agrégation sans changer de backend ;
+- l'API est donc plus puissante que ce que laissent penser ses descriptions minimales.
+
+Pour un client MCP, la bonne posture n'est pas de supposer une canonicalisation absente, mais de considérer que :
+
+1. `contains` sert à l'exploration rapide ;
+2. `strict` et `canonical` servent à la vérification fine ;
+3. `aggregate` et `all_types=1` servent à l'analyse transverse d'un sujet sémantiquement fragmenté.
+
+### Types structurels et types atypiques
+
+Le moteur indexe désormais aussi `WORK_OF_ART` par défaut. Les types structurels (`DATE`, `TIME`, `MONEY`, `QUANTITY`, `PERCENT`, `CARDINAL`, `ORDINAL`) sont bien conservés dans l'index, mais restent **masqués par défaut** dans les surfaces de découverte pour éviter de polluer les vues principales.
+
+Pour les exposer volontairement :
+
+| Endpoint | Paramètre | Effet |
+| --- | --- | --- |
+| `GET /api/entities/search` | `include_structural=1` | Inclut les types structurels dans la recherche d'entités |
+| `GET /api/entities/dashboard` | `include_structural=1` | Ajoute les types structurels à la distribution globale du dashboard |
+
+Cela permet de garder un dashboard lisible pour l'usage courant, tout en rendant possible une analyse ciblée des montants, dates et autres entités structurelles quand c'est pertinent.
 
 ---
 
