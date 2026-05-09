@@ -158,6 +158,8 @@ Pour les exposer volontairement :
 
 Cela permet de garder un dashboard lisible pour l'usage courant, tout en rendant possible une analyse ciblée des montants, dates et autres entités structurelles quand c'est pertinent.
 
+**Important :** ces types dépendent de l'état de `data/entity_index.json`. Après une évolution du schéma d'indexation, il faut reconstruire l'index entités puis régénérer `data/entity_stats.json`, sinon le dashboard et la recherche peuvent continuer à refléter un ancien état du corpus.
+
 ### Correctifs de qualité NER appliqués
 
 WUDD.ai applique désormais un post-traitement léger sur les sorties NER pour corriger certains cas manifestement erronés avant indexation :
@@ -165,8 +167,11 @@ WUDD.ai applique désormais un post-traitement léger sur les sorties NER pour c
 - les montants explicites sont recentrés vers `MONEY` ;
 - les années et dates explicites sont recentrées vers `DATE` ;
 - les lois et règlements nommés sont recentrés vers `LAW` lorsqu'ils ont été classés ailleurs.
+- certaines variantes culturelles mal classées peuvent aussi être rabattues vers `WORK_OF_ART` via la canonicalisation configurée.
 
 Ce correctif ne remplace pas la qualité du modèle amont, mais il réduit les faux positifs les plus coûteux pour l'exploration analytique.
+
+Exemple concret : le sujet `Dune` peut apparaître à la fois comme film, roman, saga ou produit mal typé. Après réindexation et canonicalisation, la recherche remonte désormais `Dune` d'abord comme `WORK_OF_ART`, les faux positifs résiduels restant isolés dans des types secondaires.
 
 ---
 

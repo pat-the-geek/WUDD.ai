@@ -195,6 +195,37 @@
         { "type": "LAW", "value": "Apache License 2.0" },
         { "type": "PRODUCT", "value": "Apache 2.0" }
       ]
+    },
+    {
+      "canonical": { "type": "WORK_OF_ART", "value": "Dune" },
+      "aliases": [
+        { "type": "PRODUCT", "value": "Dune" }
+      ]
+    },
+    {
+      "canonical": { "type": "WORK_OF_ART", "value": "Dune 3" },
+      "aliases": [
+        { "type": "PRODUCT", "value": "Dune 3" }
+      ]
+    },
+    {
+      "canonical": { "type": "WORK_OF_ART", "value": "Dune : Troisième Partie" },
+      "aliases": [
+        { "type": "PRODUCT", "value": "Dune : Troisième partie" },
+        { "type": "FAC", "value": "Dune : Troisième partie" }
+      ]
+    },
+    {
+      "canonical": { "type": "WORK_OF_ART", "value": "Le Messie de Dune" },
+      "aliases": [
+        { "type": "PRODUCT", "value": "Le Messie de Dune" }
+      ]
+    },
+    {
+      "canonical": { "type": "WORK_OF_ART", "value": "Dune: Prophecy" },
+      "aliases": [
+        { "type": "PRODUCT", "value": "Dune: Prophecy" }
+      ]
     }
   ],
   "search_expansions": [

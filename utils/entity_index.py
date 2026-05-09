@@ -35,7 +35,9 @@ from typing import Optional
 
 from .logging import default_logger
 
-_INDEX_VERSION = 2
+# v3 : force une reconstruction quand l'index existant a été généré avant
+# l'indexation de WORK_OF_ART et des types structurels.
+_INDEX_VERSION = 3
 _INDEX_FILENAME = "entity_index.json"
 
 # Types structurels : utiles pour l'analyse ponctuelle, mais masqués par défaut

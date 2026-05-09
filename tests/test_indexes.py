@@ -336,8 +336,8 @@ class TestEntityIndex:
         idx2 = EntityIndex(tmp_root)
         assert idx2.count_entities() == n1
 
-    def test_migration_v1_vers_v2_automatique(self, tmp_root, sample_articles):
-        """Un index v1 (clés non normalisées) doit être migré automatiquement en v2."""
+    def test_migration_v1_vers_index_courant_automatique(self, tmp_root, sample_articles):
+        """Un index v1 (clés non normalisées) doit être migré automatiquement vers la version courante."""
         import json as _json
         from utils.entity_index import EntityIndex, _INDEX_FILENAME
 
@@ -358,9 +358,9 @@ class TestEntityIndex:
         refs = idx.get_refs("PERSON", "Emmanuel Macron")
         assert len(refs) == 2, f"Attendu 2 refs fusionnées, obtenu {len(refs)}"
 
-        # Le fichier doit avoir été migré vers v2
+        # Le fichier doit avoir été migré vers la version courante
         migrated = _json.loads(index_path.read_text(encoding="utf-8"))
-        assert migrated.get("version") == 2
+        assert migrated.get("version") >= 2
         assert "caps" in migrated
 
     def test_migration_v1_fusionne_variantes_casse(self, tmp_root):
@@ -441,10 +441,11 @@ class TestEntityIndex:
                 },
             },
         ]
-        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+        (tmp_root / "data" / "articles").mkdir()
+        (tmp_root / "data" / "articles" / "dune.json").write_text(json.dumps(articles), encoding="utf-8")
 
         idx = EntityIndex(tmp_root)
-        idx.update(articles, "data/articles.json")
+        idx.update(articles, "data/articles/dune.json")
 
         mistral_refs = idx.get_canonical_refs("ORG", "Mistral AI")
         chatgpt_refs = idx.get_canonical_refs("PRODUCT", "ChatGPT")
@@ -486,10 +487,11 @@ class TestEntityIndex:
                 "entities": {"ORG": ["French Mistral AI"]},
             }
         ]
-        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+        (tmp_root / "data" / "articles").mkdir()
+        (tmp_root / "data" / "articles" / "dune.json").write_text(json.dumps(articles), encoding="utf-8")
 
         idx = EntityIndex(tmp_root)
-        idx.update(articles, "data/articles.json")
+        idx.update(articles, "data/articles/dune.json")
 
         assert idx.load_articles("ORG", "Mistral AI") == []
         loaded = idx.load_articles("ORG", "Mistral AI", canonicalize=True)
@@ -534,7 +536,8 @@ class TestEntityIndex:
                 "entities": {"LAW": ["LPD"], "ORG": ["LPD Suisse"]},
             },
         ]
-        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+        (tmp_root / "data" / "articles").mkdir()
+        (tmp_root / "data" / "articles" / "dune.json").write_text(json.dumps(articles), encoding="utf-8")
 
         idx = EntityIndex(tmp_root)
         idx.update(articles, "data/articles.json")
@@ -572,7 +575,8 @@ class TestEntityIndex:
                 "entities": {"ORG": ["Nouvelle loi sur la protection des données"]},
             }
         ]
-        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+        (tmp_root / "data" / "articles").mkdir()
+        (tmp_root / "data" / "articles" / "dune.json").write_text(json.dumps(articles), encoding="utf-8")
 
         idx = EntityIndex(tmp_root)
         idx.update(articles, "data/articles.json")
@@ -591,7 +595,8 @@ class TestEntityIndex:
                 "entities": {"DATE": ["2026"], "MONEY": ["30 milliards de dollars"]},
             }
         ]
-        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+        (tmp_root / "data" / "articles").mkdir()
+        (tmp_root / "data" / "articles" / "dune.json").write_text(json.dumps(articles), encoding="utf-8")
 
         idx = EntityIndex(tmp_root)
         idx.update(articles, "data/articles.json")
@@ -610,7 +615,8 @@ class TestEntityIndex:
                 "entities": {"DATE": ["2026"], "MONEY": ["30 milliards de dollars"]},
             }
         ]
-        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+        (tmp_root / "data" / "articles").mkdir()
+        (tmp_root / "data" / "articles" / "dune.json").write_text(json.dumps(articles), encoding="utf-8")
 
         idx = EntityIndex(tmp_root)
         idx.update(articles, "data/articles.json")
@@ -642,6 +648,47 @@ class TestEntityIndex:
         result = idx.search_values("Dune")
         assert result[0]["type"] == "WORK_OF_ART"
         assert result[0]["top"][0]["value"] == "Dune"
+
+    def test_canonicalisation_oeuvre_fusionne_dune_depuis_product(self, tmp_root):
+        from utils.entity_index import EntityIndex
+
+        (tmp_root / "config" / "entity_canonicalization.json").write_text(
+            json.dumps(
+                {
+                    "aliases": [
+                        {
+                            "canonical": {"type": "WORK_OF_ART", "value": "Dune"},
+                            "aliases": [{"type": "PRODUCT", "value": "Dune"}],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        articles = [
+            {
+                "URL": "http://test.com/dune-a",
+                "Date de publication": "2026-01-06",
+                "Résumé": "Dune en œuvre.",
+                "entities": {"WORK_OF_ART": ["Dune"]},
+            },
+            {
+                "URL": "http://test.com/dune-b",
+                "Date de publication": "2026-01-07",
+                "Résumé": "Dune mal typé en product.",
+                "entities": {"PRODUCT": ["Dune"]},
+            },
+        ]
+        (tmp_root / "data" / "articles").mkdir()
+        (tmp_root / "data" / "articles" / "dune.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.rebuild()
+
+        result = idx.search_values("Dune")
+        assert result[0]["type"] == "WORK_OF_ART"
+        assert result[0]["top"][0]["value"] == "Dune"
+        assert result[0]["top"][0]["count"] == 2
 
     def test_canonicalisation_juridique_fusionne_ai_act_et_rgpd(self, tmp_root):
         from utils.entity_index import EntityIndex

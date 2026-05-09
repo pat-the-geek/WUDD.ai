@@ -258,6 +258,10 @@ Pour un client natif ou MCP, la recommandation est de rendre visibles les choix 
 
 WUDD.ai applique également un post-traitement léger sur les sorties NER pour corriger les erreurs manifestes les plus coûteuses (`MONEY`, `DATE`, `LAW`) avant indexation. Cela améliore l'exploitabilité sans changer l'API publique.
 
+Point d'exploitation important pour le client : après une évolution du schéma d'indexation, le backend doit reconstruire `entity_index.json` puis `entity_stats.json`. Sans cette réindexation, la recherche et le dashboard peuvent continuer à exposer un ancien typage du corpus même si les articles bruts sont déjà corrigés.
+
+Exemple : `Dune` doit être traité comme `WORK_OF_ART` dans les surfaces analytiques ; des variantes anciennement classées en `PRODUCT` peuvent être rabattues vers `WORK_OF_ART` par canonicalisation, à condition que l'index ait bien été régénéré.
+
 ---
 
 ### 3.7 Rapport Complet Entité (`EntityFullReportView`)
