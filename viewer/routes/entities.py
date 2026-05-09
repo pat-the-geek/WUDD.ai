@@ -28,6 +28,7 @@ from pathlib import Path
 from viewer.helpers import PROJECT_ROOT, _call_ai_blocking, require_json_body
 from viewer.state import _annotations_lock
 from utils.article_index import get_article_index
+from utils.entity_canonicalization import get_entity_canonicalizer
 from utils.date_utils import parse_article_date
 from utils.entity_index import get_entity_index
 
@@ -93,6 +94,8 @@ def _save_annotations(data: dict) -> None:
 
 _WATCHED_FILE = PROJECT_ROOT / "data" / "watched_entities.json"
 _watched_lock = threading.Lock()
+_LEGACY_TIMELINE_FILE = PROJECT_ROOT / "data" / "entity_timeline.json"
+_TIMELINE_CACHE_DIR = PROJECT_ROOT / "data" / "entity_timeline_cache"
 
 
 def _load_watched() -> list:
@@ -111,6 +114,15 @@ def _save_watched(data: list) -> None:
     tmp.replace(_WATCHED_FILE)
 
 
+def _timeline_cache_file(days: int, top_n: int) -> Path:
+    """Retourne le fichier de cache de timeline associé aux paramètres."""
+    if days == 30 and top_n == 30:
+        return _LEGACY_TIMELINE_FILE
+    safe_days = max(0, days)
+    safe_top = max(1, top_n)
+    return _TIMELINE_CACHE_DIR / f"entity_timeline_{safe_days}d_top{safe_top}.json"
+
+
 @entities_bp.route("/api/search/entity")
 def api_search_entity():
     """Recherche cross-fichiers d'une valeur d'entité nommée (via entity_index)."""
@@ -124,7 +136,7 @@ def api_search_entity():
 
     try:
         eidx = get_entity_index(PROJECT_ROOT)
-        all_entries = eidx.get_all_entries()  # { "TYPE:value": [{file, idx, date}, ...] }
+        all_entries = eidx.get_all_entries(canonicalize=True)  # { "TYPE:value": [{file, idx, date}, ...] }
 
         # Filtrer les clés qui contiennent q_lower (correspondance partielle)
         matching_keys = [
@@ -192,6 +204,7 @@ def api_search_entity():
             PROJECT_ROOT / "data" / "articles",
             PROJECT_ROOT / "data" / "articles-from-rss",
         ]
+        canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
         for data_dir in data_dirs:
             if not data_dir.exists():
                 continue
@@ -258,6 +271,7 @@ def api_entities_search():
 
     q_lower = q.lower()
     cache_key = (q_lower, "")
+    canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
 
     with _entity_search_cache_lock:
         cached = _entity_search_cache.get(cache_key)
@@ -274,7 +288,7 @@ def api_entities_search():
             return jsonify(result)
 
         by_type: dict[str, dict[str, int]] = {}
-        all_entries = eidx.get_all_entries()  # Compatibilité vieux mocks/tests
+        all_entries = eidx.get_all_entries(canonicalize=True)  # Compatibilité vieux mocks/tests
         for key, refs in all_entries.items():
             parts = key.split(":", 1)
             if len(parts) != 2:
@@ -315,9 +329,14 @@ def api_entities_search():
                             continue
                         for v in values:
                             if isinstance(v, str) and q_lower in v.lower():
-                                if etype not in by_type:
-                                    by_type[etype] = {}
-                                by_type[etype][v] = by_type[etype].get(v, 0) + 1
+                                if canonicalizer.is_noise(etype, v):
+                                    continue
+                                canonical_type, canonical_value = canonicalizer.canonicalize(etype, v)
+                                if canonical_type not in by_type:
+                                    by_type[canonical_type] = {}
+                                by_type[canonical_type][canonical_value] = (
+                                    by_type[canonical_type].get(canonical_value, 0) + 1
+                                )
 
     result_types = []
     for etype, value_counts in by_type.items():
@@ -472,8 +491,14 @@ def api_entities_dashboard():
                             by_type[etype] = {}
                         for v in values:
                             if isinstance(v, str) and v.strip():
-                                key = v.strip()
-                                by_type[etype][key] = by_type[etype].get(key, 0) + 1
+                                if canonicalizer.is_noise(etype, v):
+                                    continue
+                                canonical_type, canonical_value = canonicalizer.canonicalize(etype, v)
+                                if canonical_type not in by_type:
+                                    by_type[canonical_type] = {}
+                                by_type[canonical_type][canonical_value] = (
+                                    by_type[canonical_type].get(canonical_value, 0) + 1
+                                )
                     if has_ent:
                         total_with_entities += 1
 
@@ -530,6 +555,12 @@ def api_entities_articles():
     if not entity_type or not entity_value:
         return jsonify({"error": "Paramètres type et value requis"}), 400
 
+    canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
+    entity_type, entity_value = canonicalizer.canonicalize(entity_type, entity_value)
+
+    canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
+    entity_type, entity_value = canonicalizer.canonicalize(entity_type, entity_value)
+
     cache_key = (entity_type.upper(), entity_value.lower(), max_articles, compact)
     with _entity_articles_cache_lock:
         cached = _entity_articles_cache.get(cache_key)
@@ -562,7 +593,7 @@ def api_entities_articles():
 
     try:
         eidx = get_entity_index(PROJECT_ROOT)
-        refs = eidx.get_refs(entity_type, entity_value)
+        refs = eidx.get_canonical_refs(entity_type, entity_value)
         if refs:
             index_found_results = True
             refs_cap = min(len(refs), max(max_articles * 8, 200))
@@ -637,10 +668,15 @@ def api_entities_articles():
                     if not isinstance(entities, dict):
                         continue
                     values = entities.get(entity_type, [])
-                    ev_lower = entity_value.lower()
-                    if not (isinstance(values, list) and any(
-                        isinstance(v, str) and v.lower() == ev_lower for v in values
-                    )):
+                    target_key = canonicalizer.canonical_key(entity_type, entity_value)
+                    if not (
+                        isinstance(values, list)
+                        and any(
+                            isinstance(v, str)
+                            and canonicalizer.canonical_key(entity_type, v) == target_key
+                            for v in values
+                        )
+                    ):
                         continue
                     url = (article.get("URL") or "").strip()
                     resume_key = article.get("Résumé", "")[:150].strip()
@@ -999,15 +1035,19 @@ def api_entities_cooccurrences():
     central_articles: list[dict] = []
     try:
         eidx = get_entity_index(PROJECT_ROOT)
-        central_articles = eidx.load_articles(entity_type, entity_value,
-                                              cutoff_date=cutoff_date_str)
+        central_articles = eidx.load_articles(
+            entity_type,
+            entity_value,
+            cutoff_date=cutoff_date_str,
+            canonicalize=True,
+        )
         index_available = True
     except Exception:
         pass
 
     if not index_available:
         # ── Fallback rglob si l'index est indisponible ────────────────────────
-        entity_value_lower = entity_value.lower()
+        target_key = canonicalizer.canonical_key(entity_type, entity_value)
         for data_dir in [PROJECT_ROOT / "data" / "articles",
                          PROJECT_ROOT / "data" / "articles-from-rss"]:
             if not data_dir.exists():
@@ -1030,17 +1070,25 @@ def api_entities_cooccurrences():
                         ents = art.get("entities", {})
                         if not isinstance(ents, dict):
                             continue
-                        vals = ents.get(entity_type, [])
-                        if isinstance(vals, list) and any(
-                            isinstance(v, str) and v.lower() == entity_value_lower
-                            for v in vals
-                        ):
+                        matched = False
+                        for etype, vals in ents.items():
+                            if not isinstance(vals, list):
+                                continue
+                            if any(
+                                isinstance(v, str)
+                                and canonicalizer.canonical_key(etype, v) == target_key
+                                for v in vals
+                            ):
+                                matched = True
+                                break
+                        if matched:
                             central_articles.append(art)
                 except (json.JSONDecodeError, OSError):
                     continue
 
     # ── Passe 1 : co-occurrences L1 depuis les articles de l'entité centrale ──
     entity_value_lower = entity_value.lower()
+    target_key = canonicalizer.canonical_key(entity_type, entity_value)
     cooc_l1: dict[tuple[str, str], int] = {}
     for article in central_articles:
         entities = article.get("entities", {})
@@ -1050,9 +1098,14 @@ def api_entities_cooccurrences():
             if not isinstance(evals, list):
                 continue
             for ev in evals:
-                if etype == entity_type and ev.lower() == entity_value_lower:
+                if not isinstance(ev, str) or not ev.strip():
                     continue
-                key = (etype, ev)
+                if canonicalizer.is_noise(etype, ev):
+                    continue
+                canonical_type, canonical_value = canonicalizer.canonicalize(etype, ev)
+                if f"{canonical_type}:{canonical_value}" == target_key:
+                    continue
+                key = (canonical_type, canonical_value)
                 cooc_l1[key] = cooc_l1.get(key, 0) + 1
 
     sorted_l1 = sorted(cooc_l1.items(), key=lambda x: x[1], reverse=True)[:limit_l1]
@@ -1065,7 +1118,7 @@ def api_entities_cooccurrences():
         if index_available and eidx is not None:
             for etype, ev in keys:
                 try:
-                    result[(etype, ev)] = len(eidx.get_refs(etype, ev))
+                    result[(etype, ev)] = len(eidx.get_canonical_refs(etype, ev))
                 except Exception:
                     result[(etype, ev)] = cooc_l1.get((etype, ev), 0)
         else:
@@ -1098,8 +1151,12 @@ def api_entities_cooccurrences():
             # Charger uniquement les articles du nœud L1 (pas tous les articles)
             if index_available and eidx is not None:
                 try:
-                    l1_articles = eidx.load_articles(l1_etype, l1_ev,
-                                                     cutoff_date=cutoff_date_str)
+                    l1_articles = eidx.load_articles(
+                        l1_etype,
+                        l1_ev,
+                        cutoff_date=cutoff_date_str,
+                        canonicalize=True,
+                    )
                 except Exception:
                     l1_articles = []
             else:
@@ -1123,10 +1180,15 @@ def api_entities_cooccurrences():
                     if not isinstance(evals, list):
                         continue
                     for ev in evals:
-                        co_key = (etype, ev)
+                        if not isinstance(ev, str) or not ev.strip():
+                            continue
+                        if canonicalizer.is_noise(etype, ev):
+                            continue
+                        canonical_type, canonical_value = canonicalizer.canonicalize(etype, ev)
+                        co_key = (canonical_type, canonical_value)
                         if co_key == (l1_etype, l1_ev):
                             continue
-                        if etype == entity_type and ev.lower() == entity_value_lower:
+                        if f"{canonical_type}:{canonical_value}" == target_key:
                             continue  # évite l'arête de retour vers le centre
                         cooc_l2_for_l1[co_key] = cooc_l2_for_l1.get(co_key, 0) + 1
 
@@ -1142,7 +1204,7 @@ def api_entities_cooccurrences():
                     l2_total = count
                     if index_available and eidx is not None:
                         try:
-                            l2_total = len(eidx.get_refs(etype, ev))
+                            l2_total = len(eidx.get_canonical_refs(etype, ev))
                         except Exception:
                             pass
                     nodes.append({"type": etype, "value": ev, "count": count,
@@ -2161,7 +2223,7 @@ def api_entities_timeline():
         etype      = request.args.get("type")   or None
         regenerate = request.args.get("regenerate") == "1"
 
-        timeline_file = PROJECT_ROOT / "data" / "entity_timeline.json"
+        timeline_file = _timeline_cache_file(days, top_n)
 
         # Utiliser le fichier mis en cache si présent et non périmé (< 1h)
         if not regenerate and timeline_file.exists() and not entity and not etype:
@@ -3163,4 +3225,3 @@ def api_sources_influence_network():
         return jsonify(report)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
-

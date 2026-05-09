@@ -1,0 +1,59 @@
+{
+  "aliases": [
+    {
+      "canonical": { "type": "ORG", "value": "Mistral AI" },
+      "aliases": [
+        { "type": "ORG", "value": "French Mistral AI" }
+      ]
+    },
+    {
+      "canonical": { "type": "PRODUCT", "value": "ChatGPT" },
+      "aliases": [
+        { "type": "ORG", "value": "ChatGPT" }
+      ]
+    },
+    {
+      "canonical": { "type": "PRODUCT", "value": "Claude" },
+      "aliases": [
+        { "type": "ORG", "value": "Claude" }
+      ]
+    },
+    {
+      "canonical": { "type": "PRODUCT", "value": "Gemini" },
+      "aliases": [
+        { "type": "ORG", "value": "Gemini" }
+      ]
+    },
+    {
+      "canonical": { "type": "PRODUCT", "value": "Grok" },
+      "aliases": [
+        { "type": "ORG", "value": "Grok" }
+      ]
+    },
+    {
+      "canonical": { "type": "PERSON", "value": "Donald Trump" },
+      "aliases": [
+        { "type": "PERSON", "value": "Trump" }
+      ]
+    },
+    {
+      "canonical": { "type": "GPE", "value": "États-Unis" },
+      "aliases": [
+        { "type": "GPE", "value": "Amérique" },
+        { "type": "GPE", "value": "Etats-Unis" },
+        { "type": "GPE", "value": "Etats Unis" },
+        { "type": "GPE", "value": "États Unis" },
+        { "type": "GPE", "value": "USA" },
+        { "type": "GPE", "value": "US" },
+        { "type": "GPE", "value": "U.S." },
+        { "type": "GPE", "value": "United States" }
+      ]
+    }
+  ],
+  "noise": {
+    "EVENT": {
+      "max_chars": 80,
+      "max_words": 8
+    }
+  }
+}

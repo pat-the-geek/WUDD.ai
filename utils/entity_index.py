@@ -320,6 +320,12 @@ class EntityIndex:
         refs = self._data.get("index", {}).get(key, [])
         return sorted(refs, key=lambda r: r.get("date", ""), reverse=True)
 
+    def get_canonical_refs(self, entity_type: str, entity_value: str) -> list[dict]:
+        """Retourne les refs de toutes les variantes aliasées d'une entité."""
+        entries = self.get_all_entries(canonicalize=True)
+        refs = entries.get(self._canonical_key(entity_type, entity_value), [])
+        return sorted(refs, key=lambda r: r.get("date", ""), reverse=True)
+
     def get_display_name(self, entity_type: str, entity_value: str) -> str:
         """Retourne la forme canonique d'affichage de l'entité (caps).
 
@@ -336,6 +342,7 @@ class EntityIndex:
         entity_value: str,
         max_articles: int = 0,
         cutoff_date: str = "",
+        canonicalize: bool = False,
     ) -> list[dict]:
         """Charge et retourne les articles complets mentionnant l'entité.
 
@@ -351,7 +358,11 @@ class EntityIndex:
         Returns:
             Articles complets triés par date décroissante.
         """
-        refs = self.get_refs(entity_type, entity_value)
+        refs = (
+            self.get_canonical_refs(entity_type, entity_value)
+            if canonicalize
+            else self.get_refs(entity_type, entity_value)
+        )
         if cutoff_date:
             # refs triées par date décroissante : dès qu'une ref est < cutoff, on coupe
             refs = [r for r in refs if r.get("date", "") >= cutoff_date]
@@ -398,16 +409,12 @@ class EntityIndex:
             Liste de dict {type, value, count} triée par count décroissant.
             Le champ "value" contient la forme d'affichage capitalisée (caps).
         """
-        with self._lock:
-            self._load()
-        caps = self._data.get("caps", {})
-        counter = Counter({k: len(v) for k, v in self._data.get("index", {}).items()})
+        counter = Counter({k: len(v) for k, v in self.get_all_entries(canonicalize=True).items()})
         results = []
         for key, count in counter.most_common(top_n):
             if ":" in key:
-                etype, _, evalue_lower = key.partition(":")
-                display = caps.get(key, evalue_lower)
-                results.append({"type": etype, "value": display, "count": count})
+                etype, _, evalue = key.partition(":")
+                results.append({"type": etype, "value": evalue, "count": count})
         return results
 
     def get_cooccurrences(
@@ -415,6 +422,7 @@ class EntityIndex:
         entity_type: str,
         entity_value: str,
         top_n: int = 20,
+        canonicalize: bool = True,
     ) -> list[dict]:
         """Calcule les co-occurrences de l'entité à partir de l'index.
 
@@ -424,7 +432,8 @@ class EntityIndex:
         Returns:
             Liste de dict {type, value, count} triée par count décroissant.
         """
-        articles = self.load_articles(entity_type, entity_value)
+        target_key = self._canonical_key(entity_type, entity_value)
+        articles = self.load_articles(entity_type, entity_value, canonicalize=canonicalize)
         cooc: Counter = Counter()
         for article in articles:
             ents = article.get("entities", {})
@@ -434,20 +443,24 @@ class EntityIndex:
                 if not isinstance(evals, list):
                     continue
                 for ev in evals:
-                    # Exclure l'entité cible (comparaison insensible à la casse)
-                    if not (etype == entity_type and ev.strip().lower() == entity_value.strip().lower()):
-                        cooc[(etype, ev)] += 1
-        caps = self._data.get("caps", {})
+                    if not isinstance(ev, str) or not ev.strip():
+                        continue
+                    if self._is_noise_entity(etype, ev):
+                        continue
+                    canonical_type, canonical_value = self._canonicalize_entity(etype, ev)
+                    if f"{canonical_type}:{canonical_value}" == target_key:
+                        continue
+                    cooc[(canonical_type, canonical_value)] += 1
         return [
             {
                 "type": etype,
-                "value": caps.get(_normalize_entity_key(etype, ev), ev),
+                "value": ev,
                 "count": cnt,
             }
             for (etype, ev), cnt in cooc.most_common(top_n)
         ]
 
-    def get_all_entries(self) -> dict[str, list[dict]]:
+    def get_all_entries(self, canonicalize: bool = False) -> dict[str, list[dict]]:
         """Retourne une copie de l'index complet {entity_key: [{file, idx, date}]}.
 
         Les clés utilisent la forme d'affichage canonique (caps) pour la valeur,
@@ -459,15 +472,31 @@ class EntityIndex:
         with self._lock:
             self._load()
         caps = self._data.get("caps", {})
-        result = {}
-        for k, v in self._data.get("index", {}).items():
+        result: dict[str, list[dict]] = {}
+        seen_by_key: dict[str, set[tuple[str, int]]] = {}
+        for k, refs in self._data.get("index", {}).items():
             if ":" in k:
                 etype, _, name_lower = k.partition(":")
                 display = caps.get(k, name_lower)
-                display_key = f"{etype}:{display}"
+                if canonicalize:
+                    if self._is_noise_entity(etype, display):
+                        continue
+                    canonical_type, canonical_value = self._canonicalize_entity(etype, display)
+                    display_key = f"{canonical_type}:{canonical_value}"
+                else:
+                    display_key = f"{etype}:{display}"
             else:
                 display_key = k
-            result[display_key] = list(v)
+            bucket = result.setdefault(display_key, [])
+            seen = seen_by_key.setdefault(display_key, set())
+            for ref in refs:
+                sig = (ref.get("file", ""), ref.get("idx", -1))
+                if sig in seen:
+                    continue
+                seen.add(sig)
+                bucket.append(ref)
+        for refs in result.values():
+            refs.sort(key=lambda r: r.get("date", ""), reverse=True)
         return result
 
     def search_values(
@@ -513,9 +542,16 @@ class EntityIndex:
                 display_value = caps.get(key, value_lower)
                 if not display_value:
                     continue
-                if etype not in by_type:
-                    by_type[etype] = {}
-                by_type[etype][display_value] = by_type[etype].get(display_value, 0) + len(refs)
+                if self._is_noise_entity(etype, display_value):
+                    continue
+                canonical_type, canonical_value = self._canonicalize_entity(etype, display_value)
+                if normalized_type and canonical_type != normalized_type:
+                    continue
+                if canonical_type not in by_type:
+                    by_type[canonical_type] = {}
+                by_type[canonical_type][canonical_value] = (
+                    by_type[canonical_type].get(canonical_value, 0) + len(refs)
+                )
 
         result_types = []
         for etype, value_counts in by_type.items():
@@ -554,6 +590,24 @@ class EntityIndex:
             "by_type": dict(by_type),
             "generated_at": self._data.get("generated_at", ""),
         }
+
+    def _canonicalize_entity(self, entity_type: str, entity_value: str) -> tuple[str, str]:
+        from .entity_canonicalization import get_entity_canonicalizer
+
+        canonicalizer = get_entity_canonicalizer(self.project_root)
+        return canonicalizer.canonicalize(entity_type, entity_value)
+
+    def _canonical_key(self, entity_type: str, entity_value: str) -> str:
+        from .entity_canonicalization import get_entity_canonicalizer
+
+        canonicalizer = get_entity_canonicalizer(self.project_root)
+        return canonicalizer.canonical_key(entity_type, entity_value)
+
+    def _is_noise_entity(self, entity_type: str, entity_value: str) -> bool:
+        from .entity_canonicalization import get_entity_canonicalizer
+
+        canonicalizer = get_entity_canonicalizer(self.project_root)
+        return canonicalizer.is_noise(entity_type, entity_value)
 
 
 # ── Singleton ────────────────────────────────────────────────────────────────

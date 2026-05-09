@@ -252,6 +252,27 @@ class TestEntityRoutes:
         resp = client.get("/api/entities/timeline")
         assert resp.status_code == 200
 
+    def test_get_entity_timeline_uses_param_specific_cache_file(self, client, tmp_path):
+        cache_file = tmp_path / "entity_timeline_90d_top30.json"
+        cache_file.write_text(
+            json.dumps(
+                {
+                    "generated_at": "2026-05-09T10:00:00Z",
+                    "window_days": 90,
+                    "top_entities": [{"key": "ORG:OpenAI", "type": "ORG", "value": "OpenAI", "total": 3}],
+                    "timeline": {"ORG:OpenAI": {"2026-05-09": 3}},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("viewer.routes.entities._timeline_cache_file", return_value=cache_file):
+            resp = client.get("/api/entities/timeline?days=90&top=30")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["window_days"] == 90
+
     def test_get_entity_search_empty_returns_400_or_200(self, client):
         resp = client.get("/api/entities/search")
         # Query param 'q' ou 'entity' requis selon l'implémentation

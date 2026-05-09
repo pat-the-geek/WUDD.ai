@@ -388,6 +388,135 @@ class TestEntityIndex:
         display = idx.get_display_name("ORG", "openai")
         assert display == "OpenAI"
 
+    def test_canonical_refs_fusionnent_alias_et_types(self, tmp_root):
+        from utils.entity_index import EntityIndex
+
+        (tmp_root / "config" / "entity_canonicalization.json").write_text(
+            json.dumps(
+                {
+                    "aliases": [
+                        {
+                            "canonical": {"type": "ORG", "value": "Mistral AI"},
+                            "aliases": [{"type": "ORG", "value": "French Mistral AI"}],
+                        },
+                        {
+                            "canonical": {"type": "PRODUCT", "value": "ChatGPT"},
+                            "aliases": [{"type": "ORG", "value": "ChatGPT"}],
+                        },
+                        {
+                            "canonical": {"type": "PERSON", "value": "Donald Trump"},
+                            "aliases": [{"type": "PERSON", "value": "Trump"}],
+                        },
+                        {
+                            "canonical": {"type": "GPE", "value": "États-Unis"},
+                            "aliases": [{"type": "GPE", "value": "Amérique"}],
+                        },
+                    ],
+                    "noise": {"EVENT": {"max_chars": 40, "max_words": 6}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        articles = [
+            {
+                "URL": "http://test.com/a",
+                "Date de publication": "2026-01-02",
+                "Résumé": "Mistral AI lance un produit.",
+                "entities": {
+                    "ORG": ["French Mistral AI", "ChatGPT"],
+                    "PRODUCT": ["ChatGPT"],
+                    "PERSON": ["Trump"],
+                    "GPE": ["Amérique"],
+                    "EVENT": ["phrase beaucoup trop longue pour rester une entité exploitable"],
+                },
+            },
+            {
+                "URL": "http://test.com/b",
+                "Date de publication": "2026-01-03",
+                "Résumé": "Mistral AI est comparé à ChatGPT.",
+                "entities": {
+                    "ORG": ["Mistral AI", "ChatGPT"],
+                    "PERSON": ["Donald Trump"],
+                    "GPE": ["États-Unis"],
+                },
+            },
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        mistral_refs = idx.get_canonical_refs("ORG", "Mistral AI")
+        chatgpt_refs = idx.get_canonical_refs("PRODUCT", "ChatGPT")
+        trump_refs = idx.get_canonical_refs("PERSON", "Donald Trump")
+        usa_refs = idx.get_canonical_refs("GPE", "États-Unis")
+        search = idx.search_values("mistral")
+        cooc = idx.get_cooccurrences("ORG", "Mistral AI", top_n=10)
+
+        assert len(mistral_refs) == 2
+        assert len(chatgpt_refs) == 2
+        assert len(trump_refs) == 2
+        assert len(usa_refs) == 2
+        assert search[0]["type"] == "ORG"
+        assert search[0]["top"][0]["value"] == "Mistral AI"
+        assert ("PRODUCT", "ChatGPT") in {(item["type"], item["value"]) for item in cooc}
+        assert all(item["type"] != "EVENT" for item in cooc)
+
+    def test_load_articles_canonicalize_utilise_alias(self, tmp_root):
+        from utils.entity_index import EntityIndex
+
+        (tmp_root / "config" / "entity_canonicalization.json").write_text(
+            json.dumps(
+                {
+                    "aliases": [
+                        {
+                            "canonical": {"type": "ORG", "value": "Mistral AI"},
+                            "aliases": [{"type": "ORG", "value": "French Mistral AI"}],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        articles = [
+            {
+                "URL": "http://test.com/a",
+                "Date de publication": "2026-01-02",
+                "Résumé": "French Mistral AI uniquement.",
+                "entities": {"ORG": ["French Mistral AI"]},
+            }
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        assert idx.load_articles("ORG", "Mistral AI") == []
+        loaded = idx.load_articles("ORG", "Mistral AI", canonicalize=True)
+        assert len(loaded) == 1
+        assert loaded[0]["URL"] == "http://test.com/a"
+
+    def test_canonicalizer_normalise_apostrophes_typographiques(self, tmp_root):
+        from utils.entity_canonicalization import get_entity_canonicalizer
+
+        (tmp_root / "config" / "entity_canonicalization.json").write_text(
+            json.dumps(
+                {
+                    "aliases": [
+                        {
+                            "canonical": {"type": "ORG", "value": "L'Oréal"},
+                            "aliases": [{"type": "ORG", "value": "L’Oréal"}],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        canonicalizer = get_entity_canonicalizer(tmp_root)
+        assert canonicalizer.canonicalize("ORG", "L’Oréal") == ("ORG", "L'Oréal")
+        assert canonicalizer.canonicalize("ORG", "L'Oréal") == ("ORG", "L'Oréal")
+
 
 # ── Tests SynthesisCache ──────────────────────────────────────────────────────
 

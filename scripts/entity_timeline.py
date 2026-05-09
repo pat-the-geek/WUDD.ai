@@ -40,6 +40,7 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from utils.logging import default_logger
+from utils.entity_canonicalization import get_entity_canonicalizer
 
 # ── Constantes ───────────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ def _collect_timeline_from_index(
     try:
         from utils.entity_index import get_entity_index
         eidx = get_entity_index(project_root)
-        all_entries = eidx.get_all_entries()
+        all_entries = eidx.get_all_entries(canonicalize=True)
     except Exception:
         return None
 
@@ -104,7 +105,11 @@ def _collect_timeline_from_index(
     if type_filter and type_filter.upper() in _MONITORED_TYPES:
         monitored = {type_filter.upper()}
 
-    entity_filter_lower = entity_filter.lower() if entity_filter else None
+    canonicalizer = get_entity_canonicalizer(project_root)
+    entity_filter_lower = None
+    if entity_filter:
+        _, canonical_value = canonicalizer.canonicalize(type_filter or "", entity_filter)
+        entity_filter_lower = canonical_value.lower()
 
     timeline: dict[str, dict[str, int]] = {}
 
@@ -179,7 +184,11 @@ def collect_timeline(
     if type_filter and type_filter.upper() in _MONITORED_TYPES:
         monitored = {type_filter.upper()}
 
-    entity_filter_lower = entity_filter.lower() if entity_filter else None
+    canonicalizer = get_entity_canonicalizer(project_root)
+    entity_filter_lower = None
+    if entity_filter:
+        _, canonical_value = canonicalizer.canonicalize(type_filter or "", entity_filter)
+        entity_filter_lower = canonical_value.lower()
 
     for scan_dir in scan_dirs:
         if not scan_dir.exists():
@@ -215,9 +224,14 @@ def collect_timeline(
                         if not isinstance(v, str) or not v.strip():
                             continue
                         v = v.strip()
-                        if entity_filter_lower and entity_filter_lower not in v.lower():
+                        if canonicalizer.is_noise(etype, v):
                             continue
-                        key = f"{etype}:{v}"
+                        canonical_type, canonical_value = canonicalizer.canonicalize(etype, v)
+                        if canonical_type not in monitored:
+                            continue
+                        if entity_filter_lower and entity_filter_lower not in canonical_value.lower():
+                            continue
+                        key = f"{canonical_type}:{canonical_value}"
                         timeline[key][date_str] += 1
 
     return {k: dict(v) for k, v in timeline.items()}
