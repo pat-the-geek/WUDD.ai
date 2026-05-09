@@ -97,6 +97,17 @@ def _update_caps(caps: dict, key: str, name: str) -> None:
         caps[key] = name
 
 
+def _display_rank(name: str, *, ref_count: int, explicit: bool) -> tuple[int, int, int, int]:
+    """Classe les variantes d'affichage candidates d'un bucket canonique."""
+    cleaned = name.strip()
+    return (
+        1 if explicit else 0,
+        int(ref_count),
+        _cap_score(cleaned),
+        -len(cleaned),
+    )
+
+
 class EntityIndex:
     """Index inversé entités → articles pour accès rapide sans scan de data/.
 
@@ -112,6 +123,7 @@ class EntityIndex:
         self._data: dict = {"version": _INDEX_VERSION, "index": {}, "caps": {}}
         self._search_entries: list[dict] | None = None
         self._canonical_entries: dict[bool, dict[str, list[dict]]] = {}
+        self._canonical_lookup: dict[bool, dict[str, str]] = {}
         self._loaded = False
 
     # ── Chargement / sauvegarde ─────────────────────────────────────────────
@@ -129,6 +141,7 @@ class EntityIndex:
                     self._data = raw
                     self._search_entries = None
                     self._canonical_entries = {}
+                    self._canonical_lookup = {}
                 elif isinstance(raw, dict) and raw.get("version") in (1, None):
                     # Migration automatique v1 → v2 : normaliser les clés en minuscules
                     # et construire le dict caps pour conserver la forme canonique.
@@ -166,6 +179,7 @@ class EntityIndex:
                     }
                     self._search_entries = None
                     self._canonical_entries = {}
+                    self._canonical_lookup = {}
                     # Persister la version migrée pour éviter de remigrer à chaque démarrage
                     try:
                         self._save()
@@ -263,6 +277,7 @@ class EntityIndex:
 
             self._search_entries = None
             self._canonical_entries = {}
+            self._canonical_lookup = {}
             self._save()
             return added
 
@@ -320,6 +335,7 @@ class EntityIndex:
             self._data = {"version": _INDEX_VERSION, "index": new_index, "caps": new_caps}
             self._search_entries = None
             self._canonical_entries = {}
+            self._canonical_lookup = {}
             self._save()
             self._loaded = True
             return total_refs
@@ -344,11 +360,15 @@ class EntityIndex:
 
     def get_canonical_refs(self, entity_type: str, entity_value: str) -> list[dict]:
         """Retourne les refs de toutes les variantes aliasées d'une entité."""
+        include_structural = entity_type in STRUCTURAL_ENTITY_TYPES
         entries = self.get_all_entries(
             canonicalize=True,
-            include_structural=entity_type in STRUCTURAL_ENTITY_TYPES,
+            include_structural=include_structural,
         )
-        refs = entries.get(self._canonical_key(entity_type, entity_value), [])
+        with self._lock:
+            lookup = dict(self._canonical_lookup.get(include_structural, {}))
+        display_key = lookup.get(self._canonical_key(entity_type, entity_value), "")
+        refs = entries.get(display_key, [])
         return sorted(refs, key=lambda r: r.get("date", ""), reverse=True)
 
     def get_display_name(self, entity_type: str, entity_value: str) -> str:
@@ -467,7 +487,7 @@ class EntityIndex:
         """
         target_key = self._canonical_key(entity_type, entity_value)
         articles = self.load_articles(entity_type, entity_value, canonicalize=canonicalize)
-        cooc: Counter = Counter()
+        cooc: dict[str, dict[str, object]] = {}
         for article in articles:
             ents = article.get("entities", {})
             if not isinstance(ents, dict):
@@ -480,17 +500,36 @@ class EntityIndex:
                         continue
                     if self._is_noise_entity(etype, ev):
                         continue
-                    canonical_type, canonical_value = self._canonicalize_entity(etype, ev)
-                    if f"{canonical_type}:{canonical_value}" == target_key:
+                    canonical_type, _ = self._canonicalize_entity(etype, ev)
+                    bucket_key = self._canonical_key(etype, ev)
+                    if bucket_key == target_key:
                         continue
-                    cooc[(canonical_type, canonical_value)] += 1
+                    candidate_value = self._canonical_display_value(etype, ev)
+                    explicit = self._has_explicit_canonical(etype, ev)
+                    rank = _display_rank(candidate_value, ref_count=1, explicit=explicit)
+                    bucket = cooc.setdefault(
+                        bucket_key,
+                        {
+                            "type": canonical_type,
+                            "value": candidate_value,
+                            "count": 0,
+                            "rank": rank,
+                        },
+                    )
+                    bucket["count"] = int(bucket["count"]) + 1
+                    if rank > bucket["rank"]:
+                        bucket["value"] = candidate_value
+                        bucket["rank"] = rank
         return [
             {
-                "type": etype,
-                "value": ev,
-                "count": cnt,
+                "type": str(item["type"]),
+                "value": str(item["value"]),
+                "count": int(item["count"]),
             }
-            for (etype, ev), cnt in cooc.most_common(top_n)
+            for item in sorted(
+                cooc.values(),
+                key=lambda item: (-int(item["count"]), str(item["type"]), str(item["value"])),
+            )[:top_n]
         ]
 
     def get_all_entries(
@@ -522,6 +561,8 @@ class EntityIndex:
                 }
         caps = self._data.get("caps", {})
         result: dict[str, list[dict]] = {}
+        lookup: dict[str, str] = {}
+        bucket_meta: dict[str, dict[str, object]] = {}
         seen_by_key: dict[str, set[tuple[str, int]]] = {}
         for k, refs in self._data.get("index", {}).items():
             if ":" in k:
@@ -530,10 +571,24 @@ class EntityIndex:
                 if canonicalize:
                     if self._is_noise_entity(etype, display):
                         continue
-                    canonical_type, canonical_value = self._canonicalize_entity(etype, display)
+                    canonical_type, _ = self._canonicalize_entity(etype, display)
                     if not include_structural and canonical_type in STRUCTURAL_ENTITY_TYPES:
                         continue
-                    display_key = f"{canonical_type}:{canonical_value}"
+                    bucket_key = self._canonical_key(etype, display)
+                    candidate_display = self._canonical_display_value(etype, display)
+                    explicit = self._has_explicit_canonical(etype, display)
+                    rank = _display_rank(
+                        candidate_display,
+                        ref_count=len(refs),
+                        explicit=explicit,
+                    )
+                    current = bucket_meta.get(bucket_key)
+                    if current is None or rank > current["rank"]:
+                        display_key = f"{canonical_type}:{candidate_display}"
+                        bucket_meta[bucket_key] = {"display_key": display_key, "rank": rank}
+                        lookup[bucket_key] = display_key
+                    else:
+                        display_key = str(current["display_key"])
                 else:
                     if not include_structural and etype in STRUCTURAL_ENTITY_TYPES:
                         continue
@@ -556,6 +611,7 @@ class EntityIndex:
                     key: list(refs)
                     for key, refs in result.items()
                 }
+                self._canonical_lookup[include_structural] = dict(lookup)
         return result
 
     def search_values(
@@ -615,22 +671,28 @@ class EntityIndex:
                     if not display_value or self._is_noise_entity(etype, display_value):
                         continue
                     canonical_type, canonical_value = self._canonicalize_entity(etype, display_value)
+                    explicit = self._has_explicit_canonical(etype, display_value)
                     search_entries.append(
                         {
                             "etype": etype,
                             "canonical_type": canonical_type,
                             "canonical_value": canonical_value,
+                            "canonical_key": self._canonical_key(etype, display_value),
+                            "display_value": self._canonical_display_value(etype, display_value),
+                            "explicit": explicit,
                             "norm_value": canonicalizer.normalize_for_matching(canonical_value),
                             "ref_count": len(refs),
                         }
                     )
                 self._search_entries = search_entries
 
-            by_type: dict[str, dict[str, dict[str, int | str]]] = {}
+            by_type: dict[str, dict[str, dict[str, object]]] = {}
             for entry_data in search_entries:
                 etype = str(entry_data["etype"])
                 canonical_type = str(entry_data["canonical_type"])
-                canonical_value = str(entry_data["canonical_value"])
+                canonical_key = str(entry_data["canonical_key"])
+                candidate_value = str(entry_data["display_value"])
+                explicit = bool(entry_data["explicit"])
                 if normalized_type and etype != normalized_type and canonical_type != normalized_type:
                     continue
                 if not include_structural and canonical_type in STRUCTURAL_ENTITY_TYPES:
@@ -640,12 +702,20 @@ class EntityIndex:
                     continue
                 if canonical_type not in by_type:
                     by_type[canonical_type] = {}
+                rank = _display_rank(
+                    candidate_value,
+                    ref_count=int(entry_data["ref_count"]),
+                    explicit=explicit,
+                )
                 entry = by_type[canonical_type].setdefault(
-                    canonical_value,
-                    {"count": 0, "score": score, "value": canonical_value},
+                    canonical_key,
+                    {"count": 0, "score": score, "value": candidate_value, "rank": rank},
                 )
                 entry["count"] = int(entry["count"]) + int(entry_data["ref_count"])
                 entry["score"] = max(int(entry["score"]), score)
+                if rank > entry["rank"]:
+                    entry["value"] = candidate_value
+                    entry["rank"] = rank
 
         result_types = []
         for etype, value_counts in by_type.items():
@@ -697,7 +767,19 @@ class EntityIndex:
 
     def _canonical_key(self, entity_type: str, entity_value: str) -> str:
         canonicalizer = self._get_canonicalizer()
-        return canonicalizer.canonical_key(entity_type, entity_value)
+        canonical_type, canonical_value = canonicalizer.canonicalize(entity_type, entity_value)
+        return f"{canonical_type}:{canonicalizer.normalize_for_matching(canonical_value)}"
+
+    def _canonical_display_value(self, entity_type: str, entity_value: str) -> str:
+        canonicalizer = self._get_canonicalizer()
+        explicit = canonicalizer.get_explicit_canonical(entity_type, entity_value)
+        if explicit is not None:
+            return explicit[1]
+        return entity_value.strip()
+
+    def _has_explicit_canonical(self, entity_type: str, entity_value: str) -> bool:
+        canonicalizer = self._get_canonicalizer()
+        return canonicalizer.get_explicit_canonical(entity_type, entity_value) is not None
 
     def _is_noise_entity(self, entity_type: str, entity_value: str) -> bool:
         canonicalizer = self._get_canonicalizer()

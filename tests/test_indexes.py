@@ -590,6 +590,69 @@ class TestEntityIndex:
         assert canonicalizer.canonicalize("ORG", "L’Oréal") == ("ORG", "L'Oréal")
         assert canonicalizer.canonicalize("ORG", "L'Oréal") == ("ORG", "L'Oréal")
 
+    def test_canonical_refs_fusionnent_variantes_unicode_sans_alias_explicite(self, tmp_root):
+        from utils.entity_index import EntityIndex
+
+        articles = [
+            {
+                "URL": "http://test.com/ormuz-a",
+                "Date de publication": "2026-01-02",
+                "Résumé": "Variante apostrophe droite.",
+                "entities": {"LOC": ["Détroit d'Ormuz"]},
+            },
+            {
+                "URL": "http://test.com/ormuz-b",
+                "Date de publication": "2026-01-03",
+                "Résumé": "Variante apostrophe typographique.",
+                "entities": {"LOC": ["Détroit d’Ormuz"]},
+            },
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        refs_straight = idx.get_canonical_refs("LOC", "Détroit d'Ormuz")
+        refs_curly = idx.get_canonical_refs("LOC", "Détroit d’Ormuz")
+        entries = idx.get_all_entries(canonicalize=True)
+        matching_keys = [key for key in entries if key.startswith("LOC:Détroit d")]
+
+        assert len(refs_straight) == 2
+        assert len(refs_curly) == 2
+        assert len(matching_keys) == 1
+
+    def test_resolve_entity_matches_canonical_fusionne_variantes_unicode(self, tmp_root):
+        from utils.entity_index import EntityIndex
+        from utils.entity_matching import resolve_entity_matches
+
+        articles = [
+            {
+                "URL": "http://test.com/ormuz-a",
+                "Date de publication": "2026-01-02",
+                "Résumé": "Variante apostrophe droite.",
+                "entities": {"LOC": ["Détroit d'Ormuz"]},
+            },
+            {
+                "URL": "http://test.com/ormuz-b",
+                "Date de publication": "2026-01-03",
+                "Résumé": "Variante apostrophe typographique.",
+                "entities": {"LOC": ["Détroit d’Ormuz"]},
+            },
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        matches = resolve_entity_matches(
+            tmp_root,
+            "Détroit d’Ormuz",
+            "LOC",
+            match_mode="canonical",
+        )
+
+        assert matches == [{"type": "LOC", "value": "Détroit d'Ormuz", "count": 2}]
+
     def test_search_values_sigle_court_utilise_bornes_de_mot(self, tmp_root):
         from utils.entity_index import EntityIndex
 

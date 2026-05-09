@@ -117,18 +117,30 @@ class EntityCanonicalizer:
                             self._search_expansions[query] = terms
         self._loaded = True
 
+    def get_explicit_canonical(
+        self,
+        entity_type: str,
+        entity_value: str,
+    ) -> tuple[str, str] | None:
+        """Retourne la canonicalisation explicite configurée, si elle existe."""
+        cleaned_type = (entity_type or "").strip().upper()
+        cleaned_value = _clean_value(entity_value)
+        if not cleaned_type or not cleaned_value:
+            return None
+        with self._lock:
+            self._load()
+            return self._aliases.get(_entity_key(cleaned_type, cleaned_value))
+
     def canonicalize(self, entity_type: str, entity_value: str) -> tuple[str, str]:
         """Retourne (type, valeur) canonises."""
         cleaned_type = (entity_type or "").strip().upper()
         cleaned_value = _clean_value(entity_value)
         if not cleaned_type or not cleaned_value:
             return cleaned_type, cleaned_value
-        with self._lock:
-            self._load()
-            return self._aliases.get(
-                _entity_key(cleaned_type, cleaned_value),
-                (cleaned_type, cleaned_value),
-            )
+        explicit = self.get_explicit_canonical(cleaned_type, cleaned_value)
+        if explicit is not None:
+            return explicit
+        return cleaned_type, cleaned_value
 
     def canonical_key(self, entity_type: str, entity_value: str) -> str:
         canonical_type, canonical_value = self.canonicalize(entity_type, entity_value)

@@ -118,7 +118,7 @@ Toute autre valeur de `match_mode` est rejetée avec une erreur HTTP `400` pour 
 | Mode | Comportement |
 | --- | --- |
 | `strict` | Match exact sur la valeur brute dans le type demandé |
-| `canonical` | Match exact après application des alias configurés (`Trump` → `Donald Trump` si alias explicite) |
+| `canonical` | Match exact après application des alias configurés et fusion des variantes Unicode exactes par type (`Trump` → `Donald Trump`, `'`/`’`, accents, casse) |
 | `contains` | Match large par inclusion textuelle dans le type demandé — c'est le mode historique de la timeline |
 | `aggregate` | Agrège toutes les variantes remontées par la recherche d'entités ; avec `all_types=1`, l'agrégat traverse tous les types NER |
 
@@ -143,6 +143,8 @@ Pour un client MCP, la bonne posture n'est pas de supposer une canonicalisation 
 1. `contains` sert à l'exploration rapide ;
 2. `strict` et `canonical` servent à la vérification fine ;
 3. `aggregate` et `all_types=1` servent à l'analyse transverse d'un sujet sémantiquement fragmenté.
+
+`canonical` ne doit toutefois pas être confondu avec `aggregate` : il fusionne les variantes exactes d'un même libellé (ex. apostrophes typographiques, accents, casse) et les alias explicites, mais il ne regroupe pas les formulations longues ou les événements apparentés.
 
 ### Types structurels et types atypiques
 
