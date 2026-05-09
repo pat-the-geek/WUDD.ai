@@ -75,6 +75,29 @@ Cliquer sur n'importe quel nœud du graphe ouvre le panneau de détail de cette 
 
 Le graphe est calculé côté serveur (`/api/entities/cooccurrences`) et rendu en SVG pur côté client, sans dépendance à D3 ou autre bibliothèque de visualisation. Le layout utilise un algorithme de force simplifié (Fruchterman-Reingold, 240 itérations) avec répulsion différenciée entre nœuds L1 et L2.
 
+### Important — différence entre `timeline`, `count` et `total_count`
+
+Les trois métriques ne décrivent pas la même chose :
+
+| Champ | Surface | Signification |
+| --- | --- | --- |
+| `timeline[YYYY-MM-DD]` | `/api/entities/timeline` | **Nombre de mentions quotidiennes** d'une entité pour chaque jour de la fenêtre demandée |
+| `count` | `/api/entities/cooccurrences` | **Nombre d'articles partagés** entre le nœud source et le nœud cible dans le graphe courant (poids de l'arête) |
+| `total_count` | `/api/entities/cooccurrences` | **Volume d'articles total associé au nœud**, utilisé comme contexte de taille, pas comme mesure diachronique |
+
+Conséquences pratiques :
+
+- La **timeline** sert à lire une évolution dans le temps ; c'est une série temporelle.
+- Le **graphe** sert à lire une relation ; son `count` mesure une co-présence dans les mêmes articles, pas un nombre de mentions par jour.
+- Le **`total_count` d'un voisin** dans le graphe est aujourd'hui calculé sur **l'ensemble du corpus indexé**, même si le graphe est filtré avec `days`.
+- Le **`total_count` du nœud central** suit en revanche la fenêtre active du graphe, car il est dérivé des articles centraux déjà filtrés.
+
+En pratique, il est donc normal que :
+
+- la somme des valeurs de **timeline** sur 30 jours ne soit **pas égale** au `total_count` affiché dans le graphe ;
+- un voisin ait un `total_count` élevé mais un `count` faible dans une fenêtre courte ;
+- deux graphes avec des `days` différents gardent des tailles de nœuds proches tout en changeant fortement leurs poids d'arêtes.
+
 ---
 
 ## 3. Les 18 types d'entités reconnus

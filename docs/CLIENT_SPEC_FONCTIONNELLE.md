@@ -219,11 +219,16 @@ Source : `GET /api/entities/dashboard`
 - Source : `/api/entities/cooccurrences?type=...&value=...`
 - Représentation : liste avec force d'association (pas de WebGL requis)
 - Sur iPad/Mac : graphe force-directed (SwiftUI Canvas)
+- Sémantique des compteurs :
+  - `count` = poids relationnel dans le graphe courant (articles partagés entre deux entités)
+  - `total_count` = volume d'articles total du nœud, utilisé comme contexte visuel
+  - ce `total_count` n'est pas comparable directement à la timeline quotidienne
 
 **Calendrier :**
 - Grille mensuelle des mentions
 - Source : `/api/entities/timeline?type=...&value=...`
 - Intensité de couleur = nombre de mentions par jour
+- Cette timeline mesure une **évolution quotidienne** ; elle ne doit pas être comparée directement au `total_count` du graphe, qui est un compteur de couverture globale par nœud
 
 ---
 
