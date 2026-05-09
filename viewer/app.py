@@ -61,7 +61,12 @@ app.config["ACTIVE_VIEWER_PORT"] = _DEFAULT_VIEWER_PORT
 _startup_rebuild_lock = threading.Lock()
 _startup_rebuild_started = False
 _startup_rebuild_file_handle = None
+_startup_scoring_timer = None
 _STARTUP_REBUILD_LOCKFILE = "/tmp/wudd-viewer-startup.lock"
+_STARTUP_SCORING_DELAY_SECONDS = max(
+    0,
+    int(os.getenv("WUDD_STARTUP_SCORING_DELAY", "30")),
+)
 
 
 def _port_is_free(host: str, port: int) -> bool:
@@ -154,8 +159,40 @@ def _is_index_stale(generated_at: str) -> bool:
         return True
 
 
+def _run_scoring_warmup() -> None:
+    try:
+        from utils.scoring import get_scoring_engine, precompute_top_articles
+
+        print("[startup] Warm-up scoring engine…", flush=True)
+        engine = get_scoring_engine(PROJECT_ROOT)
+        snapshot_counts = precompute_top_articles(PROJECT_ROOT, engine=engine, top_n=50)
+        rendered = ", ".join(
+            f"{hours}h={count}" for hours, count in sorted(snapshot_counts.items())
+        )
+        print(f"[startup] top_articles pré-calculés : {rendered}", flush=True)
+    except Exception as exc:
+        print(f"[startup] Erreur warm-up scoring : {exc}", flush=True)
+
+
+def _schedule_scoring_warmup(delay_seconds: int = _STARTUP_SCORING_DELAY_SECONDS) -> None:
+    global _startup_scoring_timer
+    delay_seconds = max(0, int(delay_seconds))
+    if delay_seconds:
+        print(
+            f"[startup] Warm-up scoring planifié dans {delay_seconds}s pour préserver les premières requêtes.",
+            flush=True,
+        )
+        timer = threading.Timer(delay_seconds, _run_scoring_warmup)
+        timer.daemon = True
+        _startup_scoring_timer = timer
+        timer.start()
+        return
+    _run_scoring_warmup()
+
+
 def _startup_index_rebuild() -> None:
     """Lance en arrière-plan une reconstruction des indexes si nécessaire."""
+
     def _rebuild():
         try:
             aidx = get_article_index(PROJECT_ROOT)
@@ -193,18 +230,7 @@ def _startup_index_rebuild() -> None:
                     flush=True,
                 )
 
-            try:
-                from utils.scoring import get_scoring_engine, precompute_top_articles
-
-                print("[startup] Warm-up scoring engine…", flush=True)
-                engine = get_scoring_engine(PROJECT_ROOT)
-                snapshot_counts = precompute_top_articles(PROJECT_ROOT, engine=engine, top_n=50)
-                rendered = ", ".join(
-                    f"{hours}h={count}" for hours, count in sorted(snapshot_counts.items())
-                )
-                print(f"[startup] top_articles pré-calculés : {rendered}", flush=True)
-            except Exception as exc:
-                print(f"[startup] Erreur warm-up scoring : {exc}", flush=True)
+            _schedule_scoring_warmup()
         except Exception as exc:
             print(f"[startup] Erreur rebuild index : {exc}", flush=True)
 

@@ -111,3 +111,41 @@ def test_ensure_startup_index_rebuild_skips_when_lock_unavailable(monkeypatch):
 
     assert calls["count"] == 0
     assert app_module._startup_rebuild_started is True
+
+
+def test_schedule_scoring_warmup_uses_timer_when_delayed(monkeypatch):
+    app_module = _import_viewer_app(monkeypatch)
+    scheduled = {}
+
+    class _FakeTimer:
+        def __init__(self, delay, target):
+            scheduled["delay"] = delay
+            scheduled["target"] = target
+            self.daemon = False
+
+        def start(self):
+            scheduled["started"] = True
+
+    monkeypatch.setattr(app_module.threading, "Timer", _FakeTimer)
+    monkeypatch.setattr(app_module, "_run_scoring_warmup", lambda: scheduled.setdefault("ran", True))
+
+    app_module._schedule_scoring_warmup(12)
+
+    assert scheduled["delay"] == 12
+    assert scheduled["target"] == app_module._run_scoring_warmup
+    assert scheduled["started"] is True
+
+
+def test_schedule_scoring_warmup_runs_immediately_when_delay_zero(monkeypatch):
+    app_module = _import_viewer_app(monkeypatch)
+    called = {"count": 0}
+
+    monkeypatch.setattr(
+        app_module,
+        "_run_scoring_warmup",
+        lambda: called.__setitem__("count", called["count"] + 1),
+    )
+
+    app_module._schedule_scoring_warmup(0)
+
+    assert called["count"] == 1
