@@ -25,6 +25,7 @@ WORKDIR /app
 COPY scripts/ scripts/
 COPY utils/ utils/
 COPY config/ config/
+COPY mcp_server/ mcp_server/
 COPY tests/ tests/
 
 # Dépendances Python (fichier versionné à la racine)
@@ -56,8 +57,9 @@ ENV TZ=Europe/Paris
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 ENV PYTHONUNBUFFERED=1
 
-# 9. Port du viewer
+# 9. Ports exposés
 EXPOSE 5050
+EXPOSE 8765
 
 # 10. Entrypoint : crontab + viewer Flask + cron
 COPY entrypoint.sh /entrypoint.sh

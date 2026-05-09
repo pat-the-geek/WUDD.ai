@@ -470,6 +470,67 @@ class EntityIndex:
             result[display_key] = list(v)
         return result
 
+    def search_values(
+        self,
+        query: str,
+        entity_type: Optional[str] = None,
+        *,
+        limit_per_type: int = 100,
+    ) -> list[dict]:
+        """Recherche des entités par sous-chaîne sans copier tout l'index.
+
+        Retourne le même format groupé que le dashboard Viewer:
+        [
+            {
+                "type": "ORG",
+                "unique_count": 12,
+                "mention_count": 184,
+                "top": [{"value": "OpenAI", "count": 120}, ...]
+            }
+        ]
+        """
+        query_norm = (query or "").strip().lower()
+        if len(query_norm) < 2:
+            return []
+
+        normalized_type = (entity_type or "").strip().upper()
+        capped_limit = max(1, min(int(limit_per_type), 500))
+
+        with self._lock:
+            self._load()
+            index = self._data.get("index", {})
+            caps = self._data.get("caps", {})
+
+            by_type: dict[str, dict[str, int]] = {}
+            for key, refs in index.items():
+                if ":" not in key or not isinstance(refs, list):
+                    continue
+                etype, _, value_lower = key.partition(":")
+                if normalized_type and etype != normalized_type:
+                    continue
+                if query_norm not in value_lower:
+                    continue
+                display_value = caps.get(key, value_lower)
+                if not display_value:
+                    continue
+                if etype not in by_type:
+                    by_type[etype] = {}
+                by_type[etype][display_value] = by_type[etype].get(display_value, 0) + len(refs)
+
+        result_types = []
+        for etype, value_counts in by_type.items():
+            sorted_values = sorted(value_counts.items(), key=lambda x: x[1], reverse=True)
+            result_types.append(
+                {
+                    "type": etype,
+                    "unique_count": len(sorted_values),
+                    "mention_count": sum(count for _, count in sorted_values),
+                    "top": [{"value": value, "count": count} for value, count in sorted_values[:capped_limit]],
+                }
+            )
+        result_types.sort(key=lambda item: item["mention_count"], reverse=True)
+        return result_types
+
     def count_entities(self) -> int:
         """Retourne le nombre d'entités distinctes indexées."""
         with self._lock:

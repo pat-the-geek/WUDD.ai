@@ -253,6 +253,19 @@ class TestEntityIndex:
         assert idx.get_refs("PERSON", "Personne Inexistante") == []
         assert idx.load_articles("PERSON", "Personne Inexistante") == []
 
+    def test_search_values_retourne_groupes_par_type(self, tmp_root, sample_articles, articles_on_disk):
+        from utils.entity_index import EntityIndex
+
+        idx = EntityIndex(tmp_root)
+        idx.update(sample_articles, articles_on_disk)
+
+        result = idx.search_values("open")
+
+        assert len(result) == 1
+        assert result[0]["type"] == "ORG"
+        assert result[0]["mention_count"] == 1
+        assert result[0]["top"][0]["value"] == "OpenAI"
+
     def test_deduplication_url_dans_load_articles(self, tmp_root, sample_articles, articles_on_disk):
         """Même URL dans deux fichiers → un seul article chargé."""
         from utils.entity_index import EntityIndex
@@ -515,6 +528,26 @@ class TestScoringEngineSingleton:
         # Le rglob ne trouve rien car data/articles/ n'existe pas
         top = engine.get_top_articles_from_index(top_n=5, hours=48)
         assert isinstance(top, list)
+
+    def test_precompute_and_load_top_articles(self, tmp_root, sample_articles, articles_on_disk):
+        from utils.article_index import ArticleIndex
+        from utils.scoring import (
+            get_scoring_engine,
+            load_precomputed_top_articles,
+            precompute_top_articles,
+        )
+
+        aidx = ArticleIndex(tmp_root)
+        aidx.update(sample_articles, articles_on_disk)
+        engine = get_scoring_engine(tmp_root)
+
+        counts = precompute_top_articles(tmp_root, engine=engine, hours_list=(48,), top_n=10)
+        loaded = load_precomputed_top_articles(tmp_root, hours=48, top_n=5, max_age_seconds=3600)
+
+        assert counts[48] == 2
+        assert loaded is not None
+        assert len(loaded) == 2
+        assert all("score_pertinence" in article for article in loaded)
 
 
 # ── Tests compute_top_entities (generate_briefing) ────────────────────────────

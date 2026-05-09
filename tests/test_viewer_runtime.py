@@ -56,3 +56,8 @@ def test_resolve_viewer_port_prefers_explicit_env(monkeypatch):
     resolved = app_module._resolve_viewer_port(default_port=5050, attempts=3)
 
     assert resolved == 5099
+
+
+def test_startup_warmup_skipped_by_env(monkeypatch):
+    app_module = _import_viewer_app(monkeypatch)
+    assert hasattr(app_module, "_startup_index_rebuild")

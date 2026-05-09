@@ -210,6 +210,16 @@ class TestAnalyticsRoutes:
         resp = client.get("/api/articles/top")
         assert resp.status_code == 200
 
+    def test_get_articles_top_uses_precomputed_snapshot_when_available(self, client):
+        fake_articles = [{"URL": "https://example.com/1", "score_pertinence": 88.0}]
+        with patch("utils.scoring.load_precomputed_top_articles", return_value=fake_articles), \
+             patch("utils.scoring.get_scoring_engine") as mock_engine:
+            resp = client.get("/api/articles/top?n=1&hours=48")
+
+        assert resp.status_code == 200
+        assert resp.get_json()[0]["URL"] == "https://example.com/1"
+        mock_engine.assert_not_called()
+
     def test_get_sources_bias_returns_200(self, client):
         resp = client.get("/api/sources/bias")
         assert resp.status_code == 200
@@ -246,6 +256,25 @@ class TestEntityRoutes:
         resp = client.get("/api/entities/search")
         # Query param 'q' ou 'entity' requis selon l'implémentation
         assert resp.status_code in (200, 400)
+
+    def test_get_entity_search_uses_fast_index_search_when_available(self, client):
+        mock_idx = MagicMock()
+        mock_idx.search_values.return_value = [
+            {
+                "type": "ORG",
+                "unique_count": 1,
+                "mention_count": 2,
+                "top": [{"value": "OpenAI", "count": 2}],
+            }
+        ]
+
+        with patch("viewer.routes.entities.get_entity_index", return_value=mock_idx):
+            resp = client.get("/api/entities/search?q=OpenAI")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["by_type"][0]["top"][0]["value"] == "OpenAI"
+        mock_idx.search_values.assert_called_once_with("OpenAI")
 
     def test_get_watched_entities_returns_200(self, client):
         resp = client.get("/api/watched-entities")

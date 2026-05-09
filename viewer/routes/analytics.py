@@ -19,6 +19,7 @@ import datetime
 import json
 import os
 import sys
+import threading
 import time as _time
 
 from collections import defaultdict, Counter
@@ -31,6 +32,11 @@ from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
 
 analytics_bp = Blueprint("analytics", __name__)
+
+_TOP_ARTICLES_CACHE_TTL = 120  # secondes
+_PRECOMPUTED_TOP_MAX_AGE = 6 * 3600  # 6 heures
+_top_articles_cache: dict[tuple[int, int], dict] = {}
+_top_articles_cache_lock = threading.Lock()
 
 
 def _get_scan_dirs(dir_filter: str = "all") -> list[Path]:
@@ -125,13 +131,39 @@ def api_articles_top():
       n     : nombre d'articles (défaut: 10, max: 50)
       hours : fenêtre en heures (défaut: 48, 0=sans filtre)
     """
-    sys.path.insert(0, str(PROJECT_ROOT))
     try:
-        from utils.scoring import ScoringEngine
+        from utils.scoring import (
+            get_scoring_engine,
+            load_precomputed_top_articles,
+            precompute_top_articles,
+        )
         n = min(int(request.args.get("n", 10)), 50)
         hours = int(request.args.get("hours", 48))
-        engine = ScoringEngine(PROJECT_ROOT)
-        top = engine.get_top_articles(top_n=n, hours=hours)
+        cache_key = (n, hours)
+
+        with _top_articles_cache_lock:
+            cached = _top_articles_cache.get(cache_key)
+            if cached and (_time.monotonic() - cached.get("ts", 0.0)) < _TOP_ARTICLES_CACHE_TTL:
+                return jsonify(cached.get("result", []))
+
+        top = load_precomputed_top_articles(
+            PROJECT_ROOT,
+            hours=hours,
+            top_n=n,
+            max_age_seconds=_PRECOMPUTED_TOP_MAX_AGE,
+        )
+        if top is None:
+            engine = get_scoring_engine(PROJECT_ROOT)
+            if hours in {48, 720}:
+                precompute_top_articles(PROJECT_ROOT, engine=engine, hours_list=(hours,), top_n=50)
+                top = load_precomputed_top_articles(PROJECT_ROOT, hours=hours, top_n=n)
+            else:
+                top = engine.get_top_articles_from_index(top_n=n, hours=hours)
+        if top is None:
+            top = []
+
+        with _top_articles_cache_lock:
+            _top_articles_cache[cache_key] = {"result": top, "ts": _time.monotonic()}
         return jsonify(top)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

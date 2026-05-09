@@ -53,6 +53,11 @@ _COOC_CACHE_TTL = 600  # secondes (10 min)
 _cooc_cache: dict = {}  # {cache_key: {"result": ..., "ts": float}}
 _cooc_cache_lock = threading.Lock()
 
+# ── Cache TTL pour la recherche d'entités (autocomplete / MCP) ─────────────
+_ENTITY_SEARCH_CACHE_TTL = 120  # secondes
+_entity_search_cache: dict = {}  # {(query, type): {"result": ..., "ts": float}}
+_entity_search_cache_lock = threading.Lock()
+
 # ── Cache mémoire pour images Wikimedia (chargé une seule fois depuis le disque) ─
 _images_cache_mem: dict | None = None   # None = pas encore chargé
 _images_cache_mem_lock = threading.Lock()
@@ -252,12 +257,24 @@ def api_entities_search():
         return jsonify({"by_type": []})
 
     q_lower = q.lower()
-    by_type: dict[str, dict[str, int]] = {}
+    cache_key = (q_lower, "")
+
+    with _entity_search_cache_lock:
+        cached = _entity_search_cache.get(cache_key)
+        cached_ts = 0.0 if cached is None else cached.get("ts", 0.0)
+        if cached is not None and (time.monotonic() - cached_ts) < _ENTITY_SEARCH_CACHE_TTL:
+            return jsonify(cached["result"])
 
     try:
         eidx = get_entity_index(PROJECT_ROOT)
-        all_entries = eidx.get_all_entries()  # { "TYPE:value": [{file, idx, date}, ...] }
+        if hasattr(eidx, "search_values"):
+            result = {"by_type": eidx.search_values(q)}
+            with _entity_search_cache_lock:
+                _entity_search_cache[cache_key] = {"result": result, "ts": time.monotonic()}
+            return jsonify(result)
 
+        by_type: dict[str, dict[str, int]] = {}
+        all_entries = eidx.get_all_entries()  # Compatibilité vieux mocks/tests
         for key, refs in all_entries.items():
             parts = key.split(":", 1)
             if len(parts) != 2:
@@ -271,6 +288,7 @@ def api_entities_search():
 
     except Exception:
         # Fallback rglob si l'index est indisponible
+        by_type: dict[str, dict[str, int]] = {}
         data_dirs = [
             PROJECT_ROOT / "data" / "articles",
             PROJECT_ROOT / "data" / "articles-from-rss",
@@ -311,8 +329,10 @@ def api_entities_search():
             "top": [{"value": v, "count": c} for v, c in sorted_values[:100]],
         })
     result_types.sort(key=lambda x: x["mention_count"], reverse=True)
-
-    return jsonify({"by_type": result_types})
+    result = {"by_type": result_types}
+    with _entity_search_cache_lock:
+        _entity_search_cache[cache_key] = {"result": result, "ts": time.monotonic()}
+    return jsonify(result)
 
 
 @entities_bp.route("/api/entities/dashboard")
@@ -3143,5 +3163,4 @@ def api_sources_influence_network():
         return jsonify(report)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
-
 

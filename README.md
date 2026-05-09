@@ -326,6 +326,10 @@ Le fichier `.env` n'est jamais commité (`.gitignore`). Référez-vous à `.env.
 | `OLLAMA_HOST_DOCKER` | Hôte Ollama utilisé dans le conteneur Docker (recommandé : `host.docker.internal` sur macOS) |
 | `OBSIDIAN_DIR` | Chemin absolu vers le vault Obsidian (export de notes, optionnel) |
 | `BACKUP_L1` / `BACKUP_L2` | Chemins de sauvegarde incrémentale de `data/` |
+| `MCP_HOST` / `MCP_PORT` | Hôte et port du serveur MCP (défaut : `0.0.0.0:8765`) |
+| `MCP_TOKEN` | Token Bearer statique requis pour les clients MCP |
+| `MCP_ENABLE_WRITE_TOOLS` | Active les écritures sûres (`annotations`, `watchlists`) du MCP |
+| `MCP_VIEWER_BASE_URL` | URL interne du Viewer utilisée par le serveur MCP |
 
 #### Configuration Ollama propre (macOS + Docker)
 
@@ -403,6 +407,81 @@ python3 scripts/scheduler_articles.py
 ```
 
 Traite automatiquement tous les flux définis dans `config/flux_json_sources.json`.
+
+### Utiliser le serveur MCP
+
+Le service `analyse-actualites-mcp` expose WUDD.ai en **MCP Streamable HTTP**
+pour des clients distants sur le **LAN** ou via **Tailscale**.
+
+- **Endpoint par défaut** : `http://<hote>:8765/mcp`
+- **Authentification** : `Authorization: Bearer <MCP_TOKEN>`
+- **Périmètre V1** :
+  - lecture / analyse du corpus, des entités et des alertes
+  - écritures sûres limitées aux **annotations** et aux **watchlists**
+
+Variables à définir dans `.env` :
+
+```env
+MCP_HOST=0.0.0.0
+MCP_PORT=8765
+MCP_TOKEN=un-token-long-et-aleatoire
+MCP_ENABLE_WRITE_TOOLS=true
+MCP_VIEWER_BASE_URL=http://analyse-actualites-viewer:5050
+MCP_REQUEST_TIMEOUT=10
+MCP_HEAVY_REQUEST_TIMEOUT=30
+```
+
+`MCP_REQUEST_TIMEOUT` reste court pour les tools légers, tandis que
+`MCP_HEAVY_REQUEST_TIMEOUT` couvre les appels plus coûteux comme
+`get_entity_articles`, `get_entity_timeline` et `get_entity_cooccurrences`.
+
+Démarrage via Docker Compose :
+
+```bash
+docker compose up -d analyse-actualites-viewer analyse-actualites-mcp
+```
+
+Le serveur MCP s'appuie sur l'API du Viewer existant pour éviter la duplication
+de logique métier et garantir des réponses cohérentes entre l'interface web et
+les agents MCP.
+
+#### Configuration Claude Desktop
+
+Pour **Claude Desktop**, la configuration la plus fiable pour un serveur MCP
+**distant en HTTP** consiste à passer par le wrapper `mcp-remote` via `npx`.
+
+Exemple de bloc `claude_desktop_config.json` **anonymisé** :
+
+```json
+{
+  "mcpServers": {
+    "wudd-ai": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://<hote-ou-ip-tailscale>:8765/mcp",
+        "--header",
+        "Authorization: Bearer <MCP_TOKEN>",
+        "--allow-http"
+      ]
+    }
+  }
+}
+```
+
+Notes :
+
+- `--allow-http` est requis ici parce que l'exemple cible un serveur MCP exposé
+  en **HTTP** sur le réseau privé ou via **Tailscale**.
+- Remplacez `<hote-ou-ip-tailscale>` par l'adresse réellement joignable depuis
+  la machine qui exécute Claude Desktop.
+- Remplacez `<MCP_TOKEN>` par la valeur définie dans `.env`.
+- Après modification du fichier de configuration, **redémarrez Claude Desktop**.
+
+Si vous exposez ensuite le service en **HTTPS** via Tailscale Serve ou un proxy
+TLS, vous pourrez retirer `--allow-http` et remplacer l'URL par son équivalent
+`https://...`.
 
 ### Extraction par mot-clé (manuelle)
 

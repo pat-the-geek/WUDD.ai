@@ -7,6 +7,7 @@ import os
 import socket
 import subprocess
 import threading
+import _strptime  # Pré-charge strptime avant les threads de warm-up.
 from pathlib import Path
 
 
@@ -158,7 +159,7 @@ def _startup_index_rebuild() -> None:
             a_stats = aidx.stats()
             e_stats = eidx.stats()
 
-            need_article = a_stats.get("count", 0) == 0 or _is_index_stale(
+            need_article = a_stats.get("total", 0) == 0 or _is_index_stale(
                 a_stats.get("generated_at", "")
             )
             need_entity = e_stats.get("entities", 0) == 0 or _is_index_stale(
@@ -171,7 +172,7 @@ def _startup_index_rebuild() -> None:
                 print(f"[startup] article_index : {n} articles indexés.", flush=True)
             else:
                 print(
-                    f"[startup] article_index OK ({a_stats.get('count', 0)} articles, "
+                    f"[startup] article_index OK ({a_stats.get('total', 0)} articles, "
                     f"généré le {a_stats.get('generated_at', '?')[:10]})",
                     flush=True,
                 )
@@ -186,6 +187,19 @@ def _startup_index_rebuild() -> None:
                     f"généré le {e_stats.get('generated_at', '?')[:10]})",
                     flush=True,
                 )
+
+            try:
+                from utils.scoring import get_scoring_engine, precompute_top_articles
+
+                print("[startup] Warm-up scoring engine…", flush=True)
+                engine = get_scoring_engine(PROJECT_ROOT)
+                snapshot_counts = precompute_top_articles(PROJECT_ROOT, engine=engine, top_n=50)
+                rendered = ", ".join(
+                    f"{hours}h={count}" for hours, count in sorted(snapshot_counts.items())
+                )
+                print(f"[startup] top_articles pré-calculés : {rendered}", flush=True)
+            except Exception as exc:
+                print(f"[startup] Erreur warm-up scoring : {exc}", flush=True)
         except Exception as exc:
             print(f"[startup] Erreur rebuild index : {exc}", flush=True)
 

@@ -51,6 +51,9 @@ _TRIANGULATION_JACCARD_THRESHOLD = 0.35
 _TRIANGULATION_MIN_SOURCE_SCORE = 75
 # Nombre minimal d'articles d'une source sur 30 jours pour le critère régularité
 _REGULARITY_MIN_ARTICLES = 10
+_PRECOMPUTED_TOP_VERSION = 1
+_PRECOMPUTED_TOP_DIRNAME = "top_articles"
+_DEFAULT_PRECOMPUTED_WINDOWS = (48, 720)
 
 
 def _parse_date(date_str: str) -> Optional[datetime]:
@@ -252,6 +255,10 @@ def _extract_keywords_flat(keyword_config: list) -> list[str]:
             elif isinstance(vals, str):
                 flat.append(vals)
     return flat
+
+
+def _precomputed_top_path(project_root: Path, hours: int) -> Path:
+    return project_root / "data" / _PRECOMPUTED_TOP_DIRNAME / f"top_articles_{int(hours)}h.json"
 
 
 class ScoringEngine:
@@ -530,3 +537,85 @@ def get_scoring_engine(project_root: Optional[Path] = None) -> "ScoringEngine":
         if cached is None or cached[1] < current_mtime:
             _engine_instances[project_root] = (ScoringEngine(project_root), current_mtime)
         return _engine_instances[project_root][0]
+
+
+def load_precomputed_top_articles(
+    project_root: Path,
+    *,
+    hours: int,
+    top_n: int | None = None,
+    max_age_seconds: int | None = None,
+) -> list[dict] | None:
+    """Charge un snapshot pré-calculé des top articles si disponible et assez frais."""
+    path = _precomputed_top_path(project_root, hours)
+    if not path.exists():
+        return None
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    if not isinstance(payload, dict) or payload.get("version") != _PRECOMPUTED_TOP_VERSION:
+        return None
+
+    if max_age_seconds is not None:
+        generated_at = payload.get("generated_at", "")
+        try:
+            generated_dt = datetime.strptime(generated_at, "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=timezone.utc
+            )
+        except ValueError:
+            return None
+        age_seconds = (datetime.now(timezone.utc) - generated_dt).total_seconds()
+        if age_seconds > max_age_seconds:
+            return None
+
+    items = payload.get("items", [])
+    if not isinstance(items, list):
+        return None
+    return items[:top_n] if top_n else items
+
+
+def save_precomputed_top_articles(
+    project_root: Path,
+    *,
+    hours: int,
+    items: list[dict],
+) -> Path:
+    """Persiste un snapshot pré-calculé des top articles."""
+    path = _precomputed_top_path(project_root, hours)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "version": _PRECOMPUTED_TOP_VERSION,
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "hours": int(hours),
+        "count": len(items),
+        "items": items,
+    }
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(path)
+    return path
+
+
+def precompute_top_articles(
+    project_root: Path,
+    *,
+    engine: Optional["ScoringEngine"] = None,
+    hours_list: tuple[int, ...] = _DEFAULT_PRECOMPUTED_WINDOWS,
+    top_n: int = 50,
+    include_rss: bool = True,
+) -> dict[int, int]:
+    """Pré-calcule et persiste les tops d'articles pour les fenêtres les plus utiles."""
+    scoring_engine = engine or get_scoring_engine(project_root)
+    counts: dict[int, int] = {}
+    for hours in hours_list:
+        items = scoring_engine.get_top_articles_from_index(
+            top_n=top_n,
+            hours=int(hours),
+            include_rss=include_rss,
+        )
+        save_precomputed_top_articles(project_root, hours=int(hours), items=items)
+        counts[int(hours)] = len(items)
+    return counts

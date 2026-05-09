@@ -2,6 +2,7 @@
 # Entrypoint multi-role :
 # - viewer : lance uniquement Gunicorn (foreground)
 # - worker : lance uniquement cron (foreground)
+# - mcp    : lance uniquement le serveur MCP
 # - all    : compat legacy (viewer en arrière-plan + cron en foreground)
 set -e
 
@@ -67,6 +68,12 @@ if [ "$RUN_ROLE" = "worker" ]; then
     exec cron -f
 fi
 
+if [ "$RUN_ROLE" = "mcp" ]; then
+    MCP_PORT="${MCP_PORT:-8765}"
+    echo "Démarrage du serveur MCP WUDD.ai sur le port ${MCP_PORT}..."
+    exec python3 -m mcp_server.server
+fi
+
 if [ "$RUN_ROLE" = "all" ]; then
     echo "Démarrage du viewer WUDD.ai (Gunicorn) sur le port ${VIEWER_PORT}..."
     echo "Gunicorn config: workers=${GUNI_WORKERS}, threads=${GUNI_THREADS}, timeout=${GUNI_TIMEOUT}s"
@@ -86,5 +93,5 @@ if [ "$RUN_ROLE" = "all" ]; then
     exec cron -f
 fi
 
-echo "RUN_ROLE invalide: ${RUN_ROLE}. Valeurs attendues: viewer|worker|all"
+echo "RUN_ROLE invalide: ${RUN_ROLE}. Valeurs attendues: viewer|worker|mcp|all"
 exit 1
