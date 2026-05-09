@@ -212,6 +212,26 @@
         "URL":"https:\/\/www.letemps.ch\/feed"
     },
     {
+        "Titre":"Le Temps - Sciences",
+        "URL":"https:\/\/www.letemps.ch\/sciences\/rss"
+    },
+    {
+        "Titre":"AlgorithmWatch",
+        "URL":"https:\/\/algorithmwatch.org\/en\/feed\/"
+    },
+    {
+        "Titre":"Heidi.news",
+        "URL":"https:\/\/www.heidi.news\/feed"
+    },
+    {
+        "Titre":"Public Discourse",
+        "URL":"https:\/\/www.thepublicdiscourse.com\/feed\/"
+    },
+    {
+        "Titre":"La Quadrature du Net",
+        "URL":"https:\/\/www.laquadrature.net\/feed\/"
+    },
+    {
         "Titre":"La Liberté",
         "URL":"https:\/\/www.laliberte.ch\/rss\/news"
     },

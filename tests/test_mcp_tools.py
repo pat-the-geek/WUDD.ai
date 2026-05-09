@@ -34,6 +34,8 @@ class _FakeViewerClient:
 
     def post(self, path: str, json_body=None, **_kwargs):
         if path == "/api/watched-entities":
+            if json_body and json_body.get("value") == "AI Act":
+                return {"ok": True, "action": "added", "type": "LAW", "value": "AI Act"}
             return {"ok": True, "action": "added"}
         if path == "/api/annotations":
             return {"ok": True, "url": json_body["url"], "annotation": {"tags": json_body.get("tags", [])}}
@@ -96,6 +98,21 @@ def test_watch_entity_tool_returns_added_action():
     assert payload["ok"] is True
     assert payload["data"]["action"] == "added"
     assert payload["data"]["value"] == "NVIDIA"
+
+
+def test_watch_entity_tool_preserves_canonical_payload():
+    server = _make_server()
+    result = asyncio.run(
+        server.call_tool(
+            "watch_entity",
+            {"type": "ORG", "value": "AI Act", "notes": "Veille juridique"},
+        )
+    )
+
+    payload = result.structured_content
+    assert payload["ok"] is True
+    assert payload["data"]["type"] == "LAW"
+    assert payload["data"]["value"] == "AI Act"
 
 
 def test_create_annotation_tool_respects_write_toggle():

@@ -8,6 +8,7 @@ import socket
 import subprocess
 import threading
 import _strptime  # Pré-charge strptime avant les threads de warm-up.
+import fcntl
 from pathlib import Path
 
 
@@ -59,6 +60,8 @@ app = Flask(__name__)
 app.config["ACTIVE_VIEWER_PORT"] = _DEFAULT_VIEWER_PORT
 _startup_rebuild_lock = threading.Lock()
 _startup_rebuild_started = False
+_startup_rebuild_file_handle = None
+_STARTUP_REBUILD_LOCKFILE = "/tmp/wudd-viewer-startup.lock"
 
 
 def _port_is_free(host: str, port: int) -> bool:
@@ -211,7 +214,7 @@ def _startup_index_rebuild() -> None:
 
 def _ensure_startup_index_rebuild() -> None:
     """Déclenche le warm-up une seule fois, après le fork des workers."""
-    global _startup_rebuild_started
+    global _startup_rebuild_started, _startup_rebuild_file_handle
     if os.getenv("WUDD_SKIP_STARTUP_REBUILD") == "1":
         return
     if _startup_rebuild_started:
@@ -219,6 +222,14 @@ def _ensure_startup_index_rebuild() -> None:
     with _startup_rebuild_lock:
         if _startup_rebuild_started:
             return
+        if _startup_rebuild_file_handle is None:
+            try:
+                handle = open(_STARTUP_REBUILD_LOCKFILE, "w")
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                _startup_rebuild_file_handle = handle
+            except OSError:
+                _startup_rebuild_started = True
+                return
         _startup_index_rebuild()
         _startup_rebuild_started = True
 

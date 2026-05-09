@@ -45,7 +45,9 @@ def tool_watch_entity(
         if notes is not None:
             body["notes"] = str(notes)[:500]
         data = client.post(_ENDPOINT, json_body=body)
-        data.update({"type": normalized_type, "value": entity_value})
+        if isinstance(data, dict):
+            data.setdefault("type", normalized_type)
+            data.setdefault("value", entity_value)
         return success("watch_entity", data, meta=viewer_meta(_ENDPOINT, started_at))
     except Exception as exc:
         return from_exception("watch_entity", _ENDPOINT, started_at, exc)
@@ -70,7 +72,9 @@ def tool_unwatch_entity(
             _ENDPOINT,
             params={"type": normalized_type, "value": entity_value},
         )
-        data.update({"type": normalized_type, "value": entity_value})
+        if isinstance(data, dict):
+            data.setdefault("type", normalized_type)
+            data.setdefault("value", entity_value)
         return success(
             "unwatch_entity",
             data,

@@ -580,6 +580,60 @@ class TestEntityIndex:
         result = idx.search_values("nLPD")
         assert result[0]["top"][0]["value"] == "Nouvelle loi sur la protection des données"
 
+    def test_canonicalisation_juridique_fusionne_ai_act_et_rgpd(self, tmp_root):
+        from utils.entity_index import EntityIndex
+
+        (tmp_root / "config" / "entity_canonicalization.json").write_text(
+            json.dumps(
+                {
+                    "aliases": [
+                        {
+                            "canonical": {"type": "LAW", "value": "AI Act"},
+                            "aliases": [
+                                {"type": "ORG", "value": "AI Act"},
+                                {"type": "EVENT", "value": "AI Act"},
+                                {"type": "PRODUCT", "value": "AI Act"},
+                            ],
+                        },
+                        {
+                            "canonical": {"type": "LAW", "value": "RGPD"},
+                            "aliases": [{"type": "GPE", "value": "RGPD"}],
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        articles = [
+            {
+                "URL": "http://test.com/law-a",
+                "Date de publication": "2026-01-05",
+                "Résumé": "AI Act côté org.",
+                "entities": {"ORG": ["AI Act"], "GPE": ["RGPD"]},
+            },
+            {
+                "URL": "http://test.com/law-b",
+                "Date de publication": "2026-01-06",
+                "Résumé": "AI Act côté event.",
+                "entities": {"EVENT": ["AI Act"]},
+            },
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        ai_refs = idx.get_canonical_refs("LAW", "AI Act")
+        rgpd_refs = idx.get_canonical_refs("LAW", "RGPD")
+        ai_search = idx.search_values("AI Act")
+        rgpd_search = idx.search_values("RGPD")
+
+        assert len(ai_refs) == 2
+        assert len(rgpd_refs) == 1
+        assert ai_search[0]["type"] == "LAW"
+        assert ai_search[0]["top"][0]["value"] == "AI Act"
+        assert rgpd_search[0]["type"] == "LAW"
+
 
 # ── Tests SynthesisCache ──────────────────────────────────────────────────────
 

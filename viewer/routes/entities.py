@@ -114,6 +114,11 @@ def _save_watched(data: list) -> None:
     tmp.replace(_WATCHED_FILE)
 
 
+def _canonicalize_watched_entity(entity_type: str, entity_value: str) -> tuple[str, str]:
+    canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
+    return canonicalizer.canonicalize(entity_type, entity_value)
+
+
 def _timeline_cache_file(days: int, top_n: int) -> Path:
     """Retourne le fichier de cache de timeline associé aux paramètres."""
     if days == 30 and top_n == 30:
@@ -1021,6 +1026,9 @@ def api_entities_cooccurrences():
 
     if not entity_type or not entity_value:
         return jsonify({"error": "Paramètres type et value requis"}), 400
+
+    canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
+    entity_type, entity_value = canonicalizer.canonicalize(entity_type, entity_value)
 
     # ── Calcul de la date de coupure ──────────────────────────────────────────
     from datetime import datetime, timedelta, timezone
@@ -2383,8 +2391,9 @@ def api_watched_get():
             value = (w.get("value") or "").strip()
             if not etype or not value:
                 continue
+            etype, value = _canonicalize_watched_entity(etype, value)
 
-            refs = eidx.get_refs(etype, value)
+            refs = eidx.get_canonical_refs(etype, value)
             mentions_7d = 0
             mentions_24h = 0
             for ref in refs:
@@ -2421,10 +2430,11 @@ def api_watched_post():
     Body JSON : { type: str, value: str, notes?: str }
     """
     body = require_json_body(required_fields=["type", "value"])
-    etype = (body.get("type") or "").strip().upper()
-    value = (body.get("value") or "").strip()
-    if not etype or not value:
+    requested_type = (body.get("type") or "").strip().upper()
+    requested_value = (body.get("value") or "").strip()
+    if not requested_type or not requested_value:
         return jsonify({"error": "Champs type et value requis"}), 400
+    etype, value = _canonicalize_watched_entity(requested_type, requested_value)
 
     with _watched_lock:
         watched = _load_watched()
@@ -2436,7 +2446,16 @@ def api_watched_post():
                 _save_watched(watched)
                 with _watched_cache_lock:
                     _watched_cache.clear()
-                return jsonify({"ok": True, "action": "updated"})
+                return jsonify(
+                    {
+                        "ok": True,
+                        "action": "updated",
+                        "type": etype,
+                        "value": value,
+                        "requested_type": requested_type,
+                        "requested_value": requested_value,
+                    }
+                )
         # Ajout
         entry = {
             "type": etype,
@@ -2449,16 +2468,26 @@ def api_watched_post():
     
     with _watched_cache_lock:
         _watched_cache.clear()
-    return jsonify({"ok": True, "action": "added"})
+    return jsonify(
+        {
+            "ok": True,
+            "action": "added",
+            "type": etype,
+            "value": value,
+            "requested_type": requested_type,
+            "requested_value": requested_value,
+        }
+    )
 
 
 @entities_bp.route("/api/watched-entities", methods=["DELETE"])
 def api_watched_delete():
     """Retire une entité de la surveillance (paramètres ?type=...&value=...)."""
-    etype = (request.args.get("type") or "").strip().upper()
-    value = (request.args.get("value") or "").strip()
-    if not etype or not value:
+    requested_type = (request.args.get("type") or "").strip().upper()
+    requested_value = (request.args.get("value") or "").strip()
+    if not requested_type or not requested_value:
         return jsonify({"error": "Paramètres type et value requis"}), 400
+    etype, value = _canonicalize_watched_entity(requested_type, requested_value)
 
     with _watched_lock:
         watched = _load_watched()
@@ -2469,7 +2498,16 @@ def api_watched_delete():
     with _watched_cache_lock:
         _watched_cache.clear()
     
-    return jsonify({"ok": True, "removed": len(watched) < before})
+    return jsonify(
+        {
+            "ok": True,
+            "removed": len(watched) < before,
+            "type": etype,
+            "value": value,
+            "requested_type": requested_type,
+            "requested_value": requested_value,
+        }
+    )
 
 
 @entities_bp.route("/api/entity-timeline", methods=["GET"])

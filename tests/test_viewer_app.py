@@ -314,11 +314,76 @@ class TestEntityRoutes:
         data = resp.get_json()
         assert data["query"]["expanded_terms"][1] == "protection des données"
 
+    def test_get_entity_cooccurrences_handles_low_volume_entity(self, client):
+        mock_idx = MagicMock()
+        mock_idx.load_articles.return_value = [
+            {
+                "entities": {
+                    "ORG": ["AI Act", "Commission européenne"],
+                    "GPE": ["Union européenne"],
+                }
+            }
+        ]
+        mock_idx.get_canonical_refs.side_effect = lambda etype, value: [{"file": "x", "idx": 0, "date": "2026-05-09"}]
+
+        with patch("viewer.routes.entities.get_entity_index", return_value=mock_idx):
+            resp = client.get("/api/entities/cooccurrences?type=ORG&value=AI%20Act")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["nodes"][0]["type"] == "LAW"
+        assert data["nodes"][0]["value"] == "AI Act"
+
     def test_get_watched_entities_returns_200(self, client):
         resp = client.get("/api/watched-entities")
         assert resp.status_code == 200
         data = resp.get_json()
         assert isinstance(data, list) or isinstance(data, dict)
+
+    def test_watched_entities_post_canonicalizes_entity(self, client, tmp_path):
+        from viewer.routes import entities as entities_module
+
+        watched_file = tmp_path / "watched_entities.json"
+        entities_module._watched_cache.clear()
+        mock_idx = MagicMock()
+        mock_idx.get_canonical_refs.return_value = [{"date": "2026-05-09"}]
+
+        with patch.object(entities_module, "_WATCHED_FILE", watched_file), \
+             patch("viewer.routes.entities.get_entity_index", return_value=mock_idx):
+            post_resp = client.post(
+                "/api/watched-entities",
+                json={"type": "ORG", "value": "AI Act", "notes": "Veille"},
+                content_type="application/json",
+            )
+            get_resp = client.get("/api/watched-entities")
+
+        assert post_resp.status_code == 200
+        assert post_resp.get_json()["type"] == "LAW"
+        assert get_resp.status_code == 200
+        watched = get_resp.get_json()
+        assert watched[0]["type"] == "LAW"
+        assert watched[0]["value"] == "AI Act"
+        assert watched[0]["mentions_7d"] == 1
+        mock_idx.get_canonical_refs.assert_called_with("LAW", "AI Act")
+
+    def test_watched_entities_delete_uses_canonical_entity(self, client, tmp_path):
+        from viewer.routes import entities as entities_module
+
+        watched_file = tmp_path / "watched_entities.json"
+        watched_file.write_text(
+            json.dumps([{"type": "LAW", "value": "AI Act", "added_at": "2026-05-09T00:00:00+00:00", "notes": ""}]),
+            encoding="utf-8",
+        )
+        entities_module._watched_cache.clear()
+
+        with patch.object(entities_module, "_WATCHED_FILE", watched_file):
+            resp = client.delete("/api/watched-entities?type=ORG&value=AI%20Act")
+
+        assert resp.status_code == 200
+        payload = resp.get_json()
+        assert payload["removed"] is True
+        assert payload["type"] == "LAW"
+        assert json.loads(watched_file.read_text(encoding="utf-8")) == []
 
     def test_get_annotations_returns_200(self, client):
         resp = client.get("/api/annotations")

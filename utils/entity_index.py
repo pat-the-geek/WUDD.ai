@@ -40,7 +40,7 @@ _INDEX_FILENAME = "entity_index.json"
 
 # Types d'entités indexés (filtrage des types peu utiles pour la recherche)
 _INDEXED_ENTITY_TYPES = {
-    "PERSON", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "NORP", "FAC",
+    "PERSON", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "NORP", "FAC", "LAW",
 }
 
 
@@ -100,6 +100,7 @@ class EntityIndex:
         self._lock = threading.Lock()
         self._data: dict = {"version": _INDEX_VERSION, "index": {}, "caps": {}}
         self._search_entries: list[dict] | None = None
+        self._canonical_entries: dict[str, list[dict]] | None = None
         self._loaded = False
 
     # ── Chargement / sauvegarde ─────────────────────────────────────────────
@@ -116,6 +117,7 @@ class EntityIndex:
                         raw["caps"] = {}
                     self._data = raw
                     self._search_entries = None
+                    self._canonical_entries = None
                 elif isinstance(raw, dict) and raw.get("version") in (1, None):
                     # Migration automatique v1 → v2 : normaliser les clés en minuscules
                     # et construire le dict caps pour conserver la forme canonique.
@@ -152,6 +154,7 @@ class EntityIndex:
                         "caps": new_caps,
                     }
                     self._search_entries = None
+                    self._canonical_entries = None
                     # Persister la version migrée pour éviter de remigrer à chaque démarrage
                     try:
                         self._save()
@@ -248,6 +251,7 @@ class EntityIndex:
                         added += 1
 
             self._search_entries = None
+            self._canonical_entries = None
             self._save()
             return added
 
@@ -304,6 +308,7 @@ class EntityIndex:
         with self._lock:
             self._data = {"version": _INDEX_VERSION, "index": new_index, "caps": new_caps}
             self._search_entries = None
+            self._canonical_entries = None
             self._save()
             self._loaded = True
             return total_refs
@@ -477,6 +482,11 @@ class EntityIndex:
         """
         with self._lock:
             self._load()
+            if canonicalize and self._canonical_entries is not None:
+                return {
+                    key: list(refs)
+                    for key, refs in self._canonical_entries.items()
+                }
         caps = self._data.get("caps", {})
         result: dict[str, list[dict]] = {}
         seen_by_key: dict[str, set[tuple[str, int]]] = {}
@@ -503,6 +513,12 @@ class EntityIndex:
                 bucket.append(ref)
         for refs in result.values():
             refs.sort(key=lambda r: r.get("date", ""), reverse=True)
+        if canonicalize:
+            with self._lock:
+                self._canonical_entries = {
+                    key: list(refs)
+                    for key, refs in result.items()
+                }
         return result
 
     def search_values(

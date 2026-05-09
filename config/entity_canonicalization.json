@@ -48,6 +48,47 @@
         { "type": "GPE", "value": "U.S." },
         { "type": "GPE", "value": "United States" }
       ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "AI Act" },
+      "aliases": [
+        { "type": "LAW", "value": "AI Act" },
+        { "type": "ORG", "value": "AI Act" },
+        { "type": "EVENT", "value": "AI Act" },
+        { "type": "PRODUCT", "value": "AI Act" },
+        { "type": "PRODUCT", "value": "AI Act européen" },
+        { "type": "ORG", "value": "AI Act European" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "RGPD" },
+      "aliases": [
+        { "type": "LAW", "value": "RGPD" },
+        { "type": "GPE", "value": "RGPD" },
+        { "type": "ORG", "value": "RGPD" },
+        { "type": "PRODUCT", "value": "RGPD" },
+        { "type": "EVENT", "value": "RGPD" },
+        { "type": "LAW", "value": "GDPR" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "nLPD" },
+      "aliases": [
+        { "type": "LAW", "value": "nLPD" },
+        { "type": "ORG", "value": "nLPD" },
+        { "type": "EVENT", "value": "nLPD" },
+        { "type": "PRODUCT", "value": "nLPD" },
+        { "type": "LAW", "value": "nouvelle loi sur la protection des données" },
+        { "type": "ORG", "value": "nouvelle loi sur la protection des données" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "LPD" },
+      "aliases": [
+        { "type": "LAW", "value": "LPD" },
+        { "type": "LAW", "value": "LPD suisse" },
+        { "type": "ORG", "value": "LPD suisse" }
+      ]
     }
   ],
   "search_expansions": [

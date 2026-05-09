@@ -81,3 +81,33 @@ def test_ensure_startup_index_rebuild_runs_once(monkeypatch):
 
     assert calls["count"] == 1
     assert app_module._startup_rebuild_started is True
+
+
+def test_ensure_startup_index_rebuild_skips_when_lock_unavailable(monkeypatch):
+    app_module = _import_viewer_app(monkeypatch)
+    calls = {"count": 0}
+
+    monkeypatch.delenv("WUDD_SKIP_STARTUP_REBUILD", raising=False)
+    monkeypatch.setattr(
+        app_module,
+        "_startup_index_rebuild",
+        lambda: calls.__setitem__("count", calls["count"] + 1),
+    )
+    app_module._startup_rebuild_started = False
+    app_module._startup_rebuild_file_handle = None
+
+    class _FakeHandle:
+        def fileno(self):
+            return 99
+
+    monkeypatch.setattr("builtins.open", lambda *_args, **_kwargs: _FakeHandle())
+
+    def fake_flock(_fd, _flags):
+        raise OSError("busy")
+
+    monkeypatch.setattr(app_module.fcntl, "flock", fake_flock)
+
+    app_module._ensure_startup_index_rebuild()
+
+    assert calls["count"] == 0
+    assert app_module._startup_rebuild_started is True
