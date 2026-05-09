@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
@@ -16,7 +18,7 @@ def _clean_value(value: str) -> str:
     return " ".join((value or "").strip().split())
 
 
-def _normalize_value(value: str) -> str:
+def _fold_text(value: str) -> str:
     normalized = _clean_value(value)
     normalized = (
         normalized.replace("’", "'")
@@ -25,7 +27,13 @@ def _normalize_value(value: str) -> str:
         .replace("–", "-")
         .replace("—", "-")
     )
+    normalized = unicodedata.normalize("NFKD", normalized)
+    normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
     return normalized.lower()
+
+
+def _normalize_value(value: str) -> str:
+    return _fold_text(value)
 
 
 def _entity_key(entity_type: str, entity_value: str) -> str:
@@ -41,6 +49,7 @@ class EntityCanonicalizer:
         self._lock = threading.Lock()
         self._loaded = False
         self._aliases: dict[str, tuple[str, str]] = {}
+        self._search_expansions: dict[str, list[str]] = {}
         self._event_max_chars = _DEFAULT_EVENT_MAX_CHARS
         self._event_max_words = _DEFAULT_EVENT_MAX_WORDS
 
@@ -89,6 +98,23 @@ class EntityCanonicalizer:
                                 canonical_type,
                                 canonical_value,
                             )
+                expansions = payload.get("search_expansions", [])
+                if isinstance(expansions, list):
+                    for entry in expansions:
+                        if not isinstance(entry, dict):
+                            continue
+                        query = _normalize_value(str(entry.get("query") or ""))
+                        if not query:
+                            continue
+                        terms = []
+                        for term in entry.get("terms", []) if isinstance(entry.get("terms"), list) else []:
+                            if not isinstance(term, str):
+                                continue
+                            cleaned = _clean_value(term)
+                            if cleaned:
+                                terms.append(cleaned)
+                        if terms:
+                            self._search_expansions[query] = terms
         self._loaded = True
 
     def canonicalize(self, entity_type: str, entity_value: str) -> tuple[str, str]:
@@ -107,6 +133,27 @@ class EntityCanonicalizer:
     def canonical_key(self, entity_type: str, entity_value: str) -> str:
         canonical_type, canonical_value = self.canonicalize(entity_type, entity_value)
         return f"{canonical_type}:{canonical_value}"
+
+    def normalize_for_matching(self, value: str) -> str:
+        return _normalize_value(value)
+
+    def is_short_query(self, query: str) -> bool:
+        cleaned = _clean_value(query)
+        token = re.sub(r"[^A-Za-z0-9]+", "", cleaned)
+        return bool(token) and len(token) <= 5 and " " not in cleaned and not token.islower()
+
+    def expand_search_terms(self, query: str) -> list[str]:
+        cleaned = _clean_value(query)
+        if not cleaned:
+            return []
+        normalized_query = _normalize_value(cleaned)
+        with self._lock:
+            self._load()
+            terms = [cleaned]
+            for term in self._search_expansions.get(normalized_query, []):
+                if term not in terms:
+                    terms.append(term)
+            return terms
 
     def is_noise(self, entity_type: str, entity_value: str) -> bool:
         """Filtre un petit sous-ensemble de bruit NER manifeste."""

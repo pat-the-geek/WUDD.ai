@@ -295,7 +295,24 @@ class TestEntityRoutes:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["by_type"][0]["top"][0]["value"] == "OpenAI"
+        assert data["query"]["original"] == "OpenAI"
         mock_idx.search_values.assert_called_once_with("OpenAI")
+
+    def test_get_entity_search_returns_expanded_query_metadata(self, client):
+        with patch(
+            "viewer.routes.entities._build_search_query_info",
+            return_value={
+                "original": "nLPD",
+                "expanded_terms": ["nLPD", "protection des données"],
+                "short_query": True,
+            },
+        ), patch("viewer.routes.entities.get_entity_index") as mock_idx:
+            mock_idx.return_value.search_values.return_value = []
+            resp = client.get("/api/entities/search?q=nLPD")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["query"]["expanded_terms"][1] == "protection des données"
 
     def test_get_watched_entities_returns_200(self, client):
         resp = client.get("/api/watched-entities")

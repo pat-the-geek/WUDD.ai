@@ -61,8 +61,11 @@ def test_viewer_client_maps_timeout(monkeypatch):
 
     monkeypatch.setattr(client.session, "request", fake_request)
 
-    with pytest.raises(UpstreamUnavailableError):
+    with pytest.raises(UpstreamUnavailableError) as exc_info:
         client.get("/api/runtime-info")
+    assert exc_info.value.details["timeout_s"] == 5
+    assert exc_info.value.details["retries"] == 1
+    assert exc_info.value.details["method"] == "GET"
 
 
 def test_viewer_client_retries_get_once_on_timeout(monkeypatch):
@@ -95,9 +98,10 @@ def test_viewer_client_does_not_retry_post_on_timeout(monkeypatch):
 
     monkeypatch.setattr(client.session, "request", fake_request)
 
-    with pytest.raises(UpstreamUnavailableError):
+    with pytest.raises(UpstreamUnavailableError) as exc_info:
         client.post("/api/annotations", json_body={"url": "https://example.com"})
     assert calls["count"] == 1
+    assert exc_info.value.details["retries"] == 0
 
 
 def test_viewer_client_supports_timeout_override(monkeypatch):

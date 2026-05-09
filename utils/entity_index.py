@@ -26,6 +26,7 @@ Utilisation typique :
 """
 
 import json
+import re
 import threading
 from collections import Counter
 from datetime import datetime, timezone
@@ -98,6 +99,7 @@ class EntityIndex:
         self._index_path = project_root / "data" / _INDEX_FILENAME
         self._lock = threading.Lock()
         self._data: dict = {"version": _INDEX_VERSION, "index": {}, "caps": {}}
+        self._search_entries: list[dict] | None = None
         self._loaded = False
 
     # ── Chargement / sauvegarde ─────────────────────────────────────────────
@@ -113,6 +115,7 @@ class EntityIndex:
                     if "caps" not in raw:
                         raw["caps"] = {}
                     self._data = raw
+                    self._search_entries = None
                 elif isinstance(raw, dict) and raw.get("version") in (1, None):
                     # Migration automatique v1 → v2 : normaliser les clés en minuscules
                     # et construire le dict caps pour conserver la forme canonique.
@@ -148,6 +151,7 @@ class EntityIndex:
                         "index": new_index,
                         "caps": new_caps,
                     }
+                    self._search_entries = None
                     # Persister la version migrée pour éviter de remigrer à chaque démarrage
                     try:
                         self._save()
@@ -243,6 +247,7 @@ class EntityIndex:
                         index.setdefault(key, []).append(ref)
                         added += 1
 
+            self._search_entries = None
             self._save()
             return added
 
@@ -298,6 +303,7 @@ class EntityIndex:
 
         with self._lock:
             self._data = {"version": _INDEX_VERSION, "index": new_index, "caps": new_caps}
+            self._search_entries = None
             self._save()
             self._loaded = True
             return total_refs
@@ -518,8 +524,22 @@ class EntityIndex:
             }
         ]
         """
-        query_norm = (query or "").strip().lower()
+        canonicalizer = self._get_canonicalizer()
+        query_terms = canonicalizer.expand_search_terms(query)
+        if not query_terms:
+            return []
+        query_norm = canonicalizer.normalize_for_matching(query)
         if len(query_norm) < 2:
+            return []
+        match_terms = [
+            {
+                "norm": canonicalizer.normalize_for_matching(term),
+                "short": canonicalizer.is_short_query(term),
+            }
+            for term in query_terms
+            if canonicalizer.normalize_for_matching(term)
+        ]
+        if not match_terms:
             return []
 
         normalized_type = (entity_type or "").strip().upper()
@@ -529,39 +549,62 @@ class EntityIndex:
             self._load()
             index = self._data.get("index", {})
             caps = self._data.get("caps", {})
+            search_entries = self._search_entries
+            if search_entries is None:
+                search_entries = []
+                for key, refs in index.items():
+                    if ":" not in key or not isinstance(refs, list):
+                        continue
+                    etype, _, value_lower = key.partition(":")
+                    display_value = caps.get(key, value_lower)
+                    if not display_value or self._is_noise_entity(etype, display_value):
+                        continue
+                    canonical_type, canonical_value = self._canonicalize_entity(etype, display_value)
+                    search_entries.append(
+                        {
+                            "etype": etype,
+                            "canonical_type": canonical_type,
+                            "canonical_value": canonical_value,
+                            "norm_value": canonicalizer.normalize_for_matching(canonical_value),
+                            "ref_count": len(refs),
+                        }
+                    )
+                self._search_entries = search_entries
 
-            by_type: dict[str, dict[str, int]] = {}
-            for key, refs in index.items():
-                if ":" not in key or not isinstance(refs, list):
+            by_type: dict[str, dict[str, dict[str, int | str]]] = {}
+            for entry_data in search_entries:
+                etype = str(entry_data["etype"])
+                canonical_type = str(entry_data["canonical_type"])
+                canonical_value = str(entry_data["canonical_value"])
+                if normalized_type and etype != normalized_type and canonical_type != normalized_type:
                     continue
-                etype, _, value_lower = key.partition(":")
-                if normalized_type and etype != normalized_type:
-                    continue
-                if query_norm not in value_lower:
-                    continue
-                display_value = caps.get(key, value_lower)
-                if not display_value:
-                    continue
-                if self._is_noise_entity(etype, display_value):
-                    continue
-                canonical_type, canonical_value = self._canonicalize_entity(etype, display_value)
-                if normalized_type and canonical_type != normalized_type:
+                score = self._search_match_score_from_norm(str(entry_data["norm_value"]), match_terms)
+                if score <= 0:
                     continue
                 if canonical_type not in by_type:
                     by_type[canonical_type] = {}
-                by_type[canonical_type][canonical_value] = (
-                    by_type[canonical_type].get(canonical_value, 0) + len(refs)
+                entry = by_type[canonical_type].setdefault(
+                    canonical_value,
+                    {"count": 0, "score": score, "value": canonical_value},
                 )
+                entry["count"] = int(entry["count"]) + int(entry_data["ref_count"])
+                entry["score"] = max(int(entry["score"]), score)
 
         result_types = []
         for etype, value_counts in by_type.items():
-            sorted_values = sorted(value_counts.items(), key=lambda x: x[1], reverse=True)
+            sorted_values = sorted(
+                value_counts.values(),
+                key=lambda item: (-int(item["score"]), -int(item["count"]), str(item["value"])),
+            )
             result_types.append(
                 {
                     "type": etype,
                     "unique_count": len(sorted_values),
-                    "mention_count": sum(count for _, count in sorted_values),
-                    "top": [{"value": value, "count": count} for value, count in sorted_values[:capped_limit]],
+                    "mention_count": sum(int(item["count"]) for item in sorted_values),
+                    "top": [
+                        {"value": str(item["value"]), "count": int(item["count"])}
+                        for item in sorted_values[:capped_limit]
+                    ],
                 }
             )
         result_types.sort(key=lambda item: item["mention_count"], reverse=True)
@@ -592,22 +635,55 @@ class EntityIndex:
         }
 
     def _canonicalize_entity(self, entity_type: str, entity_value: str) -> tuple[str, str]:
-        from .entity_canonicalization import get_entity_canonicalizer
-
-        canonicalizer = get_entity_canonicalizer(self.project_root)
+        canonicalizer = self._get_canonicalizer()
         return canonicalizer.canonicalize(entity_type, entity_value)
 
     def _canonical_key(self, entity_type: str, entity_value: str) -> str:
-        from .entity_canonicalization import get_entity_canonicalizer
-
-        canonicalizer = get_entity_canonicalizer(self.project_root)
+        canonicalizer = self._get_canonicalizer()
         return canonicalizer.canonical_key(entity_type, entity_value)
 
     def _is_noise_entity(self, entity_type: str, entity_value: str) -> bool:
+        canonicalizer = self._get_canonicalizer()
+        return canonicalizer.is_noise(entity_type, entity_value)
+
+    def _get_canonicalizer(self):
         from .entity_canonicalization import get_entity_canonicalizer
 
-        canonicalizer = get_entity_canonicalizer(self.project_root)
-        return canonicalizer.is_noise(entity_type, entity_value)
+        return get_entity_canonicalizer(self.project_root)
+
+    def _search_match_score(self, value: str, match_terms: list[dict[str, str | bool]]) -> int:
+        normalized_value = self._get_canonicalizer().normalize_for_matching(value)
+        return self._search_match_score_from_norm(normalized_value, match_terms)
+
+    def _search_match_score_from_norm(
+        self,
+        normalized_value: str,
+        match_terms: list[dict[str, str | bool]],
+    ) -> int:
+        if not normalized_value:
+            return 0
+        best_score = 0
+        for term in match_terms:
+            term_norm = str(term["norm"])
+            if normalized_value == term_norm:
+                best_score = max(best_score, 400)
+                continue
+            if self._has_word_boundary_match(normalized_value, term_norm):
+                best_score = max(best_score, 320)
+                continue
+            if bool(term["short"]):
+                continue
+            if normalized_value.startswith(f"{term_norm} "):
+                best_score = max(best_score, 260)
+                continue
+            if term_norm in normalized_value:
+                best_score = max(best_score, 180)
+        return best_score
+
+    @staticmethod
+    def _has_word_boundary_match(text: str, query: str) -> bool:
+        pattern = rf"(?<![a-z0-9]){re.escape(query)}(?![a-z0-9])"
+        return re.search(pattern, text) is not None
 
 
 # ── Singleton ────────────────────────────────────────────────────────────────

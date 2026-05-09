@@ -123,6 +123,16 @@ def _timeline_cache_file(days: int, top_n: int) -> Path:
     return _TIMELINE_CACHE_DIR / f"entity_timeline_{safe_days}d_top{safe_top}.json"
 
 
+def _build_search_query_info(query: str) -> dict:
+    canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
+    expanded_terms = canonicalizer.expand_search_terms(query)
+    return {
+        "original": query,
+        "expanded_terms": expanded_terms,
+        "short_query": canonicalizer.is_short_query(query),
+    }
+
+
 @entities_bp.route("/api/search/entity")
 def api_search_entity():
     """Recherche cross-fichiers d'une valeur d'entité nommée (via entity_index)."""
@@ -267,7 +277,7 @@ def api_entities_search():
     """
     q = request.args.get("q", "").strip()
     if len(q) < 2:
-        return jsonify({"by_type": []})
+        return jsonify({"by_type": [], "query": _build_search_query_info(q)})
 
     q_lower = q.lower()
     cache_key = (q_lower, "")
@@ -282,7 +292,7 @@ def api_entities_search():
     try:
         eidx = get_entity_index(PROJECT_ROOT)
         if hasattr(eidx, "search_values"):
-            result = {"by_type": eidx.search_values(q)}
+            result = {"by_type": eidx.search_values(q), "query": _build_search_query_info(q)}
             with _entity_search_cache_lock:
                 _entity_search_cache[cache_key] = {"result": result, "ts": time.monotonic()}
             return jsonify(result)
@@ -348,7 +358,7 @@ def api_entities_search():
             "top": [{"value": v, "count": c} for v, c in sorted_values[:100]],
         })
     result_types.sort(key=lambda x: x["mention_count"], reverse=True)
-    result = {"by_type": result_types}
+    result = {"by_type": result_types, "query": _build_search_query_info(q)}
     with _entity_search_cache_lock:
         _entity_search_cache[cache_key] = {"result": result, "ts": time.monotonic()}
     return jsonify(result)

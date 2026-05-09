@@ -517,6 +517,69 @@ class TestEntityIndex:
         assert canonicalizer.canonicalize("ORG", "L’Oréal") == ("ORG", "L'Oréal")
         assert canonicalizer.canonicalize("ORG", "L'Oréal") == ("ORG", "L'Oréal")
 
+    def test_search_values_sigle_court_utilise_bornes_de_mot(self, tmp_root):
+        from utils.entity_index import EntityIndex
+
+        articles = [
+            {
+                "URL": "http://test.com/a",
+                "Date de publication": "2026-01-02",
+                "Résumé": "LPDDR5 n'est pas la loi.",
+                "entities": {"PRODUCT": ["LPDDR5"]},
+            },
+            {
+                "URL": "http://test.com/b",
+                "Date de publication": "2026-01-03",
+                "Résumé": "La LPD suisse évolue.",
+                "entities": {"LAW": ["LPD"], "ORG": ["LPD Suisse"]},
+            },
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        result = idx.search_values("LPD")
+        values = {item["value"] for group in result for item in group["top"]}
+        assert "LPDDR5" not in values
+        assert "LPD Suisse" in values
+
+    def test_search_values_peut_etendre_nlpd_vers_libelle_long(self, tmp_root):
+        from utils.entity_index import EntityIndex
+
+        (tmp_root / "config" / "entity_canonicalization.json").write_text(
+            json.dumps(
+                {
+                    "search_expansions": [
+                        {
+                            "query": "nLPD",
+                            "terms": [
+                                "nLPD",
+                                "nouvelle loi sur la protection des données",
+                                "protection des données",
+                            ],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        articles = [
+            {
+                "URL": "http://test.com/c",
+                "Date de publication": "2026-01-04",
+                "Résumé": "Réforme suisse.",
+                "entities": {"ORG": ["Nouvelle loi sur la protection des données"]},
+            }
+        ]
+        (tmp_root / "data" / "articles.json").write_text(json.dumps(articles), encoding="utf-8")
+
+        idx = EntityIndex(tmp_root)
+        idx.update(articles, "data/articles.json")
+
+        result = idx.search_values("nLPD")
+        assert result[0]["top"][0]["value"] == "Nouvelle loi sur la protection des données"
+
 
 # ── Tests SynthesisCache ──────────────────────────────────────────────────────
 

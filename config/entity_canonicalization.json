@@ -50,6 +50,32 @@
       ]
     }
   ],
+  "search_expansions": [
+    {
+      "query": "nLPD",
+      "terms": [
+        "nLPD",
+        "nouvelle loi sur la protection des donnees",
+        "nouvelle loi sur la protection des données",
+        "loi sur la protection des donnees",
+        "loi sur la protection des données",
+        "LPD suisse",
+        "protection des donnees",
+        "protection des données"
+      ]
+    },
+    {
+      "query": "AI Act",
+      "terms": [
+        "AI Act",
+        "AI Act europeen",
+        "AI Act européen",
+        "AI Act European",
+        "reglement europeen sur l'intelligence artificielle",
+        "règlement européen sur l'intelligence artificielle"
+      ]
+    }
+  ],
   "noise": {
     "EVENT": {
       "max_chars": 80,

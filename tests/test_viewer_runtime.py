@@ -61,3 +61,23 @@ def test_resolve_viewer_port_prefers_explicit_env(monkeypatch):
 def test_startup_warmup_skipped_by_env(monkeypatch):
     app_module = _import_viewer_app(monkeypatch)
     assert hasattr(app_module, "_startup_index_rebuild")
+    assert app_module._startup_rebuild_started is False
+
+
+def test_ensure_startup_index_rebuild_runs_once(monkeypatch):
+    app_module = _import_viewer_app(monkeypatch)
+    calls = {"count": 0}
+
+    monkeypatch.delenv("WUDD_SKIP_STARTUP_REBUILD", raising=False)
+    monkeypatch.setattr(
+        app_module,
+        "_startup_index_rebuild",
+        lambda: calls.__setitem__("count", calls["count"] + 1),
+    )
+    app_module._startup_rebuild_started = False
+
+    app_module._ensure_startup_index_rebuild()
+    app_module._ensure_startup_index_rebuild()
+
+    assert calls["count"] == 1
+    assert app_module._startup_rebuild_started is True

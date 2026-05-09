@@ -85,7 +85,7 @@ class ViewerClient:
         last_exception: Exception | None = None
 
         attempts = self.max_retries + 1 if method in self.retryable_methods else 1
-        for _attempt in range(attempts):
+        for _ in range(attempts):
             try:
                 response = self.session.request(
                     method=method,
@@ -105,11 +105,23 @@ class ViewerClient:
             if isinstance(last_exception, requests.Timeout):
                 raise UpstreamUnavailableError(
                     "Le Viewer ne répond pas dans le délai imparti",
-                    {"endpoint": path},
+                    {
+                        "endpoint": path,
+                        "method": method,
+                        "timeout_s": request_timeout,
+                        "attempts": attempts,
+                        "retries": max(0, attempts - 1),
+                    },
                 ) from last_exception
             raise UpstreamUnavailableError(
                 "Le Viewer est injoignable",
-                {"endpoint": path},
+                {
+                    "endpoint": path,
+                    "method": method,
+                    "timeout_s": request_timeout,
+                    "attempts": attempts,
+                    "retries": max(0, attempts - 1),
+                },
             ) from last_exception
 
         if response.status_code >= 400:

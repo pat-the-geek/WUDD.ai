@@ -57,6 +57,8 @@ from utils.entity_index import get_entity_index
 
 app = Flask(__name__)
 app.config["ACTIVE_VIEWER_PORT"] = _DEFAULT_VIEWER_PORT
+_startup_rebuild_lock = threading.Lock()
+_startup_rebuild_started = False
 
 
 def _port_is_free(host: str, port: int) -> bool:
@@ -207,9 +209,23 @@ def _startup_index_rebuild() -> None:
     t.start()
 
 
-# Lancer la vérification des indexes dès le chargement du module
-if os.getenv("WUDD_SKIP_STARTUP_REBUILD") != "1":
-    _startup_index_rebuild()
+def _ensure_startup_index_rebuild() -> None:
+    """Déclenche le warm-up une seule fois, après le fork des workers."""
+    global _startup_rebuild_started
+    if os.getenv("WUDD_SKIP_STARTUP_REBUILD") == "1":
+        return
+    if _startup_rebuild_started:
+        return
+    with _startup_rebuild_lock:
+        if _startup_rebuild_started:
+            return
+        _startup_index_rebuild()
+        _startup_rebuild_started = True
+
+
+@app.before_request
+def _lazy_startup_rebuild():
+    _ensure_startup_index_rebuild()
 
 
 @app.route("/api/runtime-info")
@@ -247,6 +263,7 @@ def serve_app(path):
 if __name__ == "__main__":
     port = _resolve_viewer_port()
     app.config["ACTIVE_VIEWER_PORT"] = port
+    _ensure_startup_index_rebuild()
     print(f"WUDD.ai Viewer — racine projet : {PROJECT_ROOT}")
     print(f"API disponible sur http://localhost:{port}/api/files")
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
