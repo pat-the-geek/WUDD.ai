@@ -8,14 +8,24 @@ const TYPE_CFG = {
   GPE:     { color: '#10b981', badge: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
   PRODUCT: { color: '#f97316', badge: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800' },
   EVENT:   { color: '#f59e0b', badge: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
+  LAW:     { color: '#ef4444', badge: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800' },
+  WORK_OF_ART: { color: '#f43f5e', badge: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800' },
   NORP:    { color: '#a855f7', badge: 'bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-200 dark:border-fuchsia-800' },
   LOC:     { color: '#14b8a6', badge: 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800' },
   FAC:     { color: '#06b6d4', badge: 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800' },
+  DATE:    { color: '#64748b', badge: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' },
+  MONEY:   { color: '#eab308', badge: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800' },
+  PERCENT: { color: '#84cc16', badge: 'bg-lime-100 dark:bg-lime-900/40 text-lime-700 dark:text-lime-300 border-lime-200 dark:border-lime-800' },
+  TIME:    { color: '#94a3b8', badge: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' },
+  QUANTITY:{ color: '#78716c', badge: 'bg-stone-100 dark:bg-stone-800/60 text-stone-600 dark:text-stone-400 border-stone-200 dark:border-stone-700' },
+  CARDINAL:{ color: '#71717a', badge: 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700' },
+  ORDINAL: { color: '#9ca3af', badge: 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700' },
 }
 const FALLBACK_CFG = { color: '#94a3b8', badge: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' }
 
 const DAYS_OPTIONS = [7, 14, 30, 60]
-const TYPE_OPTIONS = ['Tous', 'PERSON', 'ORG', 'GPE', 'PRODUCT', 'EVENT', 'NORP', 'LOC']
+const BASE_TYPE_OPTIONS = ['Tous', 'PERSON', 'ORG', 'GPE', 'PRODUCT', 'EVENT', 'LAW', 'WORK_OF_ART', 'NORP', 'LOC', 'FAC']
+const STRUCTURAL_TYPE_OPTIONS = ['DATE', 'MONEY', 'PERCENT', 'TIME', 'QUANTITY', 'CARDINAL', 'ORDINAL']
 
 // ── Sparkline SVG ─────────────────────────────────────────────────────────────
 function Sparkline({ counts, max, color }) {
@@ -88,17 +98,33 @@ function EntityRow({ entry, onEntitySearch }) {
 }
 
 // ── Composant principal ────────────────────────────────────────────────────────
-export default function EntityTimeline({ onEntitySearch }) {
+export default function EntityTimeline({ onEntitySearch, includeStructuralDefault = false }) {
   const [days, setDays] = useState(30)
   const [typeFilter, setTypeFilter] = useState('Tous')
+  const [includeStructural, setIncludeStructural] = useState(includeStructuralDefault)
   const [rawData, setRawData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [generatedAt, setGeneratedAt] = useState(null)
+
+  const typeOptions = includeStructural
+    ? [...BASE_TYPE_OPTIONS, ...STRUCTURAL_TYPE_OPTIONS]
+    : BASE_TYPE_OPTIONS
+
+  useEffect(() => {
+    setIncludeStructural(includeStructuralDefault)
+  }, [includeStructuralDefault])
+
+  useEffect(() => {
+    if (!includeStructural && STRUCTURAL_TYPE_OPTIONS.includes(typeFilter)) {
+      setTypeFilter('Tous')
+    }
+  }, [includeStructural, typeFilter])
 
   const fetchTimeline = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams({ days })
     if (typeFilter !== 'Tous') params.set('type', typeFilter)
+    if (includeStructural) params.set('include_structural', '1')
     fetch(`/api/entities/timeline?${params}`)
       .then(r => r.json())
       .then(d => {
@@ -107,7 +133,7 @@ export default function EntityTimeline({ onEntitySearch }) {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [days, typeFilter])
+  }, [days, typeFilter, includeStructural])
 
   useEffect(() => { fetchTimeline() }, [fetchTimeline])
 
@@ -156,7 +182,7 @@ export default function EntityTimeline({ onEntitySearch }) {
 
         {/* Filtre type */}
         <div className="flex flex-wrap gap-1.5">
-          {TYPE_OPTIONS.map(t => (
+          {typeOptions.map(t => (
             <button
               key={t}
               onClick={() => setTypeFilter(t)}
@@ -170,6 +196,16 @@ export default function EntityTimeline({ onEntitySearch }) {
             </button>
           ))}
         </div>
+
+        <label className="inline-flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeStructural}
+            onChange={e => setIncludeStructural(e.target.checked)}
+            className="rounded border-slate-300 dark:border-slate-600 text-violet-500 focus:ring-violet-400/60"
+          />
+          Inclure types structurels
+        </label>
 
         {/* Rafraîchir */}
         <button

@@ -172,6 +172,26 @@ def test_get_entity_timeline_tool_forwards_match_mode_and_all_types():
     assert client.last_get["params"]["all_types"] == "1"
 
 
+def test_get_entity_timeline_tool_forwards_structural_opt_in():
+    client = _FakeViewerClient()
+    server = _make_server(client=client)
+    result = asyncio.run(
+        server.call_tool(
+            "get_entity_timeline",
+            {
+                "days": 30,
+                "type": "DATE",
+                "include_structural": True,
+            },
+        )
+    )
+
+    payload = result.structured_content
+    assert payload["ok"] is True
+    assert client.last_get["path"] == "/api/entities/timeline"
+    assert client.last_get["params"]["include_structural"] == "1"
+
+
 def test_get_entity_timeline_tool_rejects_invalid_match_mode():
     server = _make_server()
     result = asyncio.run(

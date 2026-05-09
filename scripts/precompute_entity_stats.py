@@ -29,6 +29,7 @@ from utils.logging import print_console, setup_logger
 logger = setup_logger("precompute_entity_stats")
 
 OUTPUT_FILE = PROJECT_ROOT / "data" / "entity_stats.json"
+SCHEMA_VERSION = 2
 
 
 def _build_from_entity_index() -> dict | None:
@@ -117,6 +118,7 @@ def build_entity_stats() -> dict:
         pass
 
     return {
+        "schema_version": SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "total_files": total_files,
         "total_articles": total_articles,

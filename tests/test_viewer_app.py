@@ -291,6 +291,7 @@ class TestEntityRoutes:
             type_filter="PERSON",
             match_mode="aggregate",
             all_types=True,
+            include_structural=False,
         )
 
     def test_get_entity_timeline_rejects_invalid_match_mode(self, client):
@@ -300,6 +301,21 @@ class TestEntityRoutes:
         data = resp.get_json()
         assert "match_mode invalide" in data["error"]
         assert "strict" in data["allowed_match_modes"]
+
+    def test_get_entity_timeline_supports_structural_opt_in(self, client):
+        with patch("scripts.entity_timeline.collect_timeline", return_value={"DATE:2026": {"2026-05-09": 2}}), \
+             patch("scripts.entity_timeline.fill_missing_dates", return_value={"DATE:2026": {"2026-05-09": 2}}), \
+             patch("scripts.entity_timeline.build_top_entities", return_value=[
+                 {"key": "DATE:2026", "type": "DATE", "value": "2026", "total": 2}
+             ]), \
+             patch("viewer.routes.entities.resolve_entity_matches", return_value=[]):
+            resp = client.get("/api/entities/timeline?days=30&type=DATE&include_structural=1&regenerate=1")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["query"]["include_structural"] is True
+        assert data["advanced_options"]["include_structural"]["default"] is False
+        assert data["top_entities"][0]["type"] == "DATE"
 
     def test_get_entity_search_empty_returns_400_or_200(self, client):
         resp = client.get("/api/entities/search")

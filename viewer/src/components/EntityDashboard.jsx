@@ -108,7 +108,11 @@ function TypeSection({ section, maxMentions, onEntitySearch }) {
  *   onEntitySearch  {fn(val,type)} — ouvre EntitySearchModal pour une entité
  */
 export default function EntityDashboard({ onClose, onEntitySearch }) {
-  const { data, loading } = useFetchCache('/api/entities/dashboard')
+  const [includeStructural, setIncludeStructural] = useState(false)
+  const dashboardUrl = includeStructural
+    ? '/api/entities/dashboard?include_structural=1'
+    : '/api/entities/dashboard'
+  const { data, loading } = useFetchCache(dashboardUrl)
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [viewMode, setViewMode] = useState('list') // 'list' | 'map'
   const [isMaximized, setIsMaximized] = useState(false)
@@ -128,13 +132,15 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
     }
     setSearchLoading(true)
     searchDebounceRef.current = setTimeout(() => {
-      fetch(`/api/entities/search?q=${encodeURIComponent(searchQuery)}`)
+      const params = new URLSearchParams({ q: searchQuery })
+      if (includeStructural) params.set('include_structural', '1')
+      fetch(`/api/entities/search?${params.toString()}`)
         .then(r => r.json())
         .then(d => { setSearchResults(d.by_type ?? []); setSearchLoading(false) })
         .catch(() => { setSearchResults([]); setSearchLoading(false) })
     }, 300)
     return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current) }
-  }, [searchQuery])
+  }, [searchQuery, includeStructural])
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
@@ -252,11 +258,28 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
                   />
                 ) : viewMode === 'timeline' ? (
                   /* ── Vue Timeline ── */
-                  <EntityTimeline onEntitySearch={(value, type) => setSelectedEntity({ type, value })} />
+                  <EntityTimeline
+                    includeStructuralDefault={includeStructural}
+                    onEntitySearch={(value, type) => setSelectedEntity({ type, value })}
+                  />
                 ) : (
                   /* ── Vue Liste ── */
                   <>
                     {/* Barre de recherche */}
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <label className="inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={includeStructural}
+                          onChange={e => setIncludeStructural(e.target.checked)}
+                          className="rounded border-slate-300 dark:border-slate-600 text-violet-500 focus:ring-violet-400/60"
+                        />
+                        Inclure types structurels (DATE, MONEY…)
+                      </label>
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                        Active aussi les types avancés comme LAW/WORK_OF_ART dans les recherches et le dashboard.
+                      </span>
+                    </div>
                     <div className="mb-4 relative">
                       <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                       <input

@@ -139,7 +139,8 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
         name="get_entity_timeline",
         description=(
             "Retourne la timeline des mentions d'entités. Le matching peut être strict, "
-            "canonical, contains ou aggregate, avec all_types pour une vue cross-type."
+            "canonical, contains ou aggregate, avec all_types pour une vue cross-type. "
+            "include_structural=1 ajoute DATE, MONEY et autres types structurels."
         ),
     )
     def get_entity_timeline(
@@ -149,6 +150,7 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
         type: str | None = None,
         match_mode: str | None = None,
         all_types: bool = False,
+        include_structural: bool = False,
     ) -> dict:
         return tool_get_entity_timeline(
             client,
@@ -158,6 +160,7 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
             entity_type=type,
             match_mode=match_mode,
             all_types=all_types,
+            include_structural=include_structural,
         )
 
     @server.tool(name="get_entity_cooccurrences", description="Construit le graphe de cooccurrences d'une entité.")

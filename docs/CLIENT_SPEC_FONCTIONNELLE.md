@@ -243,6 +243,7 @@ Le dashboard masque par défaut les types structurels (`DATE`, `MONEY`, etc.) po
   - `match_mode=canonical` pour appliquer les alias connus
   - `match_mode=contains` pour le comportement historique large
   - `match_mode=aggregate&all_types=1` pour obtenir une vue cross-variant / cross-type sur un sujet fragmenté
+  - `include_structural=1` pour exposer aussi `DATE`, `MONEY` et les autres types structurels dans la timeline
   - les valeurs non reconnues de `match_mode` doivent être rejetées explicitement
 
 ### 3.6.1 Positionnement produit de l'API entités
@@ -254,6 +255,8 @@ Le moteur entités de WUDD.ai doit être présenté comme **riche mais sous-expo
 - la limite principale est donc l'accessibilité documentaire de ces options, pas la capacité du backend.
 
 Pour un client natif ou MCP, la recommandation est de rendre visibles les choix `strict`, `canonical`, `contains`, `aggregate` dans l'UI ou dans les descriptions de tools, afin que l'utilisateur comprenne qu'il peut passer d'une exploration large à une lecture analytique rigoureuse sans changer d'outil.
+
+WUDD.ai applique également un post-traitement léger sur les sorties NER pour corriger les erreurs manifestes les plus coûteuses (`MONEY`, `DATE`, `LAW`) avant indexation. Cela améliore l'exploitabilité sans changer l'API publique.
 
 ---
 

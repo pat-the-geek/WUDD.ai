@@ -254,7 +254,21 @@ Catégories :
 - MONEY : montants monétaires
 - QUANTITY : quantités mesurables
 - ORDINAL : ordinaux (premier, troisième…)
-- CARDINAL : nombres cardinaux significatifs"""
+- CARDINAL : nombres cardinaux significatifs
+
+Règles de désambiguïsation importantes :
+- Classe les lois, règlements, amendements, conventions et licences nommées en LAW, pas en ORG, EVENT ou PRODUCT.
+- Classe les montants explicites en MONEY en ne gardant que le montant lui-même (ex. "30 milliards de dollars"), jamais la phrase contextuelle complète.
+- Classe les films, livres, séries, albums et rapports nommés en WORK_OF_ART ; réserve PRODUCT aux logiciels, appareils, services et technologies.
+- Si une valeur n'est qu'une année, une date ou une période explicite (ex. "2026", "janvier 2026"), classe-la en DATE, pas en GPE, ORG ou EVENT.
+- Un événement peut garder son année dans EVENT (ex. "WWDC 2026"), mais l'année seule ne doit pas être reclassée dans un autre type.
+
+Exemples attendus :
+- "Cloud Act" → LAW
+- "30 milliards de dollars" → MONEY
+- "Dune" → WORK_OF_ART
+- "ChatGPT" → PRODUCT
+- "2026" → DATE"""
 
 # Partie statique sentiment (mise en cache côté Claude)
 _SENTIMENT_SYSTEM_INSTRUCTIONS = (
@@ -275,6 +289,71 @@ _ENTITY_TYPES = [
     "PRODUCT", "EVENT", "WORK_OF_ART", "LAW", "LANGUAGE",
     "DATE", "TIME", "PERCENT", "MONEY", "QUANTITY", "ORDINAL", "CARDINAL",
 ]
+
+_MONTH_NAMES = (
+    "janvier", "fevrier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "aout", "août", "septembre", "octobre", "novembre", "decembre",
+    "décembre", "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+)
+_MONTH_NAMES_RE = "|".join(sorted({re.escape(name) for name in _MONTH_NAMES}, key=len, reverse=True))
+_MONEY_RE = re.compile(
+    rf"(?i)([$€£]\s*\d[\d\s.,]*(?:\s*(?:million(?:s)?|milliard(?:s)?|billion(?:s)?))?"
+    rf"|\b\d[\d\s.,]*(?:\s*(?:million(?:s)?|milliard(?:s)?|billion(?:s)?))?"
+    rf"(?:\s*(?:de|d['’]))?\s*(?:euros?|dollars?|francs?\s+suisses?|usd|eur|chf|gbp|livres?)\b)"
+)
+_LAW_RE = re.compile(
+    r"(?i)\b("
+    r"act|law|loi|regulation|reglement|règlement|directive|code|constitution|"
+    r"amendment|amendement|amendements?|convention|trait[ée]|treaty|license|licence|"
+    r"section\s+\d+|article\s+\d+|gdpr|rgpd|dmca|dma|hipaa|fisa|ieepa|"
+    r"cloud act|ai act|apache(?:\s+license)?\s+2\.0|defense production act|"
+    r"digital markets act|digital services act|first amendment|premier amendement|"
+    r"25(?:th|e)\s+amend(?:ment|ement)|conventions?\s+de\s+gen[eè]ve|"
+    r"geneva conventions?|nlpd|lpd|aimp|lmp"
+    r")\b"
+)
+_YEAR_RE = re.compile(r"^(?:19|20)\d{2}$")
+_DATE_RE = re.compile(
+    rf"(?i)^(?:{_MONTH_NAMES_RE})\s+(?:19|20)\d{{2}}$|^\d{{1,2}}[/-]\d{{1,2}}[/-]\d{{2,4}}$"
+)
+
+
+def _normalize_money_value(value: str) -> str | None:
+    match = _MONEY_RE.search(value)
+    if not match:
+        return None
+    normalized = " ".join(match.group(0).split())
+    normalized = normalized.replace(" d' ", " d'")
+    return normalized.strip(" ,.;:()[]{}")
+
+
+def _is_date_like(value: str) -> bool:
+    cleaned = value.strip()
+    return bool(_YEAR_RE.match(cleaned) or _DATE_RE.match(cleaned))
+
+
+def _is_law_like(value: str) -> bool:
+    return bool(_LAW_RE.search(value))
+
+
+def _normalize_entity_candidate(entity_type: str, entity_value: str) -> tuple[str, str]:
+    cleaned_type = (entity_type or "").strip().upper()
+    cleaned_value = " ".join((entity_value or "").strip().split())
+    if not cleaned_type or not cleaned_value:
+        return cleaned_type, cleaned_value
+
+    money_value = _normalize_money_value(cleaned_value)
+    if money_value:
+        return "MONEY", money_value
+
+    if _is_date_like(cleaned_value):
+        return "DATE", cleaned_value
+
+    if cleaned_type != "LAW" and _is_law_like(cleaned_value):
+        return "LAW", cleaned_value
+
+    return cleaned_type, cleaned_value
 
 
 def _parse_entities_response(raw: str) -> Optional[dict]:
@@ -313,20 +392,24 @@ def _parse_entities_response(raw: str) -> Optional[dict]:
     if not isinstance(raw_entities, dict):
         return {}
 
-    # Normaliser : garder uniquement les types connus, dédupliquer
+    # Normaliser : garder uniquement les types connus, dédupliquer et corriger
+    # quelques cas NER évidents (MONEY, DATE, LAW) pour fiabiliser l'index.
     result = {}
+    seen_by_type: dict[str, set[str]] = {etype: set() for etype in _ENTITY_TYPES}
     for etype in _ENTITY_TYPES:
         values = raw_entities.get(etype, [])
         if not isinstance(values, list):
             continue
-        seen: set[str] = set()
-        dedup = []
         for v in values:
-            if isinstance(v, str) and v.strip() and v.strip() not in seen:
-                seen.add(v.strip())
-                dedup.append(v.strip())
-        if dedup:
-            result[etype] = dedup
+            if not isinstance(v, str) or not v.strip():
+                continue
+            normalized_type, normalized_value = _normalize_entity_candidate(etype, v)
+            if normalized_type not in seen_by_type or not normalized_value:
+                continue
+            if normalized_value in seen_by_type[normalized_type]:
+                continue
+            seen_by_type[normalized_type].add(normalized_value)
+            result.setdefault(normalized_type, []).append(normalized_value)
 
     return result  # {} = réponse valide mais aucune entité trouvée
 

@@ -154,8 +154,19 @@ Pour les exposer volontairement :
 | --- | --- | --- |
 | `GET /api/entities/search` | `include_structural=1` | Inclut les types structurels dans la recherche d'entités |
 | `GET /api/entities/dashboard` | `include_structural=1` | Ajoute les types structurels à la distribution globale du dashboard |
+| `GET /api/entities/timeline` | `include_structural=1` | Autorise la timeline sur `DATE`, `MONEY` et autres types structurels |
 
 Cela permet de garder un dashboard lisible pour l'usage courant, tout en rendant possible une analyse ciblée des montants, dates et autres entités structurelles quand c'est pertinent.
+
+### Correctifs de qualité NER appliqués
+
+WUDD.ai applique désormais un post-traitement léger sur les sorties NER pour corriger certains cas manifestement erronés avant indexation :
+
+- les montants explicites sont recentrés vers `MONEY` ;
+- les années et dates explicites sont recentrées vers `DATE` ;
+- les lois et règlements nommés sont recentrés vers `LAW` lorsqu'ils ont été classés ailleurs.
+
+Ce correctif ne remplace pas la qualité du modèle amont, mais il réduit les faux positifs les plus coûteux pour l'exploration analytique.
 
 ---
 

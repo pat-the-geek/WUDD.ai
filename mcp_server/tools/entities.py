@@ -105,6 +105,7 @@ def tool_get_entity_timeline(
     entity_type: str | None = None,
     match_mode: str | None = None,
     all_types: bool = False,
+    include_structural: bool = False,
 ) -> dict:
     started_at = time.perf_counter()
     endpoint = "/api/entities/timeline"
@@ -130,6 +131,8 @@ def tool_get_entity_timeline(
             params["match_mode"] = normalized_match_mode
         if all_types:
             params["all_types"] = "1"
+        if include_structural:
+            params["include_structural"] = "1"
         data = client.get(endpoint, params=params, timeout=client.heavy_timeout)
         return success(
             "get_entity_timeline",

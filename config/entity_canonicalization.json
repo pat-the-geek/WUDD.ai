@@ -89,6 +89,112 @@
         { "type": "LAW", "value": "LPD suisse" },
         { "type": "ORG", "value": "LPD suisse" }
       ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "Cloud Act" },
+      "aliases": [
+        { "type": "LAW", "value": "Cloud Act" },
+        { "type": "ORG", "value": "Cloud Act" },
+        { "type": "EVENT", "value": "Cloud Act" },
+        { "type": "PRODUCT", "value": "Cloud Act" },
+        { "type": "LAW", "value": "Clarifying Lawful Overseas Use of Data Act" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "Digital Markets Act" },
+      "aliases": [
+        { "type": "LAW", "value": "Digital Markets Act" },
+        { "type": "LAW", "value": "DMA" },
+        { "type": "ORG", "value": "DMA" },
+        { "type": "EVENT", "value": "DMA" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "DMCA" },
+      "aliases": [
+        { "type": "LAW", "value": "DMCA" },
+        { "type": "LAW", "value": "Digital Millennium Copyright Act" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "HIPAA" },
+      "aliases": [
+        { "type": "LAW", "value": "HIPAA" },
+        { "type": "LAW", "value": "Health Insurance Portability and Accountability Act" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "FISA" },
+      "aliases": [
+        { "type": "LAW", "value": "FISA" },
+        { "type": "LAW", "value": "Foreign Intelligence Surveillance Act" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "IEEPA" },
+      "aliases": [
+        { "type": "LAW", "value": "IEEPA" },
+        { "type": "LAW", "value": "International Emergency Economic Powers Act" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "Defense Production Act" },
+      "aliases": [
+        { "type": "LAW", "value": "Defense Production Act" },
+        { "type": "EVENT", "value": "Defense Production Act" },
+        { "type": "ORG", "value": "Defense Production Act" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "Section 230" },
+      "aliases": [
+        { "type": "LAW", "value": "Section 230" },
+        { "type": "LAW", "value": "Article 230" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "Premier Amendement" },
+      "aliases": [
+        { "type": "LAW", "value": "Premier Amendement" },
+        { "type": "LAW", "value": "First Amendment" },
+        { "type": "LAW", "value": "1st Amendment" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "25e amendement" },
+      "aliases": [
+        { "type": "LAW", "value": "25e amendement" },
+        { "type": "LAW", "value": "25th Amendment" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "Conventions de Genève" },
+      "aliases": [
+        { "type": "LAW", "value": "Conventions de Genève" },
+        { "type": "LAW", "value": "Geneva Conventions" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "AIMP" },
+      "aliases": [
+        { "type": "LAW", "value": "AIMP" },
+        { "type": "LAW", "value": "accord intercantonal sur les marchés publics" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "LMP" },
+      "aliases": [
+        { "type": "LAW", "value": "LMP" },
+        { "type": "LAW", "value": "loi sur les marchés publics" }
+      ]
+    },
+    {
+      "canonical": { "type": "LAW", "value": "Apache License 2.0" },
+      "aliases": [
+        { "type": "LAW", "value": "Apache 2.0" },
+        { "type": "LAW", "value": "Apache License 2.0" },
+        { "type": "PRODUCT", "value": "Apache 2.0" }
+      ]
     }
   ],
   "search_expansions": [
@@ -114,6 +220,34 @@
         "AI Act European",
         "reglement europeen sur l'intelligence artificielle",
         "règlement européen sur l'intelligence artificielle"
+      ]
+    },
+    {
+      "query": "Cloud Act",
+      "terms": [
+        "Cloud Act",
+        "Clarifying Lawful Overseas Use of Data Act"
+      ]
+    },
+    {
+      "query": "AIMP",
+      "terms": [
+        "AIMP",
+        "accord intercantonal sur les marchés publics"
+      ]
+    },
+    {
+      "query": "LMP",
+      "terms": [
+        "LMP",
+        "loi sur les marchés publics"
+      ]
+    },
+    {
+      "query": "DMA",
+      "terms": [
+        "DMA",
+        "Digital Markets Act"
       ]
     }
   ],

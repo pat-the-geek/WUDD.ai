@@ -122,6 +122,21 @@ class TestParseEntitiesResponse:
         result = _parse_entities_response(raw)
         assert result == {"PERSON": ["Alice", "Bob"]}
 
+    def test_reclassifies_money_phrase_to_money(self):
+        raw = json.dumps({"ORG": ["22 milliards de dollars"]})
+        result = _parse_entities_response(raw)
+        assert result == {"MONEY": ["22 milliards de dollars"]}
+
+    def test_reclassifies_pure_year_to_date(self):
+        raw = json.dumps({"GPE": ["2026"]})
+        result = _parse_entities_response(raw)
+        assert result == {"DATE": ["2026"]}
+
+    def test_reclassifies_law_like_value_to_law(self):
+        raw = json.dumps({"EVENT": ["Cloud Act"]})
+        result = _parse_entities_response(raw)
+        assert result == {"LAW": ["Cloud Act"]}
+
 
 # ─────────────────────────────────────────────────────────────
 # _parse_sentiment_response

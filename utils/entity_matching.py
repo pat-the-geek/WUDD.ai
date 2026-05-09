@@ -42,6 +42,7 @@ def resolve_entity_matches(
     *,
     match_mode: str | None = None,
     all_types: bool = False,
+    include_structural: bool = False,
     limit_per_type: int = 200,
 ) -> list[dict[str, Any]]:
     query_clean = _clean_query(query)
@@ -57,6 +58,7 @@ def resolve_entity_matches(
         groups = eidx.search_values(
             query_clean,
             None if all_types else (normalized_type or None),
+            include_structural=include_structural,
             limit_per_type=limit_per_type,
         )
         matches: list[dict[str, Any]] = []
@@ -84,7 +86,7 @@ def resolve_entity_matches(
 
     entries = eidx.get_all_entries(
         canonicalize=(mode != "strict"),
-        include_structural=normalized_type in STRUCTURAL_ENTITY_TYPES,
+        include_structural=include_structural or normalized_type in STRUCTURAL_ENTITY_TYPES,
     )
     if mode == "canonical":
         query_type = normalized_type if normalized_type and not all_types else ""

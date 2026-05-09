@@ -45,6 +45,7 @@ entities_bp = Blueprint("entities", __name__)
 _DASHBOARD_CACHE_TTL = 300  # secondes
 _dashboard_cache: dict = {}           # {"default": {"result": ..., "ts": float}, "structural": {...}}
 _dashboard_cache_lock = threading.Lock()
+_ENTITY_DASHBOARD_SCHEMA_VERSION = 2
 
 # ── Cache TTL pour la liste d'articles d'une entité (ouverture de panel) ───
 _ENTITY_ARTICLES_CACHE_TTL = 90  # secondes
@@ -132,6 +133,7 @@ def _build_entity_query_info(
     entity_type: str | None,
     match_mode: str,
     all_types: bool,
+    include_structural: bool = False,
     matched_entities: list[dict] | None = None,
 ) -> dict:
     return {
@@ -139,17 +141,19 @@ def _build_entity_query_info(
         "type": (entity_type or "").strip().upper(),
         "match_mode": match_mode,
         "all_types": bool(all_types),
+        "include_structural": bool(include_structural),
         "matched_entities": matched_entities or [],
     }
 
 
-def _timeline_cache_file(days: int, top_n: int) -> Path:
+def _timeline_cache_file(days: int, top_n: int, *, include_structural: bool = False) -> Path:
     """Retourne le fichier de cache de timeline associé aux paramètres."""
-    if days == 30 and top_n == 30:
+    if days == 30 and top_n == 30 and not include_structural:
         return _LEGACY_TIMELINE_FILE
     safe_days = max(0, days)
     safe_top = max(1, top_n)
-    return _TIMELINE_CACHE_DIR / f"entity_timeline_{safe_days}d_top{safe_top}.json"
+    suffix = "_struct" if include_structural else ""
+    return _TIMELINE_CACHE_DIR / f"entity_timeline_{safe_days}d_top{safe_top}{suffix}.json"
 
 
 def _build_search_query_info(query: str, *, include_structural: bool = False) -> dict:
@@ -310,7 +314,16 @@ def api_entities_search():
         "1", "true", "yes", "on"
     }
     if len(q) < 2:
-        return jsonify({"by_type": [], "query": _build_search_query_info(q, include_structural=include_structural)})
+        return jsonify({
+            "by_type": [],
+            "query": _build_search_query_info(q, include_structural=include_structural),
+            "advanced_options": {
+                "include_structural": {
+                    "default": False,
+                    "description": "Inclut DATE, MONEY et autres types structurels dans la recherche."
+                }
+            },
+        })
 
     q_lower = q.lower()
     cache_key = (q_lower, "", include_structural)
@@ -328,6 +341,12 @@ def api_entities_search():
             result = {
                 "by_type": eidx.search_values(q, include_structural=include_structural),
                 "query": _build_search_query_info(q, include_structural=include_structural),
+                "advanced_options": {
+                    "include_structural": {
+                        "default": False,
+                        "description": "Inclut DATE, MONEY et autres types structurels dans la recherche."
+                    }
+                },
             }
             with _entity_search_cache_lock:
                 _entity_search_cache[cache_key] = {"result": result, "ts": time.monotonic()}
@@ -399,7 +418,16 @@ def api_entities_search():
             "top": [{"value": v, "count": c} for v, c in sorted_values[:100]],
         })
     result_types.sort(key=lambda x: x["mention_count"], reverse=True)
-    result = {"by_type": result_types, "query": _build_search_query_info(q, include_structural=include_structural)}
+    result = {
+        "by_type": result_types,
+        "query": _build_search_query_info(q, include_structural=include_structural),
+        "advanced_options": {
+            "include_structural": {
+                "default": False,
+                "description": "Inclut DATE, MONEY et autres types structurels dans la recherche."
+            }
+        },
+    }
     with _entity_search_cache_lock:
         _entity_search_cache[cache_key] = {"result": result, "ts": time.monotonic()}
     return jsonify(result)
@@ -433,6 +461,8 @@ def api_entities_dashboard():
     if not include_structural and _stats_file.exists():
         try:
             precomp = json.loads(_stats_file.read_text(encoding="utf-8"))
+            if precomp.get("schema_version") != _ENTITY_DASHBOARD_SCHEMA_VERSION:
+                raise ValueError("precomputed entity_stats schema obsolète")
             # Valide si le fichier a moins de 25 heures (laisser passer la 1re nuit)
             from datetime import timezone as _tz
             from datetime import datetime as _dt
@@ -463,6 +493,7 @@ def api_entities_dashboard():
                         except Exception:
                             pass
                     result_payload = {
+                        "schema_version":       _ENTITY_DASHBOARD_SCHEMA_VERSION,
                         "total_files":          precomp_total_files,
                         "total_articles":       precomp.get("total_articles", 0),
                         "total_with_entities":  precomp.get("total_with_entities", 0),
@@ -470,6 +501,12 @@ def api_entities_dashboard():
                         "duckdb_stats":         duckdb_stats,
                         "include_structural":   False,
                         "_source":              "precomputed",
+                        "advanced_options": {
+                            "include_structural": {
+                                "default": False,
+                                "description": "Ajoute DATE, MONEY et autres types structurels au dashboard."
+                            }
+                        },
                     }
                     with _dashboard_cache_lock:
                         _dashboard_cache[cache_bucket] = {
@@ -595,12 +632,19 @@ def api_entities_dashboard():
         pass
 
     result_payload = {
+        "schema_version": _ENTITY_DASHBOARD_SCHEMA_VERSION,
         "total_files": total_files,
         "total_articles": total_articles,
         "total_with_entities": total_with_entities,
         "by_type": result_types,
         "duckdb_stats": duckdb_stats,
         "include_structural": include_structural,
+        "advanced_options": {
+            "include_structural": {
+                "default": False,
+                "description": "Ajoute DATE, MONEY et autres types structurels au dashboard."
+            }
+        },
     }
     # Stocker dans le cache TTL
     with _dashboard_cache_lock:
@@ -2331,6 +2375,8 @@ def api_entities_timeline():
         top_n      = int(request.args.get("top", 30))
         entity     = request.args.get("entity") or None
         etype      = request.args.get("type")   or None
+        include_structural = request.args.get("include_structural", "0").strip().lower() in {"1", "true", "yes", "on"}
+        include_structural = include_structural or (etype or "").strip().upper() in STRUCTURAL_ENTITY_TYPES
         match_mode = normalize_match_mode(
             request.args.get("match_mode"),
             default=default_timeline_match_mode(),
@@ -2338,7 +2384,7 @@ def api_entities_timeline():
         all_types  = request.args.get("all_types", "0").strip().lower() in {"1", "true", "yes", "on"}
         regenerate = request.args.get("regenerate") == "1"
 
-        timeline_file = _timeline_cache_file(days, top_n)
+        timeline_file = _timeline_cache_file(days, top_n, include_structural=include_structural)
 
         # Utiliser le fichier mis en cache si présent et non périmé (< 1h)
         if not regenerate and timeline_file.exists() and not entity and not etype:
@@ -2357,6 +2403,7 @@ def api_entities_timeline():
             type_filter=etype,
             match_mode=match_mode,
             all_types=all_types,
+            include_structural=include_structural,
         )
         top_entities = build_top_entities(raw, top_n=top_n)
         top_keys = {e["key"] for e in top_entities}
@@ -2366,12 +2413,14 @@ def api_entities_timeline():
             entity_type=etype,
             match_mode=match_mode,
             all_types=all_types,
+            include_structural=include_structural,
             matched_entities=resolve_entity_matches(
                 PROJECT_ROOT,
                 entity,
                 etype,
                 match_mode=match_mode,
                 all_types=all_types,
+                include_structural=include_structural,
             ) if entity else [],
         )
 
@@ -2381,6 +2430,14 @@ def api_entities_timeline():
             "top_entities": top_entities,
             "timeline": filled,
             "query": query_info,
+            "advanced_options": {
+                "match_mode": list(allowed_match_modes()),
+                "all_types": True,
+                "include_structural": {
+                    "default": False,
+                    "description": "Inclut DATE, MONEY et autres types structurels dans la timeline."
+                },
+            },
         }
 
         # Sauvegarder le cache si requête sans filtre

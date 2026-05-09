@@ -41,6 +41,7 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 
 from utils.logging import default_logger
 from utils.entity_canonicalization import get_entity_canonicalizer
+from utils.entity_index import STRUCTURAL_ENTITY_TYPES
 from utils.entity_matching import (
     build_aggregate_key,
     default_timeline_match_mode,
@@ -54,7 +55,7 @@ from utils.entity_matching import (
 _OUTPUT_FILE = _PROJECT_ROOT / "data" / "entity_timeline.json"
 
 _MONITORED_TYPES = {
-    "PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "LOC", "FAC"
+    "PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "LOC", "FAC", "LAW", "WORK_OF_ART"
 }
 
 _DATE_FMTS = (
@@ -92,6 +93,7 @@ def _collect_timeline_from_index(
     type_filter: str | None,
     match_mode: str | None = None,
     all_types: bool = False,
+    include_structural: bool = False,
 ) -> dict[str, dict[str, int]] | None:
     """Construit la timeline depuis l'entity_index sans scan rglob.
 
@@ -101,7 +103,11 @@ def _collect_timeline_from_index(
         from utils.entity_index import get_entity_index
         eidx = get_entity_index(project_root)
         mode = normalize_match_mode(match_mode, default=default_timeline_match_mode())
-        all_entries = eidx.get_all_entries(canonicalize=(mode != "strict"))
+        include_structural = include_structural or (type_filter or "").upper() in STRUCTURAL_ENTITY_TYPES
+        all_entries = eidx.get_all_entries(
+            canonicalize=(mode != "strict"),
+            include_structural=include_structural,
+        )
     except Exception:
         return None
 
@@ -111,8 +117,8 @@ def _collect_timeline_from_index(
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=days) if days > 0 else None
 
-    monitored = _MONITORED_TYPES
-    if type_filter and type_filter.upper() in _MONITORED_TYPES and not all_types:
+    monitored = _MONITORED_TYPES | (set(STRUCTURAL_ENTITY_TYPES) if include_structural else set())
+    if type_filter and type_filter.upper() in monitored and not all_types:
         monitored = {type_filter.upper()}
 
     canonicalizer = get_entity_canonicalizer(project_root)
@@ -123,6 +129,7 @@ def _collect_timeline_from_index(
             type_filter,
             match_mode=mode,
             all_types=all_types,
+            include_structural=include_structural,
         )
         if not matches:
             return {}
@@ -190,6 +197,7 @@ def collect_timeline(
     type_filter: str | None = None,
     match_mode: str | None = None,
     all_types: bool = False,
+    include_structural: bool = False,
 ) -> dict[str, dict[str, int]]:
     """Construit la série chronologique des mentions d'entités.
 
@@ -202,6 +210,7 @@ def collect_timeline(
         type_filter   : filtrer sur un type d'entité (ex: "PERSON")
         match_mode    : strict, canonical, contains ou aggregate
         all_types     : agréger ou rechercher sur tous les types NER
+        include_structural : inclure DATE/MONEY/... dans la timeline
 
     Returns:
         { "TYPE:valeur" : { "YYYY-MM-DD" : count, ... }, ... }
@@ -214,6 +223,7 @@ def collect_timeline(
         type_filter,
         match_mode=match_mode,
         all_types=all_types,
+        include_structural=include_structural,
     )
     if result is not None:
         default_logger.info("  [entity_index] Timeline construite sans scan rglob")
@@ -231,8 +241,9 @@ def collect_timeline(
         project_root / "data" / "articles-from-rss",
     ]
 
-    monitored = _MONITORED_TYPES
-    if type_filter and type_filter.upper() in _MONITORED_TYPES and not all_types:
+    include_structural = include_structural or (type_filter or "").upper() in STRUCTURAL_ENTITY_TYPES
+    monitored = _MONITORED_TYPES | (set(STRUCTURAL_ENTITY_TYPES) if include_structural else set())
+    if type_filter and type_filter.upper() in monitored and not all_types:
         monitored = {type_filter.upper()}
 
     canonicalizer = get_entity_canonicalizer(project_root)
@@ -245,6 +256,7 @@ def collect_timeline(
             type_filter,
             match_mode=mode,
             all_types=all_types,
+            include_structural=include_structural,
         )
         if not matches:
             return {}
@@ -377,6 +389,10 @@ def parse_args():
         "--dry-run", action="store_true",
         help="Affiche le résultat sans sauvegarder"
     )
+    parser.add_argument(
+        "--include-structural", action="store_true",
+        help="Inclut DATE, MONEY et autres types structurels dans la timeline."
+    )
     return parser.parse_args()
 
 
@@ -397,6 +413,7 @@ def main():
         days=args.days,
         entity_filter=args.entity,
         type_filter=args.entity_type,
+        include_structural=args.include_structural,
     )
     default_logger.info(f"  → {len(raw_timeline)} entités distinctes trouvées")
 
