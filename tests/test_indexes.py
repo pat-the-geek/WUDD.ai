@@ -106,6 +106,33 @@ class TestArticleIndex:
         all_entries = idx.get_recent(hours=0)
         assert len(all_entries) == 3
 
+    def test_get_recent_24h_inclut_date_simple_hier(self, tmp_root, articles_on_disk):
+        from utils.article_index import ArticleIndex
+
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        articles = [
+            {
+                "URL": "http://test.com/today",
+                "Sources": "Le Monde",
+                "Date de publication": today,
+                "Résumé": "Article du jour.",
+            },
+            {
+                "URL": "http://test.com/yesterday",
+                "Sources": "Reuters",
+                "Date de publication": yesterday,
+                "Résumé": "Article d'hier sans heure explicite.",
+            },
+        ]
+
+        idx = ArticleIndex(tmp_root)
+        idx.update(articles, articles_on_disk)
+
+        recent = idx.get_recent(hours=24)
+        urls = {entry["url"] for entry in recent}
+        assert urls == {"http://test.com/today", "http://test.com/yesterday"}
+
     def test_load_articles_charge_contenu_complet(self, tmp_root, sample_articles, articles_on_disk):
         from utils.article_index import ArticleIndex
         idx = ArticleIndex(tmp_root)
@@ -1224,12 +1251,12 @@ class TestParseDateIso:
     def test_format_date_seule(self):
         from utils.article_index import _parse_date_iso
         result = _parse_date_iso("2026-03-14")
-        assert result == "2026-03-14T00:00:00Z"
+        assert result == "2026-03-14T23:59:59Z"
 
     def test_format_dd_mm_yyyy(self):
         from utils.article_index import _parse_date_iso
         result = _parse_date_iso("14/03/2026")
-        assert result == "2026-03-14T00:00:00Z"
+        assert result == "2026-03-14T23:59:59Z"
 
     def test_chaine_vide_retourne_none(self):
         from utils.article_index import _parse_date_iso

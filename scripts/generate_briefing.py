@@ -49,7 +49,7 @@ _PERIOD_HOURS = {"daily": 24, "weekly": 168}
 
 def _parse_date(date_str: str) -> datetime | None:
     """Retourne un datetime UTC-aware ou None (délègue à utils.date_utils)."""
-    dt = parse_article_date(date_str)
+    dt = parse_article_date(date_str, date_only_policy="end")
     if dt is None:
         return None
     return dt.replace(tzinfo=timezone.utc)

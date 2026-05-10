@@ -86,7 +86,10 @@ def analyse_keyword_drift(days: int = 30) -> dict:
 
         recent = []
         for art in articles:
-            dt = parse_article_date(art.get("Date de publication", ""))
+            dt = parse_article_date(
+                art.get("Date de publication", ""),
+                date_only_policy="end",
+            )
             if dt is None:
                 continue
             if dt.tzinfo is None:

@@ -462,7 +462,10 @@ def _update_all_48h_files(
     cutoff = utc_now_naive() - timedelta(hours=48)
     merged_url = merged_article.get("URL") or ""
 
-    dt_merged = parse_article_date(merged_article.get("Date de publication", ""))
+    dt_merged = parse_article_date(
+        merged_article.get("Date de publication", ""),
+        date_only_policy="end",
+    )
     in_window = dt_merged is not None and dt_merged > cutoff
 
     for h48_file in (project_root / "data").rglob("48-heures.json"):
@@ -482,7 +485,10 @@ def _update_all_48h_files(
 
             # Tri date décroissante
             def _key(a: dict):
-                dt = parse_article_date(a.get("Date de publication", ""))
+                dt = parse_article_date(
+                    a.get("Date de publication", ""),
+                    date_only_policy="end",
+                )
                 return dt if dt else datetime.min
 
             filtered.sort(key=_key, reverse=True)

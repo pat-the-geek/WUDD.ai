@@ -110,7 +110,10 @@ def _parse_entity_article_sort(sort_by: str | None) -> str:
 
 
 def _article_sort_timestamp(article: dict) -> float:
-    dt = parse_article_date(str(article.get("Date de publication", "")))
+    dt = parse_article_date(
+        str(article.get("Date de publication", "")),
+        date_only_policy="end",
+    )
     if dt is None:
         return 0.0
     return dt.timestamp()
@@ -2718,7 +2721,7 @@ def api_watched_get():
             mentions_7d = 0
             mentions_24h = 0
             for ref in refs:
-                dt = parse_article_date(ref.get("date", ""))
+                dt = parse_article_date(ref.get("date", ""), date_only_policy="end")
                 if dt is None:
                     continue
                 dt = dt.replace(tzinfo=timezone.utc)

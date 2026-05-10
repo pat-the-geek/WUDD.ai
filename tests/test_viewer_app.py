@@ -683,6 +683,29 @@ class TestEntityRoutes:
         assert watched[0]["mentions_7d"] == 1
         mock_idx.get_canonical_refs.assert_called_with("LAW", "AI Act")
 
+    def test_watched_entities_counts_date_only_yesterday_in_24h_window(self, client, tmp_path):
+        from datetime import datetime, timedelta, timezone
+        from viewer.routes import entities as entities_module
+
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        watched_file = tmp_path / "watched_entities.json"
+        watched_file.write_text(
+            json.dumps([{"type": "ORG", "value": "OpenAI"}], ensure_ascii=False),
+            encoding="utf-8",
+        )
+        entities_module._watched_cache.clear()
+        mock_idx = MagicMock()
+        mock_idx.get_canonical_refs.return_value = [{"date": yesterday}]
+
+        with patch.object(entities_module, "_WATCHED_FILE", watched_file), \
+             patch("viewer.routes.entities.get_entity_index", return_value=mock_idx):
+            resp = client.get("/api/watched-entities")
+
+        assert resp.status_code == 200
+        watched = resp.get_json()
+        assert watched[0]["mentions_24h"] == 1
+        assert watched[0]["mentions_7d"] == 1
+
     def test_watched_entities_delete_uses_canonical_entity(self, client, tmp_path):
         from viewer.routes import entities as entities_module
 

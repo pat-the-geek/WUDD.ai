@@ -120,7 +120,10 @@ def update_rolling_window(
                     url = article.get("URL", "")
                     if not url or url in seen_urls:
                         continue
-                    dt = parse_article_date(article.get("Date de publication", ""))
+                    dt = parse_article_date(
+                        article.get("Date de publication", ""),
+                        date_only_policy="end",
+                    )
                     if dt is None or dt < cutoff:
                         continue
                     seen_urls.add(url)
@@ -153,7 +156,10 @@ def update_rolling_window(
                 url = article.get("URL", "")
                 if url and url in seen_urls:
                     continue
-                dt = parse_article_date(article.get("Date de publication", ""))
+                dt = parse_article_date(
+                    article.get("Date de publication", ""),
+                    date_only_policy="end",
+                )
                 if dt is None or dt < cutoff:
                     continue
                 if url:
@@ -162,7 +168,10 @@ def update_rolling_window(
 
         # Tri par date décroissante
         def _sort_key(a: dict) -> datetime:
-            dt = parse_article_date(a.get("Date de publication", ""))
+            dt = parse_article_date(
+                a.get("Date de publication", ""),
+                date_only_policy="end",
+            )
             return dt if dt else datetime.min
 
         collected.sort(key=_sort_key, reverse=True)

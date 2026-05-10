@@ -258,7 +258,7 @@ def _ref_date_in_window(date_str: str, start: datetime, end: datetime) -> bool:
     if not date_str:
         return False
     from .date_utils import parse_article_date
-    dt = parse_article_date(date_str)
+    dt = parse_article_date(date_str, date_only_policy="end")
     if dt is None:
         return False
     if dt.tzinfo is None:

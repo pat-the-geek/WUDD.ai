@@ -204,6 +204,13 @@ class TestParseArticleDate:
         assert dt.month == 3
         assert dt.day == 15
 
+    def test_iso_date_only_end_of_day_policy(self):
+        dt = parse_article_date("2026-03-15", date_only_policy="end")
+        assert dt is not None
+        assert dt.hour == 23
+        assert dt.minute == 59
+        assert dt.second == 59
+
     def test_iso_datetime_z(self):
         dt = parse_article_date("2026-03-15T10:30:00Z")
         assert dt is not None

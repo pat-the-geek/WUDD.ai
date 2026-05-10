@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from .date_utils import parse_article_date
 from .logging import default_logger
 
 
@@ -58,24 +59,10 @@ _DEFAULT_PRECOMPUTED_WINDOWS = (48, 720)
 
 def _parse_date(date_str: str) -> Optional[datetime]:
     """Tente de parser une date depuis les formats connus du projet."""
-    if not date_str:
+    dt = parse_article_date(date_str, date_only_policy="end")
+    if dt is None:
         return None
-    for fmt in (
-        "%Y-%m-%dT%H:%M:%SZ",
-        "%Y-%m-%d",
-        "%d/%m/%Y",
-    ):
-        try:
-            return datetime.strptime(date_str, fmt).replace(tzinfo=timezone.utc)
-        except ValueError:
-            continue
-    # RFC 822 (articles-from-rss)
-    try:
-        from email.utils import parsedate_to_datetime
-        return parsedate_to_datetime(date_str).astimezone(timezone.utc)
-    except Exception:
-        pass
-    return None
+    return dt.replace(tzinfo=timezone.utc)
 
 
 def _freshness_score(date_str: str, now: datetime) -> float:

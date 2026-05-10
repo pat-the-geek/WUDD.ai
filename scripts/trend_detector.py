@@ -128,7 +128,7 @@ def _niveau_from_rules(rules: dict, ratio: float) -> str:
 
 def _parse_date(date_str: str):
     """Retourne un datetime UTC naïf ou None (délègue à utils.date_utils)."""
-    dt = parse_article_date(date_str)
+    dt = parse_article_date(date_str, date_only_policy="end")
     if dt is None:
         return None
     return dt.replace(tzinfo=timezone.utc)

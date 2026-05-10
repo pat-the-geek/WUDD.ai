@@ -114,7 +114,16 @@ def get_default_date_range() -> Tuple[str, str]:
     return date_debut, date_fin
 
 
-def parse_article_date(date_str: str) -> Optional[datetime]:
+def _apply_date_only_policy(dt: datetime, date_only_policy: str) -> datetime:
+    """Ajuste une date sans heure selon la politique demandée."""
+    if date_only_policy == "start":
+        return dt
+    if date_only_policy == "end":
+        return dt + timedelta(days=1) - timedelta(seconds=1)
+    raise ValueError("date_only_policy doit valoir 'start' ou 'end'")
+
+
+def parse_article_date(date_str: Optional[str], date_only_policy: str = "start") -> Optional[datetime]:
     """Parse une date d'article dans tous les formats du pipeline WUDD.ai.
 
     Formats gérés dans l'ordre :
@@ -125,24 +134,33 @@ def parse_article_date(date_str: str) -> Optional[datetime]:
     - RFC 822 (ex. "Mon, 01 Jan 2026 00:00:00 +0000")
 
     Retourne un datetime naïf (sans timezone) pour comparaison uniforme.
+
+    Args:
+        date_str: Date à parser.
+        date_only_policy: Politique pour les dates sans heure :
+            - ``"start"`` : 00:00:00
+            - ``"end"``   : 23:59:59
     """
     if not date_str:
         return None
     date_str = date_str.strip()
     # Formats ISO longs testés en premier pour éviter qu'ISO court tronque les heures
-    for fmt, length in (
-        ("%Y-%m-%dT%H:%M:%SZ", 20),
-        ("%Y-%m-%dT%H:%M:%S", 19),
-        ("%d/%m/%Y", 10),
-        ("%Y-%m-%d", 10),
+    for fmt, length, is_date_only in (
+        ("%Y-%m-%dT%H:%M:%SZ", 20, False),
+        ("%Y-%m-%dT%H:%M:%S", 19, False),
+        ("%d/%m/%Y", 10, True),
+        ("%Y-%m-%d", 10, True),
     ):
         try:
-            return datetime.strptime(date_str[:length], fmt)
+            dt = datetime.strptime(date_str[:length], fmt)
+            return _apply_date_only_policy(dt, date_only_policy) if is_date_only else dt
         except ValueError:
             continue
     try:
         from email.utils import parsedate_to_datetime
         dt = parsedate_to_datetime(date_str)
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc).replace(tzinfo=None)
         return dt.replace(tzinfo=None)
     except Exception:
         pass

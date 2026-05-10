@@ -1,3 +1,14 @@
+# 10/05/2026 — Robustesse des fenêtres horaires sur dates sans heure (v2.8.22)
+
+## Dates / index / scoring
+
+- `utils/date_utils.py` : `parse_article_date()` accepte désormais une politique `date_only_policy="start|end"` pour traiter explicitement les dates sans heure dans les filtres glissants.
+- `utils/article_index.py` : l'index convertit maintenant les dates simples en fin de journée (`23:59:59`) avant filtrage horaire, ce qui évite de perdre des articles valides sur `hours=24`.
+- `utils/scoring.py`, `utils/rolling_window.py`, `scripts/generate_briefing.py` : les comparaisons sur fenêtres en heures utilisent cette interprétation inclusive pour limiter les faux négatifs sur les articles stockés au format `DD/MM/YYYY` ou `YYYY-MM-DD`.
+- `tests/test_date_utils.py`, `tests/test_indexes.py` : ajout de tests de non-régression sur le cas "article d'hier sans heure explicite".
+
+---
+
 # 09/05/2026 — Durcissement analytics entités et tri articles (v2.8.21)
 
 ## Viewer / MCP — entités, dashboard et annotations

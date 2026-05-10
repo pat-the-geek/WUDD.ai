@@ -37,41 +37,19 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
+from .date_utils import parse_article_date
 from .logging import default_logger
 
 _INDEX_VERSION = 1
 _INDEX_FILENAME = "article_index.json"
 
-# ── Parsing de date ─────────────────────────────────────────────────────────
-
-# Paires (format, longueur attendue dans la chaîne source)
-_DATE_FMTS = (
-    ("%Y-%m-%dT%H:%M:%SZ", 20),
-    ("%Y-%m-%dT%H:%M:%S",  19),
-    ("%Y-%m-%d",           10),
-    ("%d/%m/%Y",           10),
-)
-
-
 def _parse_date_iso(date_str: str) -> Optional[str]:
     """Convertit une date dans n'importe quel format en ISO 8601 UTC.
     Retourne None si non parsable."""
-    if not date_str:
+    dt = parse_article_date(date_str, date_only_policy="end")
+    if dt is None:
         return None
-    for fmt, length in _DATE_FMTS:
-        try:
-            dt = datetime.strptime(date_str[:length], fmt).replace(tzinfo=timezone.utc)
-            return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-        except ValueError:
-            continue
-    # RFC 822 (flux RSS)
-    try:
-        from email.utils import parsedate_to_datetime
-        dt = parsedate_to_datetime(date_str).astimezone(timezone.utc)
-        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-    except Exception:
-        pass
-    return None
+    return dt.replace(tzinfo=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _date_iso_to_dt(iso: str) -> Optional[datetime]:
