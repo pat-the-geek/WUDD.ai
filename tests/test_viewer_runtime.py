@@ -74,7 +74,16 @@ def test_ensure_startup_index_rebuild_runs_once(monkeypatch):
         "_startup_index_rebuild",
         lambda: calls.__setitem__("count", calls["count"] + 1),
     )
+
+    class _FakeHandle:
+        def fileno(self):
+            return 42
+
+    monkeypatch.setattr("builtins.open", lambda *_args, **_kwargs: _FakeHandle())
+    monkeypatch.setattr(app_module.fcntl, "flock", lambda *_args, **_kwargs: None)
+
     app_module._startup_rebuild_started = False
+    app_module._startup_rebuild_file_handle = None
 
     app_module._ensure_startup_index_rebuild()
     app_module._ensure_startup_index_rebuild()

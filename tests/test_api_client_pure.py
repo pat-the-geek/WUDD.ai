@@ -704,11 +704,12 @@ class TestOllamaClient:
 
     def test_ollama_host_default(self):
         from utils.api_client import OllamaClient
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("OLLAMA_HOST_LOCAL", None)
-            os.environ.pop("OLLAMA_HOST_DOCKER", None)
-            os.environ.pop("OLLAMA_HOST", None)
-            assert OllamaClient._ollama_host() == "localhost"
+        with patch.object(OllamaClient, "_is_running_in_docker", return_value=False):
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("OLLAMA_HOST_LOCAL", None)
+                os.environ.pop("OLLAMA_HOST_DOCKER", None)
+                os.environ.pop("OLLAMA_HOST", None)
+                assert OllamaClient._ollama_host() == "localhost"
 
     def test_ollama_host_from_env(self):
         from utils.api_client import OllamaClient
