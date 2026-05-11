@@ -483,6 +483,15 @@ GET http://<hôte>:5050/api/entities/export
 | `images` | bool | `true` | Inclure les images depuis le cache disque (`data/images_cache.json`) |
 | `synthesis` | bool | `false` | Inclure les synthèses IA depuis `data/synthesis_cache.json` (TTL 24h) |
 
+### Cache HTTP conditionnel
+
+L'endpoint supporte la validation conditionnelle via les en-têtes HTTP standards :
+
+- `If-Modified-Since` côté client
+- `Last-Modified` côté serveur
+
+Si rien n'a changé côté données (index entités, cache images, cache synthèses selon les options), l'API peut répondre `304 Not Modified` sans renvoyer le payload JSON complet.
+
 ### Exemples d'appels
 
 ```bash

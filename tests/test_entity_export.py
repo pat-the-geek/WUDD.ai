@@ -16,6 +16,8 @@ Couvre :
 import json
 import os
 import sys
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -148,6 +150,31 @@ class TestEntityExportStructure:
         client, _ = flask_client
         with patch("viewer.routes.entities.get_entity_index", return_value=_make_mock_eidx()):
             resp = client.get("/api/entities/export")
+        assert resp.headers.get("Access-Control-Allow-Origin") == "*"
+
+    def test_header_last_modified_present(self, flask_client):
+        client, _ = flask_client
+        with patch("viewer.routes.entities.get_entity_index", return_value=_make_mock_eidx()):
+            resp = client.get("/api/entities/export")
+        assert resp.status_code == 200
+        assert resp.headers.get("Last-Modified")
+
+    def test_if_modified_since_returns_304_when_not_modified(self, flask_client):
+        client, tmp_root = flask_client
+        data_dir = tmp_root / "data"
+        data_dir.mkdir(exist_ok=True)
+        idx_file = data_dir / "entity_index.json"
+        idx_file.write_text(json.dumps({"entries": {}}), encoding="utf-8")
+
+        future = datetime.now(timezone.utc) + timedelta(days=1)
+        ims = format_datetime(future, usegmt=True)
+
+        with patch("viewer.routes.entities.get_entity_index", return_value=_make_mock_eidx()):
+            resp = client.get("/api/entities/export", headers={"If-Modified-Since": ims})
+
+        assert resp.status_code == 304
+        assert resp.get_data(as_text=True) == ""
+        assert resp.headers.get("Cache-Control") == "no-cache"
         assert resp.headers.get("Access-Control-Allow-Origin") == "*"
 
 

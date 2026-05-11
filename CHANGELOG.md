@@ -1,3 +1,14 @@
+# 11/05/2026 — Export entités avec cache HTTP conditionnel (v2.8.25)
+
+## API Entités
+
+- `viewer/routes/entities.py` : `/api/entities/export` supporte désormais `If-Modified-Since` et retourne `304 Not Modified` quand les données sources n'ont pas changé.
+- `viewer/routes/entities.py` : ajout de l'en-tête `Last-Modified` sur les réponses `200`.
+- `tests/test_entity_export.py` : ajout de tests de non-régression sur `Last-Modified` et la réponse `304`.
+- `docs/ENTITIES.md` : documentation du cache HTTP conditionnel.
+
+---
+
 # 11/05/2026 — Nettoyage warnings datetime UTC (v2.8.24)
 
 ## Viewer / compatibilité Python

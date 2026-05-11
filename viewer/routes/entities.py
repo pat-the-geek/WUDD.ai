@@ -21,6 +21,8 @@ import os
 import sys
 import threading
 import time
+from email.utils import parsedate_to_datetime
+from werkzeug.http import http_date
 
 from flask import Blueprint, jsonify, request, Response, stream_with_context
 from pathlib import Path
@@ -3382,6 +3384,37 @@ def api_entities_export():
     include_synthesis = request.args.get("synthesis", "false").lower() == "true"
     q_lower = q_raw.lower() if q_raw else ""
 
+    # ── Précondition cache HTTP (If-Modified-Since) ─────────────────────────
+    tracked_files = [PROJECT_ROOT / "data" / "entity_index.json"]
+    if include_images:
+        tracked_files.append(PROJECT_ROOT / "data" / "images_cache.json")
+    if include_synthesis:
+        tracked_files.append(PROJECT_ROOT / "data" / "synthesis_cache.json")
+
+    mtimes = [f.stat().st_mtime for f in tracked_files if f.exists()]
+    if mtimes:
+        latest_ts = max(mtimes)
+        last_modified_dt = datetime.datetime.fromtimestamp(latest_ts, tz=datetime.timezone.utc).replace(microsecond=0)
+    else:
+        last_modified_dt = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
+
+    if_modified_since = request.headers.get("If-Modified-Since", "").strip()
+    if if_modified_since:
+        try:
+            ims_dt = parsedate_to_datetime(if_modified_since)
+            if ims_dt.tzinfo is None:
+                ims_dt = ims_dt.replace(tzinfo=datetime.timezone.utc)
+            else:
+                ims_dt = ims_dt.astimezone(datetime.timezone.utc)
+            if int(ims_dt.timestamp()) >= int(last_modified_dt.timestamp()):
+                resp_304 = Response(status=304)
+                resp_304.headers["Last-Modified"] = http_date(last_modified_dt.timestamp())
+                resp_304.headers["Access-Control-Allow-Origin"] = "*"
+                resp_304.headers["Cache-Control"] = "no-cache"
+                return resp_304
+        except (TypeError, ValueError, IndexError):
+            pass
+
     # ── 1. Lecture de l'entity_index ────────────────────────────────────────
     raw_entities: list[dict] = []  # [{type, value, caps, mentions}]
     try:
@@ -3596,6 +3629,7 @@ def api_entities_export():
     resp = jsonify(response_body)
     resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["Last-Modified"] = http_date(last_modified_dt.timestamp())
     return resp
 
 
