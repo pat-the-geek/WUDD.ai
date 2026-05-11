@@ -754,7 +754,7 @@ def api_cross_flux():
         cross_entities  = compute_cross_flux(flux_entities, min_flux=min_flux, top_n=top_n)
 
         result = {
-            "generated_at":   datetime.datetime.utcnow().isoformat() + "Z",
+            "generated_at":   datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
             "window_days":    days,
             "min_flux":       min_flux,
             "flux_count":     len(flux_entities),
@@ -793,7 +793,7 @@ def api_generate_briefing():
         from datetime import timedelta
 
         hours = _PERIOD_HOURS[period]
-        now   = datetime.datetime.utcnow()
+        now   = datetime.datetime.now(datetime.timezone.utc)
         date_fin   = now.strftime("%Y-%m-%d")
         date_debut = (now - timedelta(hours=hours)).strftime("%Y-%m-%d")
         period_label = "hebdomadaire" if period == "weekly" else "quotidien"

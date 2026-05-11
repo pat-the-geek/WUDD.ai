@@ -2606,7 +2606,7 @@ def api_entities_timeline():
         )
 
         result = {
-            "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
             "window_days": days,
             "top_entities": top_entities,
             "timeline": filled,

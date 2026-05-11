@@ -1,3 +1,14 @@
+# 11/05/2026 — Nettoyage warnings datetime UTC (v2.8.24)
+
+## Viewer / compatibilité Python
+
+- `viewer/routes/entities.py` : remplacement de `datetime.utcnow()` par `datetime.now(datetime.timezone.utc)` pour `generated_at`.
+- `viewer/routes/analytics.py` : remplacement de `datetime.utcnow()` par des datetimes UTC timezone-aware (génération cross-flux et briefing).
+- `viewer/routes/rss_direct.py` : fallback date ISO généré via `datetime.now(timezone.utc)`.
+- Objectif : supprimer les warnings de dépréciation Python 3.14+ liés à `utcnow()`.
+
+---
+
 # 11/05/2026 — Correctifs API entités et qualité images (v2.8.23)
 
 ## Viewer / API entités
