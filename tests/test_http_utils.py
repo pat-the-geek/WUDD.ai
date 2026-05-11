@@ -264,6 +264,45 @@ class TestExtractTopNLargestImages:
             assert "height" in item
             assert "area" in item
 
+    def test_og_title_is_not_used_as_alt_by_default(self):
+        html = """
+        <html><head>
+        <meta property="og:image" content="https://img.example.com/photo.jpg">
+        <meta property="og:title" content="Titre Article">
+        </head><body></body></html>
+        """
+        with patch("utils.http_utils.requests.get", return_value=_make_response(html)):
+            result = self.fn("https://example.com")
+        assert result[0]["title"] == "Titre Article"
+        assert result[0]["alt"] == ""
+
+    def test_og_image_alt_is_preserved(self):
+        html = """
+        <html><head>
+        <meta property="og:image" content="https://img.example.com/photo.jpg">
+        <meta property="og:title" content="Titre Article">
+        <meta property="og:image:alt" content="Portrait officiel">
+        </head><body></body></html>
+        """
+        with patch("utils.http_utils.requests.get", return_value=_make_response(html)):
+            result = self.fn("https://example.com")
+        assert result[0]["alt"] == "Portrait officiel"
+
+    def test_img_alt_equal_to_article_title_is_cleared(self):
+        html = """
+        <html><head>
+        <meta property="og:title" content="How Elon Musk left OpenAI, according to Greg Brockman | TechCrunch">
+        </head><body>
+        <img src="https://cdn.example.com/a.jpg"
+             width="800"
+             height="600"
+             alt="How Elon Musk left OpenAI, according to Greg Brockman | TechCrunch">
+        </body></html>
+        """
+        with patch("utils.http_utils.requests.get", return_value=_make_response(html)):
+            result = self.fn("https://example.com", min_width=500)
+        assert result[0]["alt"] == ""
+
     def test_only_absolute_urls_included(self):
         html = """
         <html><body>

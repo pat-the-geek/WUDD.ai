@@ -275,6 +275,65 @@ class TestEntityExportSort:
         mentions = [e["mentions"] for e in data["entities"]]
         assert mentions == sorted(mentions, reverse=True)
 
+
+class TestEntityExportMatchMode:
+    """Valide la canonicalisation optionnelle de l'export."""
+
+    def test_match_mode_canonical_fusionne_les_variantes(self, flask_client):
+        client, _ = flask_client
+        index_with_aliases = {
+            "PERSON:Donald Trump": [
+                {"file": "data/articles/f1.json", "idx": 0, "date": "2026-04-01"},
+                {"file": "data/articles/f1.json", "idx": 1, "date": "2026-04-02"},
+            ],
+            "PERSON:Trump": [
+                {"file": "data/articles/f2.json", "idx": 0, "date": "2026-04-03"},
+            ],
+        }
+
+        canonicalizer = MagicMock()
+
+        def _canonicalize(entity_type, value):
+            if entity_type == "PERSON" and value in {"Trump", "Donald Trump"}:
+                return "PERSON", "Donald Trump"
+            return entity_type, value
+
+        canonicalizer.canonicalize.side_effect = _canonicalize
+        canonicalizer.canonical_key.side_effect = (
+            lambda entity_type, value: f"{entity_type}:{str(value).lower()}"
+        )
+
+        with patch("viewer.routes.entities.get_entity_index", return_value=_make_mock_eidx(index_with_aliases)), \
+             patch("viewer.routes.entities.get_entity_canonicalizer", return_value=canonicalizer):
+            _, data = _get_json(client, "/api/entities/export?type=PERSON&match_mode=canonical")
+
+        assert data["total"] == 1
+        assert data["entities"][0]["value"] == "Donald Trump"
+        assert data["entities"][0]["mentions"] == 3
+        assert "Trump" in data["entities"][0]["aliases"]
+
+    def test_match_mode_strict_conserve_les_variantes(self, flask_client):
+        client, _ = flask_client
+        index_with_aliases = {
+            "PERSON:Donald Trump": [
+                {"file": "data/articles/f1.json", "idx": 0, "date": "2026-04-01"},
+            ],
+            "PERSON:Trump": [
+                {"file": "data/articles/f2.json", "idx": 0, "date": "2026-04-03"},
+            ],
+        }
+
+        with patch("viewer.routes.entities.get_entity_index", return_value=_make_mock_eidx(index_with_aliases)):
+            _, data = _get_json(client, "/api/entities/export?type=PERSON&match_mode=strict")
+
+        assert data["total"] == 2
+
+    def test_match_mode_invalide_retourne_400(self, flask_client):
+        client, _ = flask_client
+        status, data = _get_json(client, "/api/entities/export?match_mode=full")
+        assert status == 400
+        assert "match_mode invalide" in data["error"]
+
     def test_sort_value_alphabetique(self, flask_client):
         client, _ = flask_client
         with patch("viewer.routes.entities.get_entity_index", return_value=_make_mock_eidx()):

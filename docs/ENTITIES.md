@@ -112,8 +112,10 @@ Les endpoints `GET /api/entities/timeline` et `GET /api/entities/articles` accep
 | `match_mode` | `strict`, `canonical`, `contains`, `aggregate` | Choisit la stratégie de résolution de l'entité demandée |
 | `all_types` | `0` / `1` | Quand activé, autorise une recherche ou un agrégat sur tous les types NER |
 | `sort_by` (`/articles`) | `date`, `score_source`, `score_ton`, `relevance` | Contrôle l'ordre des articles renvoyés |
+| `max_articles` (`/articles`) | entier (1-2000) | Limite le nombre d'articles renvoyés |
+| `limit` (`/articles`) | alias de `max_articles` | Alias de compatibilité REST (`?limit=...`) |
 
-Toute autre valeur de `match_mode` est rejetée avec une erreur HTTP `400` pour éviter les replis silencieux vers le mode par défaut.
+Toute autre valeur de `match_mode` est rejetée avec une erreur HTTP `400` pour éviter les replis silencieux vers le mode par défaut. Sur `/api/entities/articles`, les paramètres inconnus sont également rejetés en `400` (avec la liste `unknown_params`) pour éviter les erreurs silencieuses côté client.
 
 #### Sémantique de `match_mode`
 
@@ -477,6 +479,7 @@ GET http://<hôte>:5050/api/entities/export
 | `type` | string | — | Filtre sur le type NER : `PERSON`, `ORG`, `GPE`, `LOC`, `PRODUCT`, `EVENT`, `NORP`, `FAC`… |
 | `limit` | int | `200` | Nombre max d'entités retournées (min 1, max 5000) |
 | `sort` | string | `mentions` | Tri : `mentions` (plus cité en premier) ou `value` (ordre alphabétique) |
+| `match_mode` | string | `canonical` | Stratégie de regroupement : `canonical`, `strict`, `contains`, `aggregate` |
 | `images` | bool | `true` | Inclure les images depuis le cache disque (`data/images_cache.json`) |
 | `synthesis` | bool | `false` | Inclure les synthèses IA depuis `data/synthesis_cache.json` (TTL 24h) |
 
@@ -508,6 +511,7 @@ curl "http://localhost:5050/api/entities/export?limit=5&sort=mentions"
     "type":      null,
     "limit":     200,
     "sort":      "mentions",
+    "match_mode": "canonical",
     "images":    true,
     "synthesis": false
   },
@@ -553,6 +557,7 @@ curl "http://localhost:5050/api/entities/export?limit=5&sort=mentions"
 | `entities[].type` | Type NER (PERSON, ORG, GPE, LOC, PRODUCT…) |
 | `entities[].value` | Nom de l'entité dans sa forme d'affichage canonique (majuscules préservées) |
 | `entities[].mentions` | Nombre total de références dans l'index |
+| `entities[].aliases` | Variantes regroupées (présent quand plusieurs formes sont fusionnées) |
 | `entities[].image` | Objet `{url, width, height}` depuis le cache Wikimedia, ou `null` si non disponible |
 | `entities[].synthesis` | Texte Markdown de la synthèse IA (uniquement si `synthesis=true`) |
 

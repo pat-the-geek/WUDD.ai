@@ -748,9 +748,36 @@ def api_entities_dashboard():
 @entities_bp.route("/api/entities/articles")
 def api_entities_articles():
     """Retourne tous les articles contenant une entité donnée (type + valeur) via entity_index."""
+    allowed_params = {
+        "type",
+        "value",
+        "max_articles",
+        "limit",
+        "compact",
+        "sort_by",
+        "match_mode",
+        "all_types",
+    }
+    unknown_params = sorted(set(request.args.keys()) - allowed_params)
+    if unknown_params:
+        return jsonify({
+            "error": "Paramètres de requête inconnus",
+            "unknown_params": unknown_params,
+            "allowed_params": sorted(allowed_params),
+        }), 400
+
     entity_type = request.args.get("type", "").strip()
     entity_value = request.args.get("value", "").strip()
-    max_articles = request.args.get("max_articles", default=300, type=int)
+    if "max_articles" in request.args:
+        max_articles = request.args.get("max_articles", default=300, type=int)
+    elif "limit" in request.args:
+        max_articles = request.args.get("limit", default=300, type=int)
+    else:
+        max_articles = 300
+
+    if max_articles is None:
+        return jsonify({"error": "max_articles/limit doit être un entier"}), 400
+
     max_articles = max(1, min(max_articles or 300, 2000))
     compact = request.args.get("compact", "0").strip().lower() in {"1", "true", "yes", "on"}
     try:
@@ -2302,6 +2329,11 @@ def api_entities_images():
         langs = ("fr", "en")
         validate = entity_type in ("ORG", "PRODUCT")
         require_human = entity_type == "PERSON"
+        name_tokens = [token for token in name.strip().split() if token]
+        # Pour les PERSON avec un seul token (ex. "Claude"), on évite le fallback
+        # search pour ne pas figer des homonymes très ambigus dans le cache.
+        if require_human and len(name_tokens) <= 1:
+            return name, None
         # Augmenter le nombre de résultats pour les personnes (la 1ère entrée peut être un homonyme)
         gsrlimit = 5 if require_human else 3
 
@@ -2330,7 +2362,9 @@ def api_entities_images():
                     if validate:
                         if not _wikidata_type_ok(qid, strict=True):
                             continue
-                    elif require_human and qid:
+                    elif require_human:
+                        if not qid:
+                            continue
                         try:
                             r2 = req.get(
                                 "https://www.wikidata.org/w/api.php",
@@ -2344,10 +2378,10 @@ def api_entities_images():
                                          .get("claims", {}).get("P31", [])
                                 if c["mainsnak"].get("datavalue")
                             }
-                            if p31 and "Q5" not in p31:
+                            if "Q5" not in p31:
                                 continue  # pas une personne (Q5 = humain)
                         except Exception:
-                            pass  # erreur réseau → accepter
+                            continue  # erreur réseau → ignorer ce candidat
 
                     thumb = page.get("thumbnail")
                     if thumb and thumb.get("source"):
@@ -3336,6 +3370,10 @@ def api_entities_export():
     q_raw         = request.args.get("q", "").strip()
     type_filter   = request.args.get("type", "").strip().upper()
     try:
+        match_mode = normalize_match_mode(request.args.get("match_mode"), default="canonical")
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "allowed_match_modes": allowed_match_modes()}), 400
+    try:
         limit = min(max(1, int(request.args.get("limit", 200))), 5000)
     except (ValueError, TypeError):
         limit = 200
@@ -3348,7 +3386,8 @@ def api_entities_export():
     raw_entities: list[dict] = []  # [{type, value, caps, mentions}]
     try:
         eidx = get_entity_index(PROJECT_ROOT)
-        all_entries = eidx.get_all_entries()   # {"TYPE:value": [{file,idx,date}, ...]}
+        all_entries = eidx.get_all_entries(canonicalize=(match_mode != "strict"))
+        canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
         caps_map: dict[str, str] = {}
         try:
             caps_map = eidx.get_caps_map() or {}   # {"TYPE:value (lower)": "Display Form"}
@@ -3362,6 +3401,7 @@ def api_entities_export():
                 except Exception:
                     pass
 
+        grouped_entities: dict[str, dict] = {}
         for key, refs in all_entries.items():
             parts = key.split(":", 1)
             if len(parts) != 2:
@@ -3369,23 +3409,51 @@ def api_entities_export():
             etype, value = parts[0], parts[1].strip()
             if not value:
                 continue
-            # Filtres
-            if type_filter and etype != type_filter:
-                continue
-            if q_lower and q_lower not in value.lower():
+            display_value = caps_map.get(key, value)
+            canonical_type = etype
+            canonical_value = display_value
+            if match_mode != "strict":
+                canonical_type, canonical_value = canonicalizer.canonicalize(etype, display_value)
+
+            if type_filter and canonical_type != type_filter:
                 continue
 
+            group_key = (
+                key
+                if match_mode == "strict"
+                else canonicalizer.canonical_key(canonical_type, canonical_value)
+            )
+            entry = grouped_entities.get(group_key)
+            if entry is None:
+                entry = {
+                    "type": canonical_type,
+                    "value": canonical_value,
+                    "_key": group_key,
+                    "mentions": 0,
+                    "aliases": set(),
+                }
+                grouped_entities[group_key] = entry
+            entry["mentions"] += len(refs)
+            entry["aliases"].add(display_value)
+
+        for entry in grouped_entities.values():
+            aliases = sorted(entry.get("aliases", set()))
+            searchable_values = [entry["value"], *aliases]
+            if q_lower and not any(q_lower in str(candidate).lower() for candidate in searchable_values):
+                continue
             raw_entities.append({
-                "type":     etype,
-                "value":    caps_map.get(key, value),   # forme affichable (majuscules)
-                "_key":     key,                         # clé interne (pour synthesis_cache)
-                "mentions": len(refs),
+                "type": entry["type"],
+                "value": entry["value"],
+                "_key": entry["_key"],
+                "mentions": entry["mentions"],
+                "aliases": aliases,
             })
 
     except Exception:
         # Fallback rglob si l'entity_index est indisponible
+        canonicalizer = get_entity_canonicalizer(PROJECT_ROOT)
         counts: dict[str, int] = {}
-        type_vals: dict[str, tuple[str, str]] = {}   # key → (type, display_value)
+        type_vals: dict[str, tuple[str, str, set[str]]] = {}   # key → (type, display_value, aliases)
         for data_dir in [
             PROJECT_ROOT / "data" / "articles",
             PROJECT_ROOT / "data" / "articles-from-rss",
@@ -3413,19 +3481,33 @@ def api_entities_export():
                         for v in values:
                             if not isinstance(v, str) or not v.strip():
                                 continue
-                            if q_lower and q_lower not in v.lower():
+                            display_value = v.strip()
+                            normalized_type = etype
+                            normalized_value = display_value
+                            if match_mode != "strict":
+                                normalized_type, normalized_value = canonicalizer.canonicalize(etype, display_value)
+                            if type_filter and normalized_type != type_filter:
                                 continue
-                            k = f"{etype}:{v.lower()}"
+                            if q_lower and q_lower not in display_value.lower() and q_lower not in normalized_value.lower():
+                                continue
+                            k = (
+                                f"{normalized_type}:{normalized_value.lower()}"
+                                if match_mode != "strict"
+                                else f"{etype}:{display_value.lower()}"
+                            )
                             counts[k] = counts.get(k, 0) + 1
-                            type_vals[k] = (etype, v)
+                            if k not in type_vals:
+                                type_vals[k] = (normalized_type, normalized_value, set())
+                            type_vals[k][2].add(display_value)
 
         for k, cnt in counts.items():
-            etype, value = type_vals[k]
+            etype, value, aliases = type_vals[k]
             raw_entities.append({
                 "type":     etype,
                 "value":    value,
                 "_key":     k,
                 "mentions": cnt,
+                "aliases": sorted(aliases),
             })
 
     # ── 2. Tri ──────────────────────────────────────────────────────────────
@@ -3481,8 +3563,16 @@ def api_entities_export():
             "value":    ent["value"],
             "mentions": ent["mentions"],
         }
+        if ent.get("aliases"):
+            item["aliases"] = ent["aliases"]
         if include_images:
-            item["image"] = images_map.get(ent["value"])
+            image_entry = images_map.get(ent["value"])
+            if image_entry is None:
+                for alias in ent.get("aliases", []):
+                    image_entry = images_map.get(alias)
+                    if image_entry is not None:
+                        break
+            item["image"] = image_entry
         if include_synthesis:
             item["synthesis"] = synthesis_map.get(ent["_key"])
         entities_out.append(item)
@@ -3496,6 +3586,7 @@ def api_entities_export():
             "type":      type_filter or None,
             "limit":     limit,
             "sort":      sort_by,
+            "match_mode": match_mode,
             "images":    include_images,
             "synthesis": include_synthesis,
         },

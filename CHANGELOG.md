@@ -1,3 +1,24 @@
+# 11/05/2026 — Correctifs API entités et qualité images (v2.8.23)
+
+## Viewer / API entités
+
+- `viewer/routes/entities.py` : `/api/entities/articles` accepte désormais `limit` comme alias de `max_articles` (compatibilité REST) et rejette explicitement les paramètres de requête inconnus en HTTP `400` avec `unknown_params`.
+- `viewer/routes/entities.py` : `/api/entities/export` supporte `match_mode` (`canonical` par défaut) pour fusionner les variantes d'une même entité ou conserver le mode strict, avec retour des `aliases` quand plusieurs formes sont regroupées.
+- `viewer/routes/entities.py` : amélioration du matching d'images PERSON via Wikipédia/Wikidata (rejet des requêtes mono-token ambiguës en fallback search, exigence de `Q5` pour les candidats retenus).
+
+## Extraction images
+
+- `utils/http_utils.py` : `extract_top_n_largest_images()` n'utilise plus `og:title` comme `alt` par défaut.
+- `utils/http_utils.py` : le champ `alt` est maintenant vidé quand il recopie exactement le titre d'article, afin d'éviter les faux signaux d'association image-entité.
+
+## Tests
+
+- `tests/test_entities_articles_params.py` : nouveaux tests sur alias `limit` et rejet des paramètres inconnus pour `/api/entities/articles`.
+- `tests/test_entity_export.py` : tests de non-régression pour `match_mode` (`canonical` vs `strict`) sur `/api/entities/export`.
+- `tests/test_http_utils.py` : tests supplémentaires sur le traitement `title/alt` des images (OG alt préservé, alt générique neutralisé).
+
+---
+
 # 10/05/2026 — Robustesse des fenêtres horaires sur dates sans heure (v2.8.22)
 
 ## Dates / index / scoring

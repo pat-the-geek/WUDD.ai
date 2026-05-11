@@ -215,6 +215,16 @@ def extract_top_n_largest_images(
 
         soup = BeautifulSoup(response.content, 'html.parser')
 
+        def _norm_text(value: str) -> str:
+            return " ".join((value or "").strip().lower().split())
+
+        article_title = ""
+        og_title_tag = soup.find('meta', property='og:title')
+        if og_title_tag:
+            article_title = (og_title_tag.get('content') or '').strip()
+        if not article_title and soup.title:
+            article_title = (soup.title.get_text() or '').strip()
+
         seen_urls: set = set()
         images = []
 
@@ -224,21 +234,32 @@ def extract_top_n_largest_images(
             og_url = og_image.get('content', '').strip()
             if og_url.startswith(('http://', 'https://')):
                 try:
-                    og_w = int(soup.find('meta', property='og:image:width', content=True)
-                               and soup.find('meta', property='og:image:width').get('content', 0) or 1200)
-                    og_h = int(soup.find('meta', property='og:image:height', content=True)
-                               and soup.find('meta', property='og:image:height').get('content', 0) or 630)
+                    og_w = int(
+                        soup.find('meta', property='og:image:width', content=True)
+                        and soup.find('meta', property='og:image:width').get('content', 0)
+                        or 1200
+                    )
+                    og_h = int(
+                        soup.find('meta', property='og:image:height', content=True)
+                        and soup.find('meta', property='og:image:height').get('content', 0)
+                        or 630
+                    )
                 except (ValueError, TypeError, AttributeError):
                     og_w, og_h = 1200, 630
+
                 og_w = og_w or 1200
                 og_h = og_h or 630
+
                 og_alt = ''
-                og_title_tag = soup.find('meta', property='og:title')
-                if og_title_tag:
-                    og_alt = og_title_tag.get('content', '').strip()
+                og_alt_tag = soup.find('meta', property='og:image:alt')
+                if og_alt_tag:
+                    og_alt = (og_alt_tag.get('content') or '').strip()
+                if _norm_text(og_alt) == _norm_text(article_title):
+                    og_alt = ''
+
                 images.append({
                     'url': og_url,
-                    'title': og_alt,
+                    'title': article_title,
                     'alt': og_alt,
                     'width': og_w,
                     'height': og_h,
@@ -270,6 +291,8 @@ def extract_top_n_largest_images(
                 continue
             title = img.get('title', '').strip()
             alt = img.get('alt', '').strip()
+            if _norm_text(alt) == _norm_text(article_title):
+                alt = ''
             try:
                 width = int(img.get('width') or 0)
                 height = int(img.get('height') or 0)
