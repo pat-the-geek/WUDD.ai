@@ -248,6 +248,13 @@ def _precomputed_top_path(project_root: Path, hours: int) -> Path:
     return project_root / "data" / _PRECOMPUTED_TOP_DIRNAME / f"top_articles_{int(hours)}h.json"
 
 
+def _normalize_url(url: str) -> str:
+    """Normalise une URL pour les comparaisons de déduplication."""
+    if not isinstance(url, str):
+        return ""
+    return url.strip().rstrip("/").lower()
+
+
 class ScoringEngine:
     """Moteur de scoring de pertinence des articles.
 
@@ -437,7 +444,8 @@ class ScoringEngine:
                     rel_path = str(json_file.relative_to(self.project_root)).replace("\\", "/")
                     for article in data:
                         url = article.get("URL") or article.get("url", "")
-                        if url and url in seen_urls:
+                        normalized_url = _normalize_url(url)
+                        if normalized_url and normalized_url in seen_urls:
                             continue
                         if cutoff:
                             dt = _parse_date(article.get("Date de publication", ""))
@@ -445,8 +453,8 @@ class ScoringEngine:
                                 continue
                         article.setdefault("_source_file", rel_path)
                         all_articles.append(article)
-                        if url:
-                            seen_urls.add(url)
+                        if normalized_url:
+                            seen_urls.add(normalized_url)
                 except (json.JSONDecodeError, OSError):
                     continue
 
@@ -486,8 +494,21 @@ class ScoringEngine:
 
         all_articles = idx.load_articles(recent_entries)
 
+        # L'index peut contenir plusieurs références vers la même URL (fichiers distincts,
+        # variations mineures). On déduplique ici pour garantir un Top N sans doublons.
+        deduped_articles: list[dict] = []
+        seen_urls: set[str] = set()
+        for article in all_articles:
+            url = article.get("URL") or article.get("url", "")
+            normalized_url = _normalize_url(url)
+            if normalized_url and normalized_url in seen_urls:
+                continue
+            if normalized_url:
+                seen_urls.add(normalized_url)
+            deduped_articles.append(article)
+
         now = datetime.now(timezone.utc)
-        return self.score_and_sort(all_articles, now=now, top_n=top_n)
+        return self.score_and_sort(deduped_articles, now=now, top_n=top_n)
 
 
 # ── Singleton ScoringEngine ──────────────────────────────────────────────────

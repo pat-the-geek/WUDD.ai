@@ -123,6 +123,26 @@ def _relative_json_path(file_path: str | Path) -> str:
         return str(file_path).replace("\\", "/")
 
 
+def _normalize_url_for_dedup(url: str) -> str:
+    if not isinstance(url, str):
+        return ""
+    return url.strip().rstrip("/").lower()
+
+
+def _dedupe_articles_by_url(articles: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    deduped: list[dict] = []
+    for article in articles or []:
+        url = article.get("URL") or article.get("url") or ""
+        normalized_url = _normalize_url_for_dedup(url)
+        if normalized_url and normalized_url in seen:
+            continue
+        if normalized_url:
+            seen.add(normalized_url)
+        deduped.append(article)
+    return deduped
+
+
 @analytics_bp.route("/api/articles/top")
 def api_articles_top():
     """Retourne les N articles les mieux scorés sur une fenêtre temporelle.
@@ -144,7 +164,8 @@ def api_articles_top():
         with _top_articles_cache_lock:
             cached = _top_articles_cache.get(cache_key)
             if cached and (_time.monotonic() - cached.get("ts", 0.0)) < _TOP_ARTICLES_CACHE_TTL:
-                return jsonify(cached.get("result", []))
+                cached_result = _dedupe_articles_by_url(cached.get("result", []))[:n]
+                return jsonify(cached_result)
 
         top = load_precomputed_top_articles(
             PROJECT_ROOT,
@@ -161,6 +182,8 @@ def api_articles_top():
                 top = engine.get_top_articles_from_index(top_n=n, hours=hours)
         if top is None:
             top = []
+
+        top = _dedupe_articles_by_url(top)[:n]
 
         with _top_articles_cache_lock:
             _top_articles_cache[cache_key] = {"result": top, "ts": _time.monotonic()}
