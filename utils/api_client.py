@@ -318,6 +318,22 @@ _YEAR_RE = re.compile(r"^(?:19|20)\d{2}$")
 _DATE_RE = re.compile(
     rf"(?i)^(?:{_MONTH_NAMES_RE})\s+(?:19|20)\d{{2}}$|^\d{{1,2}}[/-]\d{{1,2}}[/-]\d{{2,4}}$"
 )
+_LEADING_DETERMINER_RE = re.compile(r"(?i)^(?:l['’]|le\s+|la\s+|les\s+|the\s+|of\s+)")
+_TRAILING_DETERMINER_RE = re.compile(r"(?i),\s*(?:le|la|les|the)$")
+_PERSON_NON_HUMAN_OVERRIDES = {
+    "openai": ("ORG", "OpenAI"),
+    "anthropic": ("ORG", "Anthropic"),
+    "chatgpt": ("PRODUCT", "ChatGPT"),
+    "maison-blanche": ("FAC", "Maison-Blanche"),
+    "blanche, maison": ("FAC", "Maison-Blanche"),
+    "iran": ("GPE", "Iran"),
+    "chine": ("GPE", "Chine"),
+    "lebanon": ("GPE", "Lebanon"),
+    "etats-unis": ("GPE", "États-Unis"),
+    "etats unis": ("GPE", "États-Unis"),
+    "united states": ("GPE", "United States"),
+    "americans": ("NORP", "Americans"),
+}
 _EXACT_ENTITY_OVERRIDES = {
     ("GPE", "trump"): ("PERSON", "Donald Trump"),
     ("NORP", "trump"): ("PERSON", "Donald Trump"),
@@ -358,11 +374,43 @@ def _is_law_like(value: str) -> bool:
     return bool(_LAW_RE.search(value))
 
 
+def _strip_entity_determiners(value: str) -> str:
+    value = _LEADING_DETERMINER_RE.sub("", value).strip()
+    value = _TRAILING_DETERMINER_RE.sub("", value).strip()
+    return value
+
+
+def _normalize_person_candidate(value: str) -> tuple[str, str]:
+    folded = _fold_entity_value(value)
+    override = _PERSON_NON_HUMAN_OVERRIDES.get(folded)
+    if override:
+        return override
+
+    # Corrige un artefact fréquent "Nom, Mot" -> teste aussi la forme inversée.
+    if "," in value:
+        parts = [part.strip() for part in value.split(",") if part.strip()]
+        if len(parts) == 2:
+            flipped = f"{parts[1]}-{parts[0]}"
+            override = _PERSON_NON_HUMAN_OVERRIDES.get(_fold_entity_value(flipped))
+            if override:
+                return override
+
+    return "PERSON", value
+
+
 def _normalize_entity_candidate(entity_type: str, entity_value: str) -> tuple[str, str]:
     cleaned_type = (entity_type or "").strip().upper()
     cleaned_value = " ".join((entity_value or "").strip().split())
     if not cleaned_type or not cleaned_value:
         return cleaned_type, cleaned_value
+
+    if cleaned_type in {"PERSON", "NORP", "GPE", "LOC", "FAC"}:
+        cleaned_value = _strip_entity_determiners(cleaned_value)
+        if not cleaned_value:
+            return cleaned_type, cleaned_value
+
+    if cleaned_type == "PERSON":
+        cleaned_type, cleaned_value = _normalize_person_candidate(cleaned_value)
 
     exact_override = _EXACT_ENTITY_OVERRIDES.get((cleaned_type, _fold_entity_value(cleaned_value)))
     if exact_override:

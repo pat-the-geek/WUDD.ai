@@ -147,6 +147,31 @@ class TestParseEntitiesResponse:
         result = _parse_entities_response(raw)
         assert result == {"ORG": ["Conseil Fédéral"]}
 
+    def test_reclassifies_person_openai_to_org(self):
+        raw = json.dumps({"PERSON": ["OpenAI"]})
+        result = _parse_entities_response(raw)
+        assert result == {"ORG": ["OpenAI"]}
+
+    def test_reclassifies_person_chatgpt_to_product(self):
+        raw = json.dumps({"PERSON": ["ChatGPT"]})
+        result = _parse_entities_response(raw)
+        assert result == {"PRODUCT": ["ChatGPT"]}
+
+    def test_strips_determiners_and_reclassifies_person_country(self):
+        raw = json.dumps({"PERSON": ["L'Iran", "États-Unis, les"]})
+        result = _parse_entities_response(raw)
+        assert result == {"GPE": ["Iran", "États-Unis"]}
+
+    def test_reclassifies_segmented_maison_blanche(self):
+        raw = json.dumps({"PERSON": ["Blanche, Maison"]})
+        result = _parse_entities_response(raw)
+        assert result == {"FAC": ["Maison-Blanche"]}
+
+    def test_reclassifies_person_americans_to_norp(self):
+        raw = json.dumps({"PERSON": ["Americans"]})
+        result = _parse_entities_response(raw)
+        assert result == {"NORP": ["Americans"]}
+
 
 # ─────────────────────────────────────────────────────────────
 # _parse_sentiment_response

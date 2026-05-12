@@ -58,6 +58,7 @@ Ce guide décrit tous les scripts disponibles dans `scripts/`, leur rôle, leurs
 | 45 | [`fix_article_dates.py`](#45-fix_article_datespy) | Migration : normalisation des dates | Migration unique |
 | 46 | [`Get_htmlText_From_JSONFile.py`](#46-get_htmltext_from_jsonfilepy) | Extraction texte brut (GUI) | À la demande |
 | 47 | [`rename_obsidian_reports.py`](#47-rename_obsidian_reportspy) | Renommage des rapports Obsidian | À la demande |
+| 48 | [`reclassify_person_entities_p31.py`](#48-reclassify_person_entities_p31py) | Rétro-nettoyage faux PERSON (P31) | À la demande |
 
 ---
 
@@ -217,6 +218,8 @@ Sur macOS, utilisez `OLLAMA_HOST_LOCAL=localhost` dans `.env` pour les scripts l
 | `--force` | Re-traiter les articles ayant déjà le champ `entities` | désactivé |
 | `--use-async` | Active le pilote AsyncEnricher (batch asynchrone) | désactivé |
 | `--async-concurrency N` | Concurrence maximale en mode async | 10 |
+| `--validate-person-p31` | Active la validation PERSON via Wikidata P31 (Q5) | désactivé |
+| `--disable-person-p31` | Désactive P31 même si `NER_VALIDATE_PERSON_P31=true` | désactivé |
 
 **Utilisation** :
 ```bash
@@ -226,7 +229,14 @@ python3 scripts/enrich_entities.py --keyword anthropic --delay 2.0
 python3 scripts/enrich_entities.py --dry-run
 python3 scripts/enrich_entities.py --force
 python3 scripts/enrich_entities.py --use-async --async-concurrency 15
+python3 scripts/enrich_entities.py --validate-person-p31
 ```
+
+**Validation P31 (optionnelle)** :
+- Activer globalement via `.env` : `NER_VALIDATE_PERSON_P31=true`
+- Ou activer ponctuellement en CLI : `--validate-person-p31`
+- Les entités `PERSON` non humaines sont reclassées automatiquement (`ORG`, `GPE`, `FAC`, `PRODUCT`, …)
+- Pour auditer l'impact historique avant activation globale, utiliser le script 48 en dry-run
 
 **Automatisation (cron)** — nuit à 02h00, round-robin 1 fichier/jour :
 ```
@@ -275,6 +285,43 @@ python3 scripts/enrich_sentiment.py --use-async --async-concurrency 15
 ```
 0 3 * * * root cd /app && python3 scripts/enrich_sentiment.py 2>&1 | tee -a /app/rapports/cron_sentiment.log
 ```
+
+---
+
+### 48. reclassify_person_entities_p31.py
+
+**Description** : Script de **rétro-nettoyage NER** sur le corpus existant. Il rescane les JSON d'articles et reclassifie les faux `PERSON` via Wikidata (`P31`, avec `Q5` = humain). Conçu pour mesurer puis corriger l'historique après amélioration du pipeline temps réel.
+
+**Comportement par défaut** : **dry-run** (aucune écriture disque).
+
+**Arguments** :
+
+| Argument | Description | Défaut |
+|---|---|---|
+| `--flux NOM` | Limite à `data/articles/<NOM>/` | tous |
+| `--keyword MOT` | Limite à `data/articles-from-rss/<MOT>.json` | tous |
+| `--apply` | Applique les changements sur disque | désactivé |
+| `--max-files N` | Limite le nombre de fichiers scannés (audit rapide) | 0 (=illimité) |
+| `--from-report CHEMIN` | Ne retraiter que les fichiers listés dans un rapport JSON existant | désactivé |
+
+**Utilisation** :
+```bash
+# Dry-run global (aucune écriture)
+python3 scripts/reclassify_person_entities_p31.py
+
+# Dry-run ciblé (audit rapide)
+python3 scripts/reclassify_person_entities_p31.py --keyword openai --max-files 1
+
+# Application des corrections historiques
+python3 scripts/reclassify_person_entities_p31.py --apply
+
+# Revalidation rapide sur les seuls fichiers déjà détectés
+python3 scripts/reclassify_person_entities_p31.py --from-report rapports/markdown/_WUDD.AI_/ner_p31_reclass_applied.json
+```
+
+**Sortie** :
+- mode global : `rapports/markdown/_WUDD.AI_/ner_p31_reclass_dryrun.json` ou `..._applied.json`
+- mode `--from-report` : `rapports/markdown/_WUDD.AI_/ner_p31_reclass_targeted_dryrun.json` ou `..._targeted_applied.json`
 
 ---
 

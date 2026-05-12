@@ -26,6 +26,7 @@ Usage:
 """
 
 import json
+import os
 import sys
 import time
 import argparse
@@ -41,6 +42,7 @@ from utils.api_client import get_ner_client
 from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
 from utils.async_enricher import AsyncEnricher
+from utils.ner_guardrails import sanitize_entities
 
 logger = setup_logger(__name__)
 
@@ -89,6 +91,16 @@ def parse_args():
         type=int,
         default=10,
         help="Nombre max d'appels simultanés en mode async (défaut : 10).",
+    )
+    parser.add_argument(
+        "--validate-person-p31",
+        action="store_true",
+        help="Valide les entités PERSON via Wikidata (P31=Q5) et reclassifie les non-humains.",
+    )
+    parser.add_argument(
+        "--disable-person-p31",
+        action="store_true",
+        help="Désactive la validation P31 même si NER_VALIDATE_PERSON_P31 est actif.",
     )
     return parser.parse_args()
 
@@ -148,6 +160,7 @@ def enrich_file(
     dry_run: bool,
     delay: float,
     force: bool,
+    validate_person_p31: bool,
 ) -> dict:
     """Enrichit un fichier JSON avec les entités. Retourne les stats du fichier."""
     stats = {"total": 0, "enrichis": 0, "deja_presents": 0, "erreurs": 0, "ignores": 0}
@@ -186,6 +199,7 @@ def enrich_file(
                 article = articles[article_idx]
                 entities = (batch_results[pos] or {}).get("entities") if pos < len(batch_results) else None
                 if entities:
+                    entities = sanitize_entities(entities, validate_person_p31=validate_person_p31)
                     article["entities"] = entities
                     article["enrichissement_statut"] = "ok"
                     modified = True
@@ -241,6 +255,7 @@ def enrich_file(
                     level="error",
                 )
             elif entities:
+                entities = sanitize_entities(entities, validate_person_p31=validate_person_p31)
                 article["entities"] = entities
                 article["enrichissement_statut"] = "ok"
                 modified = True
@@ -294,6 +309,10 @@ def main():
     print_console("=" * 70, level="info")
 
     args = parse_args()
+    env_validate_person_p31 = os.environ.get("NER_VALIDATE_PERSON_P31", "").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+    validate_person_p31 = (args.validate_person_p31 or env_validate_person_p31) and not args.disable_person_p31
 
     try:
         config = get_config()
@@ -331,6 +350,8 @@ def main():
     )
     if args.dry_run:
         print_console("[MODE DRY-RUN — aucun appel API, aucune sauvegarde]", level="info")
+    if validate_person_p31:
+        print_console("[NER] Validation PERSON via Wikidata P31 active", level="info")
     print_console("", level="info")
 
     api_client = None if args.dry_run or args.use_async else get_ner_client()
@@ -355,6 +376,7 @@ def main():
             args.dry_run,
             args.delay,
             args.force,
+            validate_person_p31,
         )
 
         print_console(

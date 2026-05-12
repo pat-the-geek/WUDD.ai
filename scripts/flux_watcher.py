@@ -20,6 +20,7 @@ Usage:
 
 import argparse
 import json
+import os
 import re
 import sys
 import requests
@@ -39,6 +40,7 @@ from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
 from utils.rolling_window import update_rolling_window
 from utils.rss_file_naming import keyword_json_path, keyword_alias_paths
+from utils.ner_guardrails import sanitize_entities
 
 # ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -174,6 +176,12 @@ def main(dry_run: bool = False) -> None:
 
     print_console(f"[flux_watcher] Flux [{next_idx + 1}/{total}] : {feed_title}")
     print_console(f"  URL : {feed_url}")
+
+    validate_person_p31 = os.environ.get("NER_VALIDATE_PERSON_P31", "").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+    if validate_person_p31:
+        print_console("  [NER] Validation PERSON via Wikidata P31 active")
 
     if dry_run:
         print_console("=== DRY-RUN : aucun traitement IA effectué ===")
@@ -319,6 +327,8 @@ def main(dry_run: bool = False) -> None:
                 continue
 
             entities = api_client.generate_entities(resume)
+            if entities:
+                entities = sanitize_entities(entities, validate_person_p31=validate_person_p31)
             # Vérifier le quota par entité (après détection, avant ajout) — sauf si bypassQuota activé
             if entities and not bypass_quota:
                 ok, saturated = quota.can_process_entities(entities)

@@ -1,3 +1,22 @@
+# 12/05/2026 — Durcissement NER sur faux PERSON (v2.8.26)
+
+## NER / qualité des entités
+
+- `utils/api_client.py` : normalisation NER renforcée pour limiter les faux `PERSON` observés en production.
+- `utils/api_client.py` : suppression automatique de déterminants embarqués sur types géopolitiques/personnes (`L'`, `le`, `la`, `les`, suffixes `, les`, etc.).
+- `utils/api_client.py` : reclassification déterministe de faux `PERSON` fréquents vers `ORG`, `PRODUCT`, `GPE`, `NORP`, `FAC` (ex. `OpenAI`, `ChatGPT`, `L'Iran`, `États-Unis, les`, `Americans`, `Blanche, Maison`).
+- `utils/ner_guardrails.py` : nouveau garde-fou NER partagé avec validation optionnelle Wikidata `P31` pour reclasser les `PERSON` non-humains.
+- `scripts/enrich_entities.py`, `scripts/flux_watcher.py`, `scripts/get-keyword-from-rss.py` : application du garde-fou NER après extraction des entités.
+- `scripts/reclassify_person_entities_p31.py` : nouveau script de rétro-nettoyage historique avec mode dry-run (par défaut) et mode `--apply`.
+- `scripts/reclassify_person_entities_p31.py` : ajout de `--from-report` pour ne retraiter que les fichiers déjà identifiés dans un audit précédent.
+- `scripts/reclassify_person_entities_p31.py` : sortie dédiée en mode `--from-report` (`ner_p31_reclass_targeted_dryrun.json` / `ner_p31_reclass_targeted_applied.json`) pour éviter d'écraser les rapports globaux.
+- `.env.example` : ajout de `NER_VALIDATE_PERSON_P31` (toggle explicite, désactivé par défaut).
+- `scripts/USAGE.md` : documentation du nouveau script de reclassification P31 et des flags `--validate-person-p31` / `--disable-person-p31`.
+- `tests/test_api_client_pure.py` : ajout de tests de non-régression pour ces cas de faux positifs et la normalisation associée.
+- `tests/test_ner_guardrails.py` : tests unitaires dédiés à la validation/reclassification `P31`.
+
+---
+
 # 11/05/2026 — Export entités avec cache HTTP conditionnel (v2.8.25)
 
 ## API Entités

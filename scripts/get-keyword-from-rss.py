@@ -38,6 +38,7 @@ from utils.quota import get_quota_manager
 from utils.rolling_window import update_rolling_window
 from utils.rss_file_naming import keyword_json_path, keyword_alias_paths
 from utils.source_credibility import CredibilityEngine
+from utils.ner_guardrails import sanitize_entities
 
 # Constantes
 
@@ -167,6 +168,11 @@ print_console(f"Fenêtre temporelle : {one_week_ago.date()} à {now.date()}")
 # Initialiser le client IA
 print_console("Initialisation du client IA...")
 api_client = get_summary_client()
+validate_person_p31 = os.environ.get("NER_VALIDATE_PERSON_P31", "").strip().lower() in {
+    "1", "true", "yes", "on"
+}
+if validate_person_p31:
+    print_console("[NER] Validation PERSON via Wikidata P31 active")
 
 # Initialiser la crédibilité sources (proposition 3)
 _credibility = CredibilityEngine(PROJECT_ROOT)
@@ -358,6 +364,8 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                         continue
                     print_console(f"      Extraction des entités nommées...")
                     entities = api_client.generate_entities(resume)
+                    if entities:
+                        entities = sanitize_entities(entities, validate_person_p31=validate_person_p31)
                     print_console(f"      Extraction de l'image principale...")
                     images = extract_top_n_largest_images(link, n=1, min_width=500)
                     # Mémoriser pour les mots-clés suivants dans ce run
