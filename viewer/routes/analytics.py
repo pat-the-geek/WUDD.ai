@@ -21,10 +21,12 @@ import os
 import sys
 import threading
 import time as _time
+import re
 
 from collections import defaultdict, Counter
 from flask import Blueprint, jsonify, request, Response, stream_with_context
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from viewer.helpers import PROJECT_ROOT
 from viewer.state import _bias_cache, _BIAS_CACHE_TTL
@@ -37,6 +39,17 @@ _TOP_ARTICLES_CACHE_TTL = 120  # secondes
 _PRECOMPUTED_TOP_MAX_AGE = 6 * 3600  # 6 heures
 _top_articles_cache: dict[tuple[int, int], dict] = {}
 _top_articles_cache_lock = threading.Lock()
+_TRACKING_QUERY_PREFIXES = ("utm_", "mc_", "pk_")
+_TRACKING_QUERY_KEYS = {
+    "fbclid",
+    "gclid",
+    "dclid",
+    "igshid",
+    "msclkid",
+    "ref",
+    "ref_src",
+    "source",
+}
 
 
 def _get_scan_dirs(dir_filter: str = "all") -> list[Path]:
@@ -126,19 +139,74 @@ def _relative_json_path(file_path: str | Path) -> str:
 def _normalize_url_for_dedup(url: str) -> str:
     if not isinstance(url, str):
         return ""
-    return url.strip().rstrip("/").lower()
+    value = url.strip()
+    if not value:
+        return ""
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return value.rstrip("/").lower()
+
+    host = parts.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    path = (parts.path or "").rstrip("/")
+
+    query_pairs = []
+    for key, val in parse_qsl(parts.query, keep_blank_values=True):
+        k = key.lower()
+        if k in _TRACKING_QUERY_KEYS or any(k.startswith(prefix) for prefix in _TRACKING_QUERY_PREFIXES):
+            continue
+        query_pairs.append((k, val))
+    query = urlencode(sorted(query_pairs), doseq=True)
+    return urlunsplit(("", host, path, query, "")).lower()
+
+
+def _article_fingerprint(article: dict) -> str:
+    url = _normalize_url_for_dedup(article.get("URL") or article.get("url") or "")
+    if url:
+        return f"url::{url}"
+
+    source = str(article.get("Sources") or article.get("source") or "").strip().lower()
+    title = str(article.get("Titre") or article.get("title") or "").strip().lower()
+    date = str(article.get("Date de publication") or article.get("date") or "").strip().lower()
+    summary = str(article.get("Résumé") or article.get("resume") or "").strip().lower()
+    summary = re.sub(r"\s+", " ", summary)[:220]
+    return f"fallback::{source}|{title}|{date}|{summary}"
+
+
+def _normalize_text_key(value: str) -> str:
+    text = str(value or "").strip().lower()
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"[^\w\s]", "", text)
+    return text
+
+
+def _article_signatures(article: dict) -> set[str]:
+    signatures: set[str] = set()
+    signatures.add(_article_fingerprint(article))
+
+    source = _normalize_text_key(article.get("Sources") or article.get("source") or "")
+    title = _normalize_text_key(article.get("Titre") or article.get("title") or "")
+    date = _normalize_text_key(article.get("Date de publication") or article.get("date") or "")
+    summary = _normalize_text_key(article.get("Résumé") or article.get("resume") or "")
+
+    if source and title:
+        signatures.add(f"title::{source}|{title}|{date[:10]}")
+    if source and summary:
+        signatures.add(f"summary::{source}|{summary[:220]}")
+
+    return signatures
 
 
 def _dedupe_articles_by_url(articles: list[dict]) -> list[dict]:
     seen: set[str] = set()
     deduped: list[dict] = []
     for article in articles or []:
-        url = article.get("URL") or article.get("url") or ""
-        normalized_url = _normalize_url_for_dedup(url)
-        if normalized_url and normalized_url in seen:
+        signatures = _article_signatures(article)
+        if any(sig in seen for sig in signatures):
             continue
-        if normalized_url:
-            seen.add(normalized_url)
+        seen.update(signatures)
         deduped.append(article)
     return deduped
 

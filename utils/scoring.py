@@ -16,6 +16,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from .date_utils import parse_article_date
 from .logging import default_logger
@@ -55,6 +56,17 @@ _REGULARITY_MIN_ARTICLES = 10
 _PRECOMPUTED_TOP_VERSION = 1
 _PRECOMPUTED_TOP_DIRNAME = "top_articles"
 _DEFAULT_PRECOMPUTED_WINDOWS = (48, 720)
+_TRACKING_QUERY_PREFIXES = ("utm_", "mc_", "pk_")
+_TRACKING_QUERY_KEYS = {
+    "fbclid",
+    "gclid",
+    "dclid",
+    "igshid",
+    "msclkid",
+    "ref",
+    "ref_src",
+    "source",
+}
 
 
 def _parse_date(date_str: str) -> Optional[datetime]:
@@ -252,7 +264,69 @@ def _normalize_url(url: str) -> str:
     """Normalise une URL pour les comparaisons de déduplication."""
     if not isinstance(url, str):
         return ""
-    return url.strip().rstrip("/").lower()
+    value = url.strip()
+    if not value:
+        return ""
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return value.rstrip("/").lower()
+
+    host = parts.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    path = (parts.path or "").rstrip("/")
+
+    query_pairs = []
+    for key, val in parse_qsl(parts.query, keep_blank_values=True):
+        k = key.lower()
+        if k in _TRACKING_QUERY_KEYS or any(k.startswith(prefix) for prefix in _TRACKING_QUERY_PREFIXES):
+            continue
+        query_pairs.append((k, val))
+    query = urlencode(sorted(query_pairs), doseq=True)
+
+    # Le schéma (http/https) n'est pas discriminant pour notre déduplication.
+    return urlunsplit(("", host, path, query, "")).lower()
+
+
+def _article_fingerprint(article: dict) -> str:
+    """Construit une empreinte stable d'article pour déduplication défensive."""
+    url = _normalize_url(article.get("URL") or article.get("url") or "")
+    if url:
+        return f"url::{url}"
+
+    source = str(article.get("Sources") or article.get("source") or "").strip().lower()
+    title = str(article.get("Titre") or article.get("title") or "").strip().lower()
+    date = str(article.get("Date de publication") or article.get("date") or "").strip().lower()
+    summary = str(article.get("Résumé") or article.get("resume") or "").strip().lower()
+    # Limiter la taille tout en gardant assez de signal
+    summary = re.sub(r"\s+", " ", summary)[:220]
+    return f"fallback::{source}|{title}|{date}|{summary}"
+
+
+def _normalize_text_key(value: str) -> str:
+    text = str(value or "").strip().lower()
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"[^\w\s]", "", text)
+    return text
+
+
+def _article_signatures(article: dict) -> set[str]:
+    """Retourne plusieurs signatures d'identité pour filtrer les quasi-doublons."""
+    signatures: set[str] = set()
+    signatures.add(_article_fingerprint(article))
+
+    source = _normalize_text_key(article.get("Sources") or article.get("source") or "")
+    title = _normalize_text_key(article.get("Titre") or article.get("title") or "")
+    date = _normalize_text_key(article.get("Date de publication") or article.get("date") or "")
+    summary = _normalize_text_key(article.get("Résumé") or article.get("resume") or "")
+
+    if source and title:
+        signatures.add(f"title::{source}|{title}|{date[:10]}")
+    if source and summary:
+        signatures.add(f"summary::{source}|{summary[:220]}")
+
+    return signatures
 
 
 class ScoringEngine:
@@ -443,9 +517,8 @@ class ScoringEngine:
                         continue
                     rel_path = str(json_file.relative_to(self.project_root)).replace("\\", "/")
                     for article in data:
-                        url = article.get("URL") or article.get("url", "")
-                        normalized_url = _normalize_url(url)
-                        if normalized_url and normalized_url in seen_urls:
+                        signatures = _article_signatures(article)
+                        if any(sig in seen_urls for sig in signatures):
                             continue
                         if cutoff:
                             dt = _parse_date(article.get("Date de publication", ""))
@@ -453,8 +526,7 @@ class ScoringEngine:
                                 continue
                         article.setdefault("_source_file", rel_path)
                         all_articles.append(article)
-                        if normalized_url:
-                            seen_urls.add(normalized_url)
+                        seen_urls.update(signatures)
                 except (json.JSONDecodeError, OSError):
                     continue
 
@@ -499,12 +571,10 @@ class ScoringEngine:
         deduped_articles: list[dict] = []
         seen_urls: set[str] = set()
         for article in all_articles:
-            url = article.get("URL") or article.get("url", "")
-            normalized_url = _normalize_url(url)
-            if normalized_url and normalized_url in seen_urls:
+            signatures = _article_signatures(article)
+            if any(sig in seen_urls for sig in signatures):
                 continue
-            if normalized_url:
-                seen_urls.add(normalized_url)
+            seen_urls.update(signatures)
             deduped_articles.append(article)
 
         now = datetime.now(timezone.utc)

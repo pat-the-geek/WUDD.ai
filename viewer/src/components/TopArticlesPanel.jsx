@@ -50,6 +50,56 @@ function entityCount(article) {
   return Object.values(article.entities).reduce((s, v) => s + (Array.isArray(v) ? v.length : 0), 0)
 }
 
+function canonicalizeArticleUrl(raw) {
+  if (!raw || typeof raw !== 'string') return ''
+  try {
+    const u = new URL(raw)
+    const host = u.hostname.replace(/^www\./i, '').toLowerCase()
+    const path = u.pathname.replace(/\/+$/, '')
+    const trackingKeys = new Set(['fbclid', 'gclid', 'dclid', 'igshid', 'msclkid', 'ref', 'ref_src', 'source'])
+    const params = [...u.searchParams.entries()]
+      .filter(([k]) => {
+        const key = String(k || '').toLowerCase()
+        return !(trackingKeys.has(key) || key.startsWith('utm_') || key.startsWith('mc_') || key.startsWith('pk_'))
+      })
+      .sort(([a], [b]) => a.localeCompare(b))
+    const q = params.length ? `?${new URLSearchParams(params).toString()}` : ''
+    return `${host}${path}${q}`.toLowerCase()
+  } catch {
+    return raw.trim().replace(/\/+$/, '').toLowerCase()
+  }
+}
+
+function articleFingerprint(article) {
+  const url = canonicalizeArticleUrl(article?.URL || article?.url || '')
+  if (url) return `url::${url}`
+  const source = String(article?.Sources || article?.source || '').trim().toLowerCase()
+  const title = String(article?.Titre || article?.title || '').trim().toLowerCase()
+  const date = String(article?.['Date de publication'] || article?.date || '').trim().toLowerCase()
+  const summary = String(article?.['Résumé'] || article?.resume || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 220)
+  return `fallback::${source}|${title}|${date}|${summary}`
+}
+
+function normalizeTextKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[^\w\s]/g, '')
+}
+
+function articleSignatures(article) {
+  const signatures = new Set([articleFingerprint(article)])
+  const source = normalizeTextKey(article?.Sources || article?.source || '')
+  const title = normalizeTextKey(article?.Titre || article?.title || '')
+  const date = normalizeTextKey(article?.['Date de publication'] || article?.date || '')
+  const summary = normalizeTextKey(article?.['Résumé'] || article?.resume || '')
+
+  if (source && title) signatures.add(`title::${source}|${title}|${date.slice(0, 10)}`)
+  if (source && summary) signatures.add(`summary::${source}|${summary.slice(0, 220)}`)
+  return signatures
+}
+
 // ── Badges ────────────────────────────────────────────────────────────────────
 
 // Couleurs HIG : systemGreen #34C759 / systemRed #FF3B30 / slate pour neutre
@@ -1439,7 +1489,18 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
 
   const topUrl = `/api/articles/top?n=${topN}&hours=${hours}`
   const { data: topData, loading, error, reload: load } = useFetchCache(topUrl, { ttl: 5 * 60 * 1000 })
-  const articles = Array.isArray(topData) ? topData : []
+  const articles = useMemo(() => {
+    const items = Array.isArray(topData) ? topData : []
+    const seen = new Set()
+    const deduped = []
+    for (const article of items) {
+      const signatures = articleSignatures(article)
+      if ([...signatures].some(sig => seen.has(sig))) continue
+      signatures.forEach(sig => seen.add(sig))
+      deduped.push(article)
+    }
+    return deduped
+  }, [topData])
 
   const { playing, currentIdx, start: podcastStart, stop: podcastStop } = usePodcast(articles)
 
