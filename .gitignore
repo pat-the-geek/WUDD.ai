@@ -8,6 +8,8 @@ config/flux_json_sources.json
 !config/alert_rules.json
 
 # Fichiers auto-générés ou locaux
+config/keyword-to-search.json
+config/scheduler_tasks.json
 config/sources_credibility.json
 config/quota.json
 docker-compose.yml
