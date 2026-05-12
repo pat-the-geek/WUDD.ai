@@ -29,6 +29,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from utils.article_index import get_article_index
 from utils.config import get_config
 from utils.logging import print_console
+from utils.scheduler_toggle import should_run_task
 
 ANNOTATIONS_FILE = PROJECT_ROOT / "data" / "annotations.json"
 OUTPUT_FILE = PROJECT_ROOT / "rapports" / "markdown" / "_WUDD.AI_" / "notes_lecture.md"
@@ -244,6 +245,9 @@ def generate_reading_notes(dry_run: bool = False) -> None:
 
 
 def main() -> None:
+    if not should_run_task("reports.reading_notes"):
+        return
+
     parser = argparse.ArgumentParser(description="Génère les notes de lecture personnelles WUDD.ai")
     parser.add_argument("--dry-run", action="store_true", help="Affiche sans sauvegarder")
     args = parser.parse_args()

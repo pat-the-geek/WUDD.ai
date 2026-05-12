@@ -33,6 +33,7 @@ from utils.logging import print_console, default_logger
 from utils.scoring import get_scoring_engine
 from utils.date_utils import parse_article_date
 from utils.article_index import get_article_index
+from utils.scheduler_toggle import should_run_task
 
 # ── Constantes ───────────────────────────────────────────────────────────────
 
@@ -555,6 +556,9 @@ def parse_args():
 
 
 def main():
+    if not should_run_task("reports.briefing_weekly"):
+        return
+
     args = parse_args()
     project_root = _PROJECT_ROOT
 

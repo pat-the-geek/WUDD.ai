@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { X, Clock, Calendar, RefreshCw, CheckCircle2, HelpCircle, PauseCircle } from 'lucide-react'
+import { X, Clock, Calendar, RefreshCw, CheckCircle2, HelpCircle, PauseCircle, ToggleLeft, ToggleRight } from 'lucide-react'
 
 const CRON_CATEGORIES = [
   { id: "Surveillance en continu",   label: "Surveillance en continu",   desc: "Tâches fréquentes : chaque 5 min, 10 min ou toutes les 2h" },
@@ -66,6 +66,8 @@ function StatusBadge({ task }) {
 export default function SchedulerPanel({ onClose }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [togglePending, setTogglePending] = useState({})
+  const [toggleError, setToggleError] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -81,6 +83,25 @@ export default function SchedulerPanel({ onClose }) {
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [load, onClose])
+
+  const toggleTask = async (task, enabled) => {
+    if (!task?.task_key || !task?.can_toggle) return
+    setToggleError(null)
+    setTogglePending(prev => ({ ...prev, [task.task_key]: true }))
+    try {
+      const r = await fetch('/api/scheduler/task-toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_key: task.task_key, enabled }),
+      })
+      if (!r.ok) throw new Error('toggle_failed')
+      await load()
+    } catch {
+      setToggleError("Impossible de mettre à jour l'état de la tâche")
+    } finally {
+      setTogglePending(prev => ({ ...prev, [task.task_key]: false }))
+    }
+  }
 
   // Prochaine tâche imminente
   const upcoming = data?.tasks
@@ -138,6 +159,11 @@ export default function SchedulerPanel({ onClose }) {
 
         {/* ── Tableau par catégories ── */}
         <div className="flex-1 overflow-auto">
+          {toggleError && (
+            <div className="px-5 py-2 bg-red-900/20 border-b border-red-700/30 text-xs text-red-400">
+              {toggleError}
+            </div>
+          )}
           {loading ? (
             <div className="flex items-center justify-center h-40 gap-3 text-slate-500">
               <div className="w-4 h-4 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
@@ -153,7 +179,14 @@ export default function SchedulerPanel({ onClose }) {
                 const tasks = tasksByCategory[cat.id] ?? []
                 if (!tasks.length) return null
                 return (
-                  <TaskSection key={cat.id} title={cat.label} desc={cat.desc} tasks={tasks} />
+                  <TaskSection
+                    key={cat.id}
+                    title={cat.label}
+                    desc={cat.desc}
+                    tasks={tasks}
+                    onToggleTask={toggleTask}
+                    togglePending={togglePending}
+                  />
                 )
               })}
               {fluxTasks.length > 0 && (
@@ -161,6 +194,8 @@ export default function SchedulerPanel({ onClose }) {
                   title="Tâches par flux"
                   desc="Collecte IA planifiée par flux JSON source"
                   tasks={fluxTasks}
+                  onToggleTask={toggleTask}
+                  togglePending={togglePending}
                 />
               )}
             </>
@@ -185,7 +220,7 @@ export default function SchedulerPanel({ onClose }) {
   )
 }
 
-function TaskSection({ title, desc, tasks }) {
+function TaskSection({ title, desc, tasks, onToggleTask, togglePending }) {
   if (!tasks.length) return null
   return (
     <div>
@@ -202,6 +237,7 @@ function TaskSection({ title, desc, tasks }) {
             <th className="text-left px-4 py-2.5">Dernière exécution</th>
             <th className="text-left px-4 py-2.5">Prochaine exécution</th>
             <th className="text-left px-4 py-2.5">Statut</th>
+            <th className="text-left px-4 py-2.5">Activation</th>
           </tr>
         </thead>
         <tbody>
@@ -250,6 +286,25 @@ function TaskSection({ title, desc, tasks }) {
               </td>
               <td className="px-4 py-3">
                 <StatusBadge task={task} />
+              </td>
+              <td className="px-4 py-3">
+                {task.can_toggle ? (
+                  <button
+                    onClick={() => onToggleTask(task, !task.enabled)}
+                    disabled={!!togglePending?.[task.task_key]}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition-colors ${
+                      task.enabled
+                        ? 'border-green-600 text-green-400 bg-green-900/20'
+                        : 'border-slate-600 text-slate-400 bg-slate-800'
+                    } disabled:opacity-50`}
+                    title={task.enabled ? 'Désactiver cette tâche' : 'Activer cette tâche'}
+                  >
+                    {task.enabled ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                    {task.enabled ? 'Activée' : 'Désactivée'}
+                  </button>
+                ) : (
+                  <span className="text-slate-600 text-xs">—</span>
+                )}
               </td>
             </tr>
           ))}

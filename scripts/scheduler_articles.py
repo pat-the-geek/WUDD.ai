@@ -29,6 +29,7 @@ from utils.logging import print_console, setup_logger, default_logger
 
 from utils.config import get_config
 from utils.api_client import get_ai_client
+from utils.scheduler_toggle import should_run_task
 
 def charger_flux_config(flux_config_path: Path) -> list:
     with open(flux_config_path, 'r', encoding='utf-8') as f:
@@ -90,6 +91,9 @@ def run_main_script(flux_nom: str, date_debut: str, date_fin: str):
 
 
 def main():
+    if not should_run_task("reports.collecte_multi_flux"):
+        return
+
     print_console("=" * 80, level="info")
     print_console("Démarrage du scheduler intelligent d'articles", level="info")
     print_console("=" * 80, level="info")

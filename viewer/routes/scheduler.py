@@ -18,6 +18,7 @@ from viewer.helpers import (
     PROJECT_ROOT, latest_mtime, next_cron_occurrence, cron_label
 )
 from viewer.state import _rss_job
+from utils.scheduler_toggle import is_task_enabled, set_task_enabled
 
 scheduler_bp = Blueprint("scheduler", __name__)
 
@@ -59,6 +60,7 @@ def api_scheduler():
         {
             "name": "Veille RSS temps-réel (round-robin)",
             "script": "flux_watcher.py → entity_timeline.py → cross_flux_analysis.py → enrich_reading_time.py",
+            "task_key": "watch.rss_round_robin",
             "cron": "*/5 * * * *",
             "category": "Surveillance en continu",
             "data_dir": None,
@@ -69,6 +71,7 @@ def api_scheduler():
         {
             "name": "Surveillance sources web (sitemap)",
             "script": "web_watcher.py",
+            "task_key": "watch.web_sources",
             "cron": "0 */2 * * *",
             "category": "Surveillance en continu",
             "data_dir": None,
@@ -77,6 +80,7 @@ def api_scheduler():
         {
             "name": "Extraction mots-clés RSS",
             "script": "get-keyword-from-rss.py",
+            "task_key": "watch.keyword_rss",
             "cron": "0 6-22/2 * * *",
             "category": "Surveillance en continu",
             "data_dir": PROJECT_ROOT / "data" / "articles-from-rss",
@@ -84,6 +88,7 @@ def api_scheduler():
         {
             "name": "Vérification santé cron",
             "script": "check_cron_health.py",
+            "task_key": "watch.cron_health",
             "cron": "*/10 * * * *",
             "category": "Surveillance en continu",
             "data_dir": None,
@@ -93,6 +98,7 @@ def api_scheduler():
         {
             "name": "Remise à zéro des quotas",
             "script": "utils.quota.reset_day()",
+            "task_key": "nightly.quota_reset",
             "cron": "1 0 * * *",
             "category": "Enrichissement nocturne",
             "data_dir": None,
@@ -101,6 +107,7 @@ def api_scheduler():
         {
             "name": "Backup des données",
             "script": "backup_data.py",
+            "task_key": "nightly.backup",
             "cron": "0 1 * * *",
             "category": "Enrichissement nocturne",
             "data_dir": None,
@@ -109,6 +116,7 @@ def api_scheduler():
         {
             "name": "Enrichissement NER (entités)",
             "script": "enrich_entities.py",
+            "task_key": "nightly.enrich_entities",
             "cron": "0 2 * * *",
             "category": "Enrichissement nocturne",
             "data_dir": None,
@@ -117,6 +125,7 @@ def api_scheduler():
         {
             "name": "Enrichissement images",
             "script": "enrich_images.py",
+            "task_key": "nightly.enrich_images",
             "cron": "30 2 * * *",
             "category": "Enrichissement nocturne",
             "data_dir": None,
@@ -125,6 +134,7 @@ def api_scheduler():
         {
             "name": "Enrichissement sentiment (articles-from-rss + flux)",
             "script": "enrich_sentiment.py",
+            "task_key": "nightly.enrich_sentiment",
             "cron": "0 3 * * *",
             "category": "Enrichissement nocturne",
             "data_dir": None,
@@ -133,6 +143,7 @@ def api_scheduler():
         {
             "name": "Synchro registre sources (hebdo)",
             "script": "enrich_source_credibility.py --sync-only",
+            "task_key": "nightly.sync_source_registry",
             "cron": "30 3 * * 0",
             "category": "Enrichissement nocturne",
             "data_dir": None,
@@ -141,6 +152,7 @@ def api_scheduler():
         {
             "name": "Réparation résumés en erreur",
             "script": "repair_failed_summaries.py",
+            "task_key": "nightly.repair_summaries",
             "cron": "0 4 * * 0",
             "category": "Enrichissement nocturne",
             "data_dir": None,
@@ -149,6 +161,7 @@ def api_scheduler():
         {
             "name": "Réparation enrichissements NER/sentiment en échec",
             "script": "repair_failed_enrichments.py --type all",
+            "task_key": "nightly.repair_enrichments",
             "cron": "30 4 * * 0",
             "category": "Enrichissement nocturne",
             "data_dir": None,
@@ -157,6 +170,7 @@ def api_scheduler():
         {
             "name": "Crédibilité sources (WHOIS + transparence + MBFC)",
             "script": "enrich_source_credibility.py",
+            "task_key": "nightly.source_credibility",
             "cron": "30 4 1 * *",
             "category": "Enrichissement nocturne",
             "data_dir": None,
@@ -166,6 +180,7 @@ def api_scheduler():
         {
             "name": "Collecte multi-flux",
             "script": "scheduler_articles.py",
+            "task_key": "reports.collecte_multi_flux",
             "cron": "0 6 * * 1",
             "category": "Rapports & digests",
             "data_dir": PROJECT_ROOT / "data" / "articles",
@@ -173,6 +188,7 @@ def api_scheduler():
         {
             "name": "Briefing exécutif hebdomadaire",
             "script": "generate_briefing.py --period weekly",
+            "task_key": "reports.briefing_weekly",
             "cron": "30 6 * * 1",
             "category": "Rapports & digests",
             "data_dir": None,
@@ -181,6 +197,7 @@ def api_scheduler():
         {
             "name": "Détection tendances & alertes",
             "script": "trend_detector.py",
+            "task_key": "reports.trends_alerts",
             "cron": "0 7 * * *",
             "category": "Rapports & digests",
             "data_dir": None,
@@ -189,6 +206,7 @@ def api_scheduler():
         {
             "name": "Morning Digest quotidien",
             "script": "generate_morning_digest.py --ai",
+            "task_key": "reports.morning_digest",
             "cron": "30 7 * * *",
             "category": "Rapports & digests",
             "data_dir": None,
@@ -197,6 +215,7 @@ def api_scheduler():
         {
             "name": "Notes de lecture quotidiennes",
             "script": "generate_reading_notes.py",
+            "task_key": "reports.reading_notes",
             "cron": "0 8 * * *",
             "category": "Rapports & digests",
             "data_dir": None,
@@ -214,6 +233,7 @@ def api_scheduler():
         {
             "name": "Rapport veille entités surveillées (hebdo)",
             "script": "generate_watched_report.py",
+            "task_key": "reports.watched_entities",
             "cron": "45 8 * * 1",
             "category": "Rapports & digests",
             "data_dir": None,
@@ -222,6 +242,7 @@ def api_scheduler():
         {
             "name": "Rapport consommation IA quotidien",
             "script": "generate_ai_consumption_report.py",
+            "task_key": "reports.ai_consumption",
             "cron": "15 8 * * *",
             "category": "Rapports & digests",
             "data_dir": None,
@@ -230,6 +251,7 @@ def api_scheduler():
         {
             "name": "Rapport Top 10 entités 48h",
             "script": "generate_48h_report.py",
+            "task_key": "reports.top_entities_48h",
             "cron": "0 23 * * *",
             "category": "Rapports & digests",
             "data_dir": None,
@@ -239,6 +261,7 @@ def api_scheduler():
         {
             "name": "Radar thématique",
             "script": "radar_wudd.py",
+            "task_key": "monthly.radar",
             "cron": "0 5 28-31 * *",
             "category": "Pipeline mensuel",
             "data_dir": None,
@@ -247,6 +270,7 @@ def api_scheduler():
         {
             "name": "Conversion articles RSS → Markdown",
             "script": "articles_rss_to_markdown.py",
+            "task_key": "monthly.rss_to_markdown",
             "cron": "30 5 28-31 * *",
             "category": "Pipeline mensuel",
             "data_dir": None,
@@ -257,6 +281,7 @@ def api_scheduler():
         {
             "name": "Rapports mensuels par mot-clé",
             "script": "generate_keyword_reports.py",
+            "task_key": "monthly.keyword_reports",
             "cron": "0 6 28-31 * *",
             "category": "Pipeline mensuel",
             "data_dir": None,
@@ -266,6 +291,7 @@ def api_scheduler():
         {
             "name": "Archivage historique quotas",
             "script": "archive_quota_state.py",
+            "task_key": "self_learning.archive_quota",
             "cron": "5 0 * * *",
             "category": "Système auto-apprenant",
             "data_dir": None,
@@ -274,6 +300,7 @@ def api_scheduler():
         {
             "name": "Calibration seuils alertes",
             "script": "calibrate_alerts.py",
+            "task_key": "self_learning.calibrate_alerts",
             "cron": "15 7 * * *",
             "category": "Système auto-apprenant",
             "data_dir": None,
@@ -282,6 +309,7 @@ def api_scheduler():
         {
             "name": "Scores de qualité articles",
             "script": "update_quality_scores.py",
+            "task_key": "self_learning.quality_scores",
             "cron": "0 4 * * *",
             "category": "Système auto-apprenant",
             "data_dir": None,
@@ -290,6 +318,7 @@ def api_scheduler():
         {
             "name": "Optimisation poids de scoring (hebdo)",
             "script": "optimize_scoring_weights.py",
+            "task_key": "self_learning.optimize_scoring",
             "cron": "30 5 * * 1",
             "category": "Système auto-apprenant",
             "data_dir": None,
@@ -298,6 +327,7 @@ def api_scheduler():
         {
             "name": "Optimisation quotas (hebdo)",
             "script": "optimize_quota.py",
+            "task_key": "self_learning.optimize_quota",
             "cron": "45 5 * * 1",
             "category": "Système auto-apprenant",
             "data_dir": None,
@@ -306,6 +336,7 @@ def api_scheduler():
         {
             "name": "Détection dérive mots-clés (mensuel)",
             "script": "keyword_drift_detector.py",
+            "task_key": "self_learning.keyword_drift",
             "cron": "0 5 28-31 * *",
             "category": "Système auto-apprenant",
             "data_dir": None,
@@ -314,6 +345,7 @@ def api_scheduler():
         {
             "name": "Performance empirique sources (mensuel)",
             "script": "update_source_performance.py",
+            "task_key": "self_learning.source_performance",
             "cron": "30 4 1 * *",
             "category": "Système auto-apprenant",
             "data_dir": None,
@@ -329,7 +361,13 @@ def api_scheduler():
             last_run = datetime.datetime.fromtimestamp(t["log_file"].stat().st_mtime)
         else:
             last_run = None
-        is_disabled = t.get("disabled", False)
+        task_key = t.get("task_key")
+        hard_disabled = t.get("disabled", False)
+        enabled_by_toggle = is_task_enabled(task_key, default=not hard_disabled) if task_key else not hard_disabled
+        is_disabled = hard_disabled or not enabled_by_toggle
+        disabled_reason = t.get("disabled_reason")
+        if not hard_disabled and task_key and not enabled_by_toggle:
+            disabled_reason = "Désactivé dans les réglages de planification"
         next_run = None if is_disabled else next_cron_occurrence(t["cron"], now)
         tasks.append({
             "name": t["name"],
@@ -341,8 +379,11 @@ def api_scheduler():
             "next_run": next_run.isoformat() if next_run else None,
             "flux": None,
             "detail": t.get("detail"),
+            "task_key": task_key,
+            "can_toggle": bool(task_key and not hard_disabled),
+            "enabled": not is_disabled,
             "disabled": is_disabled,
-            "disabled_reason": t.get("disabled_reason"),
+            "disabled_reason": disabled_reason,
         })
 
     # Tâches par flux (flux_json_sources.json)
@@ -356,9 +397,10 @@ def api_scheduler():
                     # Support format plat (cron) et format imbriqué (scheduler.cron)
                     cron = (flux.get("cron")
                             or flux.get("scheduler", {}).get("cron", "0 6 * * 1"))
+                    flux_enabled = bool(flux.get("scheduler", {}).get("enabled", True))
                     flux_dir = PROJECT_ROOT / "data" / "articles" / title.strip().replace(" ", "-").replace("\u00a0", "-")
                     last_run = latest_mtime(flux_dir)
-                    next_run = next_cron_occurrence(cron, now)
+                    next_run = None if not flux_enabled else next_cron_occurrence(cron, now)
                     tasks.append({
                         "name": f"Flux : {title}",
                         "script": "Get_data_from_JSONFile_AskSummary_v2.py",
@@ -367,12 +409,38 @@ def api_scheduler():
                         "last_run": last_run.isoformat() if last_run else None,
                         "next_run": next_run.isoformat() if next_run else None,
                         "flux": title,
+                        "task_key": None,
+                        "can_toggle": False,
+                        "enabled": flux_enabled,
+                        "disabled": not flux_enabled,
+                        "disabled_reason": None if flux_enabled else "Désactivé dans la configuration du flux",
                     })
             except (json.JSONDecodeError, KeyError, TypeError):
                 pass
             break  # Utiliser uniquement le premier fichier de config existant
 
     return jsonify({"tasks": tasks, "now": now.isoformat()})
+
+
+@scheduler_bp.route("/api/scheduler/task-toggle", methods=["POST"])
+def api_scheduler_toggle_task():
+    body = request.get_json(force=True) or {}
+    task_key = (body.get("task_key") or "").strip()
+    enabled = body.get("enabled")
+
+    if not task_key:
+        return jsonify({"error": "task_key manquant"}), 400
+    if not isinstance(enabled, bool):
+        return jsonify({"error": "enabled doit être un booléen"}), 400
+
+    try:
+        set_task_enabled(task_key, enabled)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    return jsonify({"ok": True, "task_key": task_key, "enabled": enabled})
 
 
 @scheduler_bp.route("/api/scripts/keyword-rss/status")

@@ -35,6 +35,7 @@ from utils.api_client import get_ai_client
 from utils.config import get_config
 from utils.logging import print_console
 from utils.scoring import get_scoring_engine
+from utils.scheduler_toggle import should_run_task
 
 # Types d'entités pertinentes pour le classement
 ENTITY_TYPES_PERTINENTS = {"PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "FAC", "LOC"}
@@ -623,6 +624,8 @@ if __name__ == "__main__":
         help="Affiche le digest sans sauvegarder ni appeler l'API",
     )
     args = parser.parse_args()
+    if not should_run_task("reports.morning_digest"):
+        sys.exit(0)
     generate_morning_digest(
         ai=args.ai,
         send_email=args.send_email,

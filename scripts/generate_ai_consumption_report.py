@@ -26,6 +26,8 @@ SCRIPT_DIR   = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from utils.scheduler_toggle import should_run_task
+
 # Fichiers de log à analyser pour la consommation de tokens
 LOG_FILES = [
     "cron_morning_digest.log",
@@ -727,6 +729,9 @@ type: ai-consumption
 
 
 def main():
+    if not should_run_task("reports.ai_consumption"):
+        return
+
     parser = argparse.ArgumentParser(
         description="Génère le rapport de consommation IA quotidien"
     )

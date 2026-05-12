@@ -1,3 +1,15 @@
+# 12/05/2026 — Activation par rapport dans la planification (v2.8.27)
+
+## Scheduler / cron
+
+- `viewer/routes/scheduler.py` : ajout de clés de tâches (`task_key`) et d'un endpoint `POST /api/scheduler/task-toggle` pour activer/désactiver une tâche depuis l'UI.
+- `viewer/routes/scheduler.py` : l'API `/api/scheduler` retourne désormais `enabled`, `disabled`, `disabled_reason` et `can_toggle` pour chaque tâche fixe.
+- `viewer/src/components/SettingsPanel.jsx` : l'onglet Planification affiche un interrupteur par tâche (activation/désactivation) avec persistance backend.
+- `utils/scheduler_toggle.py` : nouveau module central de gestion des flags de tâches (`config/scheduler_tasks.json`) + application automatique en contexte non interactif (cron).
+- `scripts/scheduler_articles.py`, `scripts/generate_briefing.py`, `scripts/trend_detector.py`, `scripts/generate_morning_digest.py`, `scripts/generate_reading_notes.py`, `scripts/generate_watched_report.py`, `scripts/generate_ai_consumption_report.py`, `scripts/generate_48h_report.py` : exécution ignorée si tâche désactivée dans la planification.
+
+---
+
 # 12/05/2026 — Durcissement NER sur faux PERSON (v2.8.26)
 
 ## NER / qualité des entités

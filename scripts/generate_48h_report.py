@@ -25,6 +25,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from utils.api_client import get_ai_client
 from utils.config import get_config
 from utils.logging import print_console
+from utils.scheduler_toggle import should_run_task
 
 # Types d'entités pertinentes pour le classement (personnes, orgs, pays, produits, événements)
 ENTITY_TYPES_PERTINENTS = {"PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "FAC", "LOC"}
@@ -439,4 +440,6 @@ if __name__ == "__main__":
         help="Affiche le prompt sans appeler l'API EurIA"
     )
     args = parser.parse_args()
+    if not should_run_task("reports.top_entities_48h"):
+        sys.exit(0)
     generate_48h_report(dry_run=args.dry_run)

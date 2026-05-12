@@ -42,6 +42,7 @@ from utils.logging import default_logger
 from utils.config import get_config
 from utils.date_utils import parse_article_date
 from utils.entity_index import get_entity_index
+from utils.scheduler_toggle import should_run_task
 
 
 # ── Constantes ───────────────────────────────────────────────────────────────
@@ -697,6 +698,9 @@ def _send_notifications(alerts: list[dict], rules: dict) -> None:
 
 
 def main():
+    if not should_run_task("reports.trends_alerts"):
+        return
+
     args = parse_args()
     rules = _load_alert_rules()
 

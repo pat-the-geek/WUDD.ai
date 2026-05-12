@@ -27,6 +27,7 @@ from utils.config import get_config
 from utils.logging import default_logger as LOG
 from utils.entity_index import get_entity_index
 from utils.date_utils import parse_article_date
+from utils.scheduler_toggle import should_run_task
 
 
 def _load_watched(project_root: Path) -> list[dict]:
@@ -264,6 +265,9 @@ def generate_watched_report(project_root: Path, days: int = 7, dry_run: bool = F
 
 
 def main() -> None:
+    if not should_run_task("reports.watched_entities"):
+        return
+
     parser = argparse.ArgumentParser(description="Rapport hebdomadaire entités surveillées")
     parser.add_argument("--days", type=int, default=7, help="Fenêtre en jours (défaut: 7)")
     parser.add_argument("--dry-run", action="store_true", help="Simulation sans écriture")

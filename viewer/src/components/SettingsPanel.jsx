@@ -3,7 +3,7 @@ import {
   X, Settings, Clock, Tag, Rss, Globe, Plus, Trash2, RefreshCw,
   CheckCircle2, HelpCircle, Calendar, Check, AlertTriangle, Save,
   Maximize2, Minimize2, ExternalLink, Database, Clipboard, BarChart2,
-  ToggleLeft, ToggleRight, RotateCcw, ShieldOff,
+  ToggleLeft, ToggleRight, RotateCcw, ShieldOff, PauseCircle,
   Sun, Moon, Monitor, Terminal, TrendingUp, Eye, Lock, EyeOff, Pencil,
   BookOpen, Network, Layers, Sparkles, Cpu,
 } from 'lucide-react'
@@ -70,6 +70,14 @@ function ErrorBanner({ message }) {
 // ─── Onglet Planification ────────────────────────────────────────────────────
 
 function StatusBadge({ task }) {
+  if (task.disabled) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+        <PauseCircle size={12} /> Désactivé
+      </span>
+    )
+  }
+
   const nextMs = task.next_run ? new Date(task.next_run) - Date.now() : null
   const isSoon = nextMs !== null && nextMs > 0 && nextMs < 3_600_000
 
@@ -157,6 +165,8 @@ const CRON_CATEGORIES = [
 function SchedulerTab() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [togglePending, setTogglePending] = useState({})
+  const [toggleError, setToggleError] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -167,6 +177,25 @@ function SchedulerTab() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const toggleTask = async (task, enabled) => {
+    if (!task?.task_key || !task?.can_toggle) return
+    setToggleError(null)
+    setTogglePending(prev => ({ ...prev, [task.task_key]: true }))
+    try {
+      const r = await fetch('/api/scheduler/task-toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_key: task.task_key, enabled }),
+      })
+      if (!r.ok) throw new Error('toggle_failed')
+      await load()
+    } catch {
+      setToggleError("Impossible de mettre à jour l'état de la tâche")
+    } finally {
+      setTogglePending(prev => ({ ...prev, [task.task_key]: false }))
+    }
+  }
 
   const upcoming = data?.tasks
     .filter(t => t.next_run && new Date(t.next_run) > Date.now())
@@ -197,6 +226,11 @@ function SchedulerTab() {
 
       {/* Corps */}
       <div className="flex-1 overflow-auto">
+        {toggleError && (
+          <div className="px-5 py-2 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-700/30 text-xs text-red-600 dark:text-red-400">
+            {toggleError}
+          </div>
+        )}
         {loading ? <Spinner /> : !data?.tasks?.length ? (
           <div className="flex items-center justify-center h-40 text-slate-400 dark:text-slate-500 text-sm">
             Aucune tâche planifiée trouvée
@@ -223,14 +257,21 @@ function SchedulerTab() {
                         <th className="text-left px-4 py-2.5">Dernière exécution</th>
                         <th className="text-left px-4 py-2.5">Prochaine exécution</th>
                         <th className="text-left px-4 py-2.5">Statut</th>
+                        <th className="text-left px-4 py-2.5">Activation</th>
                       </tr>
                     </thead>
                     <tbody>
                       {tasks.map((task, i) => (
-                        <tr key={i} className="border-b border-slate-200/40 dark:border-slate-700/40 last:border-0 hover:bg-slate-100/20 dark:hover:bg-slate-700/20 transition-colors">
+                        <tr
+                          key={i}
+                          className={`border-b border-slate-200/40 dark:border-slate-700/40 last:border-0 transition-colors ${
+                            task.disabled ? 'opacity-50' : 'hover:bg-slate-100/20 dark:hover:bg-slate-700/20'
+                          }`}
+                        >
                           <td className="px-5 py-3">
                             <div className="font-medium text-slate-800 dark:text-slate-200 text-sm">{task.name}</div>
                             <div className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">{task.script}</div>
+                            {task.disabled_reason && <div className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">{task.disabled_reason}</div>}
                             {task.detail && <div className="text-[11px] text-[#007AFF] dark:text-[#0A84FF] mt-1">{task.detail}</div>}
                           </td>
                           <td className="px-4 py-3">
@@ -254,6 +295,25 @@ function SchedulerTab() {
                             ) : <span className="text-slate-400 dark:text-slate-600 text-sm">—</span>}
                           </td>
                           <td className="px-4 py-3"><StatusBadge task={task} /></td>
+                          <td className="px-4 py-3">
+                            {task.can_toggle ? (
+                              <button
+                                onClick={() => toggleTask(task, !task.enabled)}
+                                disabled={!!togglePending[task.task_key]}
+                                className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition-colors ${
+                                  task.enabled
+                                    ? 'border-green-300 dark:border-green-700 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20'
+                                    : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800'
+                                } disabled:opacity-50`}
+                                title={task.enabled ? 'Désactiver cette tâche' : 'Activer cette tâche'}
+                              >
+                                {task.enabled ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                                {task.enabled ? 'Activée' : 'Désactivée'}
+                              </button>
+                            ) : (
+                              <span className="text-slate-400 dark:text-slate-600 text-xs">—</span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -278,14 +338,16 @@ function SchedulerTab() {
                       <th className="text-left px-4 py-2.5">Dernière exécution</th>
                       <th className="text-left px-4 py-2.5">Prochaine exécution</th>
                       <th className="text-left px-4 py-2.5">Statut</th>
+                      <th className="text-left px-4 py-2.5">Activation</th>
                     </tr>
                   </thead>
                   <tbody>
                     {fluxTasks.map((task, i) => (
-                      <tr key={i} className="border-b border-slate-200/40 dark:border-slate-700/40 last:border-0 hover:bg-slate-100/20 dark:hover:bg-slate-700/20 transition-colors">
+                      <tr key={i} className={`border-b border-slate-200/40 dark:border-slate-700/40 last:border-0 transition-colors ${task.disabled ? 'opacity-50' : 'hover:bg-slate-100/20 dark:hover:bg-slate-700/20'}`}>
                         <td className="px-5 py-3">
                           <div className="font-medium text-slate-800 dark:text-slate-200 text-sm">{task.name}</div>
                           <div className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">{task.script}</div>
+                          {task.disabled_reason && <div className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">{task.disabled_reason}</div>}
                         </td>
                         <td className="px-4 py-3">
                           <div className="text-slate-700 dark:text-slate-300 text-sm">{task.label}</div>
@@ -308,6 +370,7 @@ function SchedulerTab() {
                           ) : <span className="text-slate-400 dark:text-slate-600 text-sm">—</span>}
                         </td>
                         <td className="px-4 py-3"><StatusBadge task={task} /></td>
+                        <td className="px-4 py-3"><span className="text-slate-400 dark:text-slate-600 text-xs">Config flux</span></td>
                       </tr>
                     ))}
                   </tbody>
