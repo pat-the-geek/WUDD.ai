@@ -4,8 +4,9 @@ import importlib
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+import requests
 
-from utils.api_client import EURIA_DEFAULT_MODEL, EurIAClient
+from utils.api_client import EURIA_DEFAULT_MODEL, EurIAClient, get_euria_model
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -32,6 +33,20 @@ def test_euria_default_model_is_qwen35():
     assert client.model == EURIA_DEFAULT_MODEL
 
 
+def test_get_euria_model_fallbacks_when_env_invalid(monkeypatch):
+    monkeypatch.setenv("EURIA_MODEL", "openai/gpt-oss-120b")
+    assert get_euria_model() == EURIA_DEFAULT_MODEL
+
+
+def test_euria_client_normalizes_invalid_explicit_model():
+    client = EurIAClient(
+        url="https://api.example.com/v1/chat/completions",
+        bearer="token",
+        model="openai/gpt-oss-120b",
+    )
+    assert client.model == EURIA_DEFAULT_MODEL
+
+
 def test_euria_ask_retries_on_reasoning_only_response():
     client = EurIAClient(url="https://api.example.com/v1/chat/completions", bearer="token")
     first = _mock_response({
@@ -49,6 +64,35 @@ def test_euria_ask_retries_on_reasoning_only_response():
     second_payload = post_mock.call_args_list[1].kwargs["json"]
     assert second_payload["model"] == EURIA_DEFAULT_MODEL
     assert second_payload["messages"][0]["role"] == "system"
+
+
+def test_euria_ask_fallbacks_on_invalid_model_error():
+    client = EurIAClient(
+        url="https://api.example.com/v1/chat/completions",
+        bearer="token",
+        model="Qwen/Qwen3.5-122B-A10B-FP8",
+    )
+
+    bad_resp = MagicMock()
+    bad_resp.status_code = 400
+    bad_resp.text = (
+        '{"error":{"message":"{\\"code\\":\\"validation_failed\\",\\"errors\\":[{\\"code\\":\\"validation_rule_in\\",'
+        '\\"description\\":\\"The selected model is invalid.\\",\\"context\\":{\\"attribute\\":\\"model\\"}}]}"}}'
+    )
+    bad_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(
+        "400 Client Error",
+        response=bad_resp,
+    )
+
+    ok_resp = _mock_response({"choices": [{"message": {"content": "Réponse après fallback"}}]})
+
+    with patch("utils.api_client.requests.post", side_effect=[bad_resp, ok_resp]) as post_mock:
+        result = client.ask("Bonjour", max_attempts=3, timeout=1)
+
+    assert result == "Réponse après fallback"
+    assert post_mock.call_count == 2
+    second_payload = post_mock.call_args_list[1].kwargs["json"]
+    assert second_payload["model"] == EURIA_DEFAULT_MODEL
 
 
 def test_euria_stream_falls_back_when_stream_has_reasoning_only():

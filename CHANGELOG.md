@@ -1,3 +1,17 @@
+# 13/05/2026 — Modèle EurIA valide pour rapports d'article (v2.8.28)
+
+## IA / Infomaniak
+
+- `utils/api_client.py` : changement du modèle EurIA par défaut vers `google/gemma-4-31B-it` (anciennement `openai/gpt-oss-120b`) pour compatibilité avec la liste des modèles valides côté API Infomaniak.
+- `.env` : mise à jour de `EURIA_MODEL` vers `google/gemma-4-31B-it` pour corriger les erreurs `400 validation_failed` lors de la génération de rapports.
+- `utils/api_client.py` : ajout d'un fallback automatique si l'API renvoie `The selected model is invalid.` ; le client retente immédiatement avec `google/gemma-4-31B-it` en non-stream et en streaming.
+- `utils/api_client.py` : ajout d'une validation stricte des modèles EurIA autorisés (`EURIA_ALLOWED_MODELS`) avec normalisation immédiate vers `google/gemma-4-31B-it` si `EURIA_MODEL` (ou un modèle explicite) est invalide.
+- `tests/test_euria_model_switch.py` : nouveau test de non-régression couvrant le fallback automatique sur erreur `validation_rule_in` du champ `model`.
+- `tests/test_euria_model_switch.py` : ajout de tests pour la normalisation préventive des modèles invalides (environnement + modèle explicite).
+- `viewer/routes/files.py` : les rapports d'article (`/api/article/full-report`) ajoutent désormais automatiquement en fin de document la signature IA avec la plateforme et le modèle effectivement utilisés.
+
+---
+
 # 12/05/2026 — Activation par rapport dans la planification (v2.8.27)
 
 ## Scheduler / cron

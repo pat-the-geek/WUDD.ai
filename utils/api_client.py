@@ -19,17 +19,73 @@ from .logging import default_logger
 from .config import get_config
 
 
-EURIA_DEFAULT_MODEL = "openai/gpt-oss-120b"
+EURIA_DEFAULT_MODEL = "google/gemma-4-31B-it"
+EURIA_ALLOWED_MODELS = {
+    "llama3",
+    "granite",
+    "mistral24b",
+    "mistral3",
+    "qwen3",
+    "gemma3n",
+    "swiss-ai/Apertus-70B-Instruct-2509",
+    "mistralai/Ministral-3-14B-Instruct-2512",
+    "moonshotai/Kimi-K2.5",
+    "Qwen/Qwen3.5-122B-A10B-FP8",
+    "google/gemma-4-31B-it",
+    "moonshotai/Kimi-K2.6",
+}
 _EURIA_REASONING_RETRY_SYSTEM = (
     "Réponds uniquement avec la réponse finale utile dans le champ content. "
     "N'inclus aucun raisonnement, aucune balise <think>, aucun commentaire méta."
 )
 
 
+def _is_invalid_model_error(response) -> bool:
+    """Détecte l'erreur API 'model invalide' renvoyée par l'endpoint OpenAI-compatible."""
+    if response is None:
+        return False
+    try:
+        if int(getattr(response, "status_code", 0)) != 400:
+            return False
+    except Exception:
+        return False
+    try:
+        body = (getattr(response, "text", "") or "").lower()
+    except Exception:
+        return False
+    if not body:
+        return False
+    return (
+        "selected model is invalid" in body
+        or ("validation_rule_in" in body and "\"attribute\":\"model\"" in body)
+    )
+
+
 def get_euria_model() -> str:
     """Retourne le modèle EurIA effectif."""
     model = os.environ.get("EURIA_MODEL", "").strip()
-    return model or EURIA_DEFAULT_MODEL
+    if not model:
+        return EURIA_DEFAULT_MODEL
+    if model in EURIA_ALLOWED_MODELS:
+        return model
+    default_logger.warning(
+        f"[EurIA] Modèle EURIA_MODEL invalide '{model}' dans l'environnement "
+        f"— fallback vers '{EURIA_DEFAULT_MODEL}'."
+    )
+    return EURIA_DEFAULT_MODEL
+
+
+def _normalize_euria_model(model: Optional[str]) -> str:
+    """Nettoie un modèle EurIA explicite et garantit un fallback valide."""
+    candidate = (model or "").strip()
+    if not candidate:
+        return get_euria_model()
+    if candidate in EURIA_ALLOWED_MODELS:
+        return candidate
+    default_logger.warning(
+        f"[EurIA] Modèle explicite invalide '{candidate}' — fallback vers '{EURIA_DEFAULT_MODEL}'."
+    )
+    return EURIA_DEFAULT_MODEL
 
 
 def _extract_chat_text(value) -> str:
@@ -841,7 +897,7 @@ class EurIAClient:
         
         self.url = url or config.url
         self.bearer = bearer or config.bearer
-        self.model = model or get_euria_model()
+        self.model = _normalize_euria_model(model)
         self.enable_web_search = enable_web_search
         
         self.headers = {
@@ -963,6 +1019,14 @@ class EurIAClient:
                 default_logger.error(
                     f"Erreur HTTP {status_code} lors de la tentative {attempt + 1}/{max_attempts}"
                 )
+
+                if _is_invalid_model_error(e.response) and active_model != EURIA_DEFAULT_MODEL:
+                    default_logger.warning(
+                        f"[{self._provider_label}] Modèle invalide '{active_model}' détecté par l'API "
+                        f"— fallback automatique vers '{EURIA_DEFAULT_MODEL}'."
+                    )
+                    active_model = EURIA_DEFAULT_MODEL
+                    continue
 
                 if status_code == 429:
                     _euria_breaker.record_failure(error_category="quota")
@@ -1146,6 +1210,28 @@ class EurIAClient:
             raise RuntimeError("Réponse streaming vide")
 
         except requests.exceptions.HTTPError as exc:
+            if _is_invalid_model_error(exc.response) and active_model != EURIA_DEFAULT_MODEL:
+                try:
+                    fallback_text = self._complete_messages(
+                        messages=base_messages,
+                        max_attempts=2,
+                        timeout=timeout,
+                        max_tokens=max_tokens,
+                        enable_web_search=enable_web_search,
+                        model=EURIA_DEFAULT_MODEL,
+                    )
+                    if fallback_text:
+                        normalized = json.dumps(
+                            {"choices": [{"delta": {"content": fallback_text}, "finish_reason": "stop"}]},
+                            ensure_ascii=False,
+                        )
+                        yield f"data: {normalized}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+                except Exception as fallback_exc:
+                    yield f'data: {json.dumps({"error": str(fallback_exc)})}\n\n'
+                    return
+
             body = ""
             try:
                 body = exc.response.text[:800] if exc.response is not None else ""

@@ -492,8 +492,42 @@ def api_article_full_report():
         "N'insère jamais d'image Markdown en tête de document ; l'image principale est gérée séparément par l'interface."
     )
 
+    def _stream_with_ai_signature(stream_iter, platform_label: str, model_name: str):
+        """Ajoute une signature IA en fin de flux SSE, juste avant [DONE]."""
+        signature_md = (
+            "\n\n---\n\n"
+            "## Moteur IA\n\n"
+            f"- Plateforme IA : {platform_label}\n"
+            f"- Modèle : {model_name or 'inconnu'}\n"
+        )
+        signature_evt = (
+            "data: "
+            + json.dumps(
+                {"choices": [{"delta": {"content": signature_md}, "finish_reason": None}]},
+                ensure_ascii=False,
+            )
+            + "\n\n"
+        )
+
+        done_seen = False
+        for chunk in stream_iter:
+            text = chunk if isinstance(chunk, str) else str(chunk)
+            if text.strip() == "data: [DONE]":
+                yield signature_evt
+                yield "data: [DONE]\n\n"
+                done_seen = True
+                break
+            yield text
+
+        if not done_seen:
+            # Sécurité : si le provider n'émet pas [DONE], on termine proprement le flux.
+            yield signature_evt
+            yield "data: [DONE]\n\n"
+
     # ── 5. Stream via EurIA or Claude ─────────────────────────────────────────
     provider = os.environ.get("AI_PROVIDER", "euria").strip().lower()
+    platform_label = "Infomaniak EurIA"
+    model_name = ""
 
     if provider == "claude":
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -501,8 +535,10 @@ def api_article_full_report():
             return jsonify({"error": "ANTHROPIC_API_KEY manquante dans .env (AI_PROVIDER=claude)"}), 503
         from utils.api_client import ClaudeClient as _CC
         _claude = _CC(api_key=api_key)
+        platform_label = "Anthropic Claude"
+        model_name = _claude.model_synthesis
 
-        def generate():
+        def base_generate():
             yield from _claude.stream(prompt=prompt, max_tokens=16000, timeout=300)
 
     else:
@@ -518,6 +554,8 @@ def api_article_full_report():
                 "max_tokens": 16000,
             }
             api_headers = {"Content-Type": "application/json"}
+            platform_label = "Ollama local"
+            model_name = model
         else:
             api_url = os.environ.get("URL", "")
             bearer  = os.environ.get("bearer", "")
@@ -525,8 +563,10 @@ def api_article_full_report():
                 return jsonify({"error": "URL ou bearer manquant dans .env (AI_PROVIDER=euria)"}), 503
             from utils.api_client import EurIAClient as _EC
             _euria = _EC(url=api_url, bearer=bearer)
+            platform_label = "Infomaniak EurIA"
+            model_name = _euria.model
 
-        def generate():
+        def base_generate():
             if provider == "ollama":
                 try:
                     r = _req.post(
@@ -547,6 +587,9 @@ def api_article_full_report():
                 return
 
             yield from _euria.stream(prompt=prompt, max_tokens=16000, timeout=300)
+
+    def generate():
+        yield from _stream_with_ai_signature(base_generate(), platform_label, model_name)
 
     return Response(
         stream_with_context(generate()),
