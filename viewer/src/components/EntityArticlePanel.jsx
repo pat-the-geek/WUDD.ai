@@ -940,7 +940,7 @@ export default function EntityArticlePanel({ entityType, entityValue, onClose, o
                     {art['URL'] && (
                       <a
                         href={art['URL']} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-[#007AFF] dark:text-[#0A84FF] hover:underline"
+                        className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
                       >
                         Lire <ExternalLink size={11} />
                       </a>

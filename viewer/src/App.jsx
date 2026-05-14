@@ -166,8 +166,8 @@ function RssStatusBar({ status, nextRssLabel }) {
       {running ? (
         <>
           {/* Indicateur en cours */}
-          <span className="inline-flex items-center gap-1 text-xs text-[#1a7a34] dark:text-[#30D158] font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse inline-block" />
+          <span className="inline-flex items-center gap-1 text-xs text-[var(--color-success)] font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] animate-pulse inline-block" />
             En cours{elapsed ? ` (${elapsed})` : ''}
           </span>
           {/* Progression flux X/Y */}
@@ -177,7 +177,7 @@ function RssStatusBar({ status, nextRssLabel }) {
               {/* barre de progression */}
               <span className="w-20 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden inline-block align-middle">
                 <span
-                  className="h-full bg-[#34C759] rounded-full block transition-all duration-500"
+                  className="h-full bg-[var(--color-success)] rounded-full block transition-all duration-500"
                   style={{ width: `${pct}%` }}
                 />
               </span>
@@ -861,7 +861,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
               title={title}
               className={`p-2 transition-colors ${
                 theme === key
-                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
+                  ? 'btn-accent text-white'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
@@ -890,7 +890,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
         >
           <Terminal size={16} />
           {rssStatus?.running ? (
-            <span className="w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] animate-pulse" />
           ) : null}
           <span className="hidden xl:inline">RSS</span>
           {!rssStatus?.running && rssStatus?.file_count > 0 && (
@@ -1004,7 +1004,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
           <span className="relative">
             <Settings size={16} />
             {rssStatus?.running ? (
-              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
+              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[var(--color-success)] animate-pulse" />
             ) : null}
           </span>
           <span className="hidden xl:inline">Réglages</span>
@@ -1092,7 +1092,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
             title="Fichiers"
             className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               sidebarOpen || selectedFile
-                ? 'text-[#007AFF] dark:text-[#0A84FF]'
+                ? 'text-accent'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
@@ -1109,7 +1109,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
             title="Top articles"
             className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               topOpen
-                ? 'text-[#007AFF] dark:text-[#0A84FF]'
+                ? 'text-accent'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
@@ -1126,7 +1126,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
             title="Recherche"
             className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               searchOpen || searchTypeMenuOpen
-                ? 'text-[#007AFF] dark:text-[#0A84FF]'
+                ? 'text-accent'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
@@ -1134,7 +1134,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
             <span className="relative">
               <Search size={24} strokeWidth={searchOpen || searchTypeMenuOpen ? 2.2 : 1.8} />
               {mobileFiltersActive && (
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-violet-500" />
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--color-accent)]" />
               )}
             </span>
             <span className="text-[11px] font-medium leading-none">Recherche</span>
@@ -1148,7 +1148,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
             title="Dashboard entités"
             className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               dashboardOpen
-                ? 'text-[#007AFF] dark:text-[#0A84FF]'
+                ? 'text-accent'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
@@ -1165,7 +1165,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
             title="Réglages"
             className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-all duration-150 active:scale-95 active:opacity-70 ${
               settingsOpen
-                ? 'text-[#007AFF] dark:text-[#0A84FF]'
+                ? 'text-accent'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
@@ -1173,7 +1173,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
             <span className="relative">
               <Settings size={24} strokeWidth={settingsOpen ? 2.2 : 1.8} />
               {rssStatus?.running ? (
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#34C759] animate-pulse" />
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--color-success)] animate-pulse" />
               ) : null}
             </span>
             <span className="text-[11px] font-medium leading-none">Réglages</span>
@@ -1312,7 +1312,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
                     : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'
                 }`}
               >
-                <Tag size={20} className="text-violet-500 shrink-0" />
+                <Tag size={20} className="text-accent shrink-0" />
                 <div>
                   <div className="text-sm font-medium text-slate-800 dark:text-slate-100">Filtrer par entité</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">Filtrer par type d’entité nommée (personnes, organisations…)</div>
@@ -1335,7 +1335,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
                     : 'bg-slate-50 dark:bg-slate-800/50 opacity-40 cursor-not-allowed'
                 }`}
               >
-                <BookOpen size={20} className="text-violet-600 shrink-0" />
+                <BookOpen size={20} className="text-accent shrink-0" />
                 <div>
                   <div className="text-sm font-medium text-slate-800 dark:text-slate-100">Rapport Obsidian</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">Afficher uniquement les articles avec un rapport Obsidian attaché</div>

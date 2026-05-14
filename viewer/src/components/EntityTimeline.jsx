@@ -1,27 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
-
-// ── Config types NER (couleurs cohérentes avec EntityDashboard) ───────────────
-const TYPE_CFG = {
-  PERSON:  { color: '#8b5cf6', badge: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800' },
-  ORG:     { color: '#3b82f6', badge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800' },
-  GPE:     { color: '#10b981', badge: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
-  PRODUCT: { color: '#f97316', badge: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800' },
-  EVENT:   { color: '#f59e0b', badge: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
-  LAW:     { color: '#ef4444', badge: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800' },
-  WORK_OF_ART: { color: '#f43f5e', badge: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800' },
-  NORP:    { color: '#a855f7', badge: 'bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-200 dark:border-fuchsia-800' },
-  LOC:     { color: '#14b8a6', badge: 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800' },
-  FAC:     { color: '#06b6d4', badge: 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800' },
-  DATE:    { color: '#64748b', badge: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' },
-  MONEY:   { color: '#eab308', badge: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800' },
-  PERCENT: { color: '#84cc16', badge: 'bg-lime-100 dark:bg-lime-900/40 text-lime-700 dark:text-lime-300 border-lime-200 dark:border-lime-800' },
-  TIME:    { color: '#94a3b8', badge: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' },
-  QUANTITY:{ color: '#78716c', badge: 'bg-stone-100 dark:bg-stone-800/60 text-stone-600 dark:text-stone-400 border-stone-200 dark:border-stone-700' },
-  CARDINAL:{ color: '#71717a', badge: 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700' },
-  ORDINAL: { color: '#9ca3af', badge: 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700' },
-}
-const FALLBACK_CFG = { color: '#94a3b8', badge: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' }
+import { getEntityConfig } from '../lib/entity-config'
 
 const DAYS_OPTIONS = [7, 14, 30, 60]
 const BASE_TYPE_OPTIONS = ['Tous', 'PERSON', 'ORG', 'GPE', 'PRODUCT', 'EVENT', 'LAW', 'WORK_OF_ART', 'NORP', 'LOC', 'FAC']
@@ -71,7 +50,7 @@ function Sparkline({ counts, max, color }) {
 // ── Ligne d'entité ─────────────────────────────────────────────────────────────
 function EntityRow({ entry, onEntitySearch }) {
   const { type, value, total, counts, max } = entry
-  const cfg = TYPE_CFG[type] ?? FALLBACK_CFG
+  const cfg = getEntityConfig(type)
 
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 dark:border-slate-800/60 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
@@ -81,7 +60,7 @@ function EntityRow({ entry, onEntitySearch }) {
       </span>
       {/* Nom cliquable */}
       <button
-        className="flex-1 min-w-0 text-left text-sm font-medium text-slate-800 dark:text-slate-100 truncate hover:text-[#5856D6] dark:hover:text-[#5E5CE6] transition-colors"
+        className="flex-1 min-w-0 text-left text-sm font-medium text-slate-800 dark:text-slate-100 truncate hover:text-accent transition-colors"
         onClick={() => onEntitySearch?.(value, type)}
         title={`Rechercher «${value}» dans les articles`}
       >
@@ -171,7 +150,7 @@ export default function EntityTimeline({ onEntitySearch, includeStructuralDefaul
               onClick={() => setDays(d)}
               className={`px-3 py-1.5 font-medium transition-colors border-l border-slate-200 dark:border-slate-700 first:border-l-0 ${
                 days === d
-                  ? 'bg-violet-500 text-white'
+                  ? 'btn-accent text-white'
                   : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
               }`}
             >
@@ -188,8 +167,8 @@ export default function EntityTimeline({ onEntitySearch, includeStructuralDefaul
               onClick={() => setTypeFilter(t)}
               className={`text-[11px] px-2 py-0.5 rounded-full border font-medium transition-colors ${
                 typeFilter === t
-                  ? 'bg-violet-500 text-white border-violet-500'
-                  : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-violet-300 dark:hover:border-violet-600'
+                  ? 'btn-accent text-white border-accent'
+                  : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-accent'
               }`}
             >
               {t === 'Tous' ? 'Tous types' : t}
@@ -202,7 +181,7 @@ export default function EntityTimeline({ onEntitySearch, includeStructuralDefaul
             type="checkbox"
             checked={includeStructural}
             onChange={e => setIncludeStructural(e.target.checked)}
-            className="rounded border-slate-300 dark:border-slate-600 text-violet-500 focus:ring-violet-400/60"
+            className="rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-[var(--color-accent-subtle)]"
           />
           Inclure types structurels
         </label>
@@ -211,7 +190,7 @@ export default function EntityTimeline({ onEntitySearch, includeStructuralDefaul
         <button
           onClick={fetchTimeline}
           title="Recalculer"
-          className="ml-auto p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-violet-500 hover:border-violet-300 dark:hover:border-violet-600 transition-colors"
+          className="ml-auto p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-accent hover:border-accent transition-colors"
         >
           <RefreshCw size={13} />
         </button>

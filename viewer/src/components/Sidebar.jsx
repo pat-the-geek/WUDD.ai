@@ -78,7 +78,7 @@ export default function Sidebar({
               onClick={() => onTypeFilterChange(key)}
               className={`flex-1 py-2 text-hig-caption1 font-medium rounded-lg transition-colors ${
                 typeFilter === key
-                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
+                  ? 'btn-accent text-white'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
@@ -153,7 +153,7 @@ export default function Sidebar({
                 >
                   {file.type === 'json'
                     ? <FileJson size={14} className="shrink-0 mt-0.5 text-amber-500 dark:text-amber-400" />
-                    : <FileText size={14} className="shrink-0 mt-0.5 text-[#007AFF] dark:text-[#0A84FF]" />
+                    : <FileText size={14} className="shrink-0 mt-0.5 text-accent" />
                   }
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate leading-snug flex items-center gap-2">

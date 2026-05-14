@@ -9,9 +9,9 @@ import { useFetchCache } from '../hooks/useFetchCache'
 import { X, RefreshCw, Eye, AlertTriangle, ShieldCheck, Terminal } from 'lucide-react'
 
 const SENTIMENT_COLORS = {
-  positif: 'bg-[#34C759] dark:bg-[#30D158]',
+  positif: 'bg-[var(--color-success)]',
   neutre:  'bg-slate-400',
-  négatif: 'bg-[#FF3B30] dark:bg-[#FF453A]',
+  négatif: 'bg-[var(--color-danger)]',
 }
 
 const TON_BADGE = {
@@ -256,7 +256,7 @@ export default function SourceBiasPanel({ onClose }) {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowEnrich(true)}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white rounded-lg transition-colors"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs btn-accent text-white rounded-lg transition-colors"
               title="Lancer l'enrichissement WHOIS + MBFC + transparence"
             >
               <ShieldCheck size={12} />
@@ -352,7 +352,7 @@ export default function SourceBiasPanel({ onClose }) {
                     <td className="px-4 py-3"><TonBadge distribution={s.ton_distribution} /></td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {s.avg_score_ton !== null && s.avg_score_ton !== undefined ? (
-                        <span className={`font-medium ${s.avg_score_ton >= 4 ? 'text-[#1a7a34] dark:text-[#30D158]' : s.avg_score_ton <= 2 ? 'text-red-600 dark:text-red-400' : 'text-slate-500'}`}>
+                        <span className={`font-medium ${s.avg_score_ton >= 4 ? 'text-[var(--color-success)]' : s.avg_score_ton <= 2 ? 'text-red-600 dark:text-red-400' : 'text-slate-500'}`}>
                           {s.avg_score_ton}/5
                         </span>
                       ) : (

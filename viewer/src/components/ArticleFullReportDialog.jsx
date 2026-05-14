@@ -854,7 +854,7 @@ ${contentEl.innerHTML}
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-[#007AFF] dark:text-[#0A84FF] hover:text-blue-500 dark:hover:text-blue-300 underline underline-offset-2"
+        className="text-accent hover:text-blue-500 dark:hover:text-blue-300 underline underline-offset-2"
       >
         {children}
       </a>

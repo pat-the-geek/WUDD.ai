@@ -144,7 +144,7 @@ function VideoCard({ video, onPlay, isPlaying }) {
                 href={`https://www.youtube.com/watch?v=${id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="relative flex items-center gap-1.5 text-[12px] font-medium text-white bg-[#FF0000]/90 hover:bg-[#FF0000] px-3 py-1.5 rounded-full transition-colors"
+                className="relative flex items-center gap-1.5 text-[12px] font-medium text-white bg-[var(--color-danger)]/90 hover:bg-[var(--color-danger)] px-3 py-1.5 rounded-full transition-colors"
               >
                 <ExternalLink size={12} /> Voir sur YouTube
               </a>
@@ -242,7 +242,7 @@ export default function YouTubePanel({ article, onClose }) {
 
           {/* ── Header ─────────────────────────────────────────────────── */}
           <div className="shrink-0 flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-            <PlayCircle size={18} className="text-[#FF0000] shrink-0" />
+            <PlayCircle size={18} className="text-[var(--color-danger)] shrink-0" />
             <div className="flex-1 min-w-0">
               <h3 className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 truncate">
                 Vidéos liées
@@ -325,7 +325,7 @@ export default function YouTubePanel({ article, onClose }) {
             {/* Chargement */}
             {loading && (
               <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-400">
-                <Loader2 size={28} className="animate-spin text-[#FF0000]" />
+                <Loader2 size={28} className="animate-spin text-[var(--color-danger)]" />
                 <p className="text-[13px]">Recherche en cours…</p>
               </div>
             )}
@@ -371,7 +371,7 @@ export default function YouTubePanel({ article, onClose }) {
                 href={`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 text-[12px] text-slate-400 hover:text-[#FF0000] transition-colors"
+                className="flex items-center justify-center gap-1.5 text-[12px] text-slate-400 hover:text-[var(--color-danger)] transition-colors"
               >
                 <ExternalLink size={11} /> Voir plus sur YouTube
               </a>

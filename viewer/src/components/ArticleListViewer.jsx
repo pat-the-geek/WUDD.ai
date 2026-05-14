@@ -32,9 +32,9 @@ function DialogFallback() {
 // ── Badge sentiment ───────────────────────────────────────────────────────────
 // Couleurs HIG : systemGreen #34C759 / systemRed #FF3B30 / slate pour neutre
 const SENTIMENT_CFG = {
-  positif: { label: 'Positif', score: null, dot: 'bg-[#34C759] dark:bg-[#30D158]', text: 'text-[#1a7a34] dark:text-[#30D158]', bg: 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800' },
+  positif: { label: 'Positif', score: null, dot: 'bg-[var(--color-success)]', text: 'text-[var(--color-success)]', bg: 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800' },
   neutre:  { label: 'Neutre',  score: null, dot: 'bg-slate-400',                   text: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600' },
-  négatif: { label: 'Négatif', score: null, dot: 'bg-[#FF3B30] dark:bg-[#FF453A]', text: 'text-[#c0392b] dark:text-[#FF453A]', bg: 'bg-rose-50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800' },
+  négatif: { label: 'Négatif', score: null, dot: 'bg-[var(--color-danger)]', text: 'text-[var(--color-danger)]', bg: 'bg-rose-50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800' },
 }
 const TON_LABELS = { factuel: 'Factuel', alarmiste: 'Alarmiste', promotionnel: 'Promo', critique: 'Critique', analytique: 'Analytique' }
 
@@ -73,7 +73,7 @@ function SentimentBadge({ article }) {
 
 const CHIP_COLORS = {
   PERSON:      { idle: 'bg-violet-100 dark:bg-violet-900/50 text-violet-800 dark:text-violet-200 border-violet-200 dark:border-violet-800',       on: 'bg-violet-500 dark:bg-violet-600 text-white border-violet-600 dark:border-violet-500' },
-  ORG:         { idle: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-800',                   on: 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF] dark:border-[#0A84FF]' },
+  ORG:         { idle: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-800',                   on: 'btn-accent text-white border-accent' },
   GPE:         { idle: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800', on: 'bg-emerald-500 dark:bg-emerald-600 text-white border-emerald-600 dark:border-emerald-500' },
   PRODUCT:     { idle: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-800',       on: 'bg-orange-500 dark:bg-orange-600 text-white border-orange-600 dark:border-orange-500' },
   EVENT:       { idle: 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800',             on: 'bg-amber-500 dark:bg-amber-600 text-white border-amber-600 dark:border-amber-500' },
@@ -450,7 +450,7 @@ function IAPickerModal({ providers, onPick, onClose }) {
         <div className="flex flex-col gap-2">
           {providers.map(p => (
             <button key={p} onClick={() => onPick(p)}
-              className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white transition-colors">
+              className="w-full px-4 py-3 rounded-xl text-sm font-medium btn-accent text-white transition-colors">
               {LABELS[p] ?? p}
             </button>
           ))}
@@ -766,7 +766,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
                 </button>
                 <button
                   onClick={() => setYoutubeOpen(true)}
-                  className="flex items-center gap-1 text-xs text-rose-400 hover:text-[#FF0000] dark:hover:text-[#FF453A] transition-colors"
+                  className="flex items-center gap-1 text-xs text-rose-400 hover:text-[var(--color-danger)] dark:hover:text-[#FF453A] transition-colors"
                   title="Vidéos YouTube liées"
                 >
                   <PlayCircle size={12} /> Vidéos
@@ -1528,15 +1528,15 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           {/* Bascule vue grille / timeline */}
           <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
             <button onClick={() => setViewStyle('grid')} title="Vue grille"
-              className={`px-3 py-2 transition-colors ${viewStyle === 'grid' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              className={`px-3 py-2 transition-colors ${viewStyle === 'grid' ? 'btn-accent text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
               <LayoutGrid size={13} />
             </button>
             <button onClick={() => setViewStyle('large')} title="Vue large (1 article / ligne)"
-              className={`px-3 py-2 transition-colors ${viewStyle === 'large' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              className={`px-3 py-2 transition-colors ${viewStyle === 'large' ? 'btn-accent text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
               <LayoutList size={13} />
             </button>
             <button onClick={() => setViewStyle('timeline')} title="Vue timeline"
-              className={`px-3 py-2 transition-colors ${viewStyle === 'timeline' ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              className={`px-3 py-2 transition-colors ${viewStyle === 'timeline' ? 'btn-accent text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
               <AlignLeft size={13} />
             </button>
           </div>
@@ -1559,7 +1559,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
             <Filter size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Type d'entité</span>
             {selectedTypes.size > 0 && (
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-[#007AFF] dark:text-[#0A84FF]">{selectedTypes.size}</span>
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-accent">{selectedTypes.size}</span>
             )}
             {selectedTypes.size > 0 && (
               <span
@@ -1602,7 +1602,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
             <Newspaper size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Source</span>
             {selectedSources.size > 0 && (
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-[#007AFF] dark:text-[#0A84FF]">{selectedSources.size}</span>
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/50 text-accent">{selectedSources.size}</span>
             )}
             {selectedSources.size > 0 && (
               <span

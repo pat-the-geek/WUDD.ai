@@ -42,15 +42,15 @@ export default function LoginPage({ onLogin }) {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-violet-600/20 border border-violet-500/30 mb-4">
-            <span className="text-2xl font-bold text-violet-400">W</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[var(--color-accent-subtle)] border border-[var(--color-accent)] mb-4">
+            <span className="text-2xl font-bold text-[var(--color-accent)]">W</span>
           </div>
           <h1 className="text-2xl font-bold text-white">WUDD.ai</h1>
           <p className="text-sm text-slate-400 mt-1">Plateforme de veille intelligente</p>
         </div>
 
         {/* Formulaire */}
-        <form onSubmit={handleSubmit} className="bg-slate-800/60 backdrop-blur border border-slate-700/60 rounded-2xl p-6 shadow-xl">
+        <form onSubmit={handleSubmit} className="glass-panel rounded-2xl p-6 shadow-xl">
           <h2 className="text-lg font-semibold text-white mb-5">Connexion</h2>
 
           {error && (
@@ -73,7 +73,7 @@ export default function LoginPage({ onLogin }) {
                   autoFocus
                   required
                   placeholder="admin"
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-700/60 border border-slate-600/60 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 transition-colors"
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-700/60 border border-slate-600/60 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent-subtle)] transition-colors"
                 />
               </div>
             </div>
@@ -89,7 +89,7 @@ export default function LoginPage({ onLogin }) {
                   autoComplete="current-password"
                   required
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-700/60 border border-slate-600/60 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 transition-colors"
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-700/60 border border-slate-600/60 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent-subtle)] transition-colors"
                 />
               </div>
             </div>
@@ -98,7 +98,7 @@ export default function LoginPage({ onLogin }) {
           <button
             type="submit"
             disabled={loading || !username.trim() || !password}
-            className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold text-sm transition-all"
+            className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl btn-accent disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold text-sm transition-all"
           >
             {loading ? (
               <span className="animate-pulse">Connexion…</span>

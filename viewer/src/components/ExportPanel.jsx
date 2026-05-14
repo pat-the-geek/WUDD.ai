@@ -9,7 +9,7 @@ function TabButton({ active, onClick, icon: Icon, label }) {
       onClick={onClick}
       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
         active
-          ? 'border-blue-500 text-[#007AFF] dark:text-[#0A84FF]'
+          ? 'border-blue-500 text-accent'
           : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
       }`}
     >
@@ -87,7 +87,7 @@ function AtomTab({ fluxes, keywords }) {
               onClick={() => setSourceType(v)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                 sourceType === v
-                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF]'
+                  ? 'btn-accent text-white border-[#007AFF]'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >
@@ -157,7 +157,7 @@ function AtomTab({ fluxes, keywords }) {
         <a
           href={atomUrl}
           download="wudd-feed.xml"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium btn-accent text-white transition-colors"
         >
           <Download size={14} /> Télécharger le flux
         </a>
@@ -256,7 +256,7 @@ function NewsletterTab() {
               onClick={() => setHours(h)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                 hours === h
-                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF]'
+                  ? 'btn-accent text-white border-[#007AFF]'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >
@@ -293,7 +293,7 @@ function NewsletterTab() {
         <button
           onClick={handleDownload}
           disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] disabled:opacity-60 text-white transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium btn-accent disabled:opacity-60 text-white transition-colors"
         >
           {loading ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
           Télécharger HTML
@@ -421,7 +421,7 @@ function WebhookTab() {
               ['NTFY_TOKEN',      'Token Ntfy (optionnel, auth privée)'],
             ].map(([k, v]) => (
               <tr key={k} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                <td className="px-3 py-2 font-mono text-[#007AFF] dark:text-[#0A84FF]">{k}</td>
+                <td className="px-3 py-2 font-mono text-accent">{k}</td>
                 <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{v}</td>
               </tr>
             ))}
@@ -517,7 +517,7 @@ function ObsidianTab({ fluxes, keywords }) {
               onClick={() => setSourceType(v)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                 sourceType === v
-                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF]'
+                  ? 'btn-accent text-white border-[#007AFF]'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >{l}</button>
@@ -565,7 +565,7 @@ function ObsidianTab({ fluxes, keywords }) {
               onClick={() => setDays(d)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                 days === d
-                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF]'
+                  ? 'btn-accent text-white border-[#007AFF]'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600'
               }`}
             >{d ? `${d}j` : 'Tout'}</button>
@@ -603,7 +603,7 @@ function ObsidianTab({ fluxes, keywords }) {
         <button
           onClick={handleExport}
           disabled={loading || !obsidianConfig?.obsidian_dir}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] disabled:opacity-60 text-white transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium btn-accent disabled:opacity-60 text-white transition-colors"
         >
           {loading ? <RefreshCw size={14} className="animate-spin" /> : <BookOpen size={14} />}
           {dryRun ? 'Simuler' : 'Exporter vers Obsidian'}

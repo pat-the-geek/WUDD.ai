@@ -236,7 +236,7 @@ export default function EntityWatchPanel({ onClose, onOpenArticles }) {
             <button
               onClick={addEntity}
               disabled={!newValue.trim() || saving}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 shrink-0"
+              className="flex items-center gap-1.5 px-3 py-2 btn-accent text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 shrink-0"
             >
               <Plus size={13} /> Surveiller
             </button>

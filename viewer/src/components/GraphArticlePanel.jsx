@@ -54,9 +54,9 @@ function entityCount(article) {
 
 // ── Badges sentiment / ton ────────────────────────────────────────────────────
 const SENTIMENT_CFG = {
-  positif: { label: 'Positif', dot: 'bg-[#34C759] dark:bg-[#30D158]', text: 'text-[#1a7a34] dark:text-[#30D158]', bg: 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800' },
+  positif: { label: 'Positif', dot: 'bg-[var(--color-success)]', text: 'text-[var(--color-success)]', bg: 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800' },
   neutre:  { label: 'Neutre',  dot: 'bg-slate-400',                   text: 'text-slate-600 dark:text-slate-400',  bg: 'bg-slate-100 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600' },
-  négatif: { label: 'Négatif', dot: 'bg-[#FF3B30] dark:bg-[#FF453A]', text: 'text-[#c0392b] dark:text-[#FF453A]', bg: 'bg-rose-50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800' },
+  négatif: { label: 'Négatif', dot: 'bg-[var(--color-danger)]', text: 'text-[var(--color-danger)]', bg: 'bg-rose-50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800' },
 }
 const TON_LABELS = { factuel: 'Factuel', alarmiste: 'Alarmiste', promotionnel: 'Promo', critique: 'Critique', analytique: 'Analytique' }
 
@@ -315,7 +315,7 @@ export default function GraphArticlePanel({ article: partialArticle, filePath, o
                     </button>
                     <button
                       onClick={() => setYoutubeOpen(true)}
-                      className="flex items-center gap-1 text-xs text-rose-400 hover:text-[#FF0000] dark:hover:text-[#FF453A] transition-colors"
+                      className="flex items-center gap-1 text-xs text-rose-400 hover:text-[var(--color-danger)] dark:hover:text-[#FF453A] transition-colors"
                     >
                       <PlayCircle size={13} /> Vidéos
                     </button>

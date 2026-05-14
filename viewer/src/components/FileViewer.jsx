@@ -414,7 +414,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
               title="Vue articles annotés"
               className={`flex items-center gap-1 px-2 py-2 text-xs transition-colors ${
                 viewMode === 'articles'
-                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
+                  ? 'btn-accent text-white'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
               }`}
             >
@@ -426,7 +426,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
               title="Vue JSON brut"
               className={`flex items-center gap-1 px-2 py-2 text-xs transition-colors ${
                 viewMode === 'json'
-                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
+                  ? 'btn-accent text-white'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
               }`}
             >
@@ -506,7 +506,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
         <button
           onClick={onDownload}
           title="Télécharger le fichier JSON"
-          className="hidden md:flex items-center gap-2 px-3 py-2 bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] active:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
+          className="hidden md:flex items-center gap-2 px-3 py-2 btn-accent active:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
         >
           <Download size={12} />
           JSON

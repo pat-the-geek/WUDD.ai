@@ -145,7 +145,7 @@ export default function EntitySearchModal({ query, entityType, onClose, onSelect
                     <FileText size={12} className="text-slate-400 shrink-0" />
                     <button
                       onClick={() => onSelectFile({ path: file.path, name: file.name, type: 'json' })}
-                      className="text-xs font-medium text-[#007AFF] dark:text-[#0A84FF] hover:underline truncate text-left"
+                      className="text-xs font-medium text-accent hover:underline truncate text-left"
                     >
                       {file.name}
                     </button>

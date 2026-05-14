@@ -313,7 +313,7 @@ export default function SearchOverlay({ onClose, onSelect, mode = 'file', curren
               <div className="flex items-center gap-2 mb-2">
                 {file.type === 'json'
                   ? <FileJson size={13} className="text-amber-500 dark:text-amber-400 shrink-0" />
-                  : <FileText size={13} className="text-[#007AFF] dark:text-[#0A84FF] shrink-0" />
+                  : <FileText size={13} className="text-accent shrink-0" />
                 }
                 <span className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{file.name}</span>
                 {file.flux && (

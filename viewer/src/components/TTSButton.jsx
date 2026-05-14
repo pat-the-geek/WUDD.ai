@@ -107,7 +107,7 @@ export default function TTSButton({ text, size = 13, className = '' }) {
       aria-label={speaking ? 'Arrêter la lecture' : 'Lire à voix haute'}
       className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
         speaking
-          ? 'text-[#007AFF] dark:text-[#0A84FF] bg-blue-50 dark:bg-blue-900/30'
+          ? 'text-accent bg-blue-50 dark:bg-blue-900/30'
           : 'text-slate-400 dark:text-slate-500 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:bg-blue-50 dark:hover:bg-blue-900/20'
       } ${className}`}
     >

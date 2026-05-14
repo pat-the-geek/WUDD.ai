@@ -1,28 +1,7 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { Loader2, ZoomIn, ZoomOut, Maximize2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ENTITY_CENTRAL_COLOR, getEntityConfig } from '../lib/entity-config'
 
-// Couleurs par type NER — cohérentes avec EntityDashboard
-const TYPE_CFG = {
-  PERSON:      { node: '#a78bfa', label: 'Personnes' },
-  ORG:         { node: '#60a5fa', label: 'Organisations' },
-  GPE:         { node: '#34d399', label: 'Lieux géopol.' },
-  PRODUCT:     { node: '#fb923c', label: 'Produits' },
-  EVENT:       { node: '#fbbf24', label: 'Événements' },
-  LAW:         { node: '#f87171', label: 'Lois' },
-  LOC:         { node: '#2dd4bf', label: 'Lieux' },
-  NORP:        { node: '#e879f9', label: 'Groupes' },
-  FAC:         { node: '#22d3ee', label: 'Sites' },
-  WORK_OF_ART: { node: '#fb7185', label: 'Œuvres' },
-  MONEY:       { node: '#facc15', label: 'Montants' },
-  LANGUAGE:    { node: '#818cf8', label: 'Langues' },
-  DATE:        { node: '#94a3b8', label: 'Dates' },
-  TIME:        { node: '#94a3b8', label: 'Heures' },
-  QUANTITY:    { node: '#a8a29e', label: 'Quantités' },
-  CARDINAL:    { node: '#a1a1aa', label: 'Nombres' },
-  ORDINAL:     { node: '#9ca3af', label: 'Ordinaux' },
-  PERCENT:     { node: '#86efac', label: 'Pourcentages' },
-}
-const CENTRAL_COLOR = '#8b5cf6'
 const NOISE_TYPES = new Set(['DATE', 'TIME', 'CARDINAL', 'ORDINAL', 'PERCENT', 'QUANTITY'])
 
 const W = 720
@@ -451,11 +430,11 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
         {/* Profondeur */}
         <div className="flex shrink-0 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden text-[11px]">
           <button onClick={() => setDepth(1)}
-            className={`px-2 py-1 transition-colors ${depth === 1 ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+            className={`px-2 py-1 transition-colors ${depth === 1 ? 'bg-[var(--color-accent)] text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
             Niv.1
           </button>
           <button onClick={() => setDepth(2)}
-            className={`px-2 py-1 transition-colors border-l border-slate-200 dark:border-slate-700 ${depth === 2 ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+            className={`px-2 py-1 transition-colors border-l border-slate-200 dark:border-slate-700 ${depth === 2 ? 'bg-[var(--color-accent)] text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
             Niv.2
           </button>
         </div>
@@ -464,7 +443,7 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
         <div className="flex shrink-0 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden text-[11px]">
           {[{label:'7j',val:7},{label:'30j',val:30},{label:'90j',val:90},{label:'Tout',val:0}].map(({label,val},i) => (
             <button key={val} onClick={() => setDays(val)}
-              className={`px-2 py-1 transition-colors ${i > 0 ? 'border-l border-slate-200 dark:border-slate-700' : ''} ${days === val ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+              className={`px-2 py-1 transition-colors ${i > 0 ? 'border-l border-slate-200 dark:border-slate-700' : ''} ${days === val ? 'bg-[var(--color-accent)] text-white' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
               {label}
             </button>
           ))}
@@ -472,13 +451,13 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
 
         {/* Dates/nombres */}
         <label className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 cursor-pointer whitespace-nowrap">
-          <input type="checkbox" checked={showNoise} onChange={e => setShowNoise(e.target.checked)} className="w-3 h-3 accent-violet-500" />
+          <input type="checkbox" checked={showNoise} onChange={e => setShowNoise(e.target.checked)} className="w-3 h-3 accent-[var(--color-accent)]" />
           Dates
         </label>
 
         {/* Taille ∝ articles */}
-        <label className="flex shrink-0 items-center gap-1 text-[11px] cursor-pointer whitespace-nowrap font-medium text-violet-600 dark:text-violet-400" title="Taille ∝ nombre total d'articles (échelle log)">
-          <input type="checkbox" checked={sizeByTotal} onChange={e => setSizeByTotal(e.target.checked)} className="w-3 h-3 accent-violet-500" />
+        <label className="flex shrink-0 items-center gap-1 text-[11px] cursor-pointer whitespace-nowrap font-medium text-accent" title="Taille ∝ nombre total d'articles (échelle log)">
+          <input type="checkbox" checked={sizeByTotal} onChange={e => setSizeByTotal(e.target.checked)} className="w-3 h-3 accent-[var(--color-accent)]" />
           Taille ∝
         </label>
 
@@ -489,7 +468,7 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
             onChange={e => setSpacing(+e.target.value)}
             onMouseUp={e => setSpacingCommitted(+e.target.value)}
             onTouchEnd={e => setSpacingCommitted(+e.target.value)}
-            className="w-16 accent-violet-500" title={`${spacing.toFixed(1)}×`} />
+            className="w-16 accent-[var(--color-accent)]" title={`${spacing.toFixed(1)}×`} />
         </div>
 
         {/* Zoom */}
@@ -513,25 +492,25 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
       {/* ══ Barre 2 : z-order légende (jamais wrap, scroll horizontal) ══ */}
       {orderedTypes.length > 0 && (
         <div className="flex items-center gap-1 mb-1.5 px-1 shrink-0 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-          <span className="text-[10px] font-semibold text-violet-500 dark:text-violet-400 whitespace-nowrap shrink-0 mr-0.5" title="z-order : 1er = par dessus les autres">z↑</span>
+          <span className="text-[10px] font-semibold text-accent whitespace-nowrap shrink-0 mr-0.5" title="z-order : 1er = par dessus les autres">z↑</span>
           {orderedTypes.map((type, idx) => (
             <span key={type} className="inline-flex shrink-0 items-center rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
               <button
                 onMouseDown={e => { e.preventDefault(); e.stopPropagation(); moveLegendType(type, -1) }}
                 disabled={idx === 0}
-                className="w-5 h-6 flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/40 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                className="w-5 h-6 flex items-center justify-center text-slate-400 hover:text-accent hover:bg-[var(--color-accent-subtle)] disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
                 title="Vers le dessus"
               >
                 <ChevronLeft size={12} />
               </button>
               <span className="flex items-center gap-1 px-1 py-0.5 text-[11px] text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: TYPE_CFG[type]?.node ?? '#94a3b8' }} />
-                {TYPE_CFG[type]?.label ?? type}
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: getEntityConfig(type).color }} />
+                {getEntityConfig(type).label || type}
               </span>
               <button
                 onMouseDown={e => { e.preventDefault(); e.stopPropagation(); moveLegendType(type, 1) }}
                 disabled={idx === orderedTypes.length - 1}
-                className="w-5 h-6 flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/40 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                className="w-5 h-6 flex items-center justify-center text-slate-400 hover:text-accent hover:bg-[var(--color-accent-subtle)] disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
                 title="Vers le dessous"
               >
                 <ChevronRight size={12} />
@@ -559,7 +538,7 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
             const ti = nodeIndex[edge.target]
             if (si === undefined || ti === undefined || !positions[si] || !positions[ti]) return null
             const tgtNode = nodes[ti]
-            const color = TYPE_CFG[tgtNode?.type]?.node ?? '#94a3b8'
+            const color = getEntityConfig(tgtNode?.type).color
             const isL2edge = (tgtNode?.level ?? 1) === 2
             return (
               <line key={i}
@@ -580,7 +559,7 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
             if (!positions[i]) return null
             const { x, y } = positions[i]
             const r = nodeRadius(node)
-            const color = node.central ? CENTRAL_COLOR : (TYPE_CFG[node.type]?.node ?? '#94a3b8')
+            const color = node.central ? ENTITY_CENTRAL_COLOR : getEntityConfig(node.type).color
             const isL2 = (node.level ?? 1) === 2
             const label = node.value.length > (isL2 ? 11 : 15)
               ? node.value.slice(0, isL2 ? 10 : 14) + '…'
@@ -628,9 +607,9 @@ export default function EntityGraph({ entityType, entityValue, onNavigate }) {
           style={{ left: tooltip.x + 14, top: tooltip.y - 48 }}>
           <div className="font-semibold">{tooltip.node.value}</div>
           <div className="text-slate-400 text-[11px] mt-0.5">
-            {TYPE_CFG[tooltip.node.type]?.label ?? tooltip.node.type}
+            {getEntityConfig(tooltip.node.type).label || tooltip.node.type}
             {!tooltip.node.central && (
-              <> · <span className="text-violet-300">
+              <> · <span className="text-[var(--color-accent-subtle)]">
                 {sizeByTotal
                   ? <>{tooltip.node.total_count ?? 0} art. total</>
                   : <>{tooltip.node.count} art. en commun</>

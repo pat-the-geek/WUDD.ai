@@ -1,38 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Tag, ChevronDown, ChevronRight, Search } from 'lucide-react'
-
-/**
- * Configuration des types NER : label français + classes Tailwind statiques.
- * Les classes doivent être écrites en dur pour ne pas être purgées par Tailwind.
- */
-const ENTITY_CONFIG = {
-  PERSON:      { label: 'Personnes',         dot: 'bg-violet-400',  chipBg: 'bg-violet-100 dark:bg-violet-900/40',   chipText: 'text-violet-700 dark:text-violet-300',   chipBorder: 'border-violet-200 dark:border-violet-800' },
-  ORG:         { label: 'Organisations',     dot: 'bg-blue-400',    chipBg: 'bg-blue-100 dark:bg-blue-900/40',       chipText: 'text-blue-700 dark:text-blue-300',       chipBorder: 'border-blue-200 dark:border-blue-800'   },
-  GPE:         { label: 'Lieux géopol.',     dot: 'bg-emerald-400', chipBg: 'bg-emerald-100 dark:bg-emerald-900/40', chipText: 'text-emerald-700 dark:text-emerald-300', chipBorder: 'border-emerald-200 dark:border-emerald-800' },
-  PRODUCT:     { label: 'Produits / Tech',   dot: 'bg-orange-400',  chipBg: 'bg-orange-100 dark:bg-orange-900/40',   chipText: 'text-orange-700 dark:text-orange-300',   chipBorder: 'border-orange-200 dark:border-orange-800' },
-  EVENT:       { label: 'Événements',        dot: 'bg-amber-400',   chipBg: 'bg-amber-100 dark:bg-amber-900/40',     chipText: 'text-amber-700 dark:text-amber-300',     chipBorder: 'border-amber-200 dark:border-amber-800'  },
-  LAW:         { label: 'Lois / Règlements', dot: 'bg-red-400',     chipBg: 'bg-red-100 dark:bg-red-900/40',         chipText: 'text-red-700 dark:text-red-300',         chipBorder: 'border-red-200 dark:border-red-800'     },
-  LOC:         { label: 'Lieux',             dot: 'bg-teal-400',    chipBg: 'bg-teal-100 dark:bg-teal-900/40',       chipText: 'text-teal-700 dark:text-teal-300',       chipBorder: 'border-teal-200 dark:border-teal-800'   },
-  NORP:        { label: 'Groupes',           dot: 'bg-fuchsia-400', chipBg: 'bg-fuchsia-100 dark:bg-fuchsia-900/40', chipText: 'text-fuchsia-700 dark:text-fuchsia-300', chipBorder: 'border-fuchsia-200 dark:border-fuchsia-800' },
-  FAC:         { label: 'Sites / Bâtiments', dot: 'bg-cyan-400',    chipBg: 'bg-cyan-100 dark:bg-cyan-900/40',       chipText: 'text-cyan-700 dark:text-cyan-300',       chipBorder: 'border-cyan-200 dark:border-cyan-800'   },
-  WORK_OF_ART: { label: 'Œuvres',            dot: 'bg-rose-400',    chipBg: 'bg-rose-100 dark:bg-rose-900/40',       chipText: 'text-rose-700 dark:text-rose-300',       chipBorder: 'border-rose-200 dark:border-rose-800'   },
-  MONEY:       { label: 'Montants',          dot: 'bg-yellow-400',  chipBg: 'bg-yellow-100 dark:bg-yellow-900/40',   chipText: 'text-yellow-700 dark:text-yellow-300',   chipBorder: 'border-yellow-200 dark:border-yellow-800' },
-  PERCENT:     { label: 'Pourcentages',      dot: 'bg-lime-400',    chipBg: 'bg-lime-100 dark:bg-lime-900/40',       chipText: 'text-lime-700 dark:text-lime-300',       chipBorder: 'border-lime-200 dark:border-lime-800'   },
-  LANGUAGE:    { label: 'Langues',           dot: 'bg-indigo-400',  chipBg: 'bg-indigo-100 dark:bg-indigo-900/40',   chipText: 'text-indigo-700 dark:text-indigo-300',   chipBorder: 'border-indigo-200 dark:border-indigo-800' },
-  DATE:        { label: 'Dates',             dot: 'bg-slate-400',   chipBg: 'bg-slate-100 dark:bg-slate-800',        chipText: 'text-slate-600 dark:text-slate-400',     chipBorder: 'border-slate-200 dark:border-slate-700' },
-  TIME:        { label: 'Heures',            dot: 'bg-slate-400',   chipBg: 'bg-slate-100 dark:bg-slate-800',        chipText: 'text-slate-600 dark:text-slate-400',     chipBorder: 'border-slate-200 dark:border-slate-700' },
-  QUANTITY:    { label: 'Quantités',         dot: 'bg-stone-400',   chipBg: 'bg-stone-100 dark:bg-stone-800/60',     chipText: 'text-stone-600 dark:text-stone-400',     chipBorder: 'border-stone-200 dark:border-stone-700' },
-  CARDINAL:    { label: 'Nombres',           dot: 'bg-zinc-400',    chipBg: 'bg-zinc-100 dark:bg-zinc-800/60',       chipText: 'text-zinc-600 dark:text-zinc-400',       chipBorder: 'border-zinc-200 dark:border-zinc-700'   },
-  ORDINAL:     { label: 'Ordinaux',          dot: 'bg-gray-400',    chipBg: 'bg-gray-100 dark:bg-gray-800/60',       chipText: 'text-gray-600 dark:text-gray-400',       chipBorder: 'border-gray-200 dark:border-gray-700'   },
-}
-
-const FALLBACK_CFG = {
-  label: '',
-  dot: 'bg-slate-400',
-  chipBg: 'bg-slate-100 dark:bg-slate-800',
-  chipText: 'text-slate-600 dark:text-slate-400',
-  chipBorder: 'border-slate-200 dark:border-slate-700',
-}
+import { getEntityConfig } from '../lib/entity-config'
 
 /**
  * Agrège les entités de tous les articles d'un fichier JSON.
@@ -72,7 +40,7 @@ function extractEntities(jsonContent) {
 
 function EntitySection({ type, entities, defaultOpen, onEntitySearch }) {
   const [open, setOpen] = useState(defaultOpen)
-  const cfg = ENTITY_CONFIG[type] ?? { ...FALLBACK_CFG, label: type }
+  const cfg = getEntityConfig(type)
 
   return (
     <div className="border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-hidden">
@@ -113,8 +81,7 @@ function EntitySection({ type, entities, defaultOpen, onEntitySearch }) {
                   key={value}
                   onClick={() => onEntitySearch(value, type)}
                   title={`Rechercher «${value}» dans tous les fichiers`}
-                  className={`group inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-all hover:ring-2 hover:ring-offset-1 hover:ring-violet-400/50 hover:scale-105 active:scale-95
-                    ${cfg.chipBg} ${cfg.chipText} ${cfg.chipBorder}`}
+                  className={`group inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-all hover:ring-2 hover:ring-offset-1 hover:ring-[var(--color-accent-subtle)] hover:scale-105 active:scale-95 ${cfg.badge}`}
                 >
                   {chip}
                   <Search size={9} className="opacity-0 group-hover:opacity-60 transition-opacity ml-0.5 shrink-0" />
@@ -126,8 +93,7 @@ function EntitySection({ type, entities, defaultOpen, onEntitySearch }) {
               <span
                 key={value}
                 title={count > 1 ? `Mentionné dans ${count} articles` : undefined}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border
-                  ${cfg.chipBg} ${cfg.chipText} ${cfg.chipBorder}`}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${cfg.badge}`}
               >
                 {chip}
               </span>

@@ -356,7 +356,7 @@ function DayView({ date, dayMap }) {
             {art['URL'] && (
               <a
                 href={art['URL']} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-[#007AFF] dark:text-[#0A84FF] hover:underline shrink-0"
+                className="inline-flex items-center gap-1 text-xs text-accent hover:underline shrink-0"
               >
                 Lire <ExternalLink size={11} />
               </a>

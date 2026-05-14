@@ -5,37 +5,7 @@ import EntityArticlePanel from './EntityArticlePanel'
 import EntityWorldMap from './EntityWorldMap'
 import EntityGallery from './EntityGallery'
 import EntityTimeline from './EntityTimeline'
-
-/**
- * Configuration des types NER (cohérente avec EntityPanel).
- * Couleurs écrites en dur pour éviter la purge Tailwind.
- */
-const TYPE_CONFIG = {
-  PERSON:      { label: 'Personnes',          bar: 'bg-violet-400 dark:bg-violet-500',  text: 'text-violet-700 dark:text-violet-300',  badge: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800' },
-  ORG:         { label: 'Organisations',      bar: 'bg-blue-400 dark:bg-blue-500',      text: 'text-blue-700 dark:text-blue-300',      badge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800' },
-  GPE:         { label: 'Lieux géopolitiques',bar: 'bg-emerald-400 dark:bg-emerald-500',text: 'text-emerald-700 dark:text-emerald-300',badge: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
-  PRODUCT:     { label: 'Produits / Tech',    bar: 'bg-orange-400 dark:bg-orange-500',  text: 'text-orange-700 dark:text-orange-300',  badge: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800' },
-  EVENT:       { label: 'Événements',         bar: 'bg-amber-400 dark:bg-amber-500',    text: 'text-amber-700 dark:text-amber-300',    badge: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
-  LAW:         { label: 'Lois / Règlements',  bar: 'bg-red-400 dark:bg-red-500',        text: 'text-red-700 dark:text-red-300',        badge: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800' },
-  LOC:         { label: 'Lieux',              bar: 'bg-teal-400 dark:bg-teal-500',      text: 'text-teal-700 dark:text-teal-300',      badge: 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800' },
-  NORP:        { label: 'Groupes',            bar: 'bg-fuchsia-400 dark:bg-fuchsia-500',text: 'text-fuchsia-700 dark:text-fuchsia-300',badge: 'bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-200 dark:border-fuchsia-800' },
-  FAC:         { label: 'Sites / Bâtiments',  bar: 'bg-cyan-400 dark:bg-cyan-500',      text: 'text-cyan-700 dark:text-cyan-300',      badge: 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800' },
-  WORK_OF_ART: { label: 'Œuvres',             bar: 'bg-rose-400 dark:bg-rose-500',      text: 'text-rose-700 dark:text-rose-300',      badge: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800' },
-  MONEY:       { label: 'Montants',           bar: 'bg-yellow-400 dark:bg-yellow-500',  text: 'text-yellow-700 dark:text-yellow-300',  badge: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800' },
-  PERCENT:     { label: 'Pourcentages',       bar: 'bg-lime-400 dark:bg-lime-500',      text: 'text-lime-700 dark:text-lime-300',      badge: 'bg-lime-100 dark:bg-lime-900/40 text-lime-700 dark:text-lime-300 border-lime-200 dark:border-lime-800' },
-  LANGUAGE:    { label: 'Langues',            bar: 'bg-indigo-400 dark:bg-indigo-500',  text: 'text-indigo-700 dark:text-indigo-300',  badge: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' },
-  DATE:        { label: 'Dates',              bar: 'bg-slate-400 dark:bg-slate-500',    text: 'text-slate-600 dark:text-slate-400',    badge: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' },
-  TIME:        { label: 'Heures',             bar: 'bg-slate-400 dark:bg-slate-500',    text: 'text-slate-600 dark:text-slate-400',    badge: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' },
-  QUANTITY:    { label: 'Quantités',          bar: 'bg-stone-400 dark:bg-stone-500',    text: 'text-stone-600 dark:text-stone-400',    badge: 'bg-stone-100 dark:bg-stone-800/60 text-stone-600 dark:text-stone-400 border-stone-200 dark:border-stone-700' },
-  CARDINAL:    { label: 'Nombres',            bar: 'bg-zinc-400 dark:bg-zinc-500',      text: 'text-zinc-600 dark:text-zinc-400',      badge: 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700' },
-  ORDINAL:     { label: 'Ordinaux',           bar: 'bg-gray-400 dark:bg-gray-500',      text: 'text-gray-600 dark:text-gray-400',      badge: 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700' },
-}
-const FALLBACK_CFG = {
-  label: '',
-  bar: 'bg-slate-400 dark:bg-slate-500',
-  text: 'text-slate-600 dark:text-slate-400',
-  badge: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700',
-}
+import { getEntityConfig } from '../lib/entity-config'
 
 function StatCard({ icon: Icon, value, label, sub }) {
   return (
@@ -49,7 +19,7 @@ function StatCard({ icon: Icon, value, label, sub }) {
 }
 
 function TypeSection({ section, maxMentions, onEntitySearch }) {
-  const cfg = TYPE_CONFIG[section.type] ?? { ...FALLBACK_CFG, label: section.type }
+  const cfg = getEntityConfig(section.type)
   const pct = maxMentions > 0 ? Math.round((section.mention_count / maxMentions) * 100) : 0
 
   return (
@@ -176,7 +146,7 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
 
           {/* ── En-tête desktop ── */}
           <div className="hidden md:flex items-center gap-2 px-4 py-3 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border-b border-white/30 dark:border-slate-700/40 shrink-0">
-            <BarChart2 size={18} className="text-violet-500" />
+            <BarChart2 size={18} className="text-accent" />
             <span className="font-semibold text-slate-800 dark:text-slate-100 text-base">
               Dashboard entités
             </span>
@@ -187,10 +157,10 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
             )}
             {!loading && data && data.by_type.length > 0 && (
               <div className="ml-auto mr-2 flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <button onClick={() => setViewMode('list')} title="Vue liste" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors ${viewMode === 'list' ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><List size={14} /><span>Liste</span></button>
-                <button onClick={() => setViewMode('map')} title="Vue carte" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${viewMode === 'map' ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><Map size={14} /><span>Carte</span></button>
-                <button onClick={() => setViewMode('gallery')} title="Galerie" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${viewMode === 'gallery' ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><Images size={14} /><span>Galerie</span></button>
-                <button onClick={() => setViewMode('timeline')} title="Timeline" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${viewMode === 'timeline' ? 'bg-violet-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><TrendingUp size={14} /><span>Timeline</span></button>
+                <button onClick={() => setViewMode('list')} title="Vue liste" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors ${viewMode === 'list' ? 'btn-accent text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><List size={14} /><span>Liste</span></button>
+                <button onClick={() => setViewMode('map')} title="Vue carte" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${viewMode === 'map' ? 'btn-accent text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><Map size={14} /><span>Carte</span></button>
+                <button onClick={() => setViewMode('gallery')} title="Galerie" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${viewMode === 'gallery' ? 'btn-accent text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><Images size={14} /><span>Galerie</span></button>
+                <button onClick={() => setViewMode('timeline')} title="Timeline" className={`flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${viewMode === 'timeline' ? 'btn-accent text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}><TrendingUp size={14} /><span>Timeline</span></button>
               </div>
             )}
             <button onClick={() => setIsMaximized(m => !m)} title={isMaximized ? 'Réduire' : 'Agrandir'} className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors">{isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
@@ -203,10 +173,10 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             <div className="flex items-stretch mx-3 mb-3 h-[49px] rounded-2xl overflow-hidden glass-nav">
-              <button onClick={() => setViewMode('list')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'list' ? 'text-violet-500 dark:text-violet-400' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'list' && <span className="nav-active-pill" />}<List size={20} strokeWidth={viewMode === 'list' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Liste</span></button>
-              <button onClick={() => setViewMode('map')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'map' ? 'text-violet-500 dark:text-violet-400' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'map' && <span className="nav-active-pill" />}<Map size={20} strokeWidth={viewMode === 'map' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Carte</span></button>
-              <button onClick={() => setViewMode('gallery')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'gallery' ? 'text-violet-500 dark:text-violet-400' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'gallery' && <span className="nav-active-pill" />}<Images size={20} strokeWidth={viewMode === 'gallery' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Galerie</span></button>
-              <button onClick={() => setViewMode('timeline')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'timeline' ? 'text-violet-500 dark:text-violet-400' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'timeline' && <span className="nav-active-pill" />}<TrendingUp size={20} strokeWidth={viewMode === 'timeline' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Timeline</span></button>
+              <button onClick={() => setViewMode('list')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'list' ? 'text-accent' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'list' && <span className="nav-active-pill" />}<List size={20} strokeWidth={viewMode === 'list' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Liste</span></button>
+              <button onClick={() => setViewMode('map')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'map' ? 'text-accent' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'map' && <span className="nav-active-pill" />}<Map size={20} strokeWidth={viewMode === 'map' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Carte</span></button>
+              <button onClick={() => setViewMode('gallery')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'gallery' ? 'text-accent' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'gallery' && <span className="nav-active-pill" />}<Images size={20} strokeWidth={viewMode === 'gallery' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Galerie</span></button>
+              <button onClick={() => setViewMode('timeline')} className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${viewMode === 'timeline' ? 'text-accent' : 'text-slate-400 dark:text-slate-500'}`}>{viewMode === 'timeline' && <span className="nav-active-pill" />}<TrendingUp size={20} strokeWidth={viewMode === 'timeline' ? 2.2 : 1.8} /><span className="text-[11px] font-medium leading-none">Timeline</span></button>
               <button onClick={onClose} aria-label="Fermer" className="flex items-center justify-center px-4 text-slate-400 dark:text-slate-500 border-l border-slate-200/60 dark:border-slate-700/50 active:opacity-60 transition-colors"><X size={20} /></button>
             </div>
           </div>
@@ -272,7 +242,7 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
                           type="checkbox"
                           checked={includeStructural}
                           onChange={e => setIncludeStructural(e.target.checked)}
-                          className="rounded border-slate-300 dark:border-slate-600 text-violet-500 focus:ring-violet-400/60"
+                          className="rounded border-slate-300 dark:border-slate-600 text-accent focus:ring-[var(--color-accent-subtle)]"
                         />
                         Inclure types structurels (DATE, MONEY…)
                       </label>
@@ -287,7 +257,7 @@ export default function EntityDashboard({ onClose, onEntitySearch }) {
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
                         placeholder="Rechercher une entité…"
-                        className="w-full pl-9 pr-8 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-400/60 dark:focus:ring-violet-500/50"
+                        className="w-full pl-9 pr-8 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)]"
                       />
                       {searchQuery && (
                         <button

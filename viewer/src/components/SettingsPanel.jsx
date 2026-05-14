@@ -45,7 +45,7 @@ function SaveButton({ saving, saved, onClick }) {
       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
         saved
           ? 'bg-green-700 text-green-100 border border-green-600'
-          : 'bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white border border-blue-500 disabled:opacity-60'
+          : 'btn-accent text-white border border-[var(--color-accent)] disabled:opacity-60'
       }`}
     >
       {saved
@@ -87,12 +87,12 @@ function StatusBadge({ task }) {
     </span>
   )
   if (isSoon) return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-[#007AFF] dark:text-[#0A84FF]">
+    <span className="inline-flex items-center gap-1.5 text-xs text-accent">
       <span className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse" /> Bientôt
     </span>
   )
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-[#1a7a34] dark:text-[#30D158]">
+    <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-success)]">
       <CheckCircle2 size={12} /> Actif
     </span>
   )
@@ -122,7 +122,7 @@ function TaskTable({ title, tasks }) {
                 <div className="font-medium text-slate-800 dark:text-slate-200 text-sm">{task.name}</div>
                 <div className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">{task.script}</div>
                 {task.detail && (
-                  <div className="text-[11px] text-[#007AFF] dark:text-[#0A84FF] mt-1">{task.detail}</div>
+                  <div className="text-[11px] text-accent mt-1">{task.detail}</div>
                 )}
               </td>
               <td className="px-4 py-3">
@@ -210,9 +210,9 @@ function SchedulerTab() {
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* Prochaine tâche imminente */}
       {upcoming && (
-        <div className="px-5 py-2.5 bg-[#007AFF]/5 dark:bg-[#0A84FF]/10 border-b border-blue-200 dark:border-blue-500/20 shrink-0">
+        <div className="px-5 py-2.5 bg-[var(--color-accent-subtle)]/40 border-b border-[var(--color-accent)]/20 shrink-0">
           <div className="flex items-center gap-2 text-sm">
-            <Calendar size={13} className="text-[#007AFF] dark:text-[#0A84FF] shrink-0" />
+            <Calendar size={13} className="text-accent shrink-0" />
             <span className="text-blue-700 dark:text-blue-300">
               Prochaine tâche :{' '}
               <span className="font-medium text-blue-800 dark:text-blue-200">{upcoming.name}</span>
@@ -272,7 +272,7 @@ function SchedulerTab() {
                             <div className="font-medium text-slate-800 dark:text-slate-200 text-sm">{task.name}</div>
                             <div className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">{task.script}</div>
                             {task.disabled_reason && <div className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">{task.disabled_reason}</div>}
-                            {task.detail && <div className="text-[11px] text-[#007AFF] dark:text-[#0A84FF] mt-1">{task.detail}</div>}
+                            {task.detail && <div className="text-[11px] text-accent mt-1">{task.detail}</div>}
                           </td>
                           <td className="px-4 py-3">
                             <div className="text-slate-700 dark:text-slate-300 text-sm">{task.label}</div>
@@ -407,7 +407,7 @@ function TagInput({ tags, onChange, placeholder, color }) {
   const [input, setInput] = useState('')
 
   const styles = {
-    blue:  { tag: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700/50',  btn: 'hover:text-blue-600 dark:hover:text-blue-200 text-[#007AFF] dark:text-[#0A84FF]'  },
+    blue:  { tag: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700/50',  btn: 'hover:text-blue-600 dark:hover:text-blue-200 text-accent'  },
     green: { tag: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700/50', btn: 'hover:text-green-600 dark:hover:text-green-200 text-green-500 dark:text-green-400' },
   }
   const s = styles[color] || styles.blue
@@ -443,7 +443,7 @@ function TagInput({ tags, onChange, placeholder, color }) {
             if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit() }
           }}
           placeholder={placeholder}
-          className="text-xs bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-0.5 text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-[#007AFF] w-40 transition-colors"
+          className="text-xs bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-0.5 text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent w-40 transition-colors"
         />
         <button
           onClick={commit}
@@ -579,7 +579,7 @@ function SemanticFieldModal({ keyword, onClose, onApply }) {
           <button
             disabled={!suggestions || (selectedOu.size === 0 && selectedEt.size === 0)}
             onClick={() => onApply([...selectedOu], [...selectedEt])}
-            className="px-4 py-1.5 text-xs bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+            className="px-4 py-1.5 text-xs btn-accent text-white rounded-lg hover:bg-blue-600 dark:hover:bg-blue-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
           >
             <Check size={12} /> Appliquer ({selectedOu.size + selectedEt.size} termes)
           </button>
@@ -659,8 +659,8 @@ function KeywordsTab() {
       {/* Texte explicatif — masqué sur mobile pour ne pas agrandir la toolbar */}
       <p className="hidden sm:block text-xs text-slate-400 dark:text-slate-500 px-5 pt-3 pb-1 shrink-0">
         Mots-clés extraits des flux RSS.{' '}
-        <span className="text-[#007AFF] dark:text-[#0A84FF] font-medium">OU</span> élargit la recherche,{' '}
-        <span className="text-[#1a7a34] dark:text-[#30D158] font-medium">ET</span> la restreint.
+        <span className="text-accent font-medium">OU</span> élargit la recherche,{' '}
+        <span className="text-[var(--color-success)] font-medium">ET</span> la restreint.
         Appuyez sur <kbd className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1 rounded text-[11px]">Entrée</kbd> pour valider un terme.
       </p>
       {/* Barre d'outils */}
@@ -715,7 +715,7 @@ function KeywordsTab() {
         {!keywords?.length ? (
           <div className="text-center py-16 text-slate-400 dark:text-slate-500 text-sm">
             Aucun mot-clé configuré.{' '}
-            <button onClick={add} className="text-[#007AFF] dark:text-[#0A84FF] hover:text-blue-500 dark:hover:text-blue-300 underline">
+            <button onClick={add} className="text-accent hover:text-blue-500 dark:hover:text-blue-300 underline">
               Ajouter le premier
             </button>
           </div>
@@ -733,7 +733,7 @@ function KeywordsTab() {
                   value={kw.keyword}
                   onChange={e => update(idx, 'keyword', e.target.value)}
                   placeholder="ex. Intelligence Artificielle"
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-[#007AFF] transition-colors"
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent transition-colors"
                 />
               </div>
               <button
@@ -995,7 +995,7 @@ function RssTab() {
           onClick={saveFeed}
           disabled={!isDirty || saving}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium transition-colors disabled:opacity-40
-            bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white"
+            btn-accent text-white"
           title="Sauvegarder les flux dans data/WUDD.opml"
         >
           {saving
@@ -1008,7 +1008,7 @@ function RssTab() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Filtrer…"
-          className="pl-3 pr-3 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 focus:border-[#007AFF] transition-colors w-36"
+          className="pl-3 pr-3 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] focus:border-accent transition-colors w-36"
         />
       </div>
 
@@ -1023,12 +1023,12 @@ function RssTab() {
             onChange={e => { setPasteUrl(e.target.value); setPasteMsg(null) }}
             onKeyDown={e => { if (e.key === 'Enter') handlePaste(); if (e.key === 'Escape') { setShowPasteInput(false); setPasteUrl('') } }}
             placeholder="Coller l'URL RSS ici (Entrée pour valider)"
-            className="flex-1 min-w-0 pl-3 pr-3 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 focus:border-[#007AFF] transition-colors"
+            className="flex-1 min-w-0 pl-3 pr-3 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] focus:border-accent transition-colors"
           />
           <button
             onClick={handlePaste}
             disabled={!pasteUrl.trim() || pasteMsg?.state === 'checking'}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white disabled:opacity-40 transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium btn-accent text-white disabled:opacity-40 transition-colors shrink-0"
           >
             {pasteMsg?.state === 'checking' ? <RefreshCw size={11} className="animate-spin" /> : <Plus size={11} />}
             Ajouter
@@ -1106,14 +1106,14 @@ function RssTab() {
                     {!isChecking && result === undefined && (
                       <button
                         onClick={() => checkOne(f.xmlUrl)}
-                        className="opacity-30 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF]"
+                        className="opacity-30 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-accent"
                         title="Vérifier ce flux"
                       >
                         <Check size={11} />
                       </button>
                     )}
                     <a href={f.xmlUrl} target="_blank" rel="noopener noreferrer"
-                      className="opacity-30 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF]"
+                      className="opacity-30 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-accent"
                       title="Ouvrir le flux RSS">
                       <ExternalLink size={11} />
                     </a>
@@ -1243,7 +1243,7 @@ function FluxTab() {
         {!sources?.length ? (
           <div className="text-center py-16 text-slate-400 dark:text-slate-500 text-sm">
             Aucun flux configuré.{' '}
-            <button onClick={add} className="text-[#007AFF] dark:text-[#0A84FF] hover:text-blue-500 dark:hover:text-blue-300 underline">
+            <button onClick={add} className="text-accent hover:text-blue-500 dark:hover:text-blue-300 underline">
               Ajouter le premier flux
             </button>
           </div>
@@ -1266,7 +1266,7 @@ function FluxTab() {
                       value={src.title}
                       onChange={e => updateField(idx, 'title', e.target.value)}
                       placeholder="ex. Intelligence-artificielle"
-                      className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-[#007AFF] transition-colors"
+                      className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent transition-colors"
                     />
                   </div>
                   <div>
@@ -1278,7 +1278,7 @@ function FluxTab() {
                       value={src.url}
                       onChange={e => updateField(idx, 'url', e.target.value)}
                       placeholder="https://…/feed.json"
-                      className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 font-mono focus:outline-none focus:border-[#007AFF] transition-colors"
+                      className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 font-mono focus:outline-none focus:border-accent transition-colors"
                     />
                   </div>
                 </div>
@@ -1303,12 +1303,12 @@ function FluxTab() {
                       value={cron}
                       onChange={e => updateScheduler(idx, 'cron', e.target.value)}
                       placeholder="0 6 * * 1"
-                      className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm font-mono text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-[#007AFF] transition-colors"
+                      className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm font-mono text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent transition-colors"
                     />
                     <select
                       value=""
                       onChange={e => e.target.value && updateScheduler(idx, 'cron', e.target.value)}
-                      className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-500 dark:text-slate-400 focus:outline-none focus:border-[#007AFF] transition-colors"
+                      className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-500 dark:text-slate-400 focus:outline-none focus:border-accent transition-colors"
                     >
                       <option value="">Préréglage…</option>
                       {CRON_PRESETS.map(p => (
@@ -1327,7 +1327,7 @@ function FluxTab() {
                     onChange={e => updateScheduler(idx, 'timeout', parseInt(e.target.value) || 60)}
                     min={10}
                     max={600}
-                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#007AFF] transition-colors"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-accent transition-colors"
                   />
                 </div>
               </div>
@@ -1348,7 +1348,7 @@ function QuotaBar({ count, limit, color = 'blue' }) {
     amber:  'bg-amber-500 dark:bg-amber-400',
     rose:   'bg-rose-500 dark:bg-rose-400',
     green:  'bg-green-500 dark:bg-green-400',
-    violet: 'bg-violet-500 dark:bg-violet-400',
+    accent: 'bg-[var(--color-accent)] dark:bg-[var(--color-accent)]',
   }
   const barColor = pct >= 90 ? colors.rose : pct >= 70 ? colors.amber : (colors[color] ?? colors.blue)
   return (
@@ -1470,10 +1470,10 @@ function QuotaTab() {
           </div>
           <button
             onClick={() => setConfig(c => ({ ...c, enabled: !c.enabled }))}
-            className="text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] transition-colors"
+            className="text-slate-400 hover:text-accent transition-colors"
           >
             {config.enabled
-              ? <ToggleRight size={28} className="text-[#007AFF] dark:text-[#0A84FF]" />
+              ? <ToggleRight size={28} className="text-accent" />
               : <ToggleLeft  size={28} />}
           </button>
         </div>
@@ -1535,7 +1535,7 @@ function QuotaTab() {
                 type="range" min="1" max="100" step="1"
                 value={config.per_keyword_daily_limit}
                 onChange={e => setConfig(c => ({ ...c, per_keyword_daily_limit: +e.target.value }))}
-                className="w-full accent-violet-500"
+                className="w-full accent-[var(--color-accent)]"
               />
               <div className="flex justify-between text-xs text-slate-400">
                 <span>1</span>
@@ -1841,7 +1841,7 @@ function FiabiliteTab() {
         <button
           onClick={startEnrich}
           disabled={enriching}
-          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] disabled:opacity-60 text-white rounded-lg transition-colors"
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs btn-accent disabled:opacity-60 text-white rounded-lg transition-colors"
         >
           <RefreshCw size={12} className={enriching ? 'animate-spin' : ''} />
           {enriching ? 'Enrichissement…' : 'Actualiser fiabilité'}
@@ -2202,8 +2202,8 @@ function EnvTab() {
               disabled={saving}
               className={`px-4 py-2 rounded-lg text-xs font-medium border transition-colors ${
                 currentProvider === opt.value
-                  ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF] shadow-sm'
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-[#007AFF] hover:text-[#007AFF] dark:hover:text-[#0A84FF]'
+                  ? 'btn-accent text-white border-[var(--color-accent)] shadow-sm'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-accent hover:text-accent'
               }`}
             >
               {currentProvider === opt.value && <span className="mr-1">●</span>}
@@ -2224,7 +2224,7 @@ function EnvTab() {
               {ollamaLoading
                 ? <span className="text-[11px] text-slate-400 flex items-center gap-1"><RefreshCw size={10} className="animate-spin" /> …</span>
                 : ollamaStatus?.available
-                  ? <span className="text-[11px] text-[#1a7a34] dark:text-[#30D158] flex items-center gap-1"><CheckCircle2 size={11} /> Ollama actif · {ollamaStatus.models.length} modèle{ollamaStatus.models.length !== 1 ? 's' : ''}</span>
+                  ? <span className="text-[11px] text-[var(--color-success)] flex items-center gap-1"><CheckCircle2 size={11} /> Ollama actif · {ollamaStatus.models.length} modèle{ollamaStatus.models.length !== 1 ? 's' : ''}</span>
                   : <span className="text-[11px] text-orange-500 flex items-center gap-1"><AlertTriangle size={11} /> Ollama hors ligne</span>
               }
               <button
@@ -2251,7 +2251,7 @@ function EnvTab() {
                   currentNerProvider === opt.value
                     ? opt.value === 'ollama'
                       ? 'bg-emerald-600 dark:bg-emerald-500 text-white border-emerald-600 shadow-sm'
-                      : 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF] shadow-sm'
+                      : 'btn-accent text-white border-[var(--color-accent)] shadow-sm'
                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-slate-400'
                 }`}
               >
@@ -2309,7 +2309,7 @@ function EnvTab() {
                   currentSummaryProvider === opt.value
                     ? opt.value === 'ollama'
                       ? 'bg-emerald-600 dark:bg-emerald-500 text-white border-emerald-600 shadow-sm'
-                      : 'bg-[#007AFF] dark:bg-[#0A84FF] text-white border-[#007AFF] shadow-sm'
+                      : 'btn-accent text-white border-[var(--color-accent)] shadow-sm'
                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:border-slate-400'
                 }`}
               >
@@ -2384,14 +2384,14 @@ function EnvTab() {
                       <td colSpan={3} className="px-5 py-1.5">
                         <div className="flex items-center justify-between gap-2">
                           <span className={`text-[11px] font-semibold uppercase tracking-wider ${
-                            isActive ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-slate-500 dark:text-slate-400'
+                            isActive ? 'text-accent' : 'text-slate-500 dark:text-slate-400'
                           }`}>
                             {group.label}{isActive && ' ✓'}
                           </span>
                           {/* Bouton Check IA */}
                           <div className="flex items-center gap-2">
                             {checkState && checkState !== 'checking' && !isOllama && (
-                              <span className={`text-[11px] flex items-center gap-1 ${checkState.ok ? 'text-[#1a7a34] dark:text-[#30D158]' : 'text-red-500 dark:text-red-400'}`}>
+                              <span className={`text-[11px] flex items-center gap-1 ${checkState.ok ? 'text-[var(--color-success)]' : 'text-red-500 dark:text-red-400'}`}>
                                 {checkState.ok
                                   ? <><CheckCircle2 size={11} /> OK {checkState.active_model ? `· ${checkState.active_model}` : ''}{checkState.latency_ms > 0 ? ` · ${checkState.latency_ms}ms` : ''}</>
                                   : <><AlertTriangle size={11} /> {checkState.message.slice(0, 60)}</>
@@ -2399,7 +2399,7 @@ function EnvTab() {
                               </span>
                             )}
                             {isOllama && ollamaStatus && (
-                              <span className={`text-[11px] flex items-center gap-1 ${ollamaStatus.available ? 'text-[#1a7a34] dark:text-[#30D158]' : 'text-orange-500 dark:text-orange-400'}`}>
+                              <span className={`text-[11px] flex items-center gap-1 ${ollamaStatus.available ? 'text-[var(--color-success)]' : 'text-orange-500 dark:text-orange-400'}`}>
                                 {ollamaStatus.available
                                   ? <><CheckCircle2 size={11} /> Actif · {ollamaStatus.active_model}</>
                                   : <><AlertTriangle size={11} /> Hors ligne</>
@@ -2409,7 +2409,7 @@ function EnvTab() {
                             <button
                               onClick={() => isOllama ? loadOllamaStatus() : checkAI(group.provider)}
                               disabled={isOllama ? ollamaLoading : checkState === 'checking'}
-                              className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-[#007AFF] hover:text-[#007AFF] dark:hover:text-[#0A84FF] disabled:opacity-50 transition-colors"
+                              className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-accent hover:text-accent disabled:opacity-50 transition-colors"
                             >
                               {(isOllama ? ollamaLoading : checkState === 'checking')
                                 ? <><RefreshCw size={10} className="animate-spin" /> Test…</>
@@ -2453,7 +2453,7 @@ function EnvTab() {
                   <button
                     onClick={addVar}
                     disabled={!newKey.trim() || saving}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-[#007AFF] dark:bg-[#0A84FF] text-white text-xs rounded-lg hover:bg-[#0071EB] disabled:opacity-40 transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 btn-accent text-white text-xs rounded-lg hover:bg-[#0071EB] disabled:opacity-40 transition-colors"
                   >
                     <Plus size={12} /> Ajouter
                   </button>
@@ -2495,7 +2495,7 @@ function EnvTab() {
                   onClick={() => checkBackupDir(key)}
                   disabled={!val.trim() || chk === 'checking'}
                   title="Vérifier l'accessibilité du répertoire"
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-[#007AFF] hover:text-[#007AFF] dark:hover:text-[#0A84FF] disabled:opacity-40 transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-accent hover:text-accent disabled:opacity-40 transition-colors"
                 >
                   {chk === 'checking'
                     ? <RefreshCw size={11} className="animate-spin" />
@@ -2507,13 +2507,13 @@ function EnvTab() {
                   onClick={() => saveBackupDir(key)}
                   disabled={!val.trim() || backupSaving[key]}
                   title="Sauvegarder dans .env"
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#007AFF] dark:bg-[#0A84FF] text-white hover:bg-[#0071EB] disabled:opacity-40 transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium btn-accent text-white hover:bg-[#0071EB] disabled:opacity-40 transition-colors"
                 >
                   {backupSaving[key] ? <RefreshCw size={11} className="animate-spin" /> : <Save size={11} />}
                 </button>
               </div>
               {chk && chk !== 'checking' && (
-                <p className={`text-[11px] mt-1 flex items-center gap-1 ${chk.ok ? 'text-[#1a7a34] dark:text-[#30D158]' : 'text-red-500 dark:text-red-400'}`}>
+                <p className={`text-[11px] mt-1 flex items-center gap-1 ${chk.ok ? 'text-[var(--color-success)]' : 'text-red-500 dark:text-red-400'}`}>
                   {chk.ok ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
                   {chk.message}
                 </p>
@@ -2524,7 +2524,7 @@ function EnvTab() {
       </div>
 
       {/* ── Section Obsidian ─────────────────────────────────────────────── */}
-      <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 bg-violet-50/30 dark:bg-violet-900/10">
+      <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 bg-[var(--color-accent-subtle)]/30">
         <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
           <BookOpen size={11} /> Export Obsidian
         </p>
@@ -2548,7 +2548,7 @@ function EnvTab() {
                 }
               }}
               placeholder="/chemin/absolu/vers/vault-obsidian"
-              className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-violet-400"
+              className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-accent"
             />
             <button
               onClick={async () => {
@@ -2567,7 +2567,7 @@ function EnvTab() {
               }}
               disabled={!obsidianDir.trim() || obsidianCheck === 'checking'}
               title="Vérifier l'accessibilité du répertoire"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-violet-400 hover:text-[#5856D6] dark:hover:text-[#5E5CE6] disabled:opacity-40 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-accent hover:text-accent disabled:opacity-40 transition-colors"
             >
               {obsidianCheck === 'checking'
                 ? <RefreshCw size={11} className="animate-spin" />
@@ -2584,21 +2584,21 @@ function EnvTab() {
               }}
               disabled={!obsidianDir.trim() || obsidianSaving}
               title="Sauvegarder dans .env"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-40 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium btn-accent text-white disabled:opacity-40 transition-colors"
             >
               {obsidianSaving ? <RefreshCw size={11} className="animate-spin" /> : <Save size={11} />}
             </button>
           </div>
           {obsidianCheck && obsidianCheck !== 'checking' && (
-            <p className={`text-[11px] mt-1 flex items-center gap-1 ${obsidianCheck.ok ? 'text-[#1a7a34] dark:text-[#30D158]' : 'text-red-500 dark:text-red-400'}`}>
+            <p className={`text-[11px] mt-1 flex items-center gap-1 ${obsidianCheck.ok ? 'text-[var(--color-success)]' : 'text-red-500 dark:text-red-400'}`}>
               {obsidianCheck.ok ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
               {obsidianCheck.message}
             </p>
           )}
         </div>
-        <p className="text-[11px] text-[#5856D6] dark:text-[#5E5CE6] mt-2 flex items-start gap-1">
+        <p className="text-[11px] text-accent mt-2 flex items-start gap-1">
           <BookOpen size={10} className="mt-0.5 shrink-0" />
-          En Docker : ajoutez <code className="bg-violet-100 dark:bg-violet-900/50 px-1 rounded">- /votre/vault:/obsidian</code> dans <code className="bg-violet-100 dark:bg-violet-900/50 px-1 rounded">docker-compose.yml</code>, puis définissez <code className="bg-violet-100 dark:bg-violet-900/50 px-1 rounded">OBSIDIAN_DIR=/obsidian</code>.
+          En Docker : ajoutez <code className="bg-[var(--color-accent-subtle)] px-1 rounded">- /votre/vault:/obsidian</code> dans <code className="bg-[var(--color-accent-subtle)] px-1 rounded">docker-compose.yml</code>, puis définissez <code className="bg-[var(--color-accent-subtle)] px-1 rounded">OBSIDIAN_DIR=/obsidian</code>.
         </p>
       </div>
 
@@ -2852,7 +2852,7 @@ function WebSourcesTab() {
           onClick={saveSources}
           disabled={!isDirty || saving}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium transition-colors disabled:opacity-40
-            bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white"
+            btn-accent text-white"
           title="Sauvegarder dans config/web_sources.json"
         >
           {saving ? <RefreshCw size={11} className="animate-spin" /> : <Save size={11} />}
@@ -2875,7 +2875,7 @@ function WebSourcesTab() {
               onChange={e => { setAddUrl(e.target.value); setAddMsg(null) }}
               onKeyDown={e => { if (e.key === 'Enter') handleResolve() }}
               placeholder="URL du site (ex: https://www.example.com/news)"
-              className="flex-1 min-w-0 px-3 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition-colors"
+              className="flex-1 min-w-0 px-3 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] transition-colors"
             />
             <button
               onClick={handleResolve}
@@ -2907,13 +2907,13 @@ function WebSourcesTab() {
                   <label className="text-[11px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">Titre</label>
                   <input type="text" value={addTitle} onChange={e => setAddTitle(e.target.value)}
                     placeholder="Nom affiché"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition-colors" />
+                    className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] transition-colors" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">Mot-clé (bucket)</label>
                   <input type="text" value={addKeyword} onChange={e => setAddKeyword(e.target.value)}
                     placeholder="ex: Anthropic, MoMA, Louvre"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition-colors" />
+                    className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] transition-colors" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -2921,13 +2921,13 @@ function WebSourcesTab() {
                   <label className="text-[11px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">URL sitemap</label>
                   <input type="url" value={addSitemap} onChange={e => setAddSitemap(e.target.value)}
                     placeholder="https://…/sitemap.xml"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition-colors" />
+                    className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] transition-colors" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">Pattern URL (regex)</label>
                   <input type="text" value={addPattern} onChange={e => setAddPattern(e.target.value)}
                     placeholder="ex: /news/  ou  /en/programs/\d+"
-                    className="w-full px-2.5 py-1.5 text-xs font-mono bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition-colors" />
+                    className="w-full px-2.5 py-1.5 text-xs font-mono bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] transition-colors" />
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2 pt-1">
@@ -2938,7 +2938,7 @@ function WebSourcesTab() {
                 <button
                   onClick={handleAdd}
                   disabled={!addTitle || !addBaseUrl || !addPattern || !addKeyword}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white disabled:opacity-40 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium btn-accent text-white disabled:opacity-40 transition-colors"
                 >
                   <Plus size={11} /> Ajouter la source
                 </button>
@@ -2979,7 +2979,7 @@ function WebSourcesTab() {
               {/* Ligne principale */}
               <div className="flex items-start gap-3 p-3">
                 {/* Icône */}
-                <Globe size={14} className={`mt-0.5 shrink-0 ${src.actif ? 'text-[#007AFF] dark:text-[#0A84FF]' : 'text-slate-400'}`} />
+                <Globe size={14} className={`mt-0.5 shrink-0 ${src.actif ? 'text-accent' : 'text-slate-400'}`} />
 
                 {/* Infos */}
                 <div className="flex-1 min-w-0 space-y-1">
@@ -3018,7 +3018,7 @@ function WebSourcesTab() {
                   <button
                     onClick={() => toggleActive(src.name)}
                     title={src.actif ? 'Désactiver cette source' : 'Activer cette source'}
-                    className="p-1.5 text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                    className="p-1.5 text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                   >
                     {src.actif ? <ToggleRight size={14} className="text-blue-500" /> : <ToggleLeft size={14} />}
                   </button>
@@ -3030,7 +3030,7 @@ function WebSourcesTab() {
                     className={`p-1.5 rounded-lg transition-all
                       ${isEditing
                         ? 'text-blue-500 bg-blue-100 dark:bg-blue-900/40 dark:text-blue-300'
-                        : 'opacity-40 group-hover:opacity-100 text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                        : 'opacity-40 group-hover:opacity-100 text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                   >
                     <Pencil size={12} />
                   </button>
@@ -3040,7 +3040,7 @@ function WebSourcesTab() {
                     <button
                       onClick={() => checkOne(src)}
                       title="Vérifier l'accessibilité du sitemap"
-                      className="opacity-40 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
+                      className="opacity-40 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
                     >
                       <Check size={12} />
                     </button>
@@ -3048,7 +3048,7 @@ function WebSourcesTab() {
 
                   {/* Lien externe */}
                   <a href={src.base_url} target="_blank" rel="noopener noreferrer"
-                    className="opacity-40 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
+                    className="opacity-40 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-accent hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
                     title="Ouvrir le site">
                     <ExternalLink size={12} />
                   </a>
@@ -3067,7 +3067,7 @@ function WebSourcesTab() {
               {/* Formulaire d'édition inline */}
               {isEditing && (
                 <div className="px-3 pb-3 pt-0 space-y-2 border-t border-blue-200 dark:border-blue-700/40">
-                  <p className="pt-2.5 text-[11px] font-semibold text-[#007AFF] dark:text-[#0A84FF] uppercase tracking-wide flex items-center gap-1">
+                  <p className="pt-2.5 text-[11px] font-semibold text-accent uppercase tracking-wide flex items-center gap-1">
                     <Pencil size={10} /> Modifier la source
                   </p>
                   <div className="grid grid-cols-2 gap-2">
@@ -3077,7 +3077,7 @@ function WebSourcesTab() {
                         type="text"
                         value={editFields.title}
                         onChange={e => setEditFields(f => ({ ...f, title: e.target.value }))}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition-colors"
+                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] transition-colors"
                       />
                     </div>
                     <div className="space-y-1">
@@ -3086,7 +3086,7 @@ function WebSourcesTab() {
                         type="text"
                         value={editFields.keyword}
                         onChange={e => setEditFields(f => ({ ...f, keyword: e.target.value }))}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition-colors"
+                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] transition-colors"
                       />
                     </div>
                   </div>
@@ -3096,7 +3096,7 @@ function WebSourcesTab() {
                       type="url"
                       value={editFields.base_url}
                       onChange={e => setEditFields(f => ({ ...f, base_url: e.target.value }))}
-                      className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition-colors"
+                      className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] transition-colors"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -3107,7 +3107,7 @@ function WebSourcesTab() {
                         value={editFields.sitemap_url}
                         onChange={e => setEditFields(f => ({ ...f, sitemap_url: e.target.value }))}
                         placeholder="https://…/sitemap.xml"
-                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition-colors"
+                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] transition-colors"
                       />
                     </div>
                     <div className="space-y-1">
@@ -3117,7 +3117,7 @@ function WebSourcesTab() {
                         value={editFields.url_pattern}
                         onChange={e => setEditFields(f => ({ ...f, url_pattern: e.target.value }))}
                         placeholder="ex: /news/  ou  /en/programs/\d+"
-                        className="w-full px-2.5 py-1.5 text-xs font-mono bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition-colors"
+                        className="w-full px-2.5 py-1.5 text-xs font-mono bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-subtle)] transition-colors"
                       />
                     </div>
                   </div>
@@ -3131,7 +3131,7 @@ function WebSourcesTab() {
                     <button
                       onClick={saveEdit}
                       disabled={!editFields.title || !editFields.base_url || !editFields.url_pattern || !editFields.keyword}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium bg-[#007AFF] hover:bg-[#0071EB] dark:bg-[#0A84FF] dark:hover:bg-[#1E8FFF] text-white disabled:opacity-40 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium btn-accent text-white disabled:opacity-40 transition-colors"
                     >
                       <Save size={11} /> Enregistrer
                     </button>
@@ -3215,7 +3215,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
                   title={label}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     activeTab === id
-                      ? 'bg-[#007AFF]/10 text-[#007AFF] dark:text-[#0A84FF] border border-blue-400/40 dark:border-blue-500/40'
+                      ? 'bg-[var(--color-accent-subtle)] text-accent border border-[var(--color-accent)]/30'
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
                   }`}
                 >
@@ -3254,7 +3254,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
                     onClick={() => handleTabSelect(id)}
                     className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] h-10 transition-colors active:opacity-60 ${
                       activeTab === id
-                        ? 'text-[#007AFF] dark:text-[#0A84FF]'
+                        ? 'text-accent'
                         : 'text-slate-400 dark:text-slate-500'
                     }`}
                   >
@@ -3272,7 +3272,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
                 onClick={() => setSourcesMenuOpen(o => !o)}
                 className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
                   isSourceTab || sourcesMenuOpen
-                    ? 'text-[#007AFF] dark:text-[#0A84FF]'
+                    ? 'text-accent'
                     : 'text-slate-400 dark:text-slate-500'
                 }`}
               >
@@ -3287,7 +3287,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
                   onClick={() => handleTabSelect(id)}
                   className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] transition-colors active:opacity-60 ${
                     activeTab === id
-                      ? 'text-[#007AFF] dark:text-[#0A84FF]'
+                      ? 'text-accent'
                       : 'text-slate-400 dark:text-slate-500'
                   }`}
                 >
@@ -3320,7 +3320,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
                   title={label}
                   className={`flex flex-col items-center gap-[3px] px-3 py-2 transition-colors ${
                     theme === key
-                      ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
+                      ? 'btn-accent text-white'
                       : 'text-slate-500 dark:text-slate-400 active:opacity-60'
                   }`}
                 >
@@ -3341,7 +3341,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
                   <span className="relative">
                     <Terminal size={18} />
                     {rssStatus?.running && (
-                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
+                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[var(--color-success)] animate-pulse" />
                     )}
                   </span>
                   <span className="text-[11px] font-medium leading-none">RSS</span>
@@ -3354,7 +3354,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
                 title="Fiabilité des sources"
                 className={`flex flex-col items-center gap-[3px] px-3 py-2 rounded-xl bg-white/70 dark:bg-slate-700/50 backdrop-blur-sm border border-slate-200 dark:border-slate-600/70 active:opacity-60 transition-colors ${
                   activeTab === 'fiabilite'
-                    ? 'text-[#007AFF] dark:text-[#0A84FF] border-blue-400/40 dark:border-blue-500/40'
+                    ? 'text-accent border-[var(--color-accent)]/30'
                     : 'text-slate-500 dark:text-slate-400'
                 }`}
               >

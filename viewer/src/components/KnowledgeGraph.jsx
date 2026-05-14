@@ -22,6 +22,7 @@ import {
   RefreshCw, Loader2, Network, Crosshair, ExternalLink,
   ChevronUp, ChevronDown,
 } from 'lucide-react'
+import { ENTITY_ARTICLE_COLOR, getEntityConfig } from '../lib/entity-config'
 
 const ArticleFullReportDialog = lazy(() => import('./ArticleFullReportDialog'))
 const GraphArticlePanel = lazy(() => import('./GraphArticlePanel'))
@@ -37,29 +38,7 @@ function OverlayPanelFallback({ label = 'Chargement…' }) {
   )
 }
 
-// ── Couleurs par type NER ──────────────────────────────────────────────────
-const TYPE_CFG = {
-  PERSON:      { color: '#a78bfa', label: 'Personnes'     },
-  ORG:         { color: '#60a5fa', label: 'Organisations'  },
-  GPE:         { color: '#34d399', label: 'Lieux géopol.'  },
-  PRODUCT:     { color: '#fb923c', label: 'Produits'       },
-  EVENT:       { color: '#fbbf24', label: 'Événements'     },
-  LAW:         { color: '#f87171', label: 'Lois'           },
-  LOC:         { color: '#2dd4bf', label: 'Lieux'          },
-  NORP:        { color: '#e879f9', label: 'Groupes'        },
-  FAC:         { color: '#22d3ee', label: 'Sites'          },
-  WORK_OF_ART: { color: '#fb7185', label: 'Œuvres'         },
-  MONEY:       { color: '#facc15', label: 'Montants'       },
-  LANGUAGE:    { color: '#818cf8', label: 'Langues'        },
-  DATE:        { color: '#94a3b8', label: 'Dates'          },
-  TIME:        { color: '#94a3b8', label: 'Heures'         },
-  QUANTITY:    { color: '#a8a29e', label: 'Quantités'      },
-  CARDINAL:    { color: '#a1a1aa', label: 'Nombres'        },
-  ORDINAL:     { color: '#9ca3af', label: 'Ordinaux'       },
-  PERCENT:     { color: '#86efac', label: 'Pourcentages'   },
-}
-const ARTICLE_COLOR  = '#3b82f6'   // blue-500
-const ENTITY_DEFAULT = '#94a3b8'   // slate-400
+const ENTITY_DEFAULT = getEntityConfig().color
 
 // ── Rendu spécial : silhouette avatar pour les entités PERSON ────────────────
 function drawPersonNode(ctx, x, y, r, color, lw, isDark) {
@@ -799,7 +778,7 @@ export default function KnowledgeGraph({ onClose }) {
     if (highlightedId !== null) {
       const hlNode = nodes.find(n => n.id === highlightedId)
       if (hlNode) {
-        const hlColor = TYPE_CFG[hlNode.ner_type]?.color ?? ENTITY_DEFAULT
+        const hlColor = getEntityConfig(hlNode.ner_type).color
         ctx.save()
         ctx.strokeStyle = hlColor
         ctx.lineWidth   = Math.max(0.8, 2 / scale)
@@ -832,8 +811,8 @@ export default function KnowledgeGraph({ onClose }) {
     for (const node of drawOrder) {
       if (node._hidden) continue
       const color = node.kind === 'article'
-        ? ARTICLE_COLOR
-        : (TYPE_CFG[node.ner_type]?.color ?? ENTITY_DEFAULT)
+        ? ENTITY_ARTICLE_COLOR
+        : getEntityConfig(node.ner_type).color
       const now   = Date.now()
       const bumpRemaining = node.bumpUntil ? node.bumpUntil - now : 0
       // Courbe en cloche : monte rapidement, redescend doucement
@@ -1693,7 +1672,7 @@ export default function KnowledgeGraph({ onClose }) {
     >
       {/* ── En-tête ── */}
       <div className="relative flex items-center gap-2 px-4 py-2.5 pr-14 border-b border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/80 backdrop-blur-sm shrink-0 flex-wrap gap-y-2">
-        <Network size={17} className="text-violet-500 shrink-0" />
+        <Network size={17} className="text-accent shrink-0" />
         <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 shrink-0">
           Graphe de connaissances
         </span>
@@ -1722,7 +1701,7 @@ export default function KnowledgeGraph({ onClose }) {
             >
               {suggestions.map((sug, i) => {
                 const img  = suggestImages[sug.value]
-                const cfg  = TYPE_CFG[sug.type]
+                const cfg  = getEntityConfig(sug.type)
                 const isRound = sug.type === 'PERSON'
                 const initials = sug.value.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
                 return (
@@ -1735,13 +1714,13 @@ export default function KnowledgeGraph({ onClose }) {
                     <div
                       className={`shrink-0 overflow-hidden border border-slate-200 dark:border-slate-600 ${
                         isRound ? 'rounded-full' : 'rounded-md'
-                      } ${img ? 'bg-white' : 'bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center'}`}
+                      } ${img ? 'bg-white' : 'bg-[var(--color-accent-subtle)] flex items-center justify-center'}`}
                       style={{ width: 28, height: 28 }}
                     >
                       {img ? (
                         <img src={img.url} alt={sug.value} className={`w-full h-full ${isRound ? 'object-cover' : 'object-contain p-0.5'}`} />
                       ) : (
-                        <span className="text-violet-500 dark:text-violet-300 font-semibold" style={{ fontSize: 9 }}>{initials}</span>
+                        <span className="text-accent font-semibold" style={{ fontSize: 9 }}>{initials}</span>
                       )}
                     </div>
                     {/* Nom */}
@@ -1830,7 +1809,7 @@ export default function KnowledgeGraph({ onClose }) {
         <button
           onClick={runSearchOrReload}
           disabled={loading}
-          className="flex items-center gap-1 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
+          className="flex items-center gap-1 px-3 py-1.5 btn-accent disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
         >
           {loading
             ? <Loader2 size={12} className="animate-spin" />
@@ -1844,7 +1823,7 @@ export default function KnowledgeGraph({ onClose }) {
           disabled={l2Loading}
           className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 ${
             showL2
-              ? 'bg-violet-600 text-white ring-2 ring-violet-300'
+              ? 'bg-[var(--color-accent)] text-white ring-2 ring-[var(--color-accent-subtle)]'
               : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500'
           } ${l2Loading ? 'opacity-60 cursor-wait' : ''}`}
           title="Afficher les relations L2 : entités co-citées dans d'autres articles des entités du graphe"
@@ -1889,12 +1868,12 @@ export default function KnowledgeGraph({ onClose }) {
                   ? 'text-white border-transparent'
                   : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed'
               }`}
-              style={activeTypes.has(t) ? { background: TYPE_CFG[t]?.color ?? '#8b5cf6', borderColor: 'transparent' } : {}}
+              style={activeTypes.has(t) ? { background: getEntityConfig(t).color, borderColor: 'transparent' } : {}}
               title={selectedEntityKeys.size === 0
                 ? 'Sélectionnez d\'abord une ou plusieurs entités'
                 : (activeTypes.has(t) ? `Retirer ${t} du graphe` : `Ajouter ${t} au graphe`)}
             >
-              {TYPE_CFG[t]?.label ?? t}
+              {getEntityConfig(t).label || t}
             </button>
           ))}
 
@@ -1924,12 +1903,12 @@ export default function KnowledgeGraph({ onClose }) {
         <div className="flex-1" />
 
         {/* Taille ∝ articles */}
-        <label className="flex shrink-0 items-center gap-1.5 text-xs cursor-pointer font-semibold text-violet-600 dark:text-violet-400 whitespace-nowrap select-none" title="Taille des nœuds ∝ nombre d'articles qui mentionnent l'entité (log)">
+        <label className="flex shrink-0 items-center gap-1.5 text-xs cursor-pointer font-semibold text-accent whitespace-nowrap select-none" title="Taille des nœuds ∝ nombre d'articles qui mentionnent l'entité (log)">
           <input
             type="checkbox"
             checked={sizeByTotal}
             onChange={e => setSizeByTotal(e.target.checked)}
-            className="w-3 h-3 accent-violet-500"
+            className="w-3 h-3 accent-[var(--color-accent)]"
           />
           Taille ∝
         </label>
@@ -1948,13 +1927,13 @@ export default function KnowledgeGraph({ onClose }) {
               setLinkMult(v)
               if (tempRef.current < 5) tempRef.current = 8
             }}
-            className="w-20 accent-violet-500 cursor-pointer"
+            className="w-20 accent-[var(--color-accent)] cursor-pointer"
             title={`Longueur des liens : ${linkMult.toFixed(1)}×`}
           />
           <span className="text-[11px] font-mono text-slate-600 dark:text-slate-300 w-7 shrink-0 tabular-nums">{linkMult.toFixed(1)}×</span>
           <button
             onClick={autoLinkMult}
-            className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50 transition-colors shrink-0"
+            className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[var(--color-accent-subtle)] text-accent hover:brightness-95 transition-colors shrink-0"
             title={`Calcul automatique de la longueur idéale (${nodesArrRef.current.length} nœuds)`}
           >
             Auto
@@ -2019,12 +1998,12 @@ export default function KnowledgeGraph({ onClose }) {
               style={{ maxHeight: '50%', width: 'auto', minWidth: '9rem' }}
             >
               <div className="font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Légende</div>
-              <LegendItem color={ARTICLE_COLOR} label="Article" r={R_ARTICLE} />
+              <LegendItem color={ENTITY_ARTICLE_COLOR} label="Article" r={R_ARTICLE} />
               {presentTypes.map((t, idx) => (
                 <div key={t} className="flex items-center gap-0.5">
                   <LegendItem
-                    color={TYPE_CFG[t]?.color ?? ENTITY_DEFAULT}
-                    label={TYPE_CFG[t]?.label ?? t}
+                    color={getEntityConfig(t).color}
+                    label={getEntityConfig(t).label || t}
                     r={R_ENTITY}
                     isPerson={t === 'PERSON'}
                     hidden={false}
@@ -2035,7 +2014,7 @@ export default function KnowledgeGraph({ onClose }) {
                     <button
                       onMouseDown={e => { e.stopPropagation(); moveLegendType(t, -1) }}
                       disabled={idx === 0}
-                      className="h-3.5 flex items-center justify-center text-slate-400 hover:text-violet-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="h-3.5 flex items-center justify-center text-slate-400 hover:text-accent disabled:opacity-20 disabled:cursor-not-allowed"
                       title="Vers le dessus (z-order)"
                     >
                       <ChevronUp size={10} />
@@ -2043,7 +2022,7 @@ export default function KnowledgeGraph({ onClose }) {
                     <button
                       onMouseDown={e => { e.stopPropagation(); moveLegendType(t, 1) }}
                       disabled={idx === presentTypes.length - 1}
-                      className="h-3.5 flex items-center justify-center text-slate-400 hover:text-violet-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="h-3.5 flex items-center justify-center text-slate-400 hover:text-accent disabled:opacity-20 disabled:cursor-not-allowed"
                       title="Vers le dessous (z-order)"
                     >
                       <ChevronDown size={10} />
@@ -2060,10 +2039,10 @@ export default function KnowledgeGraph({ onClose }) {
                   <div className="flex items-center gap-1.5">
                     <svg width="22" height="10" className="shrink-0">
                       <line x1="1" y1="5" x2="21" y2="5"
-                        stroke="#7c3aed" strokeWidth="1.5"
+                        stroke="var(--color-accent)" strokeWidth="1.5"
                         strokeDasharray="3 3" strokeOpacity="0.7" />
                     </svg>
-                    <span className="text-[10px] text-violet-600 dark:text-violet-400 font-medium">
+                    <span className="text-[10px] text-accent font-medium">
                       L2 · {l2NodeIdsRef.current.size} entités · {l2EdgesArrRef.current.length} liens
                     </span>
                   </div>
@@ -2105,12 +2084,12 @@ export default function KnowledgeGraph({ onClose }) {
                       <div className="flex items-center gap-2 mb-1">
                         <span
                           className="inline-block w-2 h-2 rounded-full shrink-0"
-                          style={{ background: TYPE_CFG[entity.ner_type]?.color ?? ENTITY_DEFAULT }}
+                          style={{ background: getEntityConfig(entity.ner_type).color }}
                         />
                         <span className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[150px]">{entity.value}</span>
                         <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white shrink-0"
-                          style={{ background: TYPE_CFG[entity.ner_type]?.color ?? ENTITY_DEFAULT }}>
-                          {TYPE_CFG[entity.ner_type]?.label ?? entity.ner_type}
+                          style={{ background: getEntityConfig(entity.ner_type).color }}>
+                          {getEntityConfig(entity.ner_type).label || entity.ner_type}
                         </span>
                       </div>
                       <div className="text-slate-400 text-[10px] mb-0.5">↓ mentionné(e) dans</div>
@@ -2125,18 +2104,18 @@ export default function KnowledgeGraph({ onClose }) {
                   ) : (
                     // Lien entité ↔ entité (L2)
                     <>
-                      <div className="font-semibold text-violet-500 dark:text-violet-400 mb-1.5 text-[10px] uppercase tracking-wide">
+                      <div className="font-semibold text-accent mb-1.5 text-[10px] uppercase tracking-wide">
                         🔗 Co-occurrence L2
                       </div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="inline-block w-2 h-2 rounded-full shrink-0"
-                          style={{ background: TYPE_CFG[S.ner_type]?.color ?? ENTITY_DEFAULT }} />
+                          style={{ background: getEntityConfig(S.ner_type).color }} />
                         <span className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[130px]">{S.value}</span>
                       </div>
                       <div className="text-slate-400 text-[10px] my-0.5 text-center">↔ co-cité(e)s</div>
                       <div className="flex items-center gap-2">
                         <span className="inline-block w-2 h-2 rounded-full shrink-0"
-                          style={{ background: TYPE_CFG[T.ner_type]?.color ?? ENTITY_DEFAULT }} />
+                          style={{ background: getEntityConfig(T.ner_type).color }} />
                         <span className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[130px]">{T.value}</span>
                       </div>
                     </>
@@ -2176,7 +2155,7 @@ export default function KnowledgeGraph({ onClose }) {
                 <>
                   <div
                     className="font-semibold mb-0.5"
-                    style={{ color: TYPE_CFG[tooltip.node.ner_type]?.color ?? ENTITY_DEFAULT }}
+                    style={{ color: getEntityConfig(tooltip.node.ner_type).color }}
                   >
                     ● {tooltip.node.ner_type}
                   </div>
@@ -2198,9 +2177,9 @@ export default function KnowledgeGraph({ onClose }) {
                 {selected.kind === 'article'
                   ? <span className="flex items-center gap-1.5"><span className="text-base">📰</span> Article</span>
                   : <span className="flex items-center gap-1.5 min-w-0">
-                      <span className="w-2 h-2 rounded-full inline-block" style={{ background: TYPE_CFG[selected.ner_type]?.color ?? ENTITY_DEFAULT }} />
+                      <span className="w-2 h-2 rounded-full inline-block" style={{ background: getEntityConfig(selected.ner_type).color }} />
                       <span className="truncate">
-                        {selected.value} · {TYPE_CFG[selected.ner_type]?.label ?? selected.ner_type}
+                        {selected.value} · {getEntityConfig(selected.ner_type).label || selected.ner_type}
                       </span>
                     </span>
                 }
@@ -2268,11 +2247,11 @@ export default function KnowledgeGraph({ onClose }) {
               <>
                 {/* Nom entité */}
                 <div>
-                  <p className="text-base font-bold mt-0.5" style={{ color: TYPE_CFG[selected.ner_type]?.color ?? ENTITY_DEFAULT }}>
+                  <p className="text-base font-bold mt-0.5" style={{ color: getEntityConfig(selected.ner_type).color }}>
                     {selected.value}
                   </p>
                   <p className="text-[11px] text-slate-400 mt-0.5 uppercase tracking-wider">
-                    {TYPE_CFG[selected.ner_type]?.label ?? selected.ner_type}
+                    {getEntityConfig(selected.ner_type).label || selected.ner_type}
                   </p>
                 </div>
 
@@ -2292,9 +2271,9 @@ export default function KnowledgeGraph({ onClose }) {
                           <li key={art.id}>
                             <button
                               onClick={() => setReportArticle({ article: { 'URL': art.url, 'Sources': art.source, 'Date de publication': art.date, 'Résumé': art.resume }, filePath: art.file ?? '' })}
-                              className="w-full text-left px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 hover:bg-violet-50 dark:hover:bg-violet-900/30 border border-slate-100 dark:border-slate-700 hover:border-violet-200 dark:hover:border-violet-800 transition-colors group"
+                              className="w-full text-left px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 hover:bg-[var(--color-accent-subtle)] border border-slate-100 dark:border-slate-700 hover:border-[var(--color-accent)]/30 transition-colors group"
                             >
-                              <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 group-hover:text-violet-700 dark:group-hover:text-violet-300 truncate">
+                              <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 group-hover:text-accent truncate">
                                 {art.source}
                               </span>
                               <span className="block text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
@@ -2331,7 +2310,7 @@ export default function KnowledgeGraph({ onClose }) {
                 </div>
               ) : (
                 nerListEntities.map((node, i) => {
-                  const cfg      = TYPE_CFG[node.ner_type]
+                  const cfg      = getEntityConfig(node.ner_type)
                   const isRound  = node.ner_type === 'PERSON'
                   const initials = (node.value ?? '').split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
                   return (

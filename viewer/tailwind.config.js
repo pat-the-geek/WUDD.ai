@@ -31,10 +31,9 @@ export default {
       // Utiliser 'accent' au lieu de 'blue-600' pour les CTA et états actifs
       colors: {
         accent: {
-          DEFAULT: '#007AFF',          // iOS/macOS System Blue — light
-          dark:    '#0A84FF',          // iOS/macOS System Blue — dark
-          hover:   '#0071EB',          // légèrement plus sombre pour hover
-          'dark-hover': '#1E8FFF',
+          DEFAULT: 'var(--color-accent)',
+          hover: 'var(--color-accent-hover)',
+          subtle: 'var(--color-accent-subtle)',
         },
         'hig-green':  { DEFAULT: '#34C759', dark: '#30D158' },
         'hig-red':    { DEFAULT: '#FF3B30', dark: '#FF453A' },
@@ -44,6 +43,14 @@ export default {
         'hig-indigo': { DEFAULT: '#5856D6', dark: '#5E5CE6' },
         'hig-purple': { DEFAULT: '#AF52DE', dark: '#BF5AF2' },
         'hig-pink':   { DEFAULT: '#FF2D55', dark: '#FF375F' },
+      },
+      spacing: {
+        'hig-xs': '4px',
+        'hig-sm': '8px',
+        'hig-md': '16px',
+        'hig-lg': '24px',
+        'hig-xl': '32px',
+        'hig-2xl': '48px',
       },
     },
   },
