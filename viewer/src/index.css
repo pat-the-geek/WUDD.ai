@@ -371,6 +371,18 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   }
 }
 
+/* ── Toolbar bas mobile : version ultra-compacte centrée ── */
+@media (max-width: 767px) {
+  .mobile-bottom-toolbar {
+    left: 2.5rem !important;
+    right: 2.5rem !important;
+    width: auto !important;
+    border-radius: 1rem;
+    padding: 0.4rem 0.5rem !important;
+    gap: 0.25rem !important;
+  }
+}
+
 /* ── EntityDashboard mobile : scroll sous la tab bar flottante ── */
 @media (max-width: 767px) {
   .entity-tabs-content.overflow-y-auto {

@@ -1,302 +1,327 @@
 [
-    {
-        "Date de publication": "2026-02-17T07:00:00Z",
-        "Sources": "Ecran Large",
-        "URL": "https://www.ecranlarge.com/films/news/film-createur-bitcoin-ajuste-ia-enfer",
-        "Résumé": "Le texte mentionne une erreur HTTP inconnue lors de l’accès à un article d’Ecran Large concernant un film sur le créateur du Bitcoin, qui aurait intégré l’IA dans un scénario d’enfer. Aucun contenu spécifique du film, ni détails sur le réalisateur, le casting ou la trame narrative n’est accessible en raison de cette erreur. Le lien fourni ne permet pas de récupérer les informations attendues, empêchant toute analyse ou résumé du contenu original. L’erreur pourrait être temporaire ou liée à un problème de serveur, de redirection ou de restriction d’accès. Aucune autre donnée contextuelle ou alternative n’est disponible dans le texte fourni. La requête ne peut donc être traitée que comme un constat technique.",
-        "Images": {
-            "error": "Erreur réseau: 429 Client Error: Too Many Requests for url: https://www.ecranlarge.com/films/news/film-createur-bitcoin-ajuste-ia-enfer"
-        }
+  {
+    "Date de publication": "2026-02-17T07:00:00Z",
+    "Sources": "Ecran Large",
+    "URL": "https://www.ecranlarge.com/films/news/film-createur-bitcoin-ajuste-ia-enfer",
+    "Résumé": "Un film sur le créateur du Bitcoin, Satoshi Nakamoto, est en préparation. Dirigé par Doug Liman et interprété par Pete Davidson et Casey Affleck, ce projet utilisera l'intelligence artificielle générative pour ajuster les performances des acteurs durant la post-production. L'IA modifiera les mouvements des lèvres, du visage ou du corps, sans créer de personnages complets en IA. Les décors seront également entièrement générés par IA. Bien que censé être protecteur à l'égard des acteurs, le projet a suscité des critiques sur son utilisation potentielle d'intelligence artificielle dans la post-production et l'utilisation de la capture d'image performative sans emplacement réel.",
+    "Images": {
+      "error": "Erreur réseau: 429 Client Error: Too Many Requests for url: https://www.ecranlarge.com/films/news/film-createur-bitcoin-ajuste-ia-enfer"
     },
-    {
-        "Date de publication": "2026-02-17T07:02:37Z",
-        "Sources": "01net.com",
-        "URL": "https://www.01net.com/actualites/le-parlement-europeen-coupe-les-fonctions-dia-sur-les-tablettes-des-eurodeputes.html",
-        "Résumé": "Le Parlement européen a désactivé les fonctions d’intelligence artificielle générative sur les tablettes des eurodéputés et de leurs collaborateurs, par souci de sécurité et de protection des données. Selon un courriel interne, ces outils reposent souvent sur des serveurs cloud, exposant les données à des risques de fuite. L’assistance technique précise que l’ampleur des données partagées avec les fournisseurs reste à évaluer, et que tant que cette question n’est pas clarifiée, les fonctions resteront désactivées. Les applications classiques (messagerie, calendrier, documents) ne sont pas concernées. Les élus sont invités à la prudence sur leurs appareils personnels, notamment en évitant d’y utiliser des outils d’IA pour des documents professionnels. Cette décision s’inscrit dans une politique plus large de renforcement de la cybersécurité au sein des institutions européennes, incluant l’interdiction de TikTok sur les appareils professionnels et un appel à réduire la dépendance aux logiciels américains.",
-        "Images": [
-            {
-                "url": "https://www.01net.com/app/uploads/2026/02/parlement-europeen.jpg",
-                "title": "",
-                "alt": "Parlement Européen",
-                "width": 1920,
-                "height": 1280,
-                "area": 2457600
-            },
-            {
-                "url": "https://www.01net.com/app/uploads/2025/10/smartphone-enfant-1344x896.jpg",
-                "title": "",
-                "alt": "Smartphone Enfant",
-                "width": 1344,
-                "height": 896,
-                "area": 1204224
-            },
-            {
-                "url": "https://www.01net.com/app/uploads/2025/03/huawei-logo-1344x896.jpg",
-                "title": "",
-                "alt": "Huawei Logo",
-                "width": 1344,
-                "height": 896,
-                "area": 1204224
-            }
-        ]
+    "entities": {
+      "PERSON": [
+        "Satoshi Nakamoto",
+        "Doug Liman",
+        "Pete Davidson",
+        "Casey Affleck"
+      ],
+      "PRODUCT": [
+        "intelligence artificielle générative",
+        "intelligences artificielles",
+        "capture d'image performative"
+      ],
+      "WORK_OF_ART": [
+        "film"
+      ],
+      "DATE": [
+        "2026"
+      ]
     },
-    {
-        "Date de publication": "2026-02-17T01:52:57Z",
-        "Sources": "20 Minutes | Home",
-        "URL": "https://www.20min.ch/fr/story/deepfakes-sexuels-l-ue-ouvre-une-enquete-contre-grok-l-outil-ia-de-x-103507783",
-        "Résumé": "L’UE a ouvert une enquête contre X, via son régulateur irlandais (DPC), concernant l’outil IA Grok, accusé de générer des deepfakes sexuels à partir de photos de personnes réelles. L’enquête vise à vérifier si X respecte le RGPD dans le traitement des données personnelles liées à ces contenus. Le siège européen de X en Irlande justifie la compétence de la DPC. Cette action s’inscrit dans un contexte de pression internationale, après des blocages dans certains pays et des enquêtes au Royaume-Uni. X avait annoncé en janvier limiter Grok dans les pays où ces images sont illégales. La DPC suit le dossier depuis plusieurs semaines, notamment après des signalements incluant des mineurs. L’UE intensifie sa surveillance des géants américains, accentuant les tensions avec les États-Unis. Bruxelles avait déjà ordonné à X de conserver tous les documents relatifs à Grok jusqu’à fin 2026. Une précédente enquête de la DPC, en avril 2025, portait déjà sur l’usage de données personnelles par X pour entraîner ses IA.",
-        "Images": [
-            {
-                "url": "https://image.20min.ch/2026/02/17/e332b378-0243-4bed-816f-ec4eac58f8f8.jpg?auto=format%2Ccompress%2Cenhance&fit=max&w=1200&h=1200&rect=0%2C0%2C4000%2C2667&s=35fd4d927d4e6a3ff5f12b6dfe6dfb90",
-                "title": "Image d’illustration.",
-                "alt": "Image d’illustration.",
-                "width": 1200,
-                "height": 800,
-                "area": 960000
-            }
-        ]
-    },
-    {
-        "Date de publication": "2026-02-17T02:28:00Z",
-        "Sources": "Flux général Developpez.com",
-        "URL": "https://intelligence-artificielle.developpez.com/actu/380299/Apres-qu-Anthropic-ait-bloque-brutalement-Openclaw-techniquement-et-legalement-Sam-Altman-l-opportuniste-en-profite-pour-recuperer-le-bebe-dans-le-giron-d-OpenAI/",
-        "Résumé": "Après qu’Anthropic ait bloqué techniquement et légalement l’accès à son API pour OpenClaw, Sam Altman a profité de la situation pour recruter Peter Steinberger, créateur du framework open source OpenClaw, au sein d’OpenAI. Ce recrutement stratégique permet à OpenAI d’intégrer un écosystème d’agents IA déjà utilisé par des millions d’utilisateurs, tout en contournant les restrictions imposées par Anthropic. OpenClaw, capable de gérer des tâches autonomes (e-mails, calendriers, navigation web, etc.), avait initialement favorisé Claude d’Anthropic, mais son blocage a provoqué un chaos, y compris des piratages et des arnaques. Steinberger, qui n’avait pas l’intention de créer sa propre entreprise, a choisi OpenAI pour accélérer l’impact de son projet. OpenClaw deviendra une fondation soutenue par OpenAI, avec pour objectif de développer des agents personnels accessibles à tous. L’incident révèle une rivalité croissante entre les géants de l’IA, passant des modèles aux écosystèmes d’agents, et soulève des alertes sur la sécurité des déploiements open source, notamment en Chine et en Corée du Sud.",
-        "Images": []
-    },
-    {
-        "Date de publication": "2026-02-16T20:18:23Z",
-        "Sources": "9to5Mac",
-        "URL": "https://9to5mac.com/2026/02/16/ios-26-4-beta-adds-new-playlist-playground-ai-feature-in-music/",
-        "Résumé": "La bêta iOS 26.4 introduit une nouvelle fonctionnalité d’intelligence artificielle dans Apple Music, nommée « Playlist Playground ». Elle permet de créer des playlists à partir de descriptions textuelles saisies par l’utilisateur. Accessible via un nouvel icône dans la bibliothèque de l’appli, cette fonctionnalité propose aussi des suggestions prédéfinies. Une fois générée, la playlist peut être personnalisée (ajout, suppression, réorganisation des titres) et affinée par de nouveaux prompts sans tout recommencer. Elle est actuellement en bêta et nécessite le téléchargement des modèles d’Apple Intelligence, vérifiables dans les paramètres. Disponible aux testeurs développeurs, une version publique est attendue dans les semaines à venir.",
-        "Images": [
-            {
-                "url": "https://9to5mac.com/wp-content/uploads/sites/6/2026/02/playlist-playground-2.jpg?quality=82&strip=all&w=1600",
-                "title": "",
-                "alt": "",
-                "width": 1600,
-                "height": 800,
-                "area": 1280000
-            },
-            {
-                "url": "https://9to5mac.com/wp-content/uploads/sites/6/2026/02/playlist-playground.jpg?quality=82&strip=all&w=1024",
-                "title": "",
-                "alt": "",
-                "width": 1024,
-                "height": 512,
-                "area": 524288
-            },
-            {
-                "url": "https://9to5mac.com/wp-content/uploads/sites/6/2025/12/native-banner_750_150.jpg?quality=82&strip=all",
-                "title": "",
-                "alt": "",
-                "width": 750,
-                "height": 150,
-                "area": 112500
-            }
-        ]
-    },
-    {
-        "Date de publication": "2026-02-16T20:41:26Z",
-        "Sources": "MacRumors: Mac News and Rumors - Front Page",
-        "URL": "https://www.macrumors.com/2026/02/16/apple-music-playlist-playground-ios-26-4/",
-        "Résumé": "L’update iOS 26.4 en version bêta introduit une fonctionnalité nommée « Playlist Playground » dans Apple Music, permettant de créer des playlists à partir de prompts textuels. L’utilisateur peut saisir une idée, une ambiance ou un thème (ex. : « musique pour le café du matin », « hits hip-hop pour une soirée »), et l’application génère automatiquement une playlist de 25 titres avec un titre personnalisé. Des suggestions prédéfinies sont proposées, mais toute requête libre est acceptée. Les playlists peuvent être personnalisées avec une couverture, une description, et des ajustements via de nouveaux prompts. Accessible depuis la bibliothèque d’Apple Music via le bouton « + », cette fonction nécessite parfois un redémarrage de l’app ou du périphérique. Les playlists créées sont partageables et visibles sur le profil utilisateur, comme les playlists classiques. Disponible uniquement aux développeurs pour l’instant, elle devrait être testée en bêta publique avant un lancement officiel au printemps.",
-        "Images": [
-            {
-                "url": "https://images.macrumors.com/t/mrU5oarhAdtyvNj2Yihg9TSpfSw=/400x0/article-new/2026/02/ios-26-4-playlist-playground.jpg?lossy",
-                "title": "",
-                "alt": "ios 26 4 playlist playground",
-                "width": 2000,
-                "height": 1125,
-                "area": 2250000
-            }
-        ]
-    },
-    {
-        "Date de publication": "2026-02-12T07:34:00Z",
-        "Sources": "Les Numériques - Toute l'actualité, les tests et dossiers, les bons plans",
-        "URL": "https://www.lesnumeriques.com/intelligence-artificielle/souverainete-numerique-mistral-ai-promet-un-cloud-ia-europeen-mais-ses-puces-restent-americaines-n251396.html",
-        "Résumé": "Mistral AI, startup française spécialisée dans les modèles d’IA, annonce un investissement de 1,2 milliard d’euros pour construire un datacenter dédié à l’IA en Suède, en partenariat avec EcoDataCenter. Ce projet, prévu pour 2027 à Borlänge, vise à créer un cloud IA entièrement européen, avec données stockées et traitées sur le continent, hors portée du Cloud Act américain. L’infrastructure, alimentée par des énergies renouvelables, bénéficiera d’une capacité de 23 mégawatts et d’un refroidissement naturel grâce au climat suédois. Malgré cette ambition de souveraineté numérique, les puces utilisées seront des GPU Nvidia Vera Rubin, américains, soulignant la dépendance persistante à la technologie états-unienne. Mistral, valorisée à 12 milliards d’euros, affiche un run rate de 400 millions de dollars et vise 1 milliard d’euros de chiffre d’affaires d’ici fin 2026, avec plus de 100 clients grands comptes en Europe. Le datacenter permettra d’optimiser l’usage des GPU entre entraînement de modèles et services clients, générant selon l’entreprise plus de 2 milliards d’euros de revenus sur cinq ans.",
-        "Images": []
-    },
-    {
-        "Date de publication": "2026-02-12T09:20:06Z",
-        "Sources": "Les news de Korben",
-        "URL": "https://korben.info/claude-plan-gratuit-outils-pro.html",
-        "Résumé": "Anthropic rend désormais gratuits les outils premium de Claude, incluant la création de fichiers Excel, PowerPoint, Word et PDF, ainsi que l’intégration avec Slack, Notion, Figma, Zapier, Stripe, PayPal et d’autres services. Ces connecteurs permettent à l’IA d’agir directement dans les outils sans copier-coller, tandis que les Skills automatisent les tâches répétitives. Les utilisateurs gratuits accèdent à Sonnet 4.5 avec des limites d’échanges, tandis que les abonnés Pro (20 $/mois) conservent Opus et plus de capacité. Contrairement à OpenAI, qui introduit des publicités dans ChatGPT, Anthropic choisit une approche sans pub. La “conversation compaction” améliore la gestion du contexte sur de longs échanges. Bien que l’application desktop soit critiquée, la version CLI reste efficace. Ce virage stratégique positionne Claude comme une alternative sérieuse à ChatGPT, surtout pour les utilisateurs soucieux de productivité et d’expérience sans publicité.",
-        "Images": []
-    },
-    {
-        "Date de publication": "2026-02-12T13:02:00Z",
-        "Sources": "Mac4Ever - Flux Actualité",
-        "URL": "https://www.mac4ever.com/ia/194631-face-a-chatgpt-anthropic-ouvre-davantage-de-fonctionnalites-gratuites-pour-claude",
-        "Résumé": "Face à ChatGPT, Anthropic étend les fonctionnalités gratuites de Claude pour contrer l’arrivée de la publicité dans l’IA d’OpenAI. La start-up propose désormais, sans pub, la création et modification de fichiers (Word, Excel, PowerPoint, PDF) via le modèle Sonnet 4.5, ainsi que l’accès aux connecteurs (Slack, Notion, Canva, etc.) et aux « skills » personnalisables. Les conversations sont plus longues grâce à un résumé automatique du contexte, bien que les limites d’usage restent. Cette stratégie vise à attirer les utilisateurs soucieux d’une expérience neutre et professionnelle. Alors qu’OpenAI monétise via la publicité, Anthropic mise sur une offre gratuite enrichie pour gagner en attractivité. Ce bras de fer illustre la concurrence croissante sur les modèles économiques de l’IA conversationnelle, qui pourrait redéfinir la fidélité des utilisateurs et l’équilibre du marché.",
-        "Images": [
-            {
-                "url": "https://img-api.mac4ever.com/1200/0/31322bbc1c_openai-met-a-jour-chatgpt-pour-encourager-un-usage-plus-sain.webp",
-                "title": "",
-                "alt": "Face à ChatGPT, Anthropic ouvre davantage de fonctionnalités gratuites pour Claude",
-                "width": 1200,
-                "height": 686,
-                "area": 823200
-            },
-            {
-                "url": "https://img-api.mac4ever.com/1200/0/18f8d215d8_claude-anthropic.webp",
-                "title": "",
-                "alt": "Claude Anthropic",
-                "width": 1200,
-                "height": 671,
-                "area": 805200
-            }
-        ]
-    },
-    {
-        "Date de publication": "2026-02-13T10:20:36Z",
-        "Sources": "Numerama",
-        "URL": "https://www.numerama.com/tech/2179151-google-gemini-repasse-devant-claude-le-nouveau-deep-think-bat-tous-les-records.html",
-        "Résumé": "Google a mis à jour son modèle Gemini 3 Deep Think en février 2026, lui permettant de surpasser Claude Opus 4.6 et de reprendre la tête des benchmarks en IA. Ce modèle, conçu pour la recherche scientifique et mathématique, excelle dans des épreuves complexes comme ARC-AGI-2 (84,6 %) et Humanity’s Last Exam (48,4 %), se rapprochant des performances humaines. Il domine aussi les Olympiades mathématiques (81,5 %) et la programmation sur Codeforces (3455 Elo). Bien qu’il reste réservé à un public spécialisé via un abonnement à 275 €/mois, Google a réduit ses coûts de calcul par cinq, rendant son intégration future dans les applications grand public envisageable. Cette amélioration de l’efficacité et de la précision confirme la suprématie temporaire de Google dans la course aux modèles d’IA avancés.",
-        "Images": [
-            {
-                "url": "https://c0.lestechnophiles.com/www.numerama.com/wp-content/uploads/2026/02/screenshot-2026-02-13-at-095409-975x1024.jpg?resize=975,1024&key=19446cd0",
-                "title": "Sundar Pichai a publié des benchmarks sur les prouesses du nouveau Gemini Deep Think.",
-                "alt": "Sundar Pichai a publié des benchmarks sur les prouesses du nouveau Gemini Deep Think.",
-                "width": 975,
-                "height": 1024,
-                "area": 998400
-            },
-            {
-                "url": "https://c0.lestechnophiles.com/www.numerama.com/wp-content/uploads/2026/02/gemini-3-deep-think.jpg?resize=1200,675&key=1a1a4d3c&watermark",
-                "title": "Gemini 3 Deep Think. // Source : Google",
-                "alt": "Gemini 3 Deep Think. // Source : Google",
-                "width": 1200,
-                "height": 675,
-                "area": 810000
-            },
-            {
-                "url": "https://c0.lestechnophiles.com/www.numerama.com/wp-content/uploads/2026/02/image-6-1024x637.jpg?resize=1024,637&key=c87560a7",
-                "title": "Tableaux comparatifs entre Gemini 3 Deep Think, Gemini 3 Pro, Claude Opus 4.6 et GPT-5.2, publié par Google.",
-                "alt": "Tableaux comparatifs entre Gemini 3 Deep Think, Gemini 3 Pro, Claude Opus 4.6 et GPT-5.2, publié par Google.",
-                "width": 1024,
-                "height": 637,
-                "area": 652288
-            }
-        ]
-    },
-    {
-        "Date de publication": "2026-02-13T13:04:00Z",
-        "Sources": "Mac4Ever - Flux Actualité",
-        "URL": "https://www.mac4ever.com/ia/194662-claude-fait-exploser-la-valorisation-d-anthropic-a-380-milliards",
-        "Résumé": "Anthropic, créée par d’anciens de OpenAI, a levé 30 milliards de dollars, portant sa valorisation à 380 milliards, doublant ainsi sa valeur en moins de six mois. Cette levée, menée par GIC et Coatue, place Anthropic au rang des géants non cotés comme SpaceX ou ByteDance. Son rival OpenAI, soutenu par Microsoft, prépare une levée encore plus massive (100 milliards, valorisation estimée à 830 milliards). Les deux entreprises repoussent leur IPO pour conserver leur liberté stratégique, malgré une dépendance accrue aux investisseurs. Anthropic affiche un chiffre d’affaires annualisé de 14 milliards, avec l’objectif de réduire sa consommation de trésorerie et d’atteindre la rentabilité en 2028. Son outil B2B, Claude Code, génère 2,5 milliards de revenus et séduit 8 des 10 plus grandes entreprises américaines. Le financement servira à construire des data centers (50 milliards prévus), avec des partenaires comme Nvidia, Microsoft ou BlackRock. Anthropic mise sur la sécurité et la gouvernance, se positionnant comme une alternative responsable à ChatGPT, tout en devenant un acteur central de la course mondiale à l’IA.",
-        "Images": [
-            {
-                "url": "https://img-api.mac4ever.com/1200/0/c2884b3e7b_anthropic-claude.webp",
-                "title": "",
-                "alt": "Anthropic Claude",
-                "width": 1200,
-                "height": 800,
-                "area": 960000
-            },
-            {
-                "url": "https://img-api.mac4ever.com/1200/0/d6dddc5598_claude-anthropic.webp",
-                "title": "",
-                "alt": "Claude fait exploser la valorisation d’Anthropic à 380 milliards",
-                "width": 1200,
-                "height": 800,
-                "area": 960000
-            },
-            {
-                "url": "https://img-api.mac4ever.com/1200/0/699a2194b1_anthropic-lance-cowork-une-version-de-claude-code-pour-tout-le-monde-meme-vous.webp",
-                "title": "",
-                "alt": "Claude fait exploser la valorisation d’Anthropic à 380 milliards",
-                "width": 1200,
-                "height": 735,
-                "area": 882000
-            }
-        ]
-    },
-    {
-        "Date de publication": "2026-02-13T20:25:55Z",
-        "Sources": "Le Temps",
-        "URL": "https://www.letemps.ch/articles/pourquoi-l-americain-anthropic-s-impose-comme-la-nouvelle-sensation-de-l-intelligence-artificielle",
-        "Résumé": "Anthropic, entreprise américaine fondée en 2021 par les frère et sœur Dario et Daniela Amodei, anciens d’OpenAI, émerge comme la nouvelle star de l’IA, dépassant temporairement son rival en notoriété. Valorisée à 380 milliards de dollars après une levée de fonds record de 30 milliards, sa croissance est fulgurante. Initialement centrée sur l’éthique — avec son chatbot Claude, conçu pour éviter les données piratées et intégrer des garde-fous —, la société s’éloigne progressivement de cet idéal tout en maintenant des principes comme le refus de la publicité dans ses outils. Performante en codage et rédaction, Anthropic incarne la nouvelle vague de l’IA, marquée par une montée en puissance financière et technologique rapide, malgré des critiques sur sa conformité à ses engagements éthiques initiaux.",
-        "Images": []
-    },
-    {
-        "Date de publication": "2026-02-13T17:23:00Z",
-        "Sources": "MacGeneration Light",
-        "URL": "https://www.macg.co/intelligence-artificielle/2026/02/grace-lia-spotify-fait-coder-ses-ingenieurs-sur-le-trajet-du-bureau-306795",
-        "Résumé": "Spotify utilise l’IA, via son outil interne Honk et le modèle Claude Code d’Anthropic, pour permettre à ses ingénieurs de coder en déplacement, même dans les transports. Un développeur peut demander à l’IA de corriger un bug ou ajouter une fonctionnalité via Slack, recevoir une version testable via QR code, et la déployer en production avant d’arriver au bureau. Le co-CEO Gustav Söderström affirme que cette méthode accélère considérablement le développement, et que certains ingénieurs n’ont plus écrit de code manuel depuis décembre 2025. Spotify se réorganise pour s’adapter à cette nouvelle ère, ayant déjà utilisé l’IA pour développer son app Apple TV. Le dirigeant souligne que les gains de productivité sont majeurs, mais prévient que des changements profonds, y compris des réorganisations, seront nécessaires pour rester compétitif.",
-        "Images": []
-    },
-    {
-        "Date de publication": "2026-02-02T23:22:51Z",
-        "Sources": "Fast Company",
-        "URL": "https://www.fastcompany.com/91485654/spacex-is-buying-xai-and-turning-the-rocket-company-into-an-ai-infrastructure-giant",
-        "Résumé": "L’article rapporte que SpaceX envisage d’acquérir xAI, la start-up d’intelligence artificielle fondée par Elon Musk, dans le but de transformer la société spatiale en un géant de l’infrastructure IA. Cette fusion permettrait à SpaceX d’intégrer des capacités avancées d’IA dans ses opérations, notamment pour optimiser les lancements, gérer les satellites Starlink et développer des systèmes autonomes. xAI, connue pour son modèle Grok, apporterait son expertise en apprentissage automatique et en traitement du langage. L’opération renforcerait la position d’Elon Musk dans les secteurs de l’espace et de l’IA, tout en consolidant ses ambitions technologiques à long terme. Cela pourrait aussi modifier la concurrence dans l’industrie spatiale et l’IA, en combinant ressources, données et infrastructures. Le projet soulève des questions sur la régulation, la concentration du pouvoir technologique et les implications éthiques d’une telle fusion. Aucune confirmation officielle n’a encore été publiée, mais les rumeurs s’intensifient dans les milieux technologiques.",
-        "Images": {
-            "error": "Erreur réseau: 403 Client Error: Forbidden for url: https://www.fastcompany.com/91485654/spacex-is-buying-xai-and-turning-the-rocket-company-into-an-ai-infrastructure-giant"
-        }
-    },
-    {
-        "Date de publication": "2026-02-03T06:23:31Z",
-        "Sources": "Presse-citron",
-        "URL": "https://www.presse-citron.net/accelerer-lavenir-de-lhumanite-en-fusionnant-spacex-et-xai-elon-musk-souhaite-faire-plus-quune-operation-financiere-dampleur/",
-        "Résumé": "Elon Musk fusionne SpaceX et xAI, créant une méga-corporation valorisée à 1250 milliards de dollars, afin d’accélérer l’avenir de l’humanité. Cette opération vise à financer la conquête spatiale et à répondre aux besoins énergétiques croissants de l’IA en déplaçant les centres de données dans l’espace. Musk envisage une civilisation de type Kardashev II, exploitant l’énergie solaire via des satellites, puis des bases lunaires et martiennes. La fusion, structurée en échange d’actions, permettra à SpaceX de rembourser son rachat de Twitter et de préparer une introduction en Bourse massive. Musk, qui détient 42 % de SpaceX, pourrait devenir l’homme le plus riche de l’histoire, avec une fortune dépassant 1000 milliards de dollars. Les deux entités conservent temporairement leurs noms et missions, mais pourraient évoluer vers une identité unifiée. L’objectif ultime : propulser l’humanité vers les étoiles grâce à l’innovation spatiale et IA.",
-        "Images": [
-            {
-                "url": "https://www.presse-citron.net/app/uploads/2025/12/spacex-elon-musk-bourse.jpg",
-                "title": "",
-                "alt": "spacex elon musk bourse",
-                "width": 1920,
-                "height": 1280,
-                "area": 2457600
-            },
-            {
-                "url": "https://www.presse-citron.net/app/uploads/2026/02/volkswagen-plan-880x587.jpg",
-                "title": "",
-                "alt": "Volkswagen Plan",
-                "width": 880,
-                "height": 587,
-                "area": 516560
-            },
-            {
-                "url": "https://www.presse-citron.net/app/uploads/2024/11/SpaceX-Logo-QG-880x587.jpg",
-                "title": "",
-                "alt": "Spacex Logo Qg",
-                "width": 880,
-                "height": 587,
-                "area": 516560
-            }
-        ]
-    },
-    {
-        "Date de publication": "2026-02-02T18:27:42Z",
-        "Sources": "9to5Mac",
-        "URL": "https://9to5mac.com/2026/02/02/openai-launches-codex-app-for-macos-here-are-the-details/",
-        "Résumé": "OpenAI a lancé une nouvelle application macOS nommée Codex, conçue pour faciliter le développement logiciel avec des agents autonomes. Elle s’ajoute aux apps ChatGPT et Atlas, offrant un espace dédié au codage agentic, intégré aux IDE et au Terminal. L’application permet de gérer plusieurs tâches en parallèle via des threads par projet, sans perte de contexte, et de reviewer les modifications, les commenter ou les éditer manuellement. Elle supporte les worktrees pour éviter les conflits entre agents travaillant sur un même dépôt, chacun opérant sur une copie isolée du code. Les utilisateurs peuvent aussi configurer des automatisations exécutées selon un calendrier, avec des résultats envoyés dans une file d’attente de relecture. L’application reprend les paramètres et historiques de la CLI et de l’extension IDE de Codex. À l’occasion du lancement, OpenAI élargit l’accès aux fonctionnalités pour les utilisateurs Free et Go, et double temporairement les limites de débit pour les abonnés Plus, Pro, Business, Enterprise et Edu. L’application est disponible sur le site d’OpenAI.",
-        "Images": [
-            {
-                "url": "https://9to5mac.com/wp-content/uploads/sites/6/2026/02/codex-app-icon-openai.jpg?quality=82&strip=all&w=1600",
-                "title": "",
-                "alt": "",
-                "width": 1600,
-                "height": 800,
-                "area": 1280000
-            },
-            {
-                "url": "https://9to5mac.com/wp-content/uploads/sites/6/2025/11/nomad-banner2.jpg",
-                "title": "",
-                "alt": "",
-                "width": 1024,
-                "height": 205,
-                "area": 209920
-            }
-        ]
-    },
-    {
-        "Date de publication": "2026-02-02T00:08:00Z",
-        "Sources": "Flux général Developpez.com",
-        "URL": "https://intelligence-artificielle.developpez.com/actu/379772/Microsoft-perd-400-milliards-en-valeur-boursiere-a-cause-de-la-bulle-monetaire-circulaire-de-l-IA-qui-a-cree-une-illusion-de-750-milliards-un-fantasme-de-Sam-Altman-qui-ruine-l-avenir-de-Microsoft/",
-        "Résumé": "Microsoft perd 400 milliards de dollars de valeur boursière suite à l’effondrement de la bulle de l’IA, alimentée par des flux financiers circulaires entre OpenAI et ses partenaires. Sam Altman, PDG d’OpenAI, est accusé de faire brûler des milliards sans perspective de rentabilité, notamment via des dépenses massives en infrastructures et en génération de contenu. Microsoft, engagé via un contrat l’empêchant de développer sa propre AGI avant 2030, est piégé : il sacrifie sa rentabilité cloud pour soutenir OpenAI, dont les pertes dépassent 8 milliards en un an. Les investissements dans l’IA, souvent illusoires, reposent sur des transactions réciproques entre géants (Microsoft, Nvidia, Oracle, etc.) qui créent une fausse croissance. Les gains de productivité promis n’arrivent pas, et la concurrence (Google, DeepSeek) montre que les coûts actuels sont excessifs. L’avenir de Microsoft est menacé si OpenAI s’effondre, laissant des dettes et des infrastructures inutilisées. L’illusion d’une IA révolutionnaire, selon les analystes, pourrait provoquer un krach économique majeur.",
-        "Images": []
+    "sentiment": "neutre",
+    "score_sentiment": 3,
+    "ton_editorial": "factuel",
+    "score_ton": 4,
+    "temps_lecture_minutes": 0.5,
+    "temps_lecture_label": "< 1 min"
+  },
+  {
+    "Date de publication": "2026-02-17T07:02:37Z",
+    "Sources": "01net.com",
+    "URL": "https://www.01net.com/actualites/le-parlement-europeen-coupe-les-fonctions-dia-sur-les-tablettes-des-eurodeputes.html",
+    "Résumé": "Le Parlement européen a désactivé les fonctions d’intelligence artificielle générative sur les tablettes des eurodéputés et de leurs collaborateurs, par souci de sécurité et de protection des données. Selon un courriel interne, ces outils reposent souvent sur des serveurs cloud, exposant les données à des risques de fuite. L’assistance technique précise que l’ampleur des données partagées avec les fournisseurs reste à évaluer, et que tant que cette question n’est pas clarifiée, les fonctions resteront désactivées. Les applications classiques (messagerie, calendrier, documents) ne sont pas concernées. Les élus sont invités à la prudence sur leurs appareils personnels, notamment en évitant d’y utiliser des outils d’IA pour des documents professionnels. Cette décision s’inscrit dans une politique plus large de renforcement de la cybersécurité au sein des institutions européennes, incluant l’interdiction de TikTok sur les appareils professionnels et un appel à réduire la dépendance aux logiciels américains.",
+    "Images": [
+      {
+        "url": "https://www.01net.com/app/uploads/2026/02/parlement-europeen.jpg",
+        "title": "",
+        "alt": "Parlement Européen",
+        "width": 1920,
+        "height": 1280,
+        "area": 2457600
+      },
+      {
+        "url": "https://www.01net.com/app/uploads/2025/10/smartphone-enfant-1344x896.jpg",
+        "title": "",
+        "alt": "Smartphone Enfant",
+        "width": 1344,
+        "height": 896,
+        "area": 1204224
+      },
+      {
+        "url": "https://www.01net.com/app/uploads/2025/03/huawei-logo-1344x896.jpg",
+        "title": "",
+        "alt": "Huawei Logo",
+        "width": 1344,
+        "height": 896,
+        "area": 1204224
+      }
+    ]
+  },
+  {
+    "Date de publication": "2026-02-17T01:52:57Z",
+    "Sources": "20 Minutes | Home",
+    "URL": "https://www.20min.ch/fr/story/deepfakes-sexuels-l-ue-ouvre-une-enquete-contre-grok-l-outil-ia-de-x-103507783",
+    "Résumé": "L’UE a ouvert une enquête contre X, via son régulateur irlandais (DPC), concernant l’outil IA Grok, accusé de générer des deepfakes sexuels à partir de photos de personnes réelles. L’enquête vise à vérifier si X respecte le RGPD dans le traitement des données personnelles liées à ces contenus. Le siège européen de X en Irlande justifie la compétence de la DPC. Cette action s’inscrit dans un contexte de pression internationale, après des blocages dans certains pays et des enquêtes au Royaume-Uni. X avait annoncé en janvier limiter Grok dans les pays où ces images sont illégales. La DPC suit le dossier depuis plusieurs semaines, notamment après des signalements incluant des mineurs. L’UE intensifie sa surveillance des géants américains, accentuant les tensions avec les États-Unis. Bruxelles avait déjà ordonné à X de conserver tous les documents relatifs à Grok jusqu’à fin 2026. Une précédente enquête de la DPC, en avril 2025, portait déjà sur l’usage de données personnelles par X pour entraîner ses IA.",
+    "Images": [
+      {
+        "url": "https://image.20min.ch/2026/02/17/e332b378-0243-4bed-816f-ec4eac58f8f8.jpg?auto=format%2Ccompress%2Cenhance&fit=max&w=1200&h=1200&rect=0%2C0%2C4000%2C2667&s=35fd4d927d4e6a3ff5f12b6dfe6dfb90",
+        "title": "Image d’illustration.",
+        "alt": "Image d’illustration.",
+        "width": 1200,
+        "height": 800,
+        "area": 960000
+      }
+    ]
+  },
+  {
+    "Date de publication": "2026-02-17T02:28:00Z",
+    "Sources": "Flux général Developpez.com",
+    "URL": "https://intelligence-artificielle.developpez.com/actu/380299/Apres-qu-Anthropic-ait-bloque-brutalement-Openclaw-techniquement-et-legalement-Sam-Altman-l-opportuniste-en-profite-pour-recuperer-le-bebe-dans-le-giron-d-OpenAI/",
+    "Résumé": "Après qu’Anthropic ait bloqué techniquement et légalement l’accès à son API pour OpenClaw, Sam Altman a profité de la situation pour recruter Peter Steinberger, créateur du framework open source OpenClaw, au sein d’OpenAI. Ce recrutement stratégique permet à OpenAI d’intégrer un écosystème d’agents IA déjà utilisé par des millions d’utilisateurs, tout en contournant les restrictions imposées par Anthropic. OpenClaw, capable de gérer des tâches autonomes (e-mails, calendriers, navigation web, etc.), avait initialement favorisé Claude d’Anthropic, mais son blocage a provoqué un chaos, y compris des piratages et des arnaques. Steinberger, qui n’avait pas l’intention de créer sa propre entreprise, a choisi OpenAI pour accélérer l’impact de son projet. OpenClaw deviendra une fondation soutenue par OpenAI, avec pour objectif de développer des agents personnels accessibles à tous. L’incident révèle une rivalité croissante entre les géants de l’IA, passant des modèles aux écosystèmes d’agents, et soulève des alertes sur la sécurité des déploiements open source, notamment en Chine et en Corée du Sud.",
+    "Images": []
+  },
+  {
+    "Date de publication": "2026-02-16T20:18:23Z",
+    "Sources": "9to5Mac",
+    "URL": "https://9to5mac.com/2026/02/16/ios-26-4-beta-adds-new-playlist-playground-ai-feature-in-music/",
+    "Résumé": "La bêta iOS 26.4 introduit une nouvelle fonctionnalité d’intelligence artificielle dans Apple Music, nommée « Playlist Playground ». Elle permet de créer des playlists à partir de descriptions textuelles saisies par l’utilisateur. Accessible via un nouvel icône dans la bibliothèque de l’appli, cette fonctionnalité propose aussi des suggestions prédéfinies. Une fois générée, la playlist peut être personnalisée (ajout, suppression, réorganisation des titres) et affinée par de nouveaux prompts sans tout recommencer. Elle est actuellement en bêta et nécessite le téléchargement des modèles d’Apple Intelligence, vérifiables dans les paramètres. Disponible aux testeurs développeurs, une version publique est attendue dans les semaines à venir.",
+    "Images": [
+      {
+        "url": "https://9to5mac.com/wp-content/uploads/sites/6/2026/02/playlist-playground-2.jpg?quality=82&strip=all&w=1600",
+        "title": "",
+        "alt": "",
+        "width": 1600,
+        "height": 800,
+        "area": 1280000
+      },
+      {
+        "url": "https://9to5mac.com/wp-content/uploads/sites/6/2026/02/playlist-playground.jpg?quality=82&strip=all&w=1024",
+        "title": "",
+        "alt": "",
+        "width": 1024,
+        "height": 512,
+        "area": 524288
+      },
+      {
+        "url": "https://9to5mac.com/wp-content/uploads/sites/6/2025/12/native-banner_750_150.jpg?quality=82&strip=all",
+        "title": "",
+        "alt": "",
+        "width": 750,
+        "height": 150,
+        "area": 112500
+      }
+    ]
+  },
+  {
+    "Date de publication": "2026-02-16T20:41:26Z",
+    "Sources": "MacRumors: Mac News and Rumors - Front Page",
+    "URL": "https://www.macrumors.com/2026/02/16/apple-music-playlist-playground-ios-26-4/",
+    "Résumé": "L’update iOS 26.4 en version bêta introduit une fonctionnalité nommée « Playlist Playground » dans Apple Music, permettant de créer des playlists à partir de prompts textuels. L’utilisateur peut saisir une idée, une ambiance ou un thème (ex. : « musique pour le café du matin », « hits hip-hop pour une soirée »), et l’application génère automatiquement une playlist de 25 titres avec un titre personnalisé. Des suggestions prédéfinies sont proposées, mais toute requête libre est acceptée. Les playlists peuvent être personnalisées avec une couverture, une description, et des ajustements via de nouveaux prompts. Accessible depuis la bibliothèque d’Apple Music via le bouton « + », cette fonction nécessite parfois un redémarrage de l’app ou du périphérique. Les playlists créées sont partageables et visibles sur le profil utilisateur, comme les playlists classiques. Disponible uniquement aux développeurs pour l’instant, elle devrait être testée en bêta publique avant un lancement officiel au printemps.",
+    "Images": [
+      {
+        "url": "https://images.macrumors.com/t/mrU5oarhAdtyvNj2Yihg9TSpfSw=/400x0/article-new/2026/02/ios-26-4-playlist-playground.jpg?lossy",
+        "title": "",
+        "alt": "ios 26 4 playlist playground",
+        "width": 2000,
+        "height": 1125,
+        "area": 2250000
+      }
+    ]
+  },
+  {
+    "Date de publication": "2026-02-12T07:34:00Z",
+    "Sources": "Les Numériques - Toute l'actualité, les tests et dossiers, les bons plans",
+    "URL": "https://www.lesnumeriques.com/intelligence-artificielle/souverainete-numerique-mistral-ai-promet-un-cloud-ia-europeen-mais-ses-puces-restent-americaines-n251396.html",
+    "Résumé": "Mistral AI, startup française spécialisée dans les modèles d’IA, annonce un investissement de 1,2 milliard d’euros pour construire un datacenter dédié à l’IA en Suède, en partenariat avec EcoDataCenter. Ce projet, prévu pour 2027 à Borlänge, vise à créer un cloud IA entièrement européen, avec données stockées et traitées sur le continent, hors portée du Cloud Act américain. L’infrastructure, alimentée par des énergies renouvelables, bénéficiera d’une capacité de 23 mégawatts et d’un refroidissement naturel grâce au climat suédois. Malgré cette ambition de souveraineté numérique, les puces utilisées seront des GPU Nvidia Vera Rubin, américains, soulignant la dépendance persistante à la technologie états-unienne. Mistral, valorisée à 12 milliards d’euros, affiche un run rate de 400 millions de dollars et vise 1 milliard d’euros de chiffre d’affaires d’ici fin 2026, avec plus de 100 clients grands comptes en Europe. Le datacenter permettra d’optimiser l’usage des GPU entre entraînement de modèles et services clients, générant selon l’entreprise plus de 2 milliards d’euros de revenus sur cinq ans.",
+    "Images": []
+  },
+  {
+    "Date de publication": "2026-02-12T09:20:06Z",
+    "Sources": "Les news de Korben",
+    "URL": "https://korben.info/claude-plan-gratuit-outils-pro.html",
+    "Résumé": "Anthropic rend désormais gratuits les outils premium de Claude, incluant la création de fichiers Excel, PowerPoint, Word et PDF, ainsi que l’intégration avec Slack, Notion, Figma, Zapier, Stripe, PayPal et d’autres services. Ces connecteurs permettent à l’IA d’agir directement dans les outils sans copier-coller, tandis que les Skills automatisent les tâches répétitives. Les utilisateurs gratuits accèdent à Sonnet 4.5 avec des limites d’échanges, tandis que les abonnés Pro (20 $/mois) conservent Opus et plus de capacité. Contrairement à OpenAI, qui introduit des publicités dans ChatGPT, Anthropic choisit une approche sans pub. La “conversation compaction” améliore la gestion du contexte sur de longs échanges. Bien que l’application desktop soit critiquée, la version CLI reste efficace. Ce virage stratégique positionne Claude comme une alternative sérieuse à ChatGPT, surtout pour les utilisateurs soucieux de productivité et d’expérience sans publicité.",
+    "Images": []
+  },
+  {
+    "Date de publication": "2026-02-12T13:02:00Z",
+    "Sources": "Mac4Ever - Flux Actualité",
+    "URL": "https://www.mac4ever.com/ia/194631-face-a-chatgpt-anthropic-ouvre-davantage-de-fonctionnalites-gratuites-pour-claude",
+    "Résumé": "Face à ChatGPT, Anthropic étend les fonctionnalités gratuites de Claude pour contrer l’arrivée de la publicité dans l’IA d’OpenAI. La start-up propose désormais, sans pub, la création et modification de fichiers (Word, Excel, PowerPoint, PDF) via le modèle Sonnet 4.5, ainsi que l’accès aux connecteurs (Slack, Notion, Canva, etc.) et aux « skills » personnalisables. Les conversations sont plus longues grâce à un résumé automatique du contexte, bien que les limites d’usage restent. Cette stratégie vise à attirer les utilisateurs soucieux d’une expérience neutre et professionnelle. Alors qu’OpenAI monétise via la publicité, Anthropic mise sur une offre gratuite enrichie pour gagner en attractivité. Ce bras de fer illustre la concurrence croissante sur les modèles économiques de l’IA conversationnelle, qui pourrait redéfinir la fidélité des utilisateurs et l’équilibre du marché.",
+    "Images": [
+      {
+        "url": "https://img-api.mac4ever.com/1200/0/31322bbc1c_openai-met-a-jour-chatgpt-pour-encourager-un-usage-plus-sain.webp",
+        "title": "",
+        "alt": "Face à ChatGPT, Anthropic ouvre davantage de fonctionnalités gratuites pour Claude",
+        "width": 1200,
+        "height": 686,
+        "area": 823200
+      },
+      {
+        "url": "https://img-api.mac4ever.com/1200/0/18f8d215d8_claude-anthropic.webp",
+        "title": "",
+        "alt": "Claude Anthropic",
+        "width": 1200,
+        "height": 671,
+        "area": 805200
+      }
+    ]
+  },
+  {
+    "Date de publication": "2026-02-13T10:20:36Z",
+    "Sources": "Numerama",
+    "URL": "https://www.numerama.com/tech/2179151-google-gemini-repasse-devant-claude-le-nouveau-deep-think-bat-tous-les-records.html",
+    "Résumé": "Google a mis à jour son modèle Gemini 3 Deep Think en février 2026, lui permettant de surpasser Claude Opus 4.6 et de reprendre la tête des benchmarks en IA. Ce modèle, conçu pour la recherche scientifique et mathématique, excelle dans des épreuves complexes comme ARC-AGI-2 (84,6 %) et Humanity’s Last Exam (48,4 %), se rapprochant des performances humaines. Il domine aussi les Olympiades mathématiques (81,5 %) et la programmation sur Codeforces (3455 Elo). Bien qu’il reste réservé à un public spécialisé via un abonnement à 275 €/mois, Google a réduit ses coûts de calcul par cinq, rendant son intégration future dans les applications grand public envisageable. Cette amélioration de l’efficacité et de la précision confirme la suprématie temporaire de Google dans la course aux modèles d’IA avancés.",
+    "Images": [
+      {
+        "url": "https://c0.lestechnophiles.com/www.numerama.com/wp-content/uploads/2026/02/screenshot-2026-02-13-at-095409-975x1024.jpg?resize=975,1024&key=19446cd0",
+        "title": "Sundar Pichai a publié des benchmarks sur les prouesses du nouveau Gemini Deep Think.",
+        "alt": "Sundar Pichai a publié des benchmarks sur les prouesses du nouveau Gemini Deep Think.",
+        "width": 975,
+        "height": 1024,
+        "area": 998400
+      },
+      {
+        "url": "https://c0.lestechnophiles.com/www.numerama.com/wp-content/uploads/2026/02/gemini-3-deep-think.jpg?resize=1200,675&key=1a1a4d3c&watermark",
+        "title": "Gemini 3 Deep Think. // Source : Google",
+        "alt": "Gemini 3 Deep Think. // Source : Google",
+        "width": 1200,
+        "height": 675,
+        "area": 810000
+      },
+      {
+        "url": "https://c0.lestechnophiles.com/www.numerama.com/wp-content/uploads/2026/02/image-6-1024x637.jpg?resize=1024,637&key=c87560a7",
+        "title": "Tableaux comparatifs entre Gemini 3 Deep Think, Gemini 3 Pro, Claude Opus 4.6 et GPT-5.2, publié par Google.",
+        "alt": "Tableaux comparatifs entre Gemini 3 Deep Think, Gemini 3 Pro, Claude Opus 4.6 et GPT-5.2, publié par Google.",
+        "width": 1024,
+        "height": 637,
+        "area": 652288
+      }
+    ]
+  },
+  {
+    "Date de publication": "2026-02-13T13:04:00Z",
+    "Sources": "Mac4Ever - Flux Actualité",
+    "URL": "https://www.mac4ever.com/ia/194662-claude-fait-exploser-la-valorisation-d-anthropic-a-380-milliards",
+    "Résumé": "Anthropic, créée par d’anciens de OpenAI, a levé 30 milliards de dollars, portant sa valorisation à 380 milliards, doublant ainsi sa valeur en moins de six mois. Cette levée, menée par GIC et Coatue, place Anthropic au rang des géants non cotés comme SpaceX ou ByteDance. Son rival OpenAI, soutenu par Microsoft, prépare une levée encore plus massive (100 milliards, valorisation estimée à 830 milliards). Les deux entreprises repoussent leur IPO pour conserver leur liberté stratégique, malgré une dépendance accrue aux investisseurs. Anthropic affiche un chiffre d’affaires annualisé de 14 milliards, avec l’objectif de réduire sa consommation de trésorerie et d’atteindre la rentabilité en 2028. Son outil B2B, Claude Code, génère 2,5 milliards de revenus et séduit 8 des 10 plus grandes entreprises américaines. Le financement servira à construire des data centers (50 milliards prévus), avec des partenaires comme Nvidia, Microsoft ou BlackRock. Anthropic mise sur la sécurité et la gouvernance, se positionnant comme une alternative responsable à ChatGPT, tout en devenant un acteur central de la course mondiale à l’IA.",
+    "Images": [
+      {
+        "url": "https://img-api.mac4ever.com/1200/0/c2884b3e7b_anthropic-claude.webp",
+        "title": "",
+        "alt": "Anthropic Claude",
+        "width": 1200,
+        "height": 800,
+        "area": 960000
+      },
+      {
+        "url": "https://img-api.mac4ever.com/1200/0/d6dddc5598_claude-anthropic.webp",
+        "title": "",
+        "alt": "Claude fait exploser la valorisation d’Anthropic à 380 milliards",
+        "width": 1200,
+        "height": 800,
+        "area": 960000
+      },
+      {
+        "url": "https://img-api.mac4ever.com/1200/0/699a2194b1_anthropic-lance-cowork-une-version-de-claude-code-pour-tout-le-monde-meme-vous.webp",
+        "title": "",
+        "alt": "Claude fait exploser la valorisation d’Anthropic à 380 milliards",
+        "width": 1200,
+        "height": 735,
+        "area": 882000
+      }
+    ]
+  },
+  {
+    "Date de publication": "2026-02-13T20:25:55Z",
+    "Sources": "Le Temps",
+    "URL": "https://www.letemps.ch/articles/pourquoi-l-americain-anthropic-s-impose-comme-la-nouvelle-sensation-de-l-intelligence-artificielle",
+    "Résumé": "Anthropic, entreprise américaine fondée en 2021 par les frère et sœur Dario et Daniela Amodei, anciens d’OpenAI, émerge comme la nouvelle star de l’IA, dépassant temporairement son rival en notoriété. Valorisée à 380 milliards de dollars après une levée de fonds record de 30 milliards, sa croissance est fulgurante. Initialement centrée sur l’éthique — avec son chatbot Claude, conçu pour éviter les données piratées et intégrer des garde-fous —, la société s’éloigne progressivement de cet idéal tout en maintenant des principes comme le refus de la publicité dans ses outils. Performante en codage et rédaction, Anthropic incarne la nouvelle vague de l’IA, marquée par une montée en puissance financière et technologique rapide, malgré des critiques sur sa conformité à ses engagements éthiques initiaux.",
+    "Images": []
+  },
+  {
+    "Date de publication": "2026-02-13T17:23:00Z",
+    "Sources": "MacGeneration Light",
+    "URL": "https://www.macg.co/intelligence-artificielle/2026/02/grace-lia-spotify-fait-coder-ses-ingenieurs-sur-le-trajet-du-bureau-306795",
+    "Résumé": "Spotify utilise l’IA, via son outil interne Honk et le modèle Claude Code d’Anthropic, pour permettre à ses ingénieurs de coder en déplacement, même dans les transports. Un développeur peut demander à l’IA de corriger un bug ou ajouter une fonctionnalité via Slack, recevoir une version testable via QR code, et la déployer en production avant d’arriver au bureau. Le co-CEO Gustav Söderström affirme que cette méthode accélère considérablement le développement, et que certains ingénieurs n’ont plus écrit de code manuel depuis décembre 2025. Spotify se réorganise pour s’adapter à cette nouvelle ère, ayant déjà utilisé l’IA pour développer son app Apple TV. Le dirigeant souligne que les gains de productivité sont majeurs, mais prévient que des changements profonds, y compris des réorganisations, seront nécessaires pour rester compétitif.",
+    "Images": []
+  },
+  {
+    "Date de publication": "2026-02-02T23:22:51Z",
+    "Sources": "Fast Company",
+    "URL": "https://www.fastcompany.com/91485654/spacex-is-buying-xai-and-turning-the-rocket-company-into-an-ai-infrastructure-giant",
+    "Résumé": "L’article rapporte que SpaceX envisage d’acquérir xAI, la start-up d’intelligence artificielle fondée par Elon Musk, dans le but de transformer la société spatiale en un géant de l’infrastructure IA. Cette fusion permettrait à SpaceX d’intégrer des capacités avancées d’IA dans ses opérations, notamment pour optimiser les lancements, gérer les satellites Starlink et développer des systèmes autonomes. xAI, connue pour son modèle Grok, apporterait son expertise en apprentissage automatique et en traitement du langage. L’opération renforcerait la position d’Elon Musk dans les secteurs de l’espace et de l’IA, tout en consolidant ses ambitions technologiques à long terme. Cela pourrait aussi modifier la concurrence dans l’industrie spatiale et l’IA, en combinant ressources, données et infrastructures. Le projet soulève des questions sur la régulation, la concentration du pouvoir technologique et les implications éthiques d’une telle fusion. Aucune confirmation officielle n’a encore été publiée, mais les rumeurs s’intensifient dans les milieux technologiques.",
+    "Images": {
+      "error": "Erreur réseau: 403 Client Error: Forbidden for url: https://www.fastcompany.com/91485654/spacex-is-buying-xai-and-turning-the-rocket-company-into-an-ai-infrastructure-giant"
     }
+  },
+  {
+    "Date de publication": "2026-02-03T06:23:31Z",
+    "Sources": "Presse-citron",
+    "URL": "https://www.presse-citron.net/accelerer-lavenir-de-lhumanite-en-fusionnant-spacex-et-xai-elon-musk-souhaite-faire-plus-quune-operation-financiere-dampleur/",
+    "Résumé": "Elon Musk fusionne SpaceX et xAI, créant une méga-corporation valorisée à 1250 milliards de dollars, afin d’accélérer l’avenir de l’humanité. Cette opération vise à financer la conquête spatiale et à répondre aux besoins énergétiques croissants de l’IA en déplaçant les centres de données dans l’espace. Musk envisage une civilisation de type Kardashev II, exploitant l’énergie solaire via des satellites, puis des bases lunaires et martiennes. La fusion, structurée en échange d’actions, permettra à SpaceX de rembourser son rachat de Twitter et de préparer une introduction en Bourse massive. Musk, qui détient 42 % de SpaceX, pourrait devenir l’homme le plus riche de l’histoire, avec une fortune dépassant 1000 milliards de dollars. Les deux entités conservent temporairement leurs noms et missions, mais pourraient évoluer vers une identité unifiée. L’objectif ultime : propulser l’humanité vers les étoiles grâce à l’innovation spatiale et IA.",
+    "Images": [
+      {
+        "url": "https://www.presse-citron.net/app/uploads/2025/12/spacex-elon-musk-bourse.jpg",
+        "title": "",
+        "alt": "spacex elon musk bourse",
+        "width": 1920,
+        "height": 1280,
+        "area": 2457600
+      },
+      {
+        "url": "https://www.presse-citron.net/app/uploads/2026/02/volkswagen-plan-880x587.jpg",
+        "title": "",
+        "alt": "Volkswagen Plan",
+        "width": 880,
+        "height": 587,
+        "area": 516560
+      },
+      {
+        "url": "https://www.presse-citron.net/app/uploads/2024/11/SpaceX-Logo-QG-880x587.jpg",
+        "title": "",
+        "alt": "Spacex Logo Qg",
+        "width": 880,
+        "height": 587,
+        "area": 516560
+      }
+    ]
+  },
+  {
+    "Date de publication": "2026-02-02T18:27:42Z",
+    "Sources": "9to5Mac",
+    "URL": "https://9to5mac.com/2026/02/02/openai-launches-codex-app-for-macos-here-are-the-details/",
+    "Résumé": "OpenAI a lancé une nouvelle application macOS nommée Codex, conçue pour faciliter le développement logiciel avec des agents autonomes. Elle s’ajoute aux apps ChatGPT et Atlas, offrant un espace dédié au codage agentic, intégré aux IDE et au Terminal. L’application permet de gérer plusieurs tâches en parallèle via des threads par projet, sans perte de contexte, et de reviewer les modifications, les commenter ou les éditer manuellement. Elle supporte les worktrees pour éviter les conflits entre agents travaillant sur un même dépôt, chacun opérant sur une copie isolée du code. Les utilisateurs peuvent aussi configurer des automatisations exécutées selon un calendrier, avec des résultats envoyés dans une file d’attente de relecture. L’application reprend les paramètres et historiques de la CLI et de l’extension IDE de Codex. À l’occasion du lancement, OpenAI élargit l’accès aux fonctionnalités pour les utilisateurs Free et Go, et double temporairement les limites de débit pour les abonnés Plus, Pro, Business, Enterprise et Edu. L’application est disponible sur le site d’OpenAI.",
+    "Images": [
+      {
+        "url": "https://9to5mac.com/wp-content/uploads/sites/6/2026/02/codex-app-icon-openai.jpg?quality=82&strip=all&w=1600",
+        "title": "",
+        "alt": "",
+        "width": 1600,
+        "height": 800,
+        "area": 1280000
+      },
+      {
+        "url": "https://9to5mac.com/wp-content/uploads/sites/6/2025/11/nomad-banner2.jpg",
+        "title": "",
+        "alt": "",
+        "width": 1024,
+        "height": 205,
+        "area": 209920
+      }
+    ]
+  },
+  {
+    "Date de publication": "2026-02-02T00:08:00Z",
+    "Sources": "Flux général Developpez.com",
+    "URL": "https://intelligence-artificielle.developpez.com/actu/379772/Microsoft-perd-400-milliards-en-valeur-boursiere-a-cause-de-la-bulle-monetaire-circulaire-de-l-IA-qui-a-cree-une-illusion-de-750-milliards-un-fantasme-de-Sam-Altman-qui-ruine-l-avenir-de-Microsoft/",
+    "Résumé": "Microsoft perd 400 milliards de dollars de valeur boursière suite à l’effondrement de la bulle de l’IA, alimentée par des flux financiers circulaires entre OpenAI et ses partenaires. Sam Altman, PDG d’OpenAI, est accusé de faire brûler des milliards sans perspective de rentabilité, notamment via des dépenses massives en infrastructures et en génération de contenu. Microsoft, engagé via un contrat l’empêchant de développer sa propre AGI avant 2030, est piégé : il sacrifie sa rentabilité cloud pour soutenir OpenAI, dont les pertes dépassent 8 milliards en un an. Les investissements dans l’IA, souvent illusoires, reposent sur des transactions réciproques entre géants (Microsoft, Nvidia, Oracle, etc.) qui créent une fausse croissance. Les gains de productivité promis n’arrivent pas, et la concurrence (Google, DeepSeek) montre que les coûts actuels sont excessifs. L’avenir de Microsoft est menacé si OpenAI s’effondre, laissant des dettes et des infrastructures inutilisées. L’illusion d’une IA révolutionnaire, selon les analystes, pourrait provoquer un krach économique majeur.",
+    "Images": []
+  }
 ]

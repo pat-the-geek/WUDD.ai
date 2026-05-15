@@ -346,10 +346,10 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
     <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900 relative">
       {/* ── Barre de fichier ── */}
       <div
-        className={`flex items-center gap-2 px-3 py-2 md:border-b md:border-slate-200/60 md:dark:border-white/[0.10] shrink-0 fixed left-0 right-0 md:static md:z-auto transition-all duration-200 glass-toolbar-mobile ${
+        className={`flex items-center gap-1 px-2 py-1.5 md:border-b md:border-slate-200/60 md:dark:border-white/[0.10] shrink-0 fixed left-0 right-0 md:static md:z-auto transition-all duration-200 glass-toolbar-mobile mobile-bottom-toolbar ${
           sidebarOpen ? 'z-[15]' : 'z-40'
         }`}
-        style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
+        style={{ bottom: 'calc(2.75rem + env(safe-area-inset-bottom))' }}
       >
         {/* Fil d'Ariane — desktop uniquement */}
         <div className="hidden md:flex items-center gap-1 min-w-0 flex-1 text-xs text-slate-400 dark:text-slate-500 overflow-hidden">
@@ -385,13 +385,13 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
         {/* ── Spacer mobile : pousse les boutons à droite ── */}
         <div className="flex-1 md:hidden" />
 
-        {/* Boutons Terminal IA et Graphe de connaissances — mobile uniquement */}
+        {/* Boutons Terminal IA et Graphe de connaissances — desktop uniquement */}
         {onOpenGraph && (
           <button
             onClick={onOpenGraph}
             title="Graphe de connaissances"
             aria-label="Graphe de connaissances"
-            className="md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab text-violet-400 dark:text-violet-300 hover:text-violet-300 dark:hover:text-violet-200 transition-all active:scale-95 shrink-0"
+            className="hidden md:flex items-center justify-center w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab text-violet-400 dark:text-violet-300 hover:text-violet-300 dark:hover:text-violet-200 transition-all active:scale-95 shrink-0"
           >
             <Network size={16} />
           </button>
@@ -401,7 +401,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             onClick={onOpenChat}
             title="Terminal IA"
             aria-label="Terminal IA"
-            className="md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab text-emerald-500 dark:text-emerald-400 hover:text-emerald-400 dark:hover:text-emerald-300 transition-all active:scale-95 shrink-0"
+            className="hidden md:flex items-center justify-center w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab text-emerald-500 dark:text-emerald-400 hover:text-emerald-400 dark:hover:text-emerald-300 transition-all active:scale-95 shrink-0"
           >
             <MessageSquare size={16} />
           </button>
@@ -409,7 +409,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
 
         {/* Toggle Articles / JSON (uniquement pour les tableaux d'articles) */}
         {isArticleArray && (
-          <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-600 overflow-hidden shrink-0">
+          <div className="hidden md:flex items-center rounded-lg border border-slate-200 dark:border-slate-600 overflow-hidden shrink-0">
             <button
               onClick={() => setViewMode('articles')}
               title="Vue articles annotés"
@@ -534,11 +534,11 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
           </>
         )}
 
-        {/* Bouton PDF / impression — disponible pour tous les fichiers */}
+        {/* Bouton PDF / impression — desktop uniquement */}
         <button
           onClick={() => window.print()}
           title="Imprimer / Exporter en PDF"
-          className="flex items-center justify-center gap-2 px-3 h-9 bg-purple-600/60 md:bg-purple-600 hover:bg-purple-500/60 md:hover:bg-purple-500 active:bg-purple-700/60 md:active:bg-purple-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
+          className="hidden md:flex items-center justify-center gap-2 px-3 h-9 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white text-xs font-medium rounded-lg transition-colors shrink-0"
         >
           <Printer size={12} />
           <span className="hidden sm:inline">PDF</span>
@@ -657,7 +657,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
       )}
 
       {scrollTop > 50 && (
-        <div className="fixed bottom-[calc(7.75rem+env(safe-area-inset-bottom))] md:bottom-5 right-2.5 md:right-5 flex flex-col gap-2 z-50">
+        <div className="fixed bottom-[calc(3.2rem+env(safe-area-inset-bottom))] md:bottom-5 right-2.5 md:right-5 flex flex-col gap-1.5 z-50">
           {hasImages && (
             <button
               onClick={scrollToImages}

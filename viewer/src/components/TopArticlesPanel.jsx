@@ -1695,13 +1695,13 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
     {/* ── Toolbar mobile (Top uniquement) ── */}
     {activeTab === 'top' && (
       <div
-        className="hig-sheet-enter md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-700/60 px-4 pt-2 flex flex-col gap-2"
-        style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
+        className="hig-sheet-enter md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-700/60 px-2 pt-1 flex flex-col gap-1 mobile-bottom-toolbar"
+        style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
       >
         {/* Ligne 1 : filtres + rafraîchir + direct + fermer */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <select aria-label="Fenêtre temporelle" value={hours} onChange={e => setHours(Number(e.target.value))}
-            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
+            className="flex-1 min-w-0 px-1.5 py-0.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
             <option value="6">6h</option>
             <option value="24">24h</option>
             <option value="48">48h</option>
@@ -1709,23 +1709,23 @@ export default function TopArticlesPanel({ onClose, annotations = {}, onAnnotate
             <option value="0">Tout</option>
           </select>
           <select aria-label="Nombre d'articles" value={topN} onChange={e => setTopN(Number(e.target.value))}
-            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
+            className="flex-1 min-w-0 px-1.5 py-0.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200">
             <option value="5">Top 5</option>
             <option value="10">Top 10</option>
             <option value="20">Top 20</option>
             <option value="50">Top 50</option>
           </select>
           <button onClick={load} title="Actualiser"
-            className="w-9 h-9 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-colors">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            className="w-8 h-8 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-colors">
+            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           </button>
           <button onClick={() => setActiveTab('direct')} title="Direct"
-            className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 hover:bg-emerald-200 dark:hover:bg-emerald-800/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 transition-colors">
-            <Radio size={16} />
+            className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/40 hover:bg-emerald-200 dark:hover:bg-emerald-800/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 transition-colors">
+            <Radio size={14} />
           </button>
           <button onClick={onClose} title="Fermer"
-            className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0 transition-colors">
-            <X size={16} />
+            className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0 transition-colors">
+            <X size={14} />
           </button>
         </div>
         {/* Ligne 2 : podcast */}

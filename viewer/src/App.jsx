@@ -1100,8 +1100,8 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
 
       {/* ── Barre de navigation bas — mobile uniquement (Apple HIG: 5 tabs max, labels, verre dépoli) ── */}
       <nav
-        className="md:hidden fixed left-3 right-3 z-50 glass-nav rounded-2xl"
-        style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+        className="md:hidden fixed left-3 right-3 z-50 glass-nav rounded-2xl mobile-bottom-toolbar"
+        style={{ bottom: '0px' }}
       >
         <div className="flex items-stretch h-[49px]">
 

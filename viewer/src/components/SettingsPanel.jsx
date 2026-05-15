@@ -3242,31 +3242,31 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
 
         {/* Mobile : tab bar floating pills — absolute, le contenu défile dessous */}
         <div
-          className="md:hidden absolute bottom-0 left-0 right-0 z-20 flex flex-col"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          className="md:hidden fixed bottom-0 left-0 right-0 z-20 flex flex-col"
+          style={{ paddingBottom: '0px' }}
         >
           {/* Sous-menu Sources — pill floating transparent */}
           {sourcesMenuOpen && (
-            <div className="flex items-stretch mx-3 mb-2 rounded-2xl overflow-hidden glass-nav">
+            <div className="flex items-stretch mx-10 mb-0 rounded-2xl overflow-hidden glass-nav">
                 {SOURCE_TABS.map(({ id, label, Icon }) => (
                   <button
                     key={id}
                     onClick={() => handleTabSelect(id)}
-                    className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] h-10 transition-colors active:opacity-60 ${
+                    className={`relative flex flex-1 flex-col items-center justify-center gap-[2px] h-[49px] transition-colors active:opacity-60 ${
                       activeTab === id
                         ? 'text-accent'
                         : 'text-slate-400 dark:text-slate-500'
                     }`}
                   >
                     {activeTab === id && <span className="nav-active-pill" />}
-                    <Icon size={18} strokeWidth={activeTab === id ? 2.2 : 1.8} />
+                    <Icon size={20} strokeWidth={activeTab === id ? 2.2 : 1.8} />
                     <span className="text-[11px] font-medium leading-none">{label}</span>
                   </button>
                 ))}
             </div>
           )}
           {/* Barre principale — pill floating transparent */}
-          <div className="flex items-stretch h-[49px] mx-3 mb-3 rounded-2xl overflow-hidden glass-nav">
+          <div className="flex items-stretch h-[49px] mx-10 mb-0 rounded-2xl overflow-hidden glass-nav">
               {/* Bouton Sources avec sous-menu */}
               <button
                 onClick={() => setSourcesMenuOpen(o => !o)}
@@ -3277,7 +3277,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
                 }`}
               >
                 {(isSourceTab || sourcesMenuOpen) && <span className="nav-active-pill" />}
-                <Layers size={22} strokeWidth={(isSourceTab || sourcesMenuOpen) ? 2.2 : 1.8} />
+                <Layers size={20} strokeWidth={(isSourceTab || sourcesMenuOpen) ? 2.2 : 1.8} />
                 <span className="text-[11px] font-medium leading-none">Sources</span>
               </button>
               {/* Onglets principaux */}
@@ -3292,7 +3292,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
                   }`}
                 >
                   {activeTab === id && <span className="nav-active-pill" />}
-                  <Icon size={22} strokeWidth={activeTab === id ? 2.2 : 1.8} />
+                  <Icon size={20} strokeWidth={activeTab === id ? 2.2 : 1.8} />
                   <span className="text-[11px] font-medium leading-none">{short}</span>
                 </button>
               ))}
@@ -3300,7 +3300,7 @@ export default function SettingsPanel({ onClose, theme, onThemeChange, rssStatus
               <button
                 onClick={onClose}
                 aria-label="Fermer"
-                className="flex items-center justify-center px-4 text-slate-400 dark:text-slate-500 border-l border-slate-200/60 dark:border-slate-700/50 active:opacity-60 transition-colors"
+                className="flex items-center justify-center px-3 text-slate-400 dark:text-slate-500 border-l border-slate-200/60 dark:border-slate-700/50 active:opacity-60 transition-colors"
               >
                 <X size={20} />
               </button>

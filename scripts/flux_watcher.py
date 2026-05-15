@@ -376,9 +376,9 @@ def main(dry_run: bool = False) -> None:
                 print_console("Plafond global atteint après ajout.", level="warning")
                 break
 
-    # ── Mise à jour 48-heures.json via rolling_window (proposition 2) ───────
+    # ── Mise à jour 48-heures.json via rolling_window (reconstruction depuis source_dir) ──
     wudd_path = WUDD_DIR / "48-heures.json"
-    nb_48h = update_rolling_window(new_articles_all, wudd_path, hours=48)
+    nb_48h = update_rolling_window(new_articles_all, wudd_path, hours=48, source_dir=OUTPUT_DIR)
     print_console(f"48-heures.json : +{len(new_articles_all)} nouveaux | {nb_48h} articles au total dans la fenêtre 48h")
 
     # ── Mise à jour des index (article_index + entity_index) ─────────────

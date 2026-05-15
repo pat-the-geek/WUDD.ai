@@ -375,19 +375,19 @@ export default function SourceBiasPanel({ onClose }) {
 
     {/* ── Toolbar mobile fixée en bas ── */}
     <div
-      className="md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-700/60 px-4 py-3 flex items-center gap-2"
-      style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
+      className="md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-700/60 px-2 py-1.5 flex items-center gap-1 mobile-bottom-toolbar"
+      style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
     >
-      <div className="flex flex-wrap items-center gap-2 flex-1">
+      <div className="flex flex-wrap items-center gap-1.5 flex-1">
         <input
           type="text" value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Filtrer…"
-          className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs w-28"
+          className="px-1.5 py-0.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs w-24"
         />
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <label className="text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">Tri :</label>
           <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-            className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs">
+            className="px-1.5 py-0.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs">
             <option value="article_count">Volume</option>
             <option value="score_composite">Fiabilité</option>
             <option value="avg_score_ton">Factuel</option>

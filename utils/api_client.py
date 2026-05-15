@@ -2349,8 +2349,12 @@ class OllamaClient(EurIAClient):
             url=url,
             bearer="ollama",           # Ollama n'authentifie pas — valeur factice
             enable_web_search=False,   # Pas d'internet local
-            model=model,
+            # Ne pas passer le modèle Ollama ici: EurIAClient normalise vers un
+            # modèle EurIA, ce qui casse les appels locaux (/v1/chat/completions).
+            model=None,
         )
+        # Forcer le modèle Ollama demandé pour tous les payloads.
+        self.model = model
         self._ollama_model = model
         default_logger.info(f"[OllamaClient] Initialisé — modèle={model}, endpoint={url}")
 
@@ -2448,11 +2452,48 @@ class OllamaClient(EurIAClient):
 
     @classmethod
     def is_available(cls) -> bool:
-        """Vérifie que le serveur Ollama répond sur l'hôte résolu."""
+        """Vérifie que le serveur Ollama est utilisable par ce client.
+
+        Le client utilise l'API OpenAI-compatible (`/v1/chat/completions`).
+        Certains serveurs répondent sur `/api/tags` mais pas sur `/v1/*`.
+        Dans ce cas, on considère Ollama indisponible pour forcer le fallback cloud.
+        """
+        import os as _os
         import requests as _req
+        host = cls._ollama_host()
+        base = f"http://{host}:11434"
         try:
-            r = _req.get(f"http://{cls._ollama_host()}:11434/api/tags", timeout=3)
-            return r.status_code == 200
+            # Vérifie d'abord que le daemon Ollama répond.
+            r_tags = _req.get(f"{base}/api/tags", timeout=3)
+            if r_tags.status_code != 200:
+                return False
+
+            # Vérifie ensuite que l'API OpenAI-compatible est disponible.
+            r_models = _req.get(f"{base}/v1/models", timeout=3)
+            if r_models.status_code != 200:
+                default_logger.warning(
+                    "[OllamaClient] /api/tags OK mais /v1/models indisponible "
+                    f"(status={r_models.status_code}) sur {host}:11434"
+                )
+                return False
+
+            # Vérifie enfin le endpoint réellement utilisé par ce client,
+            # sans déclencher d'inférence (évite les faux négatifs à froid).
+            # Un POST vide doit renvoyer 400/422 si la route existe, 404 sinon.
+            r_chat = _req.post(f"{base}/v1/chat/completions", json={}, timeout=3)
+            if r_chat.status_code == 404:
+                default_logger.warning(
+                    "[OllamaClient] /v1/chat/completions indisponible "
+                    f"(status=404) sur {host}:11434"
+                )
+                return False
+            if r_chat.status_code not in (200, 400, 422):
+                default_logger.warning(
+                    "[OllamaClient] /v1/chat/completions réponse inattendue "
+                    f"(status={r_chat.status_code}) sur {host}:11434"
+                )
+                return False
+            return True
         except Exception:
             return False
 
