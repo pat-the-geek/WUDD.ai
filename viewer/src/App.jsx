@@ -305,12 +305,19 @@ function applyTheme(theme) {
     isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     html.classList.toggle('dark', isDark)
   }
-  let meta = document.querySelector('meta[name="theme-color"]')
-  if (meta) meta.remove()
-  meta = document.createElement('meta')
-  meta.name = 'theme-color'
-  meta.content = isDark ? '#1e293b' : '#ffffff'
-  document.head.appendChild(meta)
+
+  // Met à jour les metas sans les recréer pour éviter les glitches visuels iOS.
+  const themeColor = isDark ? '#1e293b' : '#ffffff'
+  const themeMeta = document.querySelector('meta[name="theme-color"]')
+  if (themeMeta) {
+    themeMeta.setAttribute('content', themeColor)
+  }
+
+  // iPhone/PWA: mode translucide forcé pour éviter le bandeau blanc en haut.
+  const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
+  if (statusBarMeta) {
+    statusBarMeta.setAttribute('content', 'black-translucent')
+  }
 }
 
 export default function App() {
@@ -366,6 +373,7 @@ export default function App() {
 }
 
 function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
+  const isIPhone = typeof navigator !== 'undefined' && /iPhone/i.test(navigator.userAgent || '')
   const [files, setFiles] = useState([])
   const [selectedFile, setSelectedFile] = useState(null)
   const [fileContent, setFileContent] = useState(null)
@@ -423,6 +431,14 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
     localStorage.setItem('wudd_theme', theme)
     applyTheme(theme)
   }, [theme])
+
+  // Classe racine iPhone pour appliquer des correctifs CSS ciblés sur la status bar.
+  useEffect(() => {
+    const html = document.documentElement
+    if (isIPhone) html.classList.add('ios-iphone')
+    else html.classList.remove('ios-iphone')
+    return () => html.classList.remove('ios-iphone')
+  }, [isIPhone])
 
   // En mode automatique, écouter les changements de préférence système
   useEffect(() => {
@@ -1023,8 +1039,11 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
       </header>
 
       {/* ── Corps principal ── */}
-      {/* safe-area-inset-top sur mobile (le header étant masqué, le contenu remonte sous l'encoche) */}
-      <div className="flex flex-1 overflow-hidden relative pb-16 md:pb-0" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      {/* iPhone : réserve haute minimale sans décalage négatif (évite les artefacts visuels). */}
+      <div
+        className="flex flex-1 overflow-hidden relative pb-16 md:pb-0"
+        style={{ paddingTop: isIPhone ? '0px' : 'env(safe-area-inset-top)' }}
+      >
         {showPortBadge && (
           <div className="md:hidden absolute top-2 right-3 z-20">
             <RuntimeInfoPanel runtimeInfo={runtimeInfo} activePort={activePort} compact />

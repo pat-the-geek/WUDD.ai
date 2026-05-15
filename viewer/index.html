@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="theme-color" id="theme-color" content="#ffffff" />
     <title>WUDD.ai — Explorateur</title>
@@ -12,6 +14,10 @@
         var isDark = t === 'nuit' || (t === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         if (isDark) document.documentElement.classList.add('dark');
         document.getElementById('theme-color').setAttribute('content', isDark ? '#1e293b' : '#ffffff');
+        var statusMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+        if (statusMeta) {
+          statusMeta.setAttribute('content', 'black-translucent');
+        }
       })();
     </script>
   </head>

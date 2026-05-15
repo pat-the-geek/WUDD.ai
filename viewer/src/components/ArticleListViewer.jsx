@@ -473,9 +473,9 @@ function hasObsidianReport(article, localReportsByUrl) {
 }
 
 /** Carte article complète (vue grille / large) — style Liquid Glass. */
-function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, onWarmEntityDialog, onWarmReportDialog, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged, localRapports = [], onOpenFile }) {
+function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, onWarmEntityDialog, onWarmReportDialog, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged, localRapports = [], onOpenFile, isExpanded, onToggleExpanded }) {
   const heroRef = useRef(null)
-  const [expanded, setExpanded]                   = useState(index < 3)
+  const [localExpanded, setLocalExpanded]         = useState(index < 3)
   const [lightbox, setLightbox]                   = useState(false)
   const [noteOpen, setNoteOpen]                   = useState(false)
   const [refreshing, setRefreshing]               = useState(false)
@@ -488,6 +488,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
   const [shouldDetectFace, setShouldDetectFace]   = useState(false)
 
   const displayArticle = localEnrichment ? { ...article, ...localEnrichment } : article
+  const expanded = typeof isExpanded === 'boolean' ? isExpanded : localExpanded
 
   const titre    = article['Titre']?.trim() || ''
   const resume   = displayArticle['Résumé'] ?? ''
@@ -783,7 +784,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
               </>
             )}
             {resume.length > 300 && (
-              <button onClick={() => setExpanded(v => !v)}
+              <button onClick={() => (onToggleExpanded ? onToggleExpanded() : setLocalExpanded(v => !v))}
                 className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                 {expanded ? <><ChevronUp size={12} /> Réduire</> : <><ChevronDown size={12} /> Lire la suite</>}
               </button>
@@ -938,6 +939,8 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   const [filterObsidian, setFilterObsidian]     = useState(false)
   const [sortBy, setSortBy]                   = useState('date-desc')
   const [viewStyle, setViewStyle]             = useState('grid') // 'grid' | 'large' | 'timeline'
+  const [gridColumnCount, setGridColumnCount] = useState(1)
+  const [expandedRows, setExpandedRows]       = useState(() => new Set([0]))
   const [selectedTypes, setSelectedTypes]     = useState(new Set())
   const [selectedSources, setSelectedSources] = useState(new Set())
   const [selectedEntity, setSelectedEntity]   = useState(null) // { type, value }
@@ -1185,7 +1188,41 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
     setSelectedTypes(new Set())
     setSelectedSources(new Set())
     setSearchQuery('')
+    setExpandedRows(new Set([0]))
   }, [filePath]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Détection du nombre réel de colonnes rendues pour synchroniser l'expansion par ligne.
+  useEffect(() => {
+    if (viewStyle !== 'grid') return
+    const el = gridRef.current
+    if (!el) return
+
+    const readColumnCount = () => {
+      const tpl = window.getComputedStyle(el).gridTemplateColumns || ''
+      const count = tpl.split(' ').filter(Boolean).length
+      setGridColumnCount(Math.max(1, Math.min(6, count || 1)))
+    }
+
+    readColumnCount()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', readColumnCount)
+      return () => window.removeEventListener('resize', readColumnCount)
+    }
+
+    const ro = new ResizeObserver(() => readColumnCount())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [viewStyle, visibleArticles.length])
+
+  const toggleGridRowExpansion = useCallback((rowIndex) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev)
+      if (next.has(rowIndex)) next.delete(rowIndex)
+      else next.add(rowIndex)
+      return next
+    })
+  }, [])
 
   // Remet la pagination à 0 quand les filtres/tri changent ou quand on change de fichier
   useEffect(() => {
@@ -1717,24 +1754,38 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
         </div>
       ) : (
         /* Vue grille */
-        <div ref={gridRef} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {visibleArticles.map((article, i) => (
-            <ArticleCard key={article['URL'] ?? i} article={article} index={i} highlight={searchQuery.trim()}
-              onEntityClick={handleEntityClick}
-              onFullReport={handleFullReport}
-              onWarmEntityDialog={warmEntityDialog}
-              onWarmReportDialog={warmReportDialog}
-              annotation={annotations?.[article['URL']] ?? null}
-              onAnnotate={onAnnotate}
-              filePath={filePath}
-              availableProviders={availableProviders}
-              isFirstUnread={article['URL'] === firstUnreadUrl}
-              obsidianVault={obsidianVault}
-              localRapports={localReports[article['URL']] || []}
-              onMerged={url => { pendingScrollUrlRef.current = url; onMerged?.() }}
-              onOpenFile={onOpenFile}
-            />
-          ))}
+        <div
+          ref={gridRef}
+          className="grid gap-4"
+          style={{
+            width: '100%',
+            maxWidth: '2000px', // 6 colonnes max (6*320 + 5*16)
+            marginInline: 'auto',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
+          }}
+        >
+          {visibleArticles.map((article, i) => {
+            const rowIndex = Math.floor(i / Math.max(1, gridColumnCount))
+            return (
+              <ArticleCard key={article['URL'] ?? i} article={article} index={i} highlight={searchQuery.trim()}
+                onEntityClick={handleEntityClick}
+                onFullReport={handleFullReport}
+                onWarmEntityDialog={warmEntityDialog}
+                onWarmReportDialog={warmReportDialog}
+                annotation={annotations?.[article['URL']] ?? null}
+                onAnnotate={onAnnotate}
+                filePath={filePath}
+                availableProviders={availableProviders}
+                isFirstUnread={article['URL'] === firstUnreadUrl}
+                obsidianVault={obsidianVault}
+                localRapports={localReports[article['URL']] || []}
+                onMerged={url => { pendingScrollUrlRef.current = url; onMerged?.() }}
+                onOpenFile={onOpenFile}
+                isExpanded={expandedRows.has(rowIndex)}
+                onToggleExpanded={() => toggleGridRowExpansion(rowIndex)}
+              />
+            )
+          })}
           {/* Sentinel infinite scroll — vue grille */}
           {visibleCount < displayedArticles.length && (
             <div ref={sentinelRef} className="col-span-full py-6 flex flex-col items-center gap-1 text-xs text-slate-400 dark:text-slate-500" aria-hidden="true">

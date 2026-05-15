@@ -204,6 +204,7 @@ function Lightbox({ images, index, onClose, onNav }) {
 }
 
 export default function FileViewer({ file, content, loading, loadingProgress, onDownload, onContentSaved, onEntitySearch, onDelete, annotations, onAnnotate, sidebarOpen, availableProviders = [], articleSearchQuery = null, articleFocusSignal = 0, onMobileSearchClose, mobileFilterSignal = null, onMobileFilterClose, onMerged, onOpenFile, onOpenGraph, onOpenChat }) {
+  const isIPhone = typeof navigator !== 'undefined' && /iPhone/i.test(navigator.userAgent || '')
   const scrollRef = useRef(null)
   const entitiesRef = useRef(null)
   const imagesRef = useRef(null)
@@ -556,7 +557,11 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
       </div>
 
       {/* ── Contenu ── */}
-      <div ref={scrollRef} className="flex-1 overflow-auto p-6 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:p-6">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-auto p-6 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:p-6"
+        style={isIPhone ? { paddingTop: '0px' } : undefined}
+      >
         {loading ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400 dark:text-slate-500">
             <div className="w-5 h-5 border-2 border-slate-300 dark:border-slate-600 border-t-blue-500 rounded-full animate-spin" />

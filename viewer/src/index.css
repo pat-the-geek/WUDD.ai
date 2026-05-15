@@ -138,6 +138,23 @@
 html { -webkit-text-size-adjust: auto; text-size-adjust: auto; }
 
 html, body { overflow-x: hidden; }
+
+/* iPhone: peint explicitement la zone haute (safe-area) pour éviter le bandeau blanc. */
+html.ios-iphone body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background: #f8fafc;
+  z-index: 2147483647;
+  pointer-events: none;
+}
+
+html.ios-iphone.dark body::before {
+  background: #020617;
+}
 body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; touch-action: pan-y; }
 
 /* ══ Classes utilitaires HIG — boutons, états actifs ═══════════════════════
