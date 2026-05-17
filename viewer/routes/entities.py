@@ -194,6 +194,32 @@ def _canonicalize_watched_entity(entity_type: str, entity_value: str) -> tuple[s
     return canonicalizer.canonicalize(entity_type, entity_value)
 
 
+def _watched_file_stamp() -> tuple:
+    """Empreinte filesystem du fichier watchlist (mtime_ns, taille, inode).
+
+    DÉCISION D'ARCHITECTURE (correction bug read-after-write 2026-05-17) :
+    le viewer tourne sous Gunicorn multi-workers (cf. entrypoint.sh,
+    WUDD_GUNICORN_WORKERS=2). `_watched_cache` est un cache PAR PROCESSUS :
+    un POST géré par le worker A n'invalide que le cache du worker A, alors
+    qu'un GET ultérieur peut être routé vers le worker B qui sert encore une
+    liste périmée (TTL 60 s). `_save_watched` fait pourtant une écriture
+    atomique synchrone (tmp + os.replace) : ce n'est donc PAS une écriture
+    asynchrone, mais un cache de lecture découplé entre workers.
+
+    Le fichier `watched_entities.json` est, lui, commun à tous les workers.
+    En clé-tant le cache sur son empreinte filesystem (mtime_ns + taille +
+    inode — l'inode change car `os.replace` crée un nouveau fichier), toute
+    écriture par n'importe quel worker rend le cache des autres workers
+    immédiatement invalide → read-your-writes garanti (option B), sans IPC,
+    et immunité à la repopulation par un GET lent concurrent.
+    """
+    try:
+        st = _WATCHED_FILE.stat()
+        return (st.st_mtime_ns, st.st_size, st.st_ino)
+    except OSError:
+        return (0, 0, 0)
+
+
 def _build_entity_query_info(
     *,
     entity: str | None,
@@ -2722,19 +2748,31 @@ def api_watched_get():
     
     Résultat en cache 60s pour éviter les calculs répétés sur l'index.
     """
-    # ── Cache TTL : même requête → réponse instantanée pendant 60s ─────────
+    # ── Cache TTL + empreinte fichier (multi-worker safe, read-your-writes) ─
+    # On ne sert le cache que s'il correspond EXACTEMENT à l'état actuel du
+    # fichier (stamp identique) ET dans la fenêtre TTL. Toute écriture par
+    # n'importe quel worker change le stamp → recalcul immédiat (option B).
+    stamp_now = _watched_file_stamp()
     with _watched_cache_lock:
         entry = _watched_cache.get("result")
-        if entry is not None and (time.monotonic() - entry["ts"]) < _WATCHED_CACHE_TTL:
+        if (
+            entry is not None
+            and entry.get("stamp") == stamp_now
+            and (time.monotonic() - entry["ts"]) < _WATCHED_CACHE_TTL
+        ):
             return jsonify(entry["result"])
 
+    # Empreinte capturée AVANT lecture : l'écriture étant atomique (os.replace),
+    # tagger avec le stamp pré-lecture ne peut produire qu'un recalcul superflu,
+    # jamais une réponse périmée servie.
     with _watched_lock:
+        stamp_read = _watched_file_stamp()
         watched = _load_watched()
 
     if not watched:
         result = []
         with _watched_cache_lock:
-            _watched_cache["result"] = {"result": result, "ts": time.monotonic()}
+            _watched_cache["result"] = {"result": result, "ts": time.monotonic(), "stamp": stamp_read}
         return jsonify(result)
 
     # Calcul rapide des mentions via entity_index.json (évite le scan rglob).
@@ -2770,16 +2808,16 @@ def api_watched_get():
 
             result.append({**w, "mentions_7d": mentions_7d, "mentions_24h": mentions_24h})
         
-        # ── Mise en cache du résultat ──
+        # ── Mise en cache du résultat (clé-té sur l'empreinte fichier) ──
         with _watched_cache_lock:
-            _watched_cache["result"] = {"result": result, "ts": time.monotonic()}
-        
+            _watched_cache["result"] = {"result": result, "ts": time.monotonic(), "stamp": stamp_read}
+
         return jsonify(result)
     except Exception:
         # Fallback de sécurité : préserver l'API même si l'index est indisponible.
         result = [{**w, "mentions_7d": 0, "mentions_24h": 0} for w in watched]
         with _watched_cache_lock:
-            _watched_cache["result"] = {"result": result, "ts": time.monotonic()}
+            _watched_cache["result"] = {"result": result, "ts": time.monotonic(), "stamp": stamp_read}
         return jsonify(result)
 
 
@@ -2868,6 +2906,191 @@ def api_watched_delete():
             "requested_value": requested_value,
         }
     )
+
+
+@entities_bp.route(
+    "/api/watched-entities/<entity_name>/articles", methods=["GET"]
+)
+def api_watched_entity_articles(entity_name: str):
+    """Articles mentionnant une entité, filtrés par date de publication.
+
+    Endpoint de LECTURE pensé pour le pipeline be.CLEAR → WUDD.ai. Il
+    n'exige pas que l'entité soit sur la watchlist : c'est une lecture sur
+    l'index NER existant (même mécanisme que ``/api/entities/articles`` et
+    ``watch_entity`` : ``resolve_entity_matches`` + ``load_match_refs``).
+
+    Paramètres :
+      * ``entity_name`` (path)  : nom exact de l'entité, URL-encodé.
+      * ``date``  (query, opt.) : ``YYYY-MM-DD``, défaut J-1 (hier, UTC).
+                                  Filtre sur la DATE DE PUBLICATION.
+      * ``type``  (query, opt.) : type NER pour désambiguïser (ORG, PERSON…).
+                                  Défaut : recherche tous types confondus.
+      * ``limit`` (query, opt.) : défaut 50, borné à [1, 500].
+      * ``offset``(query, opt.) : défaut 0, pagination.
+
+    Réponse : ``{entity, date, total, articles:[{id, titre, resume, source,
+    url, date_publication, entites, score_pertinence}, …]}``.
+    """
+    from datetime import datetime as _dt, timedelta, timezone
+
+    entity = (entity_name or "").strip()
+    if not entity:
+        return jsonify({"error": "Nom d'entité requis dans le chemin"}), 400
+
+    # ── Date : défaut = hier (J-1, UTC) ; filtre sur date de publication ────
+    today = _dt.now(timezone.utc).date()
+    raw_date = (request.args.get("date") or "").strip()
+    if raw_date:
+        try:
+            target_date = _dt.strptime(raw_date, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({
+                "error": "Paramètre 'date' invalide : format attendu YYYY-MM-DD",
+                "received": raw_date,
+            }), 400
+        if target_date > today:
+            return jsonify({
+                "error": "Date future non autorisée",
+                "date": raw_date,
+                "today_utc": today.isoformat(),
+            }), 400
+    else:
+        target_date = today - timedelta(days=1)
+
+    # ── Pagination ─────────────────────────────────────────────────────────
+    limit = request.args.get("limit", default=50, type=int)
+    offset = request.args.get("offset", default=0, type=int)
+    if limit is None or offset is None or limit < 1 or offset < 0:
+        return jsonify({
+            "error": "Paramètres 'limit' (≥1) et 'offset' (≥0) invalides"
+        }), 400
+    limit = min(limit, 500)
+
+    requested_type = (request.args.get("type") or "").strip().upper()
+    all_types = not requested_type
+    date_str = target_date.isoformat()
+
+    empty_response = {
+        "entity": entity,
+        "date": date_str,
+        "total": 0,
+        "articles": [],
+    }
+
+    try:
+        matches = resolve_entity_matches(
+            PROJECT_ROOT,
+            entity,
+            requested_type or None,
+            match_mode="canonical",
+            all_types=all_types,
+        )
+    except Exception:
+        matches = []
+    if not matches:
+        # Entité inconnue de l'index NER → réponse vide explicite (pas 404).
+        return jsonify(empty_response)
+
+    try:
+        refs = load_match_refs(PROJECT_ROOT, matches, canonicalize=True)
+    except Exception:
+        refs = []
+
+    # refs triées par date décroissante : on collecte la tranche du jour
+    # ciblé puis on arrête dès qu'une date parsable est strictement plus
+    # ancienne (toutes les suivantes le seront aussi).
+    refs_by_file: dict[str, list[int]] = {}
+    scanned = 0
+    for ref in refs:
+        scanned += 1
+        if scanned > 20000:
+            break
+        ref_dt = parse_article_date(ref.get("date", ""), date_only_policy="start")
+        if ref_dt is None:
+            continue
+        ref_date = ref_dt.date()
+        if ref_date > target_date:
+            continue
+        if ref_date < target_date:
+            break
+        rel_path = ref.get("file", "")
+        file_idx = ref.get("idx", -1)
+        if not rel_path or not isinstance(file_idx, int) or file_idx < 0:
+            continue
+        refs_by_file.setdefault(rel_path, []).append(file_idx)
+
+    try:
+        from utils.scoring import get_scoring_engine
+        from utils.article_id import compute_wudd_article_id
+        engine = get_scoring_engine(PROJECT_ROOT)
+    except Exception:
+        engine = None
+        from utils.article_id import compute_wudd_article_id
+
+    seen_urls: set[str] = set()
+    collected: list[dict] = []
+    for rel_path, idxs in refs_by_file.items():
+        full_path = PROJECT_ROOT / rel_path
+        try:
+            data = json.loads(full_path.read_text(encoding="utf-8", errors="replace"))
+            if not isinstance(data, list):
+                continue
+        except (json.JSONDecodeError, OSError):
+            continue
+        for file_idx in idxs:
+            if not (0 <= file_idx < len(data)):
+                continue
+            article = data[file_idx]
+            if not isinstance(article, dict):
+                continue
+            # Re-validation stricte sur la DATE DE PUBLICATION de l'article
+            # (et non la date d'indexation), comme spécifié.
+            art_dt = parse_article_date(
+                article.get("Date de publication", ""), date_only_policy="start"
+            )
+            if art_dt is None or art_dt.date() != target_date:
+                continue
+            url = (article.get("URL") or "").strip()
+            dedup_key = url or article.get("Résumé", "")[:150].strip()
+            if dedup_key and dedup_key in seen_urls:
+                continue
+            if dedup_key:
+                seen_urls.add(dedup_key)
+
+            try:
+                score100 = engine.score_article(article) if engine else 0.0
+            except Exception:
+                score100 = 0.0
+            pub_iso = art_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            wudd_id = compute_wudd_article_id(article)
+            entities = article.get("entities") or {}
+            collected.append({
+                "id": wudd_id,
+                "wudd_article_id": wudd_id,
+                "titre": article.get("Titre", "") or "",
+                "resume": article.get("Résumé", "") or "",
+                "source": article.get("Sources", "") or "",
+                "url": url,
+                "date_publication": pub_iso,
+                "entites": entities if isinstance(entities, dict) else {},
+                "score_pertinence": round(score100 / 100.0, 4),
+                "_sort_pub": art_dt,
+            })
+
+    collected.sort(
+        key=lambda a: (a["score_pertinence"], a["_sort_pub"]), reverse=True
+    )
+    total = len(collected)
+    page = collected[offset:offset + limit]
+    for item in page:
+        item.pop("_sort_pub", None)
+
+    return jsonify({
+        "entity": entity,
+        "date": date_str,
+        "total": total,
+        "articles": page,
+    })
 
 
 @entities_bp.route("/api/entity-timeline", methods=["GET"])

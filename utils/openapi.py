@@ -150,6 +150,27 @@ _ROUTE_META: dict[str, dict[str, Any]] = {
         "description": "Retire une entité de la liste de surveillance.",
         "tags": ["Entités"],
     },
+    "GET /api/watched-entities/{entity_name}/articles": {
+        "summary": "Articles d'une entité par date",
+        "description": (
+            "Retourne les articles mentionnant l'entité (index NER) publiés "
+            "à la date donnée (défaut : J-1). Endpoint de lecture : l'entité "
+            "n'a pas besoin d'être sur la watchlist."
+        ),
+        "tags": ["Entités"],
+        "params": [
+            {"name": "entity_name", "in": "path", "required": True,
+             "schema": {"type": "string"}},
+            {"name": "date", "in": "query", "required": False,
+             "schema": {"type": "string", "example": "2026-05-16"}},
+            {"name": "type", "in": "query", "required": False,
+             "schema": {"type": "string", "example": "ORG"}},
+            {"name": "limit", "in": "query", "required": False,
+             "schema": {"type": "integer", "default": 50}},
+            {"name": "offset", "in": "query", "required": False,
+             "schema": {"type": "integer", "default": 0}},
+        ],
+    },
     "GET /api/annotations": {
         "summary": "Annotations manuelles",
         "description": "Retourne les annotations manuelles d'articles.",

@@ -32,6 +32,7 @@ from .tools.files import (
 )
 from .tools.health import tool_wudd_health
 from .tools.watched_entities import (
+    tool_get_watched_entity_articles,
     tool_list_watched_entities,
     tool_unwatch_entity,
     tool_watch_entity,
@@ -273,6 +274,31 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
             config,
             entity_type=type,
             value=value,
+        )
+
+    @server.tool(
+        name="get_watched_entity_articles",
+        description=(
+            "Retourne les articles du jour (ou d'une date donnée, YYYY-MM-DD, "
+            "défaut J-1) mentionnant une entité. Lecture seule : l'entité n'a "
+            "pas besoin d'être sur la watchlist. Chaque article inclut un "
+            "wudd_article_id stable."
+        ),
+    )
+    def get_watched_entity_articles(
+        entity_name: str | None = None,
+        date: str | None = None,
+        type: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        return tool_get_watched_entity_articles(
+            client,
+            entity_name=entity_name,
+            date=date,
+            entity_type=type,
+            limit=limit,
+            offset=offset,
         )
 
     @server.tool(name="export_dataset", description="Retourne une URL d'export Atom, CSV ou XLSX.")

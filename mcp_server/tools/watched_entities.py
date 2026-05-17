@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from urllib.parse import quote
 
 from ..config import MCPConfig
 from ..errors import BadRequestError, ForbiddenError
@@ -111,6 +112,56 @@ def tool_watch_entity(
         return success("watch_entity", data, meta=viewer_meta(_ENDPOINT, started_at))
     except Exception as exc:
         return from_exception("watch_entity", _ENDPOINT, started_at, exc)
+
+
+def tool_get_watched_entity_articles(
+    client: ViewerClient,
+    *,
+    entity_name: str | None = None,
+    date: str | None = None,
+    entity_type: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    """Articles du jour (ou d'une date donnée) mentionnant une entité.
+
+    Mappe GET /api/watched-entities/{entity_name}/articles. Endpoint de
+    lecture : l'entité n'a pas besoin d'être sur la watchlist.
+
+    NOTE : la spec suggérait le nom `get_entity_articles`, mais ce nom est
+    déjà pris par un tool existant qui cible un autre endpoint
+    (/api/entities/articles, sans filtre date). Pour ne rien casser, ce
+    nouvel outil est exposé sous `get_watched_entity_articles`.
+    """
+    started_at = time.perf_counter()
+    name = (entity_name or "").strip()
+    endpoint = f"/api/watched-entities/{quote(name, safe='')}/articles"
+    try:
+        if not name:
+            raise BadRequestError("Le paramètre entity_name est requis")
+        try:
+            capped_limit = max(1, min(int(limit), 500))
+        except (TypeError, ValueError):
+            raise BadRequestError("limit doit être un entier")
+        try:
+            safe_offset = max(0, int(offset))
+        except (TypeError, ValueError):
+            raise BadRequestError("offset doit être un entier")
+        params: dict[str, str | int] = {"limit": capped_limit, "offset": safe_offset}
+        if date is not None and str(date).strip():
+            params["date"] = str(date).strip()
+        if entity_type is not None and str(entity_type).strip():
+            params["type"] = str(entity_type).strip().upper()
+        data = client.get(endpoint, params=params, timeout=client.heavy_timeout)
+        return success(
+            "get_watched_entity_articles",
+            data,
+            meta=viewer_meta(endpoint, started_at),
+        )
+    except Exception as exc:
+        return from_exception(
+            "get_watched_entity_articles", endpoint, started_at, exc
+        )
 
 
 def tool_unwatch_entity(
