@@ -3,8 +3,9 @@ import { X, Eye, Plus, Trash2, RefreshCw, TrendingUp, Bell, BarChart2, ChevronDo
 
 const ENTITY_TYPE_FR = {
   PERSON: 'Personne', ORG: 'Organisation', GPE: 'Lieu/Pays',
-  PRODUCT: 'Produit', EVENT: 'Événement', NORP: 'Groupe',
-  LOC: 'Lieu', FAC: 'Lieu',
+  PRODUCT: 'Produit', EVENT: 'Événement', DISEASE: 'Maladie',
+  NORP: 'Groupe', LOC: 'Lieu', FAC: 'Site/Bâtiment',
+  LAW: 'Loi/Règlement', WORK_OF_ART: 'Œuvre', LANGUAGE: 'Langue',
 }
 
 const TYPE_COLORS = {
@@ -13,6 +14,13 @@ const TYPE_COLORS = {
   GPE: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
   PRODUCT: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300',
   EVENT: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
+  DISEASE: 'bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300',
+  NORP: 'bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-700 dark:text-fuchsia-300',
+  LOC: 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300',
+  FAC: 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300',
+  LAW: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
+  WORK_OF_ART: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300',
+  LANGUAGE: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300',
 }
 
 function TrendChip({ count24h, count7d }) {
