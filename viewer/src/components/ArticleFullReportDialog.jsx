@@ -603,7 +603,7 @@ export default function ArticleFullReportDialog({ article, filePath, obsidianVau
 
   // Build entity chip list (all types, PERSON/ORG/PRODUCT first)
   const chipList = []
-  const TYPE_ORDER = ['PERSON', 'ORG', 'PRODUCT', 'GPE', 'EVENT', 'LOC']
+  const TYPE_ORDER = ['PERSON', 'ORG', 'PRODUCT', 'GPE', 'EVENT', 'DISEASE', 'LOC']
   const remaining = Object.keys(entities).filter(t => !TYPE_ORDER.includes(t))
   for (const type of [...TYPE_ORDER, ...remaining]) {
     const vals = entities[type]

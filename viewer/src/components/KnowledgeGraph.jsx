@@ -493,7 +493,7 @@ export default function KnowledgeGraph({ onClose }) {
   }, [sizeByTotal])
 
   // ── Types d'entité actifs (filtre positif — envoyé au serveur) ───────────
-  const ALL_NER_TYPES = ['PERSON', 'ORG', 'GPE', 'LOC', 'EVENT', 'PRODUCT', 'NORP', 'FAC', 'DATE', 'MONEY']
+  const ALL_NER_TYPES = ['PERSON', 'ORG', 'GPE', 'LOC', 'EVENT', 'DISEASE', 'PRODUCT', 'NORP', 'FAC', 'DATE', 'MONEY']
   const [activeTypes, setActiveTypes] = useState(new Set())
   const activeTypesRef = useRef(new Set())
   useEffect(() => { activeTypesRef.current = activeTypes }, [activeTypes])

@@ -475,7 +475,7 @@ class ArticleDB:
             return {}
 
         types_to_extract = entity_types or [
-            "PERSON", "ORG", "GPE", "LOC", "PRODUCT", "EVENT",
+            "PERSON", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "DISEASE",
             "DATE", "MONEY", "PERCENT", "NORP", "FAC", "WORK_OF_ART",
             "LAW", "LANGUAGE", "QUANTITY", "ORDINAL", "CARDINAL", "MISC",
         ]

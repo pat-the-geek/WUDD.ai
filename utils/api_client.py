@@ -302,6 +302,7 @@ Catégories :
 - FAC : bâtiments, aéroports, monuments nommés
 - PRODUCT : produits, services, technologies nommés
 - EVENT : événements nommés (conférences, sommets, crises…)
+- DISEASE : maladies, virus, agents pathogènes et syndromes nommés
 - WORK_OF_ART : titres d'œuvres (livres, films, rapports…)
 - LAW : lois, règlements, articles de loi nommés
 - LANGUAGE : langues nommées
@@ -317,6 +318,7 @@ Règles de désambiguïsation importantes :
 - Classe les lois, règlements, amendements, conventions et licences nommées en LAW, pas en ORG, EVENT ou PRODUCT.
 - Classe les montants explicites en MONEY en ne gardant que le montant lui-même (ex. "30 milliards de dollars"), jamais la phrase contextuelle complète.
 - Classe les films, livres, séries, albums et rapports nommés en WORK_OF_ART ; réserve PRODUCT aux logiciels, appareils, services et technologies.
+- Classe les maladies, virus, agents pathogènes et syndromes nommés en DISEASE (ex. "Ebola", "Covid-19", "Mpox", "VIH"), jamais en LOC, GPE, PRODUCT ni EVENT. Une flambée ou épidémie datée reste un EVENT (ex. "épidémie d'Ebola 2026"), mais le pathogène seul est DISEASE.
 - Si une valeur n'est qu'une année, une date ou une période explicite (ex. "2026", "janvier 2026"), classe-la en DATE, pas en GPE, ORG ou EVENT.
 - Un événement peut garder son année dans EVENT (ex. "WWDC 2026"), mais l'année seule ne doit pas être reclassée dans un autre type.
 
@@ -325,6 +327,7 @@ Exemples attendus :
 - "30 milliards de dollars" → MONEY
 - "Dune" → WORK_OF_ART
 - "ChatGPT" → PRODUCT
+- "Ebola" → DISEASE
 - "2026" → DATE"""
 
 # Partie statique sentiment (mise en cache côté Claude)
@@ -343,7 +346,7 @@ _PROMPT_ENTITIES = _NER_SYSTEM_INSTRUCTIONS + "\n\nTexte à analyser :\n{resume}
 
 _ENTITY_TYPES = [
     "PERSON", "NORP", "ORG", "GPE", "LOC", "FAC",
-    "PRODUCT", "EVENT", "WORK_OF_ART", "LAW", "LANGUAGE",
+    "PRODUCT", "EVENT", "DISEASE", "WORK_OF_ART", "LAW", "LANGUAGE",
     "DATE", "TIME", "PERCENT", "MONEY", "QUANTITY", "ORDINAL", "CARDINAL",
 ]
 
@@ -395,6 +398,47 @@ _EXACT_ENTITY_OVERRIDES = {
     ("NORP", "trump"): ("PERSON", "Donald Trump"),
     ("DATE", "trump"): ("PERSON", "Donald Trump"),
     ("PERSON", "conseil federal"): ("ORG", "Conseil Fédéral"),
+}
+
+# Filet de sécurité déterministe : un pathogène nommé n'a pas de case correcte
+# dans le schéma OntoNotes, donc le LLM le classe au hasard (LOC via la rivière
+# Ebola, PRODUCT par analogie avec les souches, EVENT…). Ces noms exacts sont
+# reclassés en DISEASE quel que soit le type proposé. Clé = valeur foldée
+# (`_fold_entity_value`) ; la correspondance est EXACTE, donc une phrase comme
+# "épidémie d'Ebola" n'est pas affectée et reste un EVENT.
+_DISEASE_CANONICAL = {
+    "ebola": "Ebola",
+    "virus ebola": "Ebola",
+    "maladie a virus ebola": "Ebola",
+    "fievre hemorragique ebola": "Ebola",
+    "covid": "Covid-19",
+    "covid-19": "Covid-19",
+    "covid 19": "Covid-19",
+    "sars-cov-2": "SARS-CoV-2",
+    "mpox": "Mpox",
+    "monkeypox": "Mpox",
+    "variole du singe": "Mpox",
+    "vih": "VIH",
+    "sida": "Sida",
+    "dengue": "Dengue",
+    "chikungunya": "Chikungunya",
+    "zika": "Zika",
+    "hantavirus": "Hantavirus",
+    "marburg": "Marburg",
+    "virus de marburg": "Marburg",
+    "nipah": "Nipah",
+    "mers": "MERS",
+    "cholera": "Choléra",
+    "paludisme": "Paludisme",
+    "malaria": "Paludisme",
+    "tuberculose": "Tuberculose",
+    "rougeole": "Rougeole",
+    "polio": "Poliomyélite",
+    "poliomyelite": "Poliomyélite",
+    "grippe aviaire": "Grippe aviaire",
+    "h5n1": "H5N1",
+    "peste": "Peste",
+    "variole": "Variole",
 }
 
 
@@ -468,9 +512,15 @@ def _normalize_entity_candidate(entity_type: str, entity_value: str) -> tuple[st
     if cleaned_type == "PERSON":
         cleaned_type, cleaned_value = _normalize_person_candidate(cleaned_value)
 
-    exact_override = _EXACT_ENTITY_OVERRIDES.get((cleaned_type, _fold_entity_value(cleaned_value)))
+    folded_value = _fold_entity_value(cleaned_value)
+
+    exact_override = _EXACT_ENTITY_OVERRIDES.get((cleaned_type, folded_value))
     if exact_override:
         return exact_override
+
+    disease_display = _DISEASE_CANONICAL.get(folded_value)
+    if disease_display:
+        return "DISEASE", disease_display
 
     money_value = _normalize_money_value(cleaned_value)
     if money_value:

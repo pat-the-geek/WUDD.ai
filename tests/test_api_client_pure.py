@@ -172,6 +172,39 @@ class TestParseEntitiesResponse:
         result = _parse_entities_response(raw)
         assert result == {"NORP": ["Americans"]}
 
+    def test_disease_category_preserved(self):
+        raw = json.dumps({"DISEASE": ["Ebola"]})
+        result = _parse_entities_response(raw)
+        assert result == {"DISEASE": ["Ebola"]}
+
+    def test_reclassifies_loc_ebola_to_disease(self):
+        raw = json.dumps({"LOC": ["Ebola"]})
+        result = _parse_entities_response(raw)
+        assert result == {"DISEASE": ["Ebola"]}
+
+    def test_reclassifies_product_ebola_to_disease(self):
+        raw = json.dumps({"PRODUCT": ["ebola"]})
+        result = _parse_entities_response(raw)
+        assert result == {"DISEASE": ["Ebola"]}
+
+    def test_reclassifies_event_bare_ebola_to_disease(self):
+        raw = json.dumps({"EVENT": ["Ebola"]})
+        result = _parse_entities_response(raw)
+        assert result == {"DISEASE": ["Ebola"]}
+
+    def test_keeps_epidemie_ebola_phrase_as_event(self):
+        # Une phrase contenant le pathogène reste un EVENT : seule la
+        # correspondance EXACTE du nom déclenche la reclassification.
+        raw = json.dumps({"EVENT": ["épidémie d'Ebola"]})
+        result = _parse_entities_response(raw)
+        assert result == {"EVENT": ["épidémie d'Ebola"]}
+
+    def test_disease_aliases_canonicalized(self):
+        # L'ordre suit l'itération de _ENTITY_TYPES (LOC traité avant PRODUCT).
+        raw = json.dumps({"PRODUCT": ["covid-19"], "LOC": ["variole du singe"]})
+        result = _parse_entities_response(raw)
+        assert result == {"DISEASE": ["Mpox", "Covid-19"]}
+
 
 # ─────────────────────────────────────────────────────────────
 # _parse_sentiment_response

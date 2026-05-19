@@ -3,7 +3,7 @@ import { Loader2, RefreshCw } from 'lucide-react'
 import { getEntityConfig } from '../lib/entity-config'
 
 const DAYS_OPTIONS = [7, 14, 30, 60]
-const BASE_TYPE_OPTIONS = ['Tous', 'PERSON', 'ORG', 'GPE', 'PRODUCT', 'EVENT', 'LAW', 'WORK_OF_ART', 'NORP', 'LOC', 'FAC']
+const BASE_TYPE_OPTIONS = ['Tous', 'PERSON', 'ORG', 'GPE', 'PRODUCT', 'EVENT', 'DISEASE', 'LAW', 'WORK_OF_ART', 'NORP', 'LOC', 'FAC']
 const STRUCTURAL_TYPE_OPTIONS = ['DATE', 'MONEY', 'PERCENT', 'TIME', 'QUANTITY', 'CARDINAL', 'ORDINAL']
 
 // ── Sparkline SVG ─────────────────────────────────────────────────────────────

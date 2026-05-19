@@ -50,8 +50,8 @@ STRUCTURAL_ENTITY_TYPES: frozenset[str] = frozenset(
 # WORK_OF_ART est indexé par défaut ; les types structurels sont indexés pour
 # permettre une exposition opt-in côté API (`include_structural=1`).
 _INDEXED_ENTITY_TYPES = {
-    "PERSON", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "NORP", "FAC", "LAW",
-    "WORK_OF_ART",
+    "PERSON", "ORG", "GPE", "LOC", "PRODUCT", "EVENT", "DISEASE", "NORP",
+    "FAC", "LAW", "WORK_OF_ART",
 } | STRUCTURAL_ENTITY_TYPES
 
 

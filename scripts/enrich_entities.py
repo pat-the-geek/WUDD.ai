@@ -23,6 +23,9 @@ Usage:
 
     # Re-forcer même les articles déjà enrichis
     python3 scripts/enrich_entities.py --force
+
+    # Re-enrichir uniquement les articles publiés depuis le 1er mai 2026
+    python3 scripts/enrich_entities.py --force --since 2026-05-01
 """
 
 import json
@@ -36,8 +39,11 @@ SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from datetime import datetime
+
 from utils.logging import print_console, setup_logger
 from utils.config import get_config
+from utils.date_utils import parse_article_date
 from utils.api_client import get_ner_client
 from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
@@ -80,6 +86,15 @@ def parse_args():
         "--force",
         action="store_true",
         help="Re-extraire les entités même si le champ 'entities' existe déjà.",
+    )
+    parser.add_argument(
+        "--since",
+        type=str,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Ne traiter que les articles dont la 'Date de publication' est "
+             "postérieure ou égale à cette date. Les articles non datés ou "
+             "antérieurs sont ignorés (stat 'hors_periode').",
     )
     parser.add_argument(
         "--use-async",
@@ -161,9 +176,13 @@ def enrich_file(
     delay: float,
     force: bool,
     validate_person_p31: bool,
+    since_dt: "datetime | None",
 ) -> dict:
     """Enrichit un fichier JSON avec les entités. Retourne les stats du fichier."""
-    stats = {"total": 0, "enrichis": 0, "deja_presents": 0, "erreurs": 0, "ignores": 0}
+    stats = {
+        "total": 0, "enrichis": 0, "deja_presents": 0,
+        "erreurs": 0, "ignores": 0, "hors_periode": 0,
+    }
 
     with open(json_file, "r", encoding="utf-8") as f:
         try:
@@ -182,6 +201,11 @@ def enrich_file(
         candidates: list[tuple[int, str]] = []
         for i, article in enumerate(articles):
             stats["total"] += 1
+            if since_dt is not None:
+                pub = parse_article_date(article.get("Date de publication"))
+                if pub is None or pub < since_dt:
+                    stats["hors_periode"] += 1
+                    continue
             resume = article.get("Résumé", "").strip()
             if not resume:
                 stats["ignores"] += 1
@@ -223,6 +247,12 @@ def enrich_file(
     if not use_async:
         for i, article in enumerate(articles):
             stats["total"] += 1
+
+            if since_dt is not None:
+                pub = parse_article_date(article.get("Date de publication"))
+                if pub is None or pub < since_dt:
+                    stats["hors_periode"] += 1
+                    continue
 
             resume = article.get("Résumé", "").strip()
             if not resume:
@@ -314,6 +344,17 @@ def main():
     }
     validate_person_p31 = (args.validate_person_p31 or env_validate_person_p31) and not args.disable_person_p31
 
+    since_dt = None
+    if args.since:
+        try:
+            since_dt = datetime.strptime(args.since, "%Y-%m-%d")
+        except ValueError:
+            print_console(
+                f"--since invalide : '{args.since}' (format attendu : YYYY-MM-DD)",
+                level="error",
+            )
+            sys.exit(1)
+
     try:
         config = get_config()
     except ValueError as e:
@@ -350,6 +391,11 @@ def main():
     )
     if args.dry_run:
         print_console("[MODE DRY-RUN — aucun appel API, aucune sauvegarde]", level="info")
+    if since_dt is not None:
+        print_console(
+            f"[FILTRE --since] Articles publiés depuis {args.since} uniquement",
+            level="info",
+        )
     if validate_person_p31:
         print_console("[NER] Validation PERSON via Wikidata P31 active", level="info")
     print_console("", level="info")
@@ -363,7 +409,10 @@ def main():
             level="info",
         )
 
-    totaux = {"total": 0, "enrichis": 0, "deja_presents": 0, "erreurs": 0, "ignores": 0}
+    totaux = {
+        "total": 0, "enrichis": 0, "deja_presents": 0,
+        "erreurs": 0, "ignores": 0, "hors_periode": 0,
+    }
 
     for json_file, label in tagged_files:
         print_console(f"[{label}] {json_file.name}", level="info")
@@ -377,12 +426,13 @@ def main():
             args.delay,
             args.force,
             validate_person_p31,
+            since_dt,
         )
 
         print_console(
             f"  total={stats['total']}  enrichis={stats['enrichis']}  "
             f"existants={stats['deja_presents']}  erreurs={stats['erreurs']}  "
-            f"ignorés={stats['ignores']}",
+            f"ignorés={stats['ignores']}  hors_période={stats['hors_periode']}",
             level="info",
         )
         for k in totaux:

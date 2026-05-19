@@ -36,7 +36,7 @@ _OUTPUT_JSON = _PROJECT_ROOT / "data" / "cross_flux_report.json"
 _OUTPUT_DIR  = _PROJECT_ROOT / "rapports" / "markdown" / "_CROSSFLUX_"
 
 _ENTITY_TYPES_PERTINENTS = {
-    "PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP"
+    "PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "DISEASE", "NORP"
 }
 
 _DATE_FMTS = (

@@ -217,7 +217,7 @@ const slugTag = s => removeAccents(String(s ?? ''))
 // ── Générateur Mermaid mindmap pour co-occurrences ─────────────────────────────
 function buildMindmapMd(entityValue, l1Nodes) {
   if (!l1Nodes || l1Nodes.length === 0) return ''
-  const CARTO_TYPES = ['PERSON', 'ORG', 'GPE', 'LOC', 'NORP', 'EVENT']
+  const CARTO_TYPES = ['PERSON', 'ORG', 'GPE', 'LOC', 'NORP', 'EVENT', 'DISEASE']
   const byType = {}
   for (const n of l1Nodes) {
     if (!CARTO_TYPES.includes(n.type)) continue
@@ -406,13 +406,13 @@ export default function EntityFullReportDialog({
         const mindmap = buildMindmapMd(entityValue, l1Nodes)
         if (mindmap) append(`${mindmap}\n\n`)
         // Liste textuelle complémentaire
-        const CARTO_TYPES = new Set(['EVENT', 'GPE', 'LOC', 'NORP', 'ORG', 'PERSON'])
+        const CARTO_TYPES = new Set(['EVENT', 'DISEASE', 'GPE', 'LOC', 'NORP', 'ORG', 'PERSON'])
         const byType = {}
         for (const n of l1Nodes.filter(n => CARTO_TYPES.has(n.type))) {
           if (!byType[n.type]) byType[n.type] = []
           byType[n.type].push(n.value)
         }
-        for (const type of ['PERSON', 'ORG', 'GPE', 'LOC', 'NORP', 'EVENT'].filter(t => byType[t])) {
+        for (const type of ['PERSON', 'ORG', 'GPE', 'LOC', 'NORP', 'EVENT', 'DISEASE'].filter(t => byType[t])) {
           append(`**${type}** — ${byType[type].join(', ')}\n\n`)
         }
       }
