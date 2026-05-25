@@ -341,7 +341,7 @@ def main(dry_run: bool = False) -> None:
 
             article = {
                 "Titre": title,
-                "Date de publication": pub_date,
+                "Date de publication": pub_dt.strftime("%d/%m/%Y"),
                 "Sources": feed_title,
                 "URL": link,
                 "Résumé": resume,
