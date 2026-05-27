@@ -31,6 +31,20 @@ from .tools.files import (
     tool_search_corpus,
 )
 from .tools.health import tool_wudd_health
+from .tools.keywords import (
+    tool_add_keyword,
+    tool_delete_keyword,
+    tool_get_keyword_articles,
+    tool_list_keywords,
+    tool_update_keyword,
+)
+from .tools.sources import (
+    tool_add_source,
+    tool_delete_source,
+    tool_list_sources,
+    tool_toggle_source,
+    tool_update_source,
+)
 from .tools.watched_entities import (
     tool_get_watched_entity_articles,
     tool_list_watched_entities,
@@ -317,3 +331,173 @@ def register_tools(server: FastMCP, client: ViewerClient, config: MCPConfig) -> 
             keyword=keyword,
             max_entries=max_entries,
         )
+
+    # ── Sources RSS (API v1) ──────────────────────────────────────────────
+    @server.tool(
+        name="list_sources",
+        description=(
+            "Liste les sources RSS configurées (WUDD.opml). "
+            "include_inactive=true expose aussi les sources désactivées ; "
+            "tag filtre par tag exact (insensible à la casse)."
+        ),
+    )
+    def list_sources(
+        include_inactive: bool = False,
+        tag: str | None = None,
+    ) -> dict:
+        return tool_list_sources(client, include_inactive=include_inactive, tag=tag)
+
+    @server.tool(
+        name="add_source",
+        description=(
+            "Ajoute une source RSS. url (obligatoire) doit être http(s). Si nom "
+            "n'est pas fourni, le titre du flux est récupéré automatiquement. "
+            "tags est une liste libre, bypass_quota retire la source du quota."
+        ),
+    )
+    def add_source(
+        url: str | None = None,
+        nom: str | None = None,
+        tags: list[str] | None = None,
+        actif: bool | None = None,
+        bypass_quota: bool | None = None,
+        html_url: str | None = None,
+    ) -> dict:
+        return tool_add_source(
+            client,
+            config,
+            url=url,
+            nom=nom,
+            tags=tags,
+            actif=actif,
+            bypass_quota=bypass_quota,
+            html_url=html_url,
+        )
+
+    @server.tool(
+        name="update_source",
+        description=(
+            "Met à jour les champs modifiables d'une source RSS (nom, tags, "
+            "actif, bypass_quota, html_url). Identifié par source_id."
+        ),
+    )
+    def update_source(
+        source_id: str | None = None,
+        nom: str | None = None,
+        tags: list[str] | None = None,
+        actif: bool | None = None,
+        bypass_quota: bool | None = None,
+        html_url: str | None = None,
+    ) -> dict:
+        return tool_update_source(
+            client,
+            config,
+            source_id=source_id,
+            nom=nom,
+            tags=tags,
+            actif=actif,
+            bypass_quota=bypass_quota,
+            html_url=html_url,
+        )
+
+    @server.tool(
+        name="toggle_source",
+        description=(
+            "Active ou désactive une source. Si actif n'est pas fourni, "
+            "bascule l'état actuel."
+        ),
+    )
+    def toggle_source(
+        source_id: str | None = None,
+        actif: bool | None = None,
+    ) -> dict:
+        return tool_toggle_source(client, config, source_id=source_id, actif=actif)
+
+    @server.tool(
+        name="delete_source",
+        description=(
+            "Désactive (soft) une source. hard=true supprime définitivement "
+            "l'entrée OPML (irréversible)."
+        ),
+    )
+    def delete_source(source_id: str | None = None, hard: bool = False) -> dict:
+        return tool_delete_source(client, config, source_id=source_id, hard=hard)
+
+    # ── Mots-clés thématiques (API v1) ────────────────────────────────────
+    @server.tool(
+        name="list_keywords",
+        description=(
+            "Liste les mots-clés thématiques surveillés (filtres sémantiques "
+            "multi-mots au-delà du NER). tag filtre par tag exact."
+        ),
+    )
+    def list_keywords(tag: str | None = None) -> dict:
+        return tool_list_keywords(client, tag=tag)
+
+    @server.tool(
+        name="add_keyword",
+        description=(
+            "Ajoute un mot-clé surveillé. expression est l'expression à matcher. "
+            "ou=synonymes/variantes, et=termes obligatoires de contexte. "
+            "tags pour grouper, seuil_alerte=nombre d'occurrences avant alerte."
+        ),
+    )
+    def add_keyword(
+        expression: str | None = None,
+        tags: list[str] | None = None,
+        seuil_alerte: int | None = None,
+        ou: list[str] | None = None,
+        et: list[str] | None = None,
+    ) -> dict:
+        return tool_add_keyword(
+            client,
+            config,
+            expression=expression,
+            tags=tags,
+            seuil_alerte=seuil_alerte,
+            ou=ou,
+            et=et,
+        )
+
+    @server.tool(
+        name="update_keyword",
+        description="Met à jour un mot-clé. Identifié par keyword_id.",
+    )
+    def update_keyword(
+        keyword_id: str | None = None,
+        expression: str | None = None,
+        tags: list[str] | None = None,
+        seuil_alerte: int | None = None,
+        ou: list[str] | None = None,
+        et: list[str] | None = None,
+    ) -> dict:
+        return tool_update_keyword(
+            client,
+            config,
+            keyword_id=keyword_id,
+            expression=expression,
+            tags=tags,
+            seuil_alerte=seuil_alerte,
+            ou=ou,
+            et=et,
+        )
+
+    @server.tool(
+        name="delete_keyword",
+        description="Supprime un mot-clé surveillé.",
+    )
+    def delete_keyword(keyword_id: str | None = None) -> dict:
+        return tool_delete_keyword(client, config, keyword_id=keyword_id)
+
+    @server.tool(
+        name="get_keyword_articles",
+        description=(
+            "Retourne les articles matchés par un mot-clé. days=N restreint à "
+            "la fenêtre temporelle des N derniers jours."
+        ),
+    )
+    def get_keyword_articles(
+        keyword_id: str | None = None,
+        days: int | None = None,
+    ) -> dict:
+        return tool_get_keyword_articles(client, keyword_id=keyword_id, days=days)

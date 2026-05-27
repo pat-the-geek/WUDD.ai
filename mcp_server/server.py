@@ -32,6 +32,7 @@ def create_server(config: MCPConfig | None = None) -> FastMCP:
         cfg.viewer_base_url,
         timeout=cfg.request_timeout,
         heavy_timeout=cfg.heavy_request_timeout,
+        api_token=cfg.viewer_api_token or None,
     )
     register_tools(server, client, cfg)
     return server

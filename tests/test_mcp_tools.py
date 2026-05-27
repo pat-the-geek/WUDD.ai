@@ -65,6 +65,7 @@ def _make_server(enable_write_tools: bool = True, client: _FakeViewerClient | No
         port=8765,
         token="secret-token",
         viewer_base_url="http://viewer:5050",
+        viewer_api_token="",
         enable_write_tools=enable_write_tools,
         request_timeout=10,
         heavy_request_timeout=30,

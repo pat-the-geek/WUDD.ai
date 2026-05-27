@@ -115,6 +115,7 @@ from viewer.routes.graph           import graph_bp
 from viewer.routes.youtube         import youtube_bp
 from viewer.routes.gallery         import gallery_bp
 from viewer.routes.auth            import auth_bp
+from viewer.routes.api_v1          import api_v1_bp
 
 app.register_blueprint(files_bp)
 app.register_blueprint(entities_bp)
@@ -131,6 +132,7 @@ app.register_blueprint(graph_bp)
 app.register_blueprint(youtube_bp)
 app.register_blueprint(gallery_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(api_v1_bp)
 
 # ── Métriques Prometheus ──────────────────────────────────────────────────────
 register_metrics_endpoint(app)

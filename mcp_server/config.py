@@ -23,6 +23,7 @@ class MCPConfig:
     port: int
     token: str
     viewer_base_url: str
+    viewer_api_token: str
     enable_write_tools: bool
     request_timeout: int
     heavy_request_timeout: int
@@ -48,6 +49,7 @@ class MCPConfig:
             port=int(os.getenv("MCP_PORT", "8765")),
             token=token,
             viewer_base_url=viewer_base_url,
+            viewer_api_token=os.getenv("WUDD_API_TOKEN", "").strip(),
             enable_write_tools=os.getenv(
                 "MCP_ENABLE_WRITE_TOOLS",
                 "true",

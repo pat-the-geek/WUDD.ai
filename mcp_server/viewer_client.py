@@ -24,6 +24,7 @@ class ViewerClient:
         base_url: str,
         timeout: int = 10,
         heavy_timeout: int | None = None,
+        api_token: str | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
@@ -37,6 +38,8 @@ class ViewerClient:
                 "User-Agent": "WUDD.ai-MCP/0.1.0",
             }
         )
+        if api_token:
+            self.session.headers["Authorization"] = f"Bearer {api_token}"
 
     def build_url(self, path: str) -> str:
         if not path.startswith("/"):
@@ -60,6 +63,15 @@ class ViewerClient:
         timeout: int | None = None,
     ) -> Any:
         return self._request("POST", path, json_body=json_body, timeout=timeout)
+
+    def patch(
+        self,
+        path: str,
+        json_body: dict[str, Any] | None = None,
+        *,
+        timeout: int | None = None,
+    ) -> Any:
+        return self._request("PATCH", path, json_body=json_body, timeout=timeout)
 
     def delete(
         self,
