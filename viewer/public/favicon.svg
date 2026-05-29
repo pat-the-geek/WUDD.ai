@@ -5,9 +5,10 @@
       <stop offset="100%" stop-color="#000000"/>
     </radialGradient>
 
-    <!-- Rayon entrant blanc -->
-    <linearGradient id="rayIn" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="white" stop-opacity="0"/>
+    <!-- Rayon entrant blanc — userSpaceOnUse car la ligne est horizontale
+         (bbox de hauteur nulle → un dégradé objectBoundingBox ne se rendrait pas) -->
+    <linearGradient id="rayIn" gradientUnits="userSpaceOnUse" x1="3" y1="50" x2="39" y2="50">
+      <stop offset="0%" stop-color="white" stop-opacity="0.35"/>
       <stop offset="100%" stop-color="white" stop-opacity="1"/>
     </linearGradient>
 
@@ -47,8 +48,8 @@
   <rect width="100" height="100" fill="#000000"/>
 
   <!-- Rayon entrant blanc, centré verticalement sur le prisme -->
-  <line x1="5" y1="50" x2="33" y2="50"
-        stroke="url(#rayIn)" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="3" y1="50" x2="39" y2="50"
+        stroke="url(#rayIn)" stroke-width="2.6" stroke-linecap="round"/>
 
   <!-- Prisme — triangle noir plein, contour blanc net -->
   <polygon points="50,18 30,76 70,76"

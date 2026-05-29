@@ -200,6 +200,8 @@ archives/
 *.gif
 # Exception : captures d'écran de documentation
 !docs/Screen-captures/*.png
+# Exception : icônes du viewer (favicons, apple-touch-icon) — assets nécessaires au build
+!viewer/public/*.png
 Unused-Code/
 # .github/ est versionné pour les GitHub Actions workflows
 !.github/
