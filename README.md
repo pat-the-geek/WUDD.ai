@@ -1106,11 +1106,26 @@ La déduplication avancée remplace la déduplication par URL seule dans `script
 
 ### Détection de tendances et alertes (`config/alert_rules.json`)
 
-Le script `scripts/trend_detector.py` compare les mentions d'entités sur 24h vs 7j pour détecter les sujets en forte hausse. Les seuils et comportements sont entièrement configurables dans `config/alert_rules.json` :
+Le script `scripts/trend_detector.py` compare les mentions d'entités sur **24h vs 7j** pour détecter les sujets en forte hausse, puis écrit `data/alertes.json` et envoie des notifications webhook. Il tourne **deux fois par jour** dans Docker (07:00 et 12:00) ; le second passage ne re-signale que les nouveautés grâce au cooldown (voir plus bas).
+
+Le ratio est **lissé** (lissage de Laplace) pour éviter les fausses tendances à faible volume : une entité vue 2 fois en 24h et 2 fois sur 7j ne déclenche plus une « tendance ×7 » trompeuse.
+
+```text
+ratio = mentions_24h / (moyenne_journalière_7j + laplace_k)     # laplace_k = 1.0 par défaut
+```
+
+Les seuils et comportements sont entièrement configurables dans `config/alert_rules.json` :
 
 ```json
 {
-  "global": { "threshold_ratio": 2.0, "top": 20, "min_mentions_24h": 2 },
+  "global": {
+    "threshold_ratio": 2.0,
+    "top": 20,
+    "min_mentions_24h": 2,
+    "silence_baseline_avg": 3.0,
+    "laplace_k": 1.0,
+    "cooldown_days": 2
+  },
   "types_entites": {
     "PERSON": { "enabled": true, "threshold_ratio": 3.0 },
     "GPE":    { "enabled": true, "threshold_ratio": 2.5 },
@@ -1122,13 +1137,16 @@ Le script `scripts/trend_detector.py` compare les mentions d'entités sur 24h vs
     "critique": { "ratio_min": 5.0 }
   },
   "notifications": {
-    "niveaux_notifies": ["élevé", "critique"],
-    "webhook_discord": false,
-    "webhook_slack": false,
-    "webhook_ntfy": false
+    "niveaux_notifies": ["élevé", "critique"]
   }
 }
 ```
+
+| Clé | Rôle |
+|---|---|
+| `laplace_k` | Lissage du ratio (plus k est grand, plus les faibles volumes sont amortis) |
+| `cooldown_days` | Nombre de jours pendant lesquels une entité déjà signalée n'est pas re-notifiée (sauf escalade de niveau) |
+| `niveaux_notifies` | Niveaux d'alerte qui déclenchent un envoi webhook |
 
 ```bash
 # Détection normale (écrit data/alertes.json + notifications configurées)
@@ -1136,11 +1154,37 @@ python3 scripts/trend_detector.py
 
 # Options avancées
 python3 scripts/trend_detector.py --top 15 --threshold 3.0
-python3 scripts/trend_detector.py --dry-run    # pas d'écriture
-python3 scripts/trend_detector.py --no-notify  # pas de webhook
+python3 scripts/trend_detector.py --dry-run        # pas d'écriture
+python3 scripts/trend_detector.py --no-notify      # pas de webhook
+python3 scripts/trend_detector.py --force-notify   # ignore le cooldown (renvoie tout)
 ```
 
 Les alertes générées sont visualisées dans le panneau **Tendances & alertes** du Viewer.
+
+#### Notifications webhook (Discord, Slack, Ntfy)
+
+L'envoi est **activé par la simple présence des variables d'environnement** dans `.env` (aucun flag dans `alert_rules.json` à basculer) :
+
+```bash
+# .env — au moins une de ces variables suffit
+WEBHOOK_DISCORD=https://discord.com/api/webhooks/xxx/yyy
+WEBHOOK_SLACK=https://hooks.slack.com/services/T00/B00/zzz
+NTFY_URL=https://ntfy.sh/wudd-alertes
+NTFY_TOKEN=                 # optionnel (serveur Ntfy privé)
+```
+
+Seules les alertes dont le niveau figure dans `niveaux_notifies` (par défaut `élevé` + `critique`) sont envoyées, plus les **entités surveillées** qui franchissent leur seuil. La liste est triée par nombre de mentions/24h décroissant.
+
+Le message **Discord** est composé d'**un embed par alerte** (maximum 10 ; au-delà, les entités restantes sont listées de façon compacte) :
+
+- barre colorée selon le niveau (🔴 critique · 🟠 élevé · 🟡 modéré) ;
+- **grande image** de l'article pour l'alerte de tête, **vignette** pour les suivantes ;
+- lien cliquable vers l'article déclencheur et, si calculée, la **prédiction** de franchissement de seuil ;
+- rendus distincts pour les nouveautés (🆕), les silences (🔇) et la veille prioritaire (👁).
+
+**Anti-répétition (cooldown).** Une entité déjà notifiée n'est pas renvoyée pendant `cooldown_days` jours, **sauf si son niveau augmente** (ex. élevé → critique). C'est ce qui rend le second passage de midi silencieux tant qu'aucun sujet réellement nouveau n'apparaît. L'état est conservé dans `data/notified_alerts_state.json`. Les envois utilisent un **retry automatique avec backoff** : une erreur réseau ponctuelle ne fait pas perdre l'alerte.
+
+> Discord ne permet pas de définir un fond de message : l'habillage se limite à la barre colorée, aux images d'embed et à l'avatar de l'expéditeur.
 
 ---
 
@@ -1182,7 +1226,8 @@ docker rm -f wudd-ai-final   # ou wuddai, etc.
 | `30 5 * * 1` | Optimisation poids de scoring (`optimize_scoring_weights.py`) |
 | `45 5 * * 1` | Optimisation quotas (`optimize_quota.py`) |
 | `30 6 * * 1` | Briefing exécutif hebdomadaire (`generate_briefing.py --period weekly`) |
-| `0 7 * * *` | Détection de tendances et alertes (`trend_detector.py`) → `data/alertes.json` |
+| `0 7 * * *` | Détection de tendances et alertes (`trend_detector.py`) → `data/alertes.json` + webhooks |
+| `0 12 * * *` | Second passage tendances à midi (`trend_detector.py`) — le cooldown ne notifie que les nouveautés/escalades |
 | `15 7 * * *` | Auto-calibration des seuils d'alerte (`calibrate_alerts.py`) |
 | `30 7 * * *` | Morning Digest quotidien (`generate_morning_digest.py --ai`) |
 | `0 8 * * *` | Notes de lecture par tag (`generate_reading_notes.py`) |
