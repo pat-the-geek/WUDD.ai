@@ -25,10 +25,11 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # 30 5 28-31 * * root [ "$(date -d tomorrow +\%d)" = "01" ] && cd /app && python3 scripts/articles_rss_to_markdown.py 2>&1 | tee -a /app/rapports/cron_rss_markdown.log
 # Génère le rapport quotidien Top 10 entités des 48h à 23h00 (après la dernière collecte RSS de 22h00)
 0 23 * * * root cd /app && python3 scripts/generate_48h_report.py 2>&1 | tee -a /app/rapports/cron_48h_report.log
-# Détecte les tendances et génère data/alertes.json chaque matín à 7h00
+# Détecte les tendances et génère data/alertes.json — matin (7h00) et midi (12h00).
+# Le cooldown (global.cooldown_days) évite de re-notifier les mêmes entités ;
+# le run de midi ne notifie donc que les entités réellement nouvelles ou escaladées.
 0 7 * * * root cd /app && python3 scripts/trend_detector.py 2>&1 | tee -a /app/rapports/cron_trends.log
-# Second passage à 12h00 : ne notifie sur webhook que les NOUVELLES entités non déjà signalées le matin
-0 12 * * * root cd /app && python3 scripts/trend_detector.py --notify-only-new 2>&1 | tee -a /app/rapports/cron_trends.log
+0 12 * * * root cd /app && python3 scripts/trend_detector.py 2>&1 | tee -a /app/rapports/cron_trends.log
 # Morning Digest quotidien à 7h30 (30 min après trend_detector pour avoir alertes.json à jour)
 30 7 * * * root cd /app && python3 scripts/generate_morning_digest.py --ai 2>&1 | tee -a /app/rapports/cron_morning_digest.log
 # Notes de lecture quotidiennes à 8h00 (articles des 24h par tag, dans rapports/markdown/_WUDD.AI_/)

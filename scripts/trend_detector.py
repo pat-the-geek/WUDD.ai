@@ -343,6 +343,10 @@ def detect_trends(
     if rules is None:
         rules = {}
 
+    # Lissage de Laplace : amortit les ratios explosifs quand la base 7j est
+    # quasi nulle (ex. 2 mentions/24h vs 2/7j ne sont plus une « tendance ×7 »).
+    laplace_k = float(rules.get("global", {}).get("laplace_k", 1.0))
+
     alerts = []
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -355,24 +359,23 @@ def detect_trends(
         if count_24h < min_mentions:
             continue
 
-        avg_per_day_7j = counts_7j.get(key, 0) / 7.0
-        if avg_per_day_7j == 0:
-            # Entité absente des 7j : nouveauté absolue
-            ratio = float("inf") if count_24h >= min_mentions else 0.0
-        else:
-            ratio = count_24h / avg_per_day_7j
+        count_7j = counts_7j.get(key, 0)
+        avg_per_day_7j = count_7j / 7.0
+        # ratio lissé = count_24h / (moyenne_7j + k)
+        ratio = count_24h / (avg_per_day_7j + laplace_k)
 
         if ratio < type_threshold:
             continue
 
-        ratio_display = round(ratio, 2) if ratio != float("inf") else 999.9
+        ratio_display = round(ratio, 2)
         alerts.append({
             "entity_type": etype,
             "entity_value": value,
             "count_24h": count_24h,
-            "count_7j": counts_7j.get(key, 0),
+            "count_7j": count_7j,
             "ratio": ratio_display,
             "niveau": _niveau_from_rules(rules, ratio_display),
+            "nouveaute": count_7j == 0,
             "detected_at": now_iso,
         })
 
@@ -401,6 +404,7 @@ def detect_watched_alerts(
         return []
     if rules is None:
         rules = {}
+    laplace_k = float(rules.get("global", {}).get("laplace_k", 1.0))
     now_iso = datetime.now(timezone.utc).isoformat()
     alerts: list[dict] = []
     for w in watched:
@@ -412,10 +416,7 @@ def detect_watched_alerts(
         count_24h = counts_24h.get(key, 0)
         count_7j  = counts_7j.get(key, 0)
         avg_per_day_7j = count_7j / 7.0
-        if avg_per_day_7j == 0:
-            ratio = 999.9 if count_24h >= 1 else 0.0
-        else:
-            ratio = round(count_24h / avg_per_day_7j, 2)
+        ratio = round(count_24h / (avg_per_day_7j + laplace_k), 2)
         if ratio < watched_threshold and count_24h == 0:
             # Silence d’une entité surveillée : inclure quand même
             niveau = "info"
@@ -428,6 +429,7 @@ def detect_watched_alerts(
             "count_7j": count_7j,
             "ratio": ratio,
             "niveau": niveau,
+            "nouveaute": count_24h > 0 and count_7j == 0,
             "detected_at": now_iso,
             "watched": True,
         })
@@ -640,49 +642,114 @@ def parse_args():
     parser.add_argument("--dry-run", action="store_true", help="Affiche sans sauvegarder")
     parser.add_argument("--no-notify", action="store_true", help="Désactive les notifications webhook")
     parser.add_argument(
-        "--notify-only-new", action="store_true",
-        help="N'envoie sur webhook que les entités non encore notifiées le jour même "
-             "(état dans data/notified_alerts_state.json). Idéal pour un run intra-journalier."
+        "--force-notify", action="store_true",
+        help="Ignore le cooldown : (re)notifie toutes les entités éligibles, "
+             "même celles déjà signalées récemment."
     )
     return parser.parse_args()
 
 
-def _load_notified_state(today: str) -> set[str]:
-    """Charge l'ensemble des clés (TYPE:valeur) déjà notifiées aujourd'hui.
+# ── État des notifications (cooldown multi-jours) ──────────────────────────────
 
-    Retourne un set vide si le fichier est absent, illisible, ou daté d'un
-    autre jour (réinitialisation quotidienne automatique).
+# Rang des niveaux pour détecter une escalade (un niveau plus élevé que celui
+# déjà notifié franchit le cooldown).
+_NIVEAU_RANK = {"info": 0, "modéré": 1, "élevé": 2, "critique": 3}
+
+
+def _niveau_rank(niveau: str) -> int:
+    return _NIVEAU_RANK.get(niveau, 1)
+
+
+def _load_notified_state() -> dict[str, dict]:
+    """Charge l'état des notifications : { "TYPE:valeur": {date, niveau} }.
+
+    Retourne un dict vide si le fichier est absent, illisible, ou dans l'ancien
+    format (réinitialisation transparente lors de la migration).
     """
     if not _NOTIFIED_STATE_FILE.exists():
-        return set()
+        return {}
     try:
         data = json.loads(_NOTIFIED_STATE_FILE.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        return set()
-    if not isinstance(data, dict) or data.get("date") != today:
-        return set()
-    keys = data.get("keys", [])
-    return set(keys) if isinstance(keys, list) else set()
+        return {}
+    entities = data.get("entities") if isinstance(data, dict) else None
+    return entities if isinstance(entities, dict) else {}
 
 
-def _save_notified_state(today: str, keys: set[str]) -> None:
-    """Persiste l'ensemble des clés notifiées pour la date du jour."""
+def _save_notified_state(entities: dict[str, dict]) -> None:
+    """Persiste l'état des notifications."""
     try:
         _NOTIFIED_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         _NOTIFIED_STATE_FILE.write_text(
-            json.dumps({"date": today, "keys": sorted(keys)}, ensure_ascii=False, indent=2),
+            json.dumps({"entities": entities}, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
     except OSError as exc:
         default_logger.warning(f"Impossible d'écrire l'état des notifications : {exc}")
 
 
-def _send_notifications(alerts: list[dict], rules: dict, only_new: bool = False) -> None:
+def _days_between(date_a: str, date_b: str) -> int:
+    """Nombre de jours calendaires entre deux dates ISO 'YYYY-MM-DD'.
+
+    Retourne un grand nombre si l'une des dates est invalide (→ cooldown expiré).
+    """
+    try:
+        da = datetime.strptime(date_a, "%Y-%m-%d")
+        db = datetime.strptime(date_b, "%Y-%m-%d")
+        return abs((db - da).days)
+    except (ValueError, TypeError):
+        return 9999
+
+
+def _prune_state(entities: dict[str, dict], today: str, keep_days: int) -> dict[str, dict]:
+    """Supprime les entrées plus anciennes que keep_days (borne la taille du fichier)."""
+    return {
+        key: meta
+        for key, meta in entities.items()
+        if isinstance(meta, dict) and _days_between(meta.get("date", ""), today) <= keep_days
+    }
+
+
+def _attach_top_articles(alerts: list[dict], project_root: Path) -> None:
+    """Ajoute l'article déclencheur le plus récent (URL + source) à chaque alerte.
+
+    Best-effort : s'appuie sur l'entity_index ; en cas d'absence ou d'erreur,
+    l'alerte est laissée inchangée (le lien sera simplement omis de Discord).
+    """
+    try:
+        eidx = get_entity_index(project_root)
+    except Exception:
+        return
+    for a in alerts:
+        if a.get("type") == "silence":
+            continue  # pas d'article récent pour un silence
+        try:
+            arts = eidx.load_articles(a.get("entity_type", ""), a.get("entity_value", ""),
+                                      max_articles=1)
+        except Exception:
+            arts = []
+        if arts:
+            art = arts[0]
+            url = (art.get("URL") or "").strip()
+            if url:
+                a["article_url"] = url
+                a["article_source"] = (art.get("Sources") or "").strip()
+
+
+def _send_notifications(
+    alerts: list[dict],
+    rules: dict,
+    force: bool = False,
+    project_root: Path | None = None,
+) -> None:
     """Envoie des notifications webhook pour les alertes de niveau configuré.
 
-    Si ``only_new`` est vrai, seules les entités non encore notifiées le jour
-    même (selon data/notified_alerts_state.json) sont envoyées. Dans tous les
-    cas, les entités effectivement notifiées sont ajoutées à l'état du jour.
+    Un cooldown (``global.cooldown_days``, défaut 2) évite de re-notifier une
+    même entité pendant N jours, sauf escalade de niveau (ex. élevé→critique).
+    Le cooldown est glissant : tant qu'une entité reste candidate, son horodatage
+    est rafraîchi, donc elle reste silencieuse jusqu'à disparaître puis réapparaître.
+    ``force=True`` ignore le cooldown. Toutes les entités candidates (y compris
+    celles tronquées par le top_n) sont horodatées dans l'état du jour.
     """
     notif_cfg = rules.get("notifications", {})
     watched_threshold = rules.get("global", {}).get("watched_threshold_ratio", 1.0)
@@ -718,30 +785,30 @@ def _send_notifications(alerts: list[dict], rules: dict, only_new: bool = False)
     if not alertes_a_notifier:
         return
 
-    # ── Déduplication intra-journalière (run de midi) ─────────────────────────
+    # ── Cooldown multi-jours (anti-répétition) ────────────────────────────────
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    already_notified = _load_notified_state(today)
-    # Toutes les entités candidates de ce run, y compris celles tronquées par le
-    # top_n : elles sont marquées « traitées » pour que les runs ultérieurs du
-    # jour (--notify-only-new) ne les considèrent pas comme nouvelles.
-    candidate_keys = {
-        f"{a.get('entity_type', '')}:{a.get('entity_value', '')}"
-        for a in alertes_a_notifier
-    }
-    if only_new:
+    cooldown_days = int(rules.get("global", {}).get("cooldown_days", 2))
+    state = _load_notified_state()
+
+    def _in_cooldown(a: dict) -> bool:
+        key = f"{a.get('entity_type', '')}:{a.get('entity_value', '')}"
+        meta = state.get(key)
+        if not meta:
+            return False  # jamais notifiée
+        # Escalade de niveau : franchit le cooldown.
+        if _niveau_rank(a.get("niveau", "")) > _niveau_rank(meta.get("niveau", "")):
+            return False
+        return _days_between(meta.get("date", ""), today) < cooldown_days
+
+    if not force:
         before = len(alertes_a_notifier)
-        alertes_a_notifier = [
-            a for a in alertes_a_notifier
-            if f"{a.get('entity_type', '')}:{a.get('entity_value', '')}" not in already_notified
-        ]
+        alertes_a_notifier = [a for a in alertes_a_notifier if not _in_cooldown(a)]
         skipped = before - len(alertes_a_notifier)
-        default_logger.info(
-            f"--notify-only-new : {skipped} entité(s) déjà notifiée(s) aujourd'hui ignorée(s), "
-            f"{len(alertes_a_notifier)} nouvelle(s) à notifier"
-        )
-        if not alertes_a_notifier:
-            default_logger.info("Aucune nouvelle entité à notifier.")
-            return
+        if skipped:
+            default_logger.info(
+                f"Cooldown ({cooldown_days} j) : {skipped} entité(s) déjà signalée(s) "
+                f"récemment ignorée(s), {len(alertes_a_notifier)} à notifier"
+            )
 
     # Tri par nombre de mentions sur 24h décroissant : les entités les plus
     # mentionnées d'abord, puis les plus faibles (à ratio égal, départage stable).
@@ -750,15 +817,32 @@ def _send_notifications(alerts: list[dict], rules: dict, only_new: bool = False)
         reverse=True,
     )
 
+    top_n = 20
+    a_envoyer = alertes_a_notifier[:top_n]
+
+    # On horodate TOUTES les candidates (y compris celles hors top_n) : cooldown
+    # glissant — une entité qui reste candidate ne sera pas re-notifiée.
+    if project_root is not None:
+        _attach_top_articles(a_envoyer, project_root)
+
+    if not a_envoyer:
+        # Rien à envoyer, mais on rafraîchit quand même l'horodatage des candidates
+        # encore présentes pour maintenir le cooldown glissant.
+        for a in merged.values():
+            key = f"{a.get('entity_type', '')}:{a.get('entity_value', '')}"
+            state[key] = {"date": today, "niveau": a.get("niveau", "modéré")}
+        _save_notified_state(_prune_state(state, today, max(cooldown_days, 30)))
+        default_logger.info("Aucune nouvelle entité à notifier (cooldown).")
+        return
+
     try:
         from utils.exporters.webhook import notify_alerts
     except ImportError:
         default_logger.warning("Module webhook introuvable, notifications ignorées.")
         return
 
-    top_n = 20
     results = notify_alerts(
-        alertes_a_notifier,
+        a_envoyer,
         title="WUDD.ai · Alertes tendances & veille prioritaire",
         top_n=top_n,
     )
@@ -768,12 +852,13 @@ def _send_notifications(alerts: list[dict], rules: dict, only_new: bool = False)
         else:
             default_logger.warning(f"Échec notification {platform}.")
 
-    # Mémoriser TOUTES les entités candidates de ce run (pas seulement le top_n
-    # envoyé) : les entités tronquées sont volontairement écartées pour la
-    # journée, afin que les runs ultérieurs (--notify-only-new) restent
-    # silencieux tant qu'aucune entité réellement nouvelle n'apparaît.
+    # Horodater toutes les candidates du run (cooldown glissant) après un envoi
+    # réussi, puis élaguer les entrées trop anciennes.
     if any(results.values()):
-        _save_notified_state(today, already_notified | candidate_keys)
+        for a in merged.values():
+            key = f"{a.get('entity_type', '')}:{a.get('entity_value', '')}"
+            state[key] = {"date": today, "niveau": a.get("niveau", "modéré")}
+        _save_notified_state(_prune_state(state, today, max(cooldown_days, 30)))
 
     if watched_crossing:
         default_logger.info(
@@ -901,7 +986,7 @@ def main():
 
     # Notifications webhook (si non désactivées par --no-notify)
     if not args.no_notify:
-        _send_notifications(all_alerts, rules, only_new=args.notify_only_new)
+        _send_notifications(all_alerts, rules, force=args.force_notify, project_root=project_root)
 
 
 if __name__ == "__main__":

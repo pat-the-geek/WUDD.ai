@@ -14,13 +14,23 @@ Usage :
     notify_alerts(alerts)  # alerts = liste retournée par trend_detector.py
 """
 
-import json
 import os
 from typing import Optional
 
-import requests
-
+from ..http_utils import create_session_with_retries
 from ..logging import default_logger
+
+# Limites Discord
+_DISCORD_DESC_LIMIT = 4000   # description d'embed (limite API : 4096)
+
+# Couleurs d'embed Discord (entier décimal) par niveau.
+_NIVEAU_COLOR = {
+    "critique": 0xE74C3C,  # rouge
+    "élevé":    0xE67E22,  # orange
+    "modéré":   0xF1C40F,  # jaune
+    "info":     0x3498DB,  # bleu
+}
+_NIVEAU_RANK = {"info": 0, "modéré": 1, "élevé": 2, "critique": 3}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -29,6 +39,7 @@ _NIVEAU_EMOJI = {
     "critique": "🔴",
     "élevé": "🟠",
     "modéré": "🟡",
+    "info": "🔵",
 }
 
 _ENTITY_TYPE_FR = {
@@ -43,14 +54,68 @@ _ENTITY_TYPE_FR = {
 }
 
 
-def _format_alert_text(alert: dict) -> str:
-    emoji = _NIVEAU_EMOJI.get(alert.get("niveau", "modéré"), "⚪")
+def _format_alert_text(alert: dict, *, markdown: bool = True) -> str:
+    """Formate une alerte en une ligne lisible.
+
+    Distingue tendance / nouveauté / silence / veille, ajoute la prédiction de
+    franchissement de seuil et un lien vers l'article déclencheur si présent.
+
+    Args:
+        markdown : si vrai, le lien article est rendu en Markdown ``[source](url)``
+                   (Discord/Slack) ; sinon en texte brut (Ntfy).
+    """
+    niveau = alert.get("niveau", "modéré")
     etype = _ENTITY_TYPE_FR.get(alert.get("entity_type", ""), alert.get("entity_type", ""))
     value = alert.get("entity_value", "")
     count_24h = alert.get("count_24h", 0)
     count_7j = alert.get("count_7j", 0)
     ratio = alert.get("ratio", 0)
-    return f"{emoji} **{value}** ({etype}) — {count_24h} mentions/24h vs {count_7j}/7j · ratio {ratio}x"
+
+    # Corps selon la nature de l'alerte
+    if alert.get("type") == "silence":
+        baseline = alert.get("baseline_avg_per_day", round(count_7j / 7.0, 1) if count_7j else 0)
+        emoji = "🔇"
+        body = f"**{value}** ({etype}) — silence : 0 mention/24h (moy. {baseline}/j sur 7j)"
+    elif alert.get("nouveaute"):
+        emoji = "🆕"
+        body = f"**{value}** ({etype}) — {count_24h} mentions/24h · nouvelle entité (×{ratio})"
+    else:
+        emoji = _NIVEAU_EMOJI.get(niveau, "⚪")
+        body = (f"**{value}** ({etype}) — {count_24h} mentions/24h vs {count_7j}/7j "
+                f"· ratio {ratio}x")
+
+    if alert.get("watched"):
+        emoji = f"👁{emoji}"
+
+    line = f"{emoji} {body}"
+
+    # Prédiction de franchissement de seuil critique
+    pred = alert.get("prediction_seuil_dans_minutes")
+    if pred is not None:
+        if pred <= 0:
+            line += " · 🔮 seuil critique atteint"
+        else:
+            line += f" · 🔮 seuil critique dans ~{pred} min"
+
+    # Lien vers l'article déclencheur
+    url = (alert.get("article_url") or "").strip()
+    if url:
+        src = (alert.get("article_source") or "lien").strip() or "lien"
+        if markdown:
+            line += f" · [{src}]({url})"
+        else:
+            line += f" · {url}"
+
+    return line
+
+
+def _highest_niveau(alerts: list) -> str:
+    """Retourne le niveau le plus élevé présent dans la liste d'alertes."""
+    best = "modéré"
+    for a in alerts:
+        if _NIVEAU_RANK.get(a.get("niveau", "modéré"), 1) > _NIVEAU_RANK.get(best, 1):
+            best = a.get("niveau", "modéré")
+    return best
 
 
 # ── Discord ──────────────────────────────────────────────────────────────────
@@ -71,15 +136,36 @@ def send_discord(
         default_logger.debug("WEBHOOK_DISCORD non configuré — Discord ignoré")
         return False
 
-    lines = [f"**{title}**", ""]
-    for a in alerts[:top_n]:
-        lines.append(_format_alert_text(a))
+    selection = alerts[:top_n]
 
-    payload = {"content": "\n".join(lines)}
+    # Construction de la description, tronquée à la limite Discord.
+    lines: list[str] = []
+    used = 0
+    dropped = 0
+    for i, a in enumerate(selection):
+        text = _format_alert_text(a, markdown=True)
+        if used + len(text) + 1 > _DISCORD_DESC_LIMIT:
+            dropped = len(selection) - i
+            break
+        lines.append(text)
+        used += len(text) + 1
+    if dropped:
+        lines.append(f"… +{dropped} autre(s)")
+
+    niveau = _highest_niveau(selection)
+    embed = {
+        "title": title,
+        "description": "\n".join(lines),
+        "color": _NIVEAU_COLOR.get(niveau, 0x95A5A6),
+        "footer": {"text": f"WUDD.ai · {len(selection)} alerte(s) · niveau max : {niveau}"},
+    }
+    payload = {"embeds": [embed]}
+
     try:
-        r = requests.post(url, json=payload, timeout=10)
+        session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
+        r = session.post(url, json=payload, timeout=10)
         r.raise_for_status()
-        default_logger.info(f"Notification Discord envoyée ({len(alerts[:top_n])} alertes)")
+        default_logger.info(f"Notification Discord envoyée ({len(selection)} alertes)")
         return True
     except Exception as e:
         default_logger.warning(f"Erreur Discord : {e}")
@@ -116,7 +202,8 @@ def send_slack(
 
     payload = {"blocks": blocks}
     try:
-        r = requests.post(url, json=payload, timeout=10)
+        session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
+        r = session.post(url, json=payload, timeout=10)
         r.raise_for_status()
         default_logger.info(f"Notification Slack envoyée ({len(alerts[:top_n])} alertes)")
         return True
@@ -155,7 +242,7 @@ def send_ntfy(
     priority = priority_map.get(max_niveau.get("niveau", "modéré"), "default")
 
     title = f"WUDD.ai · {len(top)} tendance(s)"
-    lines = [_format_alert_text(a).replace("**", "") for a in top]
+    lines = [_format_alert_text(a, markdown=False).replace("**", "") for a in top]
     message = "\n".join(lines)
 
     headers = {
@@ -167,7 +254,8 @@ def send_ntfy(
         headers["Authorization"] = f"Bearer {token}"
 
     try:
-        r = requests.post(url, data=message.encode("utf-8"), headers=headers, timeout=10)
+        session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
+        r = session.post(url, data=message.encode("utf-8"), headers=headers, timeout=10)
         r.raise_for_status()
         default_logger.info(f"Notification Ntfy envoyée ({len(top)} alertes)")
         return True

@@ -321,6 +321,56 @@ class TestFormatAlertText:
         result = self._fn()(_alert(etype="UNKNOWN_TYPE"))
         assert "UNKNOWN_TYPE" in result
 
+    def test_silence_rendered_distinctly(self):
+        alert = _alert(count_24h=0, count_7j=21)
+        alert["type"] = "silence"
+        alert["baseline_avg_per_day"] = 3.0
+        result = self._fn()(alert)
+        assert "🔇" in result
+        assert "silence" in result
+
+    def test_nouveaute_rendered_distinctly(self):
+        alert = _alert(count_24h=4, count_7j=0)
+        alert["nouveaute"] = True
+        result = self._fn()(alert)
+        assert "🆕" in result
+
+    def test_article_link_markdown(self):
+        alert = _alert()
+        alert["article_url"] = "https://ex.com/a"
+        alert["article_source"] = "Le Monde"
+        result = self._fn()(alert, markdown=True)
+        assert "[Le Monde](https://ex.com/a)" in result
+
+    def test_article_link_plain_for_ntfy(self):
+        alert = _alert()
+        alert["article_url"] = "https://ex.com/a"
+        result = self._fn()(alert, markdown=False)
+        assert "https://ex.com/a" in result
+        assert "[" not in result
+
+    def test_prediction_rendered(self):
+        alert = _alert()
+        alert["prediction_seuil_dans_minutes"] = 30
+        result = self._fn()(alert)
+        assert "🔮" in result and "30" in result
+
+
+def _patch_session(post_impl):
+    """Patche create_session_with_retries pour renvoyer une session mockée.
+
+    ``post_impl`` peut être un callable (side_effect) ou un objet réponse
+    (return_value).
+    """
+    import types
+    mock_session = MagicMock()
+    if isinstance(post_impl, (types.FunctionType, BaseException)):
+        mock_session.post.side_effect = post_impl
+    else:
+        mock_session.post.return_value = post_impl
+    return patch("utils.exporters.webhook.create_session_with_retries",
+                 return_value=mock_session)
+
 
 class TestSendDiscord:
     def _fn(self):
@@ -339,16 +389,33 @@ class TestSendDiscord:
         monkeypatch.delenv("WEBHOOK_DISCORD", raising=False)
         mock_resp = MagicMock()
         mock_resp.raise_for_status.return_value = None
-        with patch("utils.exporters.webhook.requests.post", return_value=mock_resp) as mock_post:
+        with _patch_session(mock_resp) as mock_factory:
             result = self._fn()([_alert()], webhook_url="https://discord.com/webhook/123")
         assert result is True
-        mock_post.assert_called_once()
+        mock_factory.return_value.post.assert_called_once()
+
+    def test_sends_embed_not_content(self, monkeypatch):
+        """Discord doit envoyer un embed (et non un simple content)."""
+        monkeypatch.delenv("WEBHOOK_DISCORD", raising=False)
+        captured = {}
+
+        def mock_post(url, json=None, timeout=None):
+            captured["payload"] = json
+            mock_r = MagicMock()
+            mock_r.raise_for_status.return_value = None
+            return mock_r
+
+        with _patch_session(mock_post):
+            self._fn()([_alert(value="OpenAI")], webhook_url="https://discord.com/wh")
+
+        assert "embeds" in captured["payload"]
+        assert "OpenAI" in captured["payload"]["embeds"][0]["description"]
 
     def test_http_error_returns_false(self, monkeypatch):
         monkeypatch.delenv("WEBHOOK_DISCORD", raising=False)
         mock_resp = MagicMock()
         mock_resp.raise_for_status.side_effect = Exception("HTTP 400")
-        with patch("utils.exporters.webhook.requests.post", return_value=mock_resp):
+        with _patch_session(mock_resp):
             result = self._fn()([_alert()], webhook_url="https://discord.com/webhook/error")
         assert result is False
 
@@ -356,23 +423,27 @@ class TestSendDiscord:
         monkeypatch.delenv("WEBHOOK_DISCORD", raising=False)
         captured = {}
 
-        def mock_post(url, json, timeout):
-            captured["text"] = json.get("content", "")
+        def mock_post(url, json=None, timeout=None):
+            captured["text"] = json["embeds"][0]["description"]
             mock_r = MagicMock()
             mock_r.raise_for_status.return_value = None
             return mock_r
 
         alerts = [_alert(value=f"Entité {i}") for i in range(20)]
-        with patch("utils.exporters.webhook.requests.post", side_effect=mock_post):
+        with _patch_session(mock_post):
             self._fn()(alerts, webhook_url="https://discord.com/wh", top_n=3)
 
-        # Seules 3 entités doivent apparaître dans le texte envoyé
+        # Seules 3 entités doivent apparaître dans la description envoyée
         count = sum(1 for i in range(20) if f"Entité {i}" in captured.get("text", ""))
         assert count == 3
 
     def test_connection_error_returns_false(self, monkeypatch):
         monkeypatch.delenv("WEBHOOK_DISCORD", raising=False)
-        with patch("utils.exporters.webhook.requests.post", side_effect=ConnectionError("no route")):
+
+        def _raise(*_a, **_k):
+            raise ConnectionError("no route")
+
+        with _patch_session(_raise):
             result = self._fn()([_alert()], webhook_url="https://discord.com/wh")
         assert result is False
 
@@ -390,7 +461,7 @@ class TestSendSlack:
         monkeypatch.delenv("WEBHOOK_SLACK", raising=False)
         mock_resp = MagicMock()
         mock_resp.raise_for_status.return_value = None
-        with patch("utils.exporters.webhook.requests.post", return_value=mock_resp):
+        with _patch_session(mock_resp):
             result = self._fn()([_alert()], webhook_url="https://hooks.slack.com/T00/B00/xyz")
         assert result is True
 
@@ -398,7 +469,7 @@ class TestSendSlack:
         monkeypatch.delenv("WEBHOOK_SLACK", raising=False)
         mock_resp = MagicMock()
         mock_resp.raise_for_status.side_effect = Exception("HTTP 500")
-        with patch("utils.exporters.webhook.requests.post", return_value=mock_resp):
+        with _patch_session(mock_resp):
             result = self._fn()([_alert()], webhook_url="https://hooks.slack.com/T00/B00/error")
         assert result is False
 
@@ -406,14 +477,14 @@ class TestSendSlack:
         monkeypatch.delenv("WEBHOOK_SLACK", raising=False)
         captured_blocks = {}
 
-        def mock_post(url, json, timeout):
+        def mock_post(url, json=None, timeout=None):
             captured_blocks["blocks"] = json.get("blocks", [])
             mock_r = MagicMock()
             mock_r.raise_for_status.return_value = None
             return mock_r
 
         alerts = [_alert(value=f"Entité {i}") for i in range(10)]
-        with patch("utils.exporters.webhook.requests.post", side_effect=mock_post):
+        with _patch_session(mock_post):
             self._fn()(alerts, webhook_url="https://hooks.slack.com/wh", top_n=4)
 
         # Bloc header + divider + 4 sections = 6 blocs maximum
@@ -440,7 +511,7 @@ class TestSendNtfy:
         monkeypatch.delenv("NTFY_TOKEN", raising=False)
         mock_resp = MagicMock()
         mock_resp.raise_for_status.return_value = None
-        with patch("utils.exporters.webhook.requests.post", return_value=mock_resp):
+        with _patch_session(mock_resp):
             result = self._fn()([_alert()], ntfy_url="https://ntfy.sh/wudd")
         assert result is True
 
@@ -449,13 +520,13 @@ class TestSendNtfy:
         monkeypatch.delenv("NTFY_TOKEN", raising=False)
         captured = {}
 
-        def mock_post(url, data, headers, timeout):
+        def mock_post(url, data=None, headers=None, timeout=None):
             captured["headers"] = headers
             mock_r = MagicMock()
             mock_r.raise_for_status.return_value = None
             return mock_r
 
-        with patch("utils.exporters.webhook.requests.post", side_effect=mock_post):
+        with _patch_session(mock_post):
             self._fn()([_alert()], ntfy_url="https://ntfy.sh/wudd", ntfy_token="mytoken")
 
         assert "Authorization" in captured.get("headers", {})
@@ -465,7 +536,7 @@ class TestSendNtfy:
         monkeypatch.delenv("NTFY_URL", raising=False)
         mock_resp = MagicMock()
         mock_resp.raise_for_status.side_effect = Exception("403")
-        with patch("utils.exporters.webhook.requests.post", return_value=mock_resp):
+        with _patch_session(mock_resp):
             result = self._fn()([_alert()], ntfy_url="https://ntfy.sh/wudd")
         assert result is False
 

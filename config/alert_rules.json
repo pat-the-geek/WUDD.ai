@@ -3,7 +3,9 @@
     "threshold_ratio": 2.0,
     "top": 20,
     "min_mentions_24h": 2,
-    "silence_baseline_avg": 3.0
+    "silence_baseline_avg": 3.0,
+    "laplace_k": 1.0,
+    "cooldown_days": 2
   },
   "types_entites": {
     "PERSON":  { "enabled": true,  "threshold_ratio": 2.0, "min_mentions": 2 },

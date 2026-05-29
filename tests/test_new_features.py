@@ -352,7 +352,9 @@ class TestTrendDetectorWithRules:
         counts_7j  = {}  # aucune mention sur 7j
         alerts = self.detect_trends(counts_24h, counts_7j, threshold=2.0, top_n=10)
         assert len(alerts) == 1
-        assert alerts[0]["ratio"] == 999.9  # nouveauté absolue
+        # Lissage de Laplace (k=1) : ratio = 4 / (0 + 1) = 4.0 (remplace l'ancien 999.9)
+        assert alerts[0]["ratio"] == 4.0
+        assert alerts[0]["nouveaute"] is True  # absente sur 7j
 
     def test_niveau_from_rules_defaults(self):
         rules = {}
