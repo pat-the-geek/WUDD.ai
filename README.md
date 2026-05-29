@@ -1186,6 +1186,28 @@ Le message **Discord** est composé d'**un embed par alerte** (maximum 10 ; au-d
 
 > Discord ne permet pas de définir un fond de message : l'habillage se limite à la barre colorée, aux images d'embed et à l'avatar de l'expéditeur.
 
+#### Veille horaire d'articles (entités surveillées)
+
+Le script `scripts/watch_entity_articles.py` tourne **toutes les heures** et notifie sur Discord le **dernier article fraîchement détecté** mentionnant une entité de ta liste de surveillance (`data/watched_entities.json`). La détection s'appuie sur `entity_index`, mis à jour dès la collecte.
+
+La notification est une fiche article riche :
+
+- **grande image** de l'article (og:image récupérée à la volée si l'article n'en a pas encore) ;
+- **résumé reformaté par l'IA en chapitres** (`### En bref`, `### Contexte`, …) avec **gras** sur l'entité et les chiffres clés, *italique* pour les nuances — sans rien inventer (repli sur le résumé brut si l'IA échoue) ;
+- titre cliquable, source et date.
+
+Au plus **1 article par heure** (le plus récent). L'état des articles déjà notifiés est conservé dans `data/watched_article_state.json` ; au tout premier passage, les articles existants sont marqués comme vus **sans notifier** (évite un flot initial).
+
+```bash
+python3 scripts/watch_entity_articles.py              # passage normal
+python3 scripts/watch_entity_articles.py --dry-run    # affiche sans notifier
+python3 scripts/watch_entity_articles.py --force      # ignore l'état (test)
+python3 scripts/watch_entity_articles.py --no-format  # résumé brut (sans IA)
+python3 scripts/watch_entity_articles.py --max 3 --window-days 1
+```
+
+> Les entités surveillées se gèrent depuis le panneau **Entités** du Viewer (liste de veille) ou directement dans `data/watched_entities.json`.
+
 ---
 
 ## 8. Orchestration Docker
@@ -1216,6 +1238,7 @@ docker rm -f wudd-ai-final   # ou wuddai, etc.
 | `0 6-22/2 * * *` | Extraction par mot-clé toutes les 2h de 6h00 à 22h00 (`get-keyword-from-rss.py`) |
 | `0 */2 * * *` | Surveillance sources web sans RSS (`web_watcher.py`) |
 | `*/10 * * * *` | Vérification santé du cron (`check_cron_health.py`) |
+| `0 * * * *` | Veille horaire : dernier article d'une entité surveillée → Discord (image + résumé reformaté IA) (`watch_entity_articles.py`) |
 | `5 0 * * *` | Archivage état quotas du jour (`archive_quota_state.py`) |
 | `0 1 * * *` | Sauvegarde incrémentale `data/` → `BACKUP_L1` → `BACKUP_L2` (`backup_data.py`) |
 | `0 2 * * *` | Enrichissement NER round-robin, 1 fichier/jour (`enrich_entities.py`) |

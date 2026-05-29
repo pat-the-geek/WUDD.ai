@@ -184,6 +184,68 @@ def send_discord(
         return False
 
 
+def send_article_discord(
+    article: dict,
+    entity_label: str,
+    *,
+    image_url: str = "",
+    title: str = "",
+    body_markdown: str = "",
+    webhook_url: Optional[str] = None,
+) -> bool:
+    """Envoie une notification Discord pour UN article (grande image + résumé).
+
+    Utilisé pour la veille horaire d'entités surveillées.
+
+    Args:
+        article       : dict article WUDD.ai (Résumé, Sources, URL, Date…)
+        entity_label  : nom de l'entité surveillée concernée
+        image_url     : URL de la grande image (sinon tentée depuis article["Images"])
+        title         : titre de l'article (sinon repli sur la source)
+        body_markdown : corps Markdown pré-formaté (chapitres/gras/italique) ;
+                        si vide, on utilise le résumé brut de l'article
+    """
+    url = webhook_url or os.getenv("WEBHOOK_DISCORD", "")
+    if not url:
+        default_logger.debug("WEBHOOK_DISCORD non configuré — Discord ignoré")
+        return False
+
+    resume = (body_markdown or article.get("Résumé") or "").strip()
+    if len(resume) > _DISCORD_DESC_LIMIT:
+        resume = resume[: _DISCORD_DESC_LIMIT - 1].rstrip() + "…"
+    source = (article.get("Sources") or "").strip()
+    date = (article.get("Date de publication") or "").strip()
+    link = (article.get("URL") or "").strip()
+
+    if not image_url:
+        imgs = article.get("Images")
+        if isinstance(imgs, list) and imgs and isinstance(imgs[0], dict):
+            image_url = (imgs[0].get("URL") or imgs[0].get("url") or "").strip()
+
+    embed: dict = {
+        "author": {"name": f"👁 Veille · {entity_label}"},
+        "title": (title or source or "Article")[:256],
+        "description": resume or "_(résumé indisponible)_",
+        "color": _NIVEAU_COLOR["info"],
+        "footer": {"text": " · ".join(x for x in [source, date] if x)},
+    }
+    if link:
+        embed["url"] = link
+    if image_url.startswith(("http://", "https://")):
+        embed["image"] = {"url": image_url}
+
+    payload = {"embeds": [embed]}
+    try:
+        session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
+        r = session.post(url, json=payload, timeout=10)
+        r.raise_for_status()
+        default_logger.info(f"Notification Discord article envoyée (veille : {entity_label})")
+        return True
+    except Exception as e:
+        default_logger.warning(f"Erreur Discord (article veille) : {e}")
+        return False
+
+
 # ── Slack ─────────────────────────────────────────────────────────────────────
 
 def send_slack(
