@@ -55,6 +55,7 @@ _DEFAULT_MONITORED_TYPES = {
 _OUTPUT_FILE    = _PROJECT_ROOT / "data" / "alertes.json"
 _RULES_FILE     = _PROJECT_ROOT / "config" / "alert_rules.json"
 _WATCHED_FILE   = _PROJECT_ROOT / "data" / "watched_entities.json"
+_NOTIFIED_STATE_FILE = _PROJECT_ROOT / "data" / "notified_alerts_state.json"
 
 
 # ── Chargement des règles ────────────────────────────────────────────────────
@@ -638,11 +639,51 @@ def parse_args():
                         help="Désactive la détection des silences")
     parser.add_argument("--dry-run", action="store_true", help="Affiche sans sauvegarder")
     parser.add_argument("--no-notify", action="store_true", help="Désactive les notifications webhook")
+    parser.add_argument(
+        "--notify-only-new", action="store_true",
+        help="N'envoie sur webhook que les entités non encore notifiées le jour même "
+             "(état dans data/notified_alerts_state.json). Idéal pour un run intra-journalier."
+    )
     return parser.parse_args()
 
 
-def _send_notifications(alerts: list[dict], rules: dict) -> None:
-    """Envoie des notifications webhook pour les alertes de niveau configuré."""
+def _load_notified_state(today: str) -> set[str]:
+    """Charge l'ensemble des clés (TYPE:valeur) déjà notifiées aujourd'hui.
+
+    Retourne un set vide si le fichier est absent, illisible, ou daté d'un
+    autre jour (réinitialisation quotidienne automatique).
+    """
+    if not _NOTIFIED_STATE_FILE.exists():
+        return set()
+    try:
+        data = json.loads(_NOTIFIED_STATE_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return set()
+    if not isinstance(data, dict) or data.get("date") != today:
+        return set()
+    keys = data.get("keys", [])
+    return set(keys) if isinstance(keys, list) else set()
+
+
+def _save_notified_state(today: str, keys: set[str]) -> None:
+    """Persiste l'ensemble des clés notifiées pour la date du jour."""
+    try:
+        _NOTIFIED_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _NOTIFIED_STATE_FILE.write_text(
+            json.dumps({"date": today, "keys": sorted(keys)}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        default_logger.warning(f"Impossible d'écrire l'état des notifications : {exc}")
+
+
+def _send_notifications(alerts: list[dict], rules: dict, only_new: bool = False) -> None:
+    """Envoie des notifications webhook pour les alertes de niveau configuré.
+
+    Si ``only_new`` est vrai, seules les entités non encore notifiées le jour
+    même (selon data/notified_alerts_state.json) sont envoyées. Dans tous les
+    cas, les entités effectivement notifiées sont ajoutées à l'état du jour.
+    """
     notif_cfg = rules.get("notifications", {})
     watched_threshold = rules.get("global", {}).get("watched_threshold_ratio", 1.0)
 
@@ -677,18 +718,62 @@ def _send_notifications(alerts: list[dict], rules: dict) -> None:
     if not alertes_a_notifier:
         return
 
+    # ── Déduplication intra-journalière (run de midi) ─────────────────────────
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    already_notified = _load_notified_state(today)
+    # Toutes les entités candidates de ce run, y compris celles tronquées par le
+    # top_n : elles sont marquées « traitées » pour que les runs ultérieurs du
+    # jour (--notify-only-new) ne les considèrent pas comme nouvelles.
+    candidate_keys = {
+        f"{a.get('entity_type', '')}:{a.get('entity_value', '')}"
+        for a in alertes_a_notifier
+    }
+    if only_new:
+        before = len(alertes_a_notifier)
+        alertes_a_notifier = [
+            a for a in alertes_a_notifier
+            if f"{a.get('entity_type', '')}:{a.get('entity_value', '')}" not in already_notified
+        ]
+        skipped = before - len(alertes_a_notifier)
+        default_logger.info(
+            f"--notify-only-new : {skipped} entité(s) déjà notifiée(s) aujourd'hui ignorée(s), "
+            f"{len(alertes_a_notifier)} nouvelle(s) à notifier"
+        )
+        if not alertes_a_notifier:
+            default_logger.info("Aucune nouvelle entité à notifier.")
+            return
+
+    # Tri par nombre de mentions sur 24h décroissant : les entités les plus
+    # mentionnées d'abord, puis les plus faibles (à ratio égal, départage stable).
+    alertes_a_notifier.sort(
+        key=lambda a: int(a.get("count_24h", 0) or 0),
+        reverse=True,
+    )
+
     try:
         from utils.exporters.webhook import notify_alerts
     except ImportError:
         default_logger.warning("Module webhook introuvable, notifications ignorées.")
         return
 
-    results = notify_alerts(alertes_a_notifier, title="WUDD.ai · Alertes tendances & veille prioritaire")
+    top_n = 20
+    results = notify_alerts(
+        alertes_a_notifier,
+        title="WUDD.ai · Alertes tendances & veille prioritaire",
+        top_n=top_n,
+    )
     for platform, success in results.items():
         if success:
             default_logger.info(f"Notification {platform} envoyée.")
         else:
             default_logger.warning(f"Échec notification {platform}.")
+
+    # Mémoriser TOUTES les entités candidates de ce run (pas seulement le top_n
+    # envoyé) : les entités tronquées sont volontairement écartées pour la
+    # journée, afin que les runs ultérieurs (--notify-only-new) restent
+    # silencieux tant qu'aucune entité réellement nouvelle n'apparaît.
+    if any(results.values()):
+        _save_notified_state(today, already_notified | candidate_keys)
 
     if watched_crossing:
         default_logger.info(
@@ -816,7 +901,7 @@ def main():
 
     # Notifications webhook (si non désactivées par --no-notify)
     if not args.no_notify:
-        _send_notifications(all_alerts, rules)
+        _send_notifications(all_alerts, rules, only_new=args.notify_only_new)
 
 
 if __name__ == "__main__":
