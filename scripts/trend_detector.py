@@ -724,16 +724,27 @@ def _attach_top_articles(alerts: list[dict], project_root: Path) -> None:
         if a.get("type") == "silence":
             continue  # pas d'article récent pour un silence
         try:
+            # On scanne plusieurs articles récents : le plus récent fournit le
+            # lien ; le premier qui possède une image fournit la vignette.
             arts = eidx.load_articles(a.get("entity_type", ""), a.get("entity_value", ""),
-                                      max_articles=1)
+                                      max_articles=8)
         except Exception:
             arts = []
-        if arts:
-            art = arts[0]
-            url = (art.get("URL") or "").strip()
-            if url:
-                a["article_url"] = url
-                a["article_source"] = (art.get("Sources") or "").strip()
+        if not arts:
+            continue
+
+        url = (arts[0].get("URL") or "").strip()
+        if url:
+            a["article_url"] = url
+            a["article_source"] = (arts[0].get("Sources") or "").strip()
+
+        for art in arts:
+            imgs = art.get("Images")
+            if isinstance(imgs, list) and imgs and isinstance(imgs[0], dict):
+                img_url = (imgs[0].get("URL") or imgs[0].get("url") or "").strip()
+                if img_url.startswith(("http://", "https://")):
+                    a["article_image"] = img_url
+                    break
 
 
 def _send_notifications(

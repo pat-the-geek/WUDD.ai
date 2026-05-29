@@ -22,6 +22,7 @@ from ..logging import default_logger
 
 # Limites Discord
 _DISCORD_DESC_LIMIT = 4000   # description d'embed (limite API : 4096)
+_DISCORD_MAX_EMBEDS = 10     # nombre maximum d'embeds par message (limite API)
 
 # Couleurs d'embed Discord (entier décimal) par niveau.
 _NIVEAU_COLOR = {
@@ -137,29 +138,40 @@ def send_discord(
         return False
 
     selection = alerts[:top_n]
+    if not selection:
+        return False
 
-    # Construction de la description, tronquée à la limite Discord.
-    lines: list[str] = []
-    used = 0
-    dropped = 0
-    for i, a in enumerate(selection):
-        text = _format_alert_text(a, markdown=True)
-        if used + len(text) + 1 > _DISCORD_DESC_LIMIT:
-            dropped = len(selection) - i
-            break
-        lines.append(text)
-        used += len(text) + 1
-    if dropped:
-        lines.append(f"… +{dropped} autre(s)")
+    # Un embed par alerte (max 10). Image bannière pour la 1re, vignette pour
+    # les suivantes. Au-delà de 10, les entités restantes sont listées.
+    rich = selection[:_DISCORD_MAX_EMBEDS]
+    overflow = selection[_DISCORD_MAX_EMBEDS:]
+
+    embeds: list[dict] = []
+    for i, a in enumerate(rich):
+        embed = {
+            "description": _format_alert_text(a, markdown=True)[:_DISCORD_DESC_LIMIT],
+            "color": _NIVEAU_COLOR.get(a.get("niveau", "modéré"), 0x95A5A6),
+        }
+        img = (a.get("article_image") or "").strip()
+        if img:
+            # Grande image pour l'alerte en tête, vignette pour les autres.
+            embed["image" if i == 0 else "thumbnail"] = {"url": img}
+        embeds.append(embed)
+
+    # Titre global porté par le premier embed.
+    embeds[0]["author"] = {"name": title}
+
+    # Entités au-delà de la limite d'embeds : listées de façon compacte.
+    if overflow:
+        names = ", ".join(a.get("entity_value", "") for a in overflow)
+        extra = f"\n… +{len(overflow)} autre(s) : {names}"
+        embeds[-1]["description"] = (embeds[-1]["description"] + extra)[:_DISCORD_DESC_LIMIT]
 
     niveau = _highest_niveau(selection)
-    embed = {
-        "title": title,
-        "description": "\n".join(lines),
-        "color": _NIVEAU_COLOR.get(niveau, 0x95A5A6),
-        "footer": {"text": f"WUDD.ai · {len(selection)} alerte(s) · niveau max : {niveau}"},
+    embeds[-1]["footer"] = {
+        "text": f"WUDD.ai · {len(selection)} alerte(s) · niveau max : {niveau}"
     }
-    payload = {"embeds": [embed]}
+    payload = {"embeds": embeds}
 
     try:
         session = create_session_with_retries(total_retries=3, backoff_factor=0.5)

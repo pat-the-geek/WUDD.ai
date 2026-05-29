@@ -323,7 +323,7 @@ All utility modules are importable as `from utils.X import Y`. They are the corr
 | `utils/synthesis_cache.py` | `SynthesisCache` — persistent TTL cache for AI entity syntheses (`data/synthesis_cache.json`, default 24h). Avoids redundant AI calls for recently-analyzed entities. Methods: `get()`, `set()`, `invalidate()`. Singleton via `get_synthesis_cache()` |
 | `utils/exporters/atom_feed.py` | Atom XML feed generation (`generate_atom_feed()`, `generate_atom_from_flux()`) |
 | `utils/exporters/newsletter.py` | Newsletter HTML generation + SMTP send (`generate_newsletter_html()`, `send_newsletter()`) |
-| `utils/exporters/webhook.py` | Webhook notifications — Discord (rich embeds, color per level, article link), Slack, Ntfy (`send_discord()`, `send_slack()`, `send_ntfy()`); retry/backoff via `http_utils` |
+| `utils/exporters/webhook.py` | Webhook notifications — Discord (one embed per alert, max 10; color per level, article link, article image as banner/thumbnail), Slack, Ntfy (`send_discord()`, `send_slack()`, `send_ntfy()`); retry/backoff via `http_utils` |
 
 ## Viewer (`viewer/`)
 

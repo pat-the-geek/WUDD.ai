@@ -424,7 +424,8 @@ class TestSendDiscord:
         captured = {}
 
         def mock_post(url, json=None, timeout=None):
-            captured["text"] = json["embeds"][0]["description"]
+            # Un embed par alerte : on concatène toutes les descriptions.
+            captured["text"] = " ".join(e.get("description", "") for e in json["embeds"])
             mock_r = MagicMock()
             mock_r.raise_for_status.return_value = None
             return mock_r
@@ -433,9 +434,50 @@ class TestSendDiscord:
         with _patch_session(mock_post):
             self._fn()(alerts, webhook_url="https://discord.com/wh", top_n=3)
 
-        # Seules 3 entités doivent apparaître dans la description envoyée
+        # Seules 3 entités doivent apparaître dans les embeds envoyés
         count = sum(1 for i in range(20) if f"Entité {i}" in captured.get("text", ""))
         assert count == 3
+
+    def test_article_image_used_as_banner_and_thumbnail(self, monkeypatch):
+        monkeypatch.delenv("WEBHOOK_DISCORD", raising=False)
+        captured = {}
+
+        def mock_post(url, json=None, timeout=None):
+            captured["embeds"] = json["embeds"]
+            mock_r = MagicMock()
+            mock_r.raise_for_status.return_value = None
+            return mock_r
+
+        a0 = _alert(value="A0")
+        a0["article_image"] = "https://img.com/0.jpg"
+        a1 = _alert(value="A1")
+        a1["article_image"] = "https://img.com/1.jpg"
+        with _patch_session(mock_post):
+            self._fn()([a0, a1], webhook_url="https://discord.com/wh")
+
+        embeds = captured["embeds"]
+        # 1re alerte → grande image (banner) ; 2e → vignette (thumbnail)
+        assert embeds[0]["image"]["url"] == "https://img.com/0.jpg"
+        assert "thumbnail" not in embeds[0]
+        assert embeds[1]["thumbnail"]["url"] == "https://img.com/1.jpg"
+
+    def test_overflow_beyond_10_listed(self, monkeypatch):
+        monkeypatch.delenv("WEBHOOK_DISCORD", raising=False)
+        captured = {}
+
+        def mock_post(url, json=None, timeout=None):
+            captured["embeds"] = json["embeds"]
+            mock_r = MagicMock()
+            mock_r.raise_for_status.return_value = None
+            return mock_r
+
+        alerts = [_alert(value=f"E{i}") for i in range(14)]
+        with _patch_session(mock_post):
+            self._fn()(alerts, webhook_url="https://discord.com/wh", top_n=20)
+
+        # Max 10 embeds ; les 4 restantes listées dans le dernier embed
+        assert len(captured["embeds"]) == 10
+        assert "+4 autre(s)" in captured["embeds"][-1]["description"]
 
     def test_connection_error_returns_false(self, monkeypatch):
         monkeypatch.delenv("WEBHOOK_DISCORD", raising=False)
