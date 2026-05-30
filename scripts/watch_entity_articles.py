@@ -134,8 +134,11 @@ def _format_summary_markdown(article: dict, entity_label: str) -> str:
         f"Résumé :\n{resume}"
     )
     try:
-        from utils.api_client import get_ai_client
-        out = get_ai_client().ask(prompt, timeout=45, max_tokens=600)
+        # Reformatage = texte libre → on privilégie Ollama local (AI_PROVIDER_SUMMARY)
+        # pour économiser des tokens cloud ; fallback EurIA/Claude automatique si Ollama
+        # est injoignable ou lève une exception.
+        from utils.api_client import get_summary_client
+        out = get_summary_client().ask(prompt, timeout=45, max_tokens=600)
     except Exception as exc:
         default_logger.warning(f"Reformatage IA indisponible ({exc}) — résumé brut conservé.")
         return ""
