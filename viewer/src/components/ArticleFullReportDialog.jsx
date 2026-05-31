@@ -919,7 +919,7 @@ ${contentEl.innerHTML}
   const portal = createPortal(
     <div
       id="article-report-portal"
-      className="hig-overlay-enter fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 print:p-0"
+      className="hig-overlay-enter fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] print:p-0"
       onClick={e => e.target === e.currentTarget && !isFullscreen && onClose()}
     >
       <div
@@ -927,11 +927,14 @@ ${contentEl.innerHTML}
         className={`hig-modal-enter flex flex-col shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 transition-all duration-200 ${
           isFullscreen
             ? 'fixed inset-0 rounded-none'
-            : 'w-[92vw] max-w-[1400px] h-[92vh] rounded-2xl'
+            : 'w-[92vw] max-w-[1400px] h-[92vh] max-h-full rounded-2xl'
         } overflow-hidden`}
       >
         {/* ── Title bar ─────────────────────────────────────────────────────── */}
-        <div className="no-print flex items-start gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-slate-200 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-900">
+        <div
+          className="no-print flex items-start gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-slate-200 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-900"
+          style={isFullscreen ? { paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' } : undefined}
+        >
           <FileText size={17} className="text-blue-500 shrink-0" />
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{titre}</h2>
