@@ -52,6 +52,10 @@ _ENTITY_TYPE_FR = {
     "NORP": "Groupe",
     "LOC": "Lieu",
     "FAC": "Lieu",
+    "LAW": "Loi/Régulation",
+    "DISEASE": "Maladie",
+    "WORK_OF_ART": "Œuvre",
+    "LANGUAGE": "Langue",
 }
 
 
@@ -243,6 +247,67 @@ def send_article_discord(
         return True
     except Exception as e:
         default_logger.warning(f"Erreur Discord (article veille) : {e}")
+        return False
+
+
+def send_watched_entity_added(
+    entity_type: str,
+    value: str,
+    *,
+    notes: str = "",
+    explanation: str = "",
+    webhook_url: Optional[str] = None,
+) -> bool:
+    """Notifie Discord de l'ajout d'une nouvelle entité à la liste de surveillance.
+
+    Message d'information avec, si disponible, un court texte explicatif sur
+    l'entité (généré par l'IA côté appelant) et la note utilisateur éventuelle.
+
+    Args:
+        entity_type : type NER (PERSON, ORG, GPE…)
+        value       : valeur/nom de l'entité surveillée
+        notes       : note libre saisie à l'ajout (optionnelle)
+        explanation : courte explication factuelle de l'entité (optionnelle)
+
+    Returns:
+        True si l'envoi a réussi.
+    """
+    url = webhook_url or os.getenv("WEBHOOK_DISCORD", "")
+    if not url:
+        default_logger.debug("WEBHOOK_DISCORD non configuré — notification d'ajout ignorée")
+        return False
+
+    type_fr = _ENTITY_TYPE_FR.get((entity_type or "").upper(), entity_type or "Entité")
+
+    parts: list[str] = []
+    explanation = (explanation or "").strip()
+    if explanation:
+        parts.append(explanation)
+    notes = (notes or "").strip()
+    if notes:
+        parts.append(f"📝 *Note :* {notes}")
+    parts.append(
+        "🔔 Vous serez notifié (entre 7h et 22h) dès qu'un nouvel article mentionnant "
+        "cette entité sera détecté — en priorisant les entités les moins médiatisées."
+    )
+    description = "\n\n".join(parts)[:_DISCORD_DESC_LIMIT]
+
+    embed = {
+        "author": {"name": "👁 Nouvelle entité surveillée"},
+        "title": (value or "Entité")[:256],
+        "description": description,
+        "color": _NIVEAU_COLOR["info"],
+        "footer": {"text": f"WUDD.ai · veille d'entités · {type_fr}"},
+    }
+    payload = {"embeds": [embed]}
+    try:
+        session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
+        r = session.post(url, json=payload, timeout=10)
+        r.raise_for_status()
+        default_logger.info(f"Notification Discord envoyée (nouvelle entité surveillée : {value})")
+        return True
+    except Exception as e:
+        default_logger.warning(f"Erreur Discord (ajout entité surveillée) : {e}")
         return False
 
 

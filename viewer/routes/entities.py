@@ -2821,6 +2821,39 @@ def api_watched_get():
         return jsonify(result)
 
 
+def _notify_watched_entity_added(etype: str, value: str, notes: str) -> None:
+    """Notifie Discord (en tâche de fond) l'ajout d'une nouvelle entité surveillée.
+
+    Génère un court texte explicatif via l'IA (best-effort), puis envoie la
+    notification. Thread daemon : n'interrompt jamais la requête d'ajout et avale
+    toutes les erreurs (webhook/IA non configurés ou injoignables = silencieux).
+    """
+    def _run():
+        from utils.logging import default_logger
+        explanation = ""
+        try:
+            from utils.exporters.webhook import _ENTITY_TYPE_FR
+            type_fr = _ENTITY_TYPE_FR.get((etype or "").upper(), etype)
+            prompt = (
+                f"En 1 à 2 phrases concises, en français, explique de façon neutre et "
+                f"factuelle qui ou quoi est « {value} » (type : {type_fr}). Si tu n'es pas "
+                f"certain de l'identité exacte, reste générique sans rien inventer. Réponds "
+                f"uniquement par l'explication, sans préambule ni guillemets."
+            )
+            explanation = (_call_ai_blocking(prompt, timeout=30) or "").strip()
+            if explanation.lower().startswith("erreur"):
+                explanation = ""
+        except Exception as exc:
+            default_logger.debug(f"Explication IA indisponible pour {value} : {exc}")
+        try:
+            from utils.exporters.webhook import send_watched_entity_added
+            send_watched_entity_added(etype, value, notes=notes, explanation=explanation)
+        except Exception as exc:
+            default_logger.warning(f"Notification d'ajout d'entité échouée ({value}) : {exc}")
+
+    threading.Thread(target=_run, name=f"watch-notify-{(value or '')[:20]}", daemon=True).start()
+
+
 @entities_bp.route("/api/watched-entities", methods=["POST"])
 def api_watched_post():
     """Ajoute ou met à jour une entité surveillée.
@@ -2863,9 +2896,14 @@ def api_watched_post():
         }
         watched.append(entry)
         _save_watched(watched)
-    
+
     with _watched_cache_lock:
         _watched_cache.clear()
+
+    # Notification d'information (Discord) pour la nouvelle entité — en tâche de
+    # fond pour ne pas retarder la réponse (génère un texte explicatif via l'IA).
+    _notify_watched_entity_added(etype, value, entry["notes"])
+
     return jsonify(
         {
             "ok": True,
