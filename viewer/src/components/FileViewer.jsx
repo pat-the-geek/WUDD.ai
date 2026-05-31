@@ -665,7 +665,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             <button
               onClick={scrollToImages}
               title="Aller aux images"
-              className="w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:border-[#007AFF]/40 dark:hover:border-[#0A84FF]/30 hover:shadow-blue-500/20 transition-all"
+              className="w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab hidden md:flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#007AFF] dark:hover:text-[#0A84FF] hover:border-[#007AFF]/40 dark:hover:border-[#0A84FF]/30 hover:shadow-blue-500/20 transition-all"
             >
               <Images size={16} />
             </button>
@@ -674,7 +674,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
             <button
               onClick={scrollToEntities}
               title="Aller aux entités nommées"
-              className="w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#5856D6] dark:hover:text-[#5E5CE6] hover:border-[#5856D6]/40 dark:hover:border-[#5E5CE6]/30 hover:shadow-violet-500/20 transition-all"
+              className="w-10 h-10 rounded-full border border-white/55 dark:border-white/[0.12] glass-fab hidden md:flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-[#5856D6] dark:hover:text-[#5E5CE6] hover:border-[#5856D6]/40 dark:hover:border-[#5E5CE6]/30 hover:shadow-violet-500/20 transition-all"
             >
               <Tag size={16} />
             </button>
