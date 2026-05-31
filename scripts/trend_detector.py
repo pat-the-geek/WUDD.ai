@@ -710,41 +710,82 @@ def _prune_state(entities: dict[str, dict], today: str, keep_days: int) -> dict[
     }
 
 
-def _attach_top_articles(alerts: list[dict], project_root: Path) -> None:
-    """Ajoute l'article déclencheur le plus récent (URL + source) à chaque alerte.
+def _attach_top_articles(alerts: list[dict], project_root: Path) -> list[dict]:
+    """Attache l'article déclencheur (URL + source + image) et filtre la fraîcheur.
 
-    Best-effort : s'appuie sur l'entity_index ; en cas d'absence ou d'erreur,
-    l'alerte est laissée inchangée (le lien sera simplement omis de Discord).
+    On ne retient que des articles publiés dans les dernières **48 heures**, en
+    **privilégiant ceux des dernières 24 heures** : une alerte de tendance ne
+    doit pointer que vers de l'actualité fraîche, jamais vers un article ancien.
+
+    Règle d'envoi : **si aucun article ne tombe dans les 48h, l'alerte n'est pas
+    notifiée** — elle est écartée de la liste retournée. Les alertes de
+    *silence* font exception (elles signalent justement l'absence de mention sur
+    24h et n'ont, par nature, aucun article déclencheur) : elles sont conservées.
+
+    Best-effort : si l'index est indisponible, on ne filtre pas (les alertes
+    sont retournées inchangées) pour ne pas supprimer des notifications à tort.
+
+    Returns:
+        La sous-liste des alertes à notifier (silences + tendances avec article
+        publié dans les 48h).
     """
     try:
         eidx = get_entity_index(project_root)
     except Exception:
-        return
+        return alerts  # index indisponible → on ne filtre pas (best-effort)
+
+    now = datetime.now(timezone.utc)
+    cutoff_48h = (now - timedelta(days=2)).strftime("%Y-%m-%d")
+
+    def _within_hours(article: dict, hours: int) -> bool:
+        dt = _parse_date(article.get("Date de publication", ""))
+        if dt is None:
+            return False
+        return (now - dt) <= timedelta(hours=hours)
+
+    kept: list[dict] = []
     for a in alerts:
         if a.get("type") == "silence":
-            continue  # pas d'article récent pour un silence
+            kept.append(a)  # pas d'article récent pour un silence : conservé tel quel
+            continue
         try:
             # On scanne plusieurs articles récents : le plus récent fournit le
             # lien ; le premier qui possède une image fournit la vignette.
+            # cutoff_date pré-filtre les références anciennes au niveau de l'index.
             arts = eidx.load_articles(a.get("entity_type", ""), a.get("entity_value", ""),
-                                      max_articles=8)
+                                      max_articles=8, cutoff_date=cutoff_48h)
         except Exception:
             arts = []
-        if not arts:
-            continue
 
-        url = (arts[0].get("URL") or "").strip()
+        # Filtrage précis : 48h max, avec préférence aux 24h. arts est trié par
+        # date décroissante, donc pool[0] est l'article le plus frais retenu.
+        recents_48h = [art for art in arts if _within_hours(art, 48)]
+        if not recents_48h:
+            # Aucun article frais (< 48h) → on n'envoie pas cette alerte.
+            default_logger.info(
+                "Alerte écartée (aucun article publié dans les 48h) : "
+                f"{a.get('entity_type', '')}:{a.get('entity_value', '')}"
+            )
+            continue
+        recents_24h = [art for art in recents_48h if _within_hours(art, 24)]
+        pool = recents_24h or recents_48h
+
+        url = (pool[0].get("URL") or "").strip()
         if url:
             a["article_url"] = url
-            a["article_source"] = (arts[0].get("Sources") or "").strip()
+            a["article_source"] = (pool[0].get("Sources") or "").strip()
 
-        for art in arts:
+        for art in pool:
             imgs = art.get("Images")
             if isinstance(imgs, list) and imgs and isinstance(imgs[0], dict):
                 img_url = (imgs[0].get("URL") or imgs[0].get("url") or "").strip()
                 if img_url.startswith(("http://", "https://")):
                     a["article_image"] = img_url
                     break
+
+        kept.append(a)
+
+    return kept
 
 
 def _send_notifications(
@@ -831,10 +872,10 @@ def _send_notifications(
     top_n = 20
     a_envoyer = alertes_a_notifier[:top_n]
 
-    # On horodate TOUTES les candidates (y compris celles hors top_n) : cooldown
-    # glissant — une entité qui reste candidate ne sera pas re-notifiée.
+    # Attache l'article déclencheur ET filtre la fraîcheur : une alerte sans
+    # article publié dans les 48h n'est pas notifiée (les silences sont conservés).
     if project_root is not None:
-        _attach_top_articles(a_envoyer, project_root)
+        a_envoyer = _attach_top_articles(a_envoyer, project_root)
 
     if not a_envoyer:
         # Rien à envoyer, mais on rafraîchit quand même l'horodatage des candidates
