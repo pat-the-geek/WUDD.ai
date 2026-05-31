@@ -14,9 +14,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Exécution de get-keyword-from-rss.py toutes les 2h de 6h00 à 22h00 (6,8,10,12,14,16,18,20,22)
 # (reconstruit 48-heures.json intégralement — filet de sécurité + enrichissement sur toute la fenêtre 7j)
 0 6-22/2 * * * root cd /app && python3 scripts/get-keyword-from-rss.py 2>&1 | tee -a /app/rapports/cron_get_keyword.log
-# Veille horaire : notifie sur Discord le dernier article fraîchement détecté
-# mentionnant une entité surveillée (grande image + résumé, 1 article/heure max)
-0 * * * * root cd /app && python3 scripts/watch_entity_articles.py 2>&1 | tee -a /app/rapports/cron_watch_articles.log
+# Veille horaire (7h–22h) : notifie sur Discord le dernier article fraîchement
+# détecté mentionnant une entité surveillée (grande image + résumé). Au plus
+# 1 article/heure et 1 notification par entité et par jour ; articles promo écartés.
+0 7-22 * * * root cd /app && python3 scripts/watch_entity_articles.py 2>&1 | tee -a /app/rapports/cron_watch_articles.log
 # Vérification automatique du cron toutes les 10 minutes
 */10 * * * * root cd /app && python3 scripts/check_cron_health.py 2>&1 | tee -a /app/rapports/cron_health.log
 # Exécute le scheduler chaque lundi à 6h du matin

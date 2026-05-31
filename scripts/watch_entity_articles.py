@@ -6,16 +6,28 @@ collecté qui mentionne une entité de ``data/watched_entities.json`` et envoie
 une notification Discord avec **grande image + résumé**. Au plus 1 article par
 passage (le plus récent non encore notifié).
 
+Garde-fous d'envoi :
+  * **Fenêtre horaire** : notifications uniquement entre 7h et 22h (heure locale).
+  * **1 notification par entité et par jour** : une entité déjà notifiée le jour
+    même n'est pas re-notifiée (jour calendaire local).
+  * **Filtre anti-publicité** : les articles promotionnels (bons plans, codes
+    promo, soldes, contenus sponsorisés, affiliation…) ne sont pas notifiés.
+  * **Priorité aux entités sous-médiatisées** : à fraîcheur comparable, on
+    notifie d'abord l'article d'une entité ayant la plus faible présence
+    médiatique récente (nb d'articles sur ~24h), pour équilibrer la couverture.
+
 Détection via ``entity_index`` (mis à jour dès la collecte par flux_watcher et
 get-keyword-from-rss). Les articles sans NER au moment de la collecte (ex. flux
 RSS bruts) ne sont vus qu'après l'enrichissement NER nocturne.
 
-État : ``data/watched_article_state.json`` (URLs déjà notifiées). Au premier
-lancement, l'état est initialisé avec les articles existants SANS notifier
-(évite un flot initial) ; seuls les articles apparus ensuite déclenchent un envoi.
+État : ``data/watched_article_state.json`` (URLs déjà notifiées + date de
+dernière notification par entité). Au premier lancement, l'état est initialisé
+avec les articles existants SANS notifier (évite un flot initial) ; seuls les
+articles apparus ensuite déclenchent un envoi.
 
 Usage :
-    python3 scripts/watch_entity_articles.py [--dry-run] [--force] [--max N] [--window-days D]
+    python3 scripts/watch_entity_articles.py [--dry-run] [--force] [--max N]
+        [--window-days D] [--no-commercial-filter] [--ignore-window]
 """
 
 import argparse
@@ -41,6 +53,73 @@ _DEFAULT_MAX_PER_RUN = 1     # 1 article max par passage horaire
 _DEFAULT_WINDOW_DAYS = 2     # ne considérer que les articles récents
 _MAX_STATE_URLS = 1000       # borne la taille du fichier d'état
 
+# Fenêtre horaire d'envoi des notifications (heure locale du conteneur).
+# 7h00 inclus → 22h00 exclu (dernière notification possible à 21h59).
+_NOTIFY_HOUR_START = 7
+_NOTIFY_HOUR_END = 22
+
+# Fenêtre de mesure de la « présence médiatique » d'une entité : nombre
+# d'articles récents qui la mentionnent. Sert à favoriser, à fraîcheur égale,
+# les entités les moins médiatisées.
+_PRESENCE_WINDOW_DAYS = 1
+
+# Heuristique anti-publicité : on ne notifie pas les articles promotionnels
+# (bons plans, codes promo, soldes, contenus sponsorisés, affiliation…).
+_COMMERCIAL_PATTERNS = [
+    r"bons?\s+plans?",
+    r"codes?\s+promo",
+    r"code\s+promotionnel",
+    r"code\s+avantage",
+    r"\bsoldes?\b",
+    r"black\s+friday",
+    r"cyber\s+monday",
+    r"prix\s+cass[ée]s?",
+    r"meilleur\s+prix",
+    r"à\s+prix\s+r[ée]duit",
+    r"offres?\s+sp[ée]ciales?",
+    r"offres?\s+exclusives?",
+    r"contenus?\s+sponsoris[ée]s?",
+    r"sponsoris[ée]s?",
+    r"publi-?r[ée]dactionnel",
+    r"publireportage",
+    r"en\s+partenariat\s+avec",
+    r"affili[ée]s?",
+    r"\d{1,3}\s?%\s+de\s+r[ée]duction",
+    r"\d{1,3}\s?%\s+de\s+remise",
+]
+_COMMERCIAL_RE = re.compile("|".join(_COMMERCIAL_PATTERNS), re.IGNORECASE)
+
+
+def _is_commercial(article: dict) -> bool:
+    """Détecte un article promotionnel/publicitaire qu'il ne faut pas notifier.
+
+    Recherche des marqueurs commerciaux (bon plan, code promo, soldes, contenu
+    sponsorisé, affiliation, % de réduction…) dans le titre/résumé/source/URL.
+    """
+    haystack = " ".join(
+        s for s in (
+            article.get("Titre") or "",
+            article.get("Résumé") or "",
+            article.get("Sources") or "",
+            article.get("URL") or "",
+        ) if s
+    )
+    return bool(_COMMERCIAL_RE.search(haystack))
+
+
+def _media_presence(eidx, etype: str, value: str, cutoff: str) -> int:
+    """Présence médiatique récente d'une entité = nb d'articles la mentionnant
+    depuis ``cutoff`` (date ISO ``YYYY-MM-DD``). Plus le nombre est faible, plus
+    l'entité est sous-médiatisée — et donc à favoriser.
+
+    Repli : 0 en cas d'erreur (traité comme faible présence → favorisé).
+    """
+    try:
+        refs = eidx.get_refs(etype, value)
+    except Exception:
+        return 0
+    return sum(1 for r in refs if (r.get("date") or "") >= cutoff)
+
 
 def _load_watched() -> list[dict]:
     if not _WATCHED_FILE.exists():
@@ -62,11 +141,12 @@ def _load_state() -> dict:
         return {}
 
 
-def _save_state(notified_urls: list[str]) -> None:
+def _save_state(notified_urls: list[str], entity_daily: dict | None = None) -> None:
     try:
         _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "notified": notified_urls[-_MAX_STATE_URLS:],
+            "entity_daily": entity_daily or {},
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         _STATE_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -107,7 +187,12 @@ def collect_candidates(project_root: Path, watched: list[dict], window_days: int
             if not url or url in seen_urls:
                 continue
             seen_urls.add(url)
-            candidates.append({"article": art, "entity_label": value})
+            candidates.append({
+                "article": art,
+                "entity_label": value,
+                "entity_type": etype,
+                "entity_key": f"{etype}:{value}".lower(),
+            })
 
     candidates.sort(key=lambda c: _article_sort_key(c["article"]), reverse=True)
     return candidates
@@ -209,6 +294,10 @@ def parse_args():
                    help=f"Fenêtre de fraîcheur en jours (défaut {_DEFAULT_WINDOW_DAYS})")
     p.add_argument("--no-format", action="store_true",
                    help="Désactive le reformatage IA (envoie le résumé brut)")
+    p.add_argument("--no-commercial-filter", action="store_true",
+                   help="Désactive le filtre anti-publicité (notifie aussi les articles promo)")
+    p.add_argument("--ignore-window", action="store_true",
+                   help=f"Ignore la fenêtre horaire {_NOTIFY_HOUR_START}h–{_NOTIFY_HOUR_END}h")
     return p.parse_args()
 
 
@@ -244,6 +333,17 @@ def main():
         )
         return
 
+    # Fenêtre horaire : on ne notifie qu'entre 7h et 22h (heure locale).
+    # --force / --dry-run / --ignore-window contournent le garde-fou (tests manuels).
+    now = datetime.now()
+    in_window = _NOTIFY_HOUR_START <= now.hour < _NOTIFY_HOUR_END
+    if not in_window and not (args.force or args.dry_run or args.ignore_window):
+        default_logger.info(
+            f"Hors fenêtre de notification ({_NOTIFY_HOUR_START}h–{_NOTIFY_HOUR_END}h) — "
+            f"heure locale {now.hour:02d}h, aucun envoi."
+        )
+        return
+
     # Articles non encore notifiés (ou tous si --force).
     if args.force:
         nouveaux = candidates
@@ -254,7 +354,80 @@ def main():
         default_logger.info("Aucun nouvel article à notifier.")
         return
 
-    a_notifier = nouveaux[: max(1, args.max)]
+    # Sélection : on écarte les articles promotionnels et on limite à
+    # 1 notification par entité et par jour (jour calendaire local).
+    entity_daily = dict(_load_state().get("entity_daily", {}))
+    today = now.strftime("%Y-%m-%d")
+
+    eligible: list[dict] = []
+    skipped_commercial: list[str] = []
+    skipped_daily = 0
+    for c in nouveaux:
+        art = c["article"]
+        url = (art.get("URL") or "").strip()
+        ekey = c.get("entity_key") or c.get("entity_label", "")
+        if not args.no_commercial_filter and _is_commercial(art):
+            if url:
+                skipped_commercial.append(url)
+            continue
+        if not args.force and entity_daily.get(ekey) == today:
+            skipped_daily += 1
+            continue
+        eligible.append(c)
+
+    if skipped_commercial:
+        default_logger.info(f"{len(skipped_commercial)} article(s) promotionnel(s) écarté(s).")
+    if skipped_daily:
+        default_logger.info(f"{skipped_daily} article(s) écarté(s) (entité déjà notifiée aujourd'hui).")
+
+    # Favoriser les entités à faible présence médiatique : tri STABLE par
+    # présence récente croissante (eligible est déjà en fraîcheur décroissante,
+    # qui sert donc de départage à présence égale).
+    eidx = get_entity_index(project_root)
+    presence_cutoff = (now - timedelta(days=_PRESENCE_WINDOW_DAYS)).strftime("%Y-%m-%d")
+    presence_cache: dict[str, int] = {}
+
+    def _presence_of(cand: dict) -> int:
+        key = cand.get("entity_key", "")
+        if key not in presence_cache:
+            presence_cache[key] = _media_presence(
+                eidx, cand.get("entity_type", ""), cand.get("entity_label", ""), presence_cutoff
+            )
+        return presence_cache[key]
+
+    eligible.sort(key=_presence_of)
+
+    # Au plus 1 article par entité, même au sein d'un passage à --max > 1.
+    a_notifier: list[dict] = []
+    seen_ekeys: set[str] = set()
+    for c in eligible:
+        if len(a_notifier) >= max(1, args.max):
+            break
+        ek = c.get("entity_key", "")
+        if ek in seen_ekeys:
+            continue
+        seen_ekeys.add(ek)
+        a_notifier.append(c)
+
+    if a_notifier:
+        choix = ", ".join(
+            f"{c['entity_label']} (présence 24h : {_presence_of(c)})"
+            for c in a_notifier
+        )
+        default_logger.info(f"Priorité aux entités sous-médiatisées → {choix}")
+
+    if not a_notifier:
+        default_logger.info("Aucun nouvel article à notifier après filtrage.")
+        # On marque tout de même les articles promo comme vus (anti-réévaluation).
+        if not args.dry_run and not args.force and skipped_commercial:
+            for url in skipped_commercial:
+                if url and url not in notified_set:
+                    notified.append(url)
+                    notified_set.add(url)
+            entity_daily = {k: v for k, v in entity_daily.items() if v == today}
+            _save_state(notified, entity_daily)
+        return
+
     default_logger.info(
         f"{len(nouveaux)} nouvel(aux) article(s) ; envoi des {len(a_notifier)} plus récent(s)."
     )
@@ -265,6 +438,7 @@ def main():
     for c in a_notifier:
         art = c["article"]
         label = c["entity_label"]
+        ekey = c.get("entity_key") or label
         url = (art.get("URL") or "").strip()
         image_url, title = _resolve_image(art)
 
@@ -282,12 +456,21 @@ def main():
                                   body_markdown=body_md)
         if ok:
             sent += 1
+            entity_daily[ekey] = today
             if url and url not in notified_set:
                 notified.append(url)
                 notified_set.add(url)
 
+    # Les articles promo écartés sont aussi marqués vus pour ne plus les réévaluer.
+    for url in skipped_commercial:
+        if url and url not in notified_set:
+            notified.append(url)
+            notified_set.add(url)
+
     if not args.dry_run and not args.force:
-        _save_state(notified)
+        # On ne conserve que les entrées du jour : reset quotidien implicite.
+        entity_daily = {k: v for k, v in entity_daily.items() if v == today}
+        _save_state(notified, entity_daily)
 
     default_logger.info(f"{sent} notification(s) envoyée(s).")
 

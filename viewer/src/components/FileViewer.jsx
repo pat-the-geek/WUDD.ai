@@ -557,9 +557,12 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
       </div>
 
       {/* ── Contenu ── */}
+      {/* Mobile : la liste descend jusqu'au bas de l'écran (derrière les barres
+          translucides, look iOS). `scroll-pb` dégage le dernier article au-dessus
+          des barres lors d'un scroll-into-view (recherche / focus entité). */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-auto p-6 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:p-6"
+        className="flex-1 overflow-auto p-6 pb-[env(safe-area-inset-bottom)] scroll-pb-[calc(6rem+env(safe-area-inset-bottom))] md:p-6 md:pb-6 md:scroll-pb-0"
         style={isIPhone ? { paddingTop: '0px' } : undefined}
       >
         {loading ? (
