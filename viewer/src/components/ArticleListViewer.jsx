@@ -275,6 +275,51 @@ function computeSubjectFrame(focus, vW, vH) {
   return { size: 'cover', position: `${Math.round(pX * 100)}% ${Math.round(pY * 100)}%` }
 }
 
+// Couleurs des entités NER pour l'overlay sombre du mode immersif : pastille
+// translucide teintée + texte clair, lisibles sur le scrim noir. Mêmes teintes
+// que les chips classiques (PERSON=violet, ORG=bleu, GPE=émeraude…).
+const IMMERSIVE_ENTITY_COLORS = {
+  PERSON:      'bg-violet-500/25 text-violet-100 ring-violet-300/40',
+  ORG:         'bg-blue-500/25 text-blue-100 ring-blue-300/40',
+  GPE:         'bg-emerald-500/25 text-emerald-100 ring-emerald-300/40',
+  PRODUCT:     'bg-orange-500/25 text-orange-100 ring-orange-300/40',
+  EVENT:       'bg-amber-500/25 text-amber-100 ring-amber-300/40',
+  LAW:         'bg-red-500/25 text-red-100 ring-red-300/40',
+  LOC:         'bg-teal-500/25 text-teal-100 ring-teal-300/40',
+  NORP:        'bg-fuchsia-500/25 text-fuchsia-100 ring-fuchsia-300/40',
+  FAC:         'bg-cyan-500/25 text-cyan-100 ring-cyan-300/40',
+  WORK_OF_ART: 'bg-rose-500/25 text-rose-100 ring-rose-300/40',
+  MONEY:       'bg-yellow-500/25 text-yellow-100 ring-yellow-300/40',
+  PERCENT:     'bg-lime-500/25 text-lime-100 ring-lime-300/40',
+  LANGUAGE:    'bg-indigo-500/25 text-indigo-100 ring-indigo-300/40',
+}
+const IMMERSIVE_ENTITY_FALLBACK = 'bg-white/15 text-white/90 ring-white/30'
+
+// Types affichés sous le titre, par ordre de priorité ; les types numériques /
+// temporels peu informatifs (DATE, CARDINAL, ORDINAL, QUANTITY…) sont masqués.
+const IMMERSIVE_ENTITY_PRIORITY = ['PERSON', 'ORG', 'GPE', 'PRODUCT', 'EVENT', 'NORP', 'LOC', 'FAC', 'WORK_OF_ART', 'LAW', 'MONEY', 'PERCENT', 'LANGUAGE']
+
+/** Aplati article.entities → liste ordonnée { type, value } dédupliquée et bornée. */
+function immersiveEntities(entities, max = 8) {
+  if (!entities) return []
+  const out = []
+  const seen = new Set()
+  for (const type of IMMERSIVE_ENTITY_PRIORITY) {
+    const values = entities[type]
+    if (!Array.isArray(values)) continue
+    for (const value of values) {
+      const v = String(value).trim()
+      if (!v) continue
+      const key = v.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({ type, value: v })
+      if (out.length >= max) return out
+    }
+  }
+  return out
+}
+
 /** Taille de police adaptée à la longueur du titre : court → grande police, long → petite. */
 function immersiveTitleClass(len) {
   if (len <= 30)  return 'text-[2rem] leading-[1.1]'
@@ -321,6 +366,7 @@ function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummar
   const resume = article['Résumé'] || ''
   const source = article['Sources'] || ''
   const date   = formatDate(article['Date de publication'])
+  const entityChips = useMemo(() => immersiveEntities(article.entities), [article.entities])
 
   // Pan horizontal : décale la position X du cadrage pour explorer les parties
   // de l'image masquées par le recadrage (visible uniquement sur la diapo courante).
@@ -369,6 +415,18 @@ function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummar
           <h2 className={`font-bold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] ${immersiveTitleClass(titre.length)}`}>
             {titre}
           </h2>
+          {entityChips.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {entityChips.map((e, i) => (
+                <span
+                  key={`${e.type}:${e.value}:${i}`}
+                  className={`inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full ring-1 ring-inset backdrop-blur-sm ${IMMERSIVE_ENTITY_COLORS[e.type] ?? IMMERSIVE_ENTITY_FALLBACK}`}
+                >
+                  {e.value}
+                </span>
+              ))}
+            </div>
+          )}
           {isCurrent && showSummary && resume && (
             <div
               className="mt-3 max-h-[40vh] overflow-y-auto overscroll-contain touch-pan-y rounded-xl bg-black/40 p-3 text-[0.9rem] leading-relaxed text-white/95"
