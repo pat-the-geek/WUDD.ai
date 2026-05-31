@@ -12,7 +12,8 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
-from flask import Blueprint, jsonify, request
+import requests
+from flask import Blueprint, Response, abort, jsonify, request
 
 from utils.article_index import get_article_index
 from utils.http_utils import extract_top_n_largest_images
@@ -161,6 +162,67 @@ def _is_public_http_url(url: str) -> bool:
 
     _url_safety_cache_set(host, True)
     return True
+
+
+_IMAGE_PROXY_MAX_BYTES = 15 * 1024 * 1024  # 15 Mo
+_IMAGE_PROXY_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    ),
+    "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+}
+
+
+@gallery_bp.route("/api/image-proxy")
+def image_proxy():
+    """
+    Proxy same-origin pour images distantes — permet l'analyse pixel côté
+    navigateur (détection visage/sujet) sur les CDN sans en-têtes CORS.
+
+    Récupère l'image côté serveur (gardes SSRF + plafond de taille) et la
+    renvoie en same-origin, donc le canvas n'est pas « tainted ».
+    """
+    url = (request.args.get("url") or "").strip()
+    if not url or not _is_public_http_url(url):
+        abort(400)
+
+    try:
+        resp = requests.get(
+            url, headers=_IMAGE_PROXY_HEADERS, timeout=10, stream=True
+        )
+    except requests.RequestException:
+        abort(502)
+
+    if resp.status_code != 200:
+        resp.close()
+        abort(resp.status_code if 400 <= resp.status_code < 600 else 502)
+
+    ctype = (resp.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+    if not ctype.startswith("image/"):
+        resp.close()
+        abort(415)  # pas une image
+
+    chunks: list[bytes] = []
+    total = 0
+    try:
+        for chunk in resp.iter_content(64 * 1024):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > _IMAGE_PROXY_MAX_BYTES:
+                resp.close()
+                abort(413)  # image trop volumineuse
+            chunks.append(chunk)
+    except requests.RequestException:
+        abort(502)
+    finally:
+        resp.close()
+
+    out = Response(b"".join(chunks), content_type=ctype)
+    out.headers["Cache-Control"] = "public, max-age=86400"
+    out.headers["Access-Control-Allow-Origin"] = "*"
+    return out
 
 
 def _normalize_gallery(images: list[dict]) -> list[dict]:

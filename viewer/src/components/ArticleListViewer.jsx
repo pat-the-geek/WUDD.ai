@@ -11,6 +11,7 @@ import EntityHighlighter from './EntityHighlighter'
 import { openInObsidian } from '../utils/obsidian'
 import TTSButton from './TTSButton'
 import useFacePosition from '../hooks/useFacePosition'
+import { detectImageFocus } from '../utils/faceDetection'
 import SimilarArticlesPanel from './SimilarArticlesPanel'
 
 const loadEntityArticlePanel = () => import('./EntityArticlePanel')
@@ -221,6 +222,301 @@ function ImageLightbox({ url, alt, onClose }) {
         title="Fermer"
       >
         <X size={16} />
+      </button>
+    </div>
+  )
+}
+
+// ── Cadrage immersif sur le visage ────────────────────────────────────────────
+const FACE_TARGET_H = 0.5   // hauteur cible du visage (fraction de l'écran)
+const FACE_FOCUS_Y  = 0.40  // position verticale des yeux dans l'écran
+const FACE_MAX_ZOOM = 2.2   // zoom max relatif au cover (limite le flou)
+const FACE_FALLBACK = { size: 'cover', position: '50% 35%' }
+
+/**
+ * Calcule { backgroundSize, backgroundPosition } pour agrandir l'image sur le
+ * visage détecté : le visage occupe ~FACE_TARGET_H de la hauteur de l'écran et
+ * les yeux sont placés à FACE_FOCUS_Y (tiers supérieur). Zoom borné par
+ * FACE_MAX_ZOOM pour éviter le flou. Renvoie un cadrage cover simple sans visage.
+ */
+function computeFaceFrame(face, vW, vH) {
+  if (!face || !face.imgW || !face.imgH || !vW || !vH) return FACE_FALLBACK
+  const { box, imgW, imgH } = face
+  const coverScale = Math.max(vW / imgW, vH / imgH)
+  const faceHpx = box.h * imgH
+  let S = faceHpx > 0 ? (FACE_TARGET_H * vH) / faceHpx : coverScale
+  S = Math.max(coverScale, Math.min(S, coverScale * FACE_MAX_ZOOM)) // jamais sous le cover
+
+  const sW = imgW * S, sH = imgH * S
+  const eyeXn = box.x + box.w / 2
+  const eyeYn = box.y + box.h * 0.40
+  const excessX = sW - vW, excessY = sH - vH
+  const c01 = v => Math.max(0, Math.min(1, v))
+  const pX = excessX > 1 ? c01((eyeXn * sW - vW * 0.5) / excessX) : 0.5
+  const pY = excessY > 1 ? c01((eyeYn * sH - vH * FACE_FOCUS_Y) / excessY) : 0.5
+
+  return { size: `${Math.round(sW)}px ${Math.round(sH)}px`, position: `${Math.round(pX * 100)}% ${Math.round(pY * 100)}%` }
+}
+
+/**
+ * Cadrage cover (sans zoom) centré sur le sujet principal détecté par saillance.
+ * Place le centroïde du sujet au centre horizontal et à 45 % verticalement, sur
+ * l'axe qui déborde. Pas de zoom → aucun flou ajouté.
+ */
+function computeSubjectFrame(focus, vW, vH) {
+  if (!focus || !focus.imgW || !focus.imgH || !vW || !vH) return FACE_FALLBACK
+  const { cx, cy, imgW, imgH } = focus
+  const coverScale = Math.max(vW / imgW, vH / imgH)
+  const sW = imgW * coverScale, sH = imgH * coverScale
+  const excessX = sW - vW, excessY = sH - vH
+  const c01 = v => Math.max(0, Math.min(1, v))
+  const pX = excessX > 1 ? c01((cx * sW - vW * 0.5) / excessX) : 0.5
+  const pY = excessY > 1 ? c01((cy * sH - vH * 0.45) / excessY) : 0.5
+  return { size: 'cover', position: `${Math.round(pX * 100)}% ${Math.round(pY * 100)}%` }
+}
+
+/** Taille de police adaptée à la longueur du titre : court → grande police, long → petite. */
+function immersiveTitleClass(len) {
+  if (len <= 30)  return 'text-[2rem] leading-[1.1]'
+  if (len <= 60)  return 'text-[1.6rem] leading-[1.12]'
+  if (len <= 100) return 'text-[1.3rem] leading-snug'
+  if (len <= 150) return 'text-[1.1rem] leading-snug'
+  return 'text-[0.95rem] leading-snug'
+}
+
+/** Parse une backgroundPosition "NN% MM%" en [x, y] numériques (défaut 50/35). */
+function parsePosition(pos) {
+  const m = String(pos || '').match(/(-?\d+(?:\.\d+)?)%\s+(-?\d+(?:\.\d+)?)%/)
+  return m ? [parseFloat(m[1]), parseFloat(m[2])] : [50, 35]
+}
+
+/** Une diapositive plein écran du mode immersif (image cover recadrée sur le sujet + titre overlay). */
+function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummary, panX = 0 }) {
+  const imgUrl = firstImage(article['Images'])
+  // Cadrage agrandi sur le visage dominant (yeux au tiers supérieur), calculé
+  // pour le ratio du viewport et recalculé à la rotation/redimensionnement.
+  const [frame, setFrame] = useState(FACE_FALLBACK)
+  useEffect(() => {
+    if (!imgUrl) { setFrame(FACE_FALLBACK); return }
+    let cancelled = false
+    let focus = null
+    const apply = () => {
+      if (cancelled) return
+      const vW = window.innerWidth, vH = window.innerHeight
+      if (!focus) { setFrame(FACE_FALLBACK); return }
+      setFrame(focus.kind === 'face'
+        ? computeFaceFrame(focus, vW, vH)
+        : computeSubjectFrame(focus, vW, vH))
+    }
+    detectImageFocus(imgUrl).then(f => { focus = f; apply() })
+    window.addEventListener('resize', apply)
+    window.addEventListener('orientationchange', apply)
+    return () => {
+      cancelled = true
+      window.removeEventListener('resize', apply)
+      window.removeEventListener('orientationchange', apply)
+    }
+  }, [imgUrl])
+  const titre  = article['Titre']?.trim() || article['Sources'] || '—'
+  const resume = article['Résumé'] || ''
+  const source = article['Sources'] || ''
+  const date   = formatDate(article['Date de publication'])
+
+  // Pan horizontal : décale la position X du cadrage pour explorer les parties
+  // de l'image masquées par le recadrage (visible uniquement sur la diapo courante).
+  const [baseX, baseY] = parsePosition(frame.position)
+  const posX = Math.max(0, Math.min(100, baseX + panX))
+  const bgPosition = `${posX}% ${baseY}%`
+
+  return (
+    <div
+      className="absolute inset-0 will-change-transform"
+      style={{
+        transform: `translateY(calc(${offset * 100}% + ${drag}px))`,
+        transition: dragging ? 'none' : 'transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)',
+      }}
+    >
+      {imgUrl ? (
+        <div
+          role="img"
+          aria-label={titre}
+          className="w-full h-full bg-slate-900 bg-no-repeat select-none pointer-events-none"
+          style={{
+            backgroundImage: `url("${imgUrl}")`,
+            backgroundSize: frame.size,
+            backgroundPosition: bgPosition,
+          }}
+        />
+      ) : (
+        <div className="w-full h-full bg-slate-900" />
+      )}
+
+      {/* Scrim bas pour garantir le contraste du texte sans masquer l'image */}
+      <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/85 via-black/30 to-transparent pointer-events-none" />
+
+      {/* Bloc texte cadré en bas à gauche */}
+      <div
+        className="absolute left-0 right-0 bottom-0 px-4"
+        style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+      >
+        <div className="inline-block max-w-[94%] rounded-2xl bg-black/35 backdrop-blur-md px-4 py-3 shadow-xl shadow-black/30">
+          {(source || date) && (
+            <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-white/85 min-w-0">
+              {source && <span className="bg-white/15 px-2.5 py-0.5 rounded-full truncate max-w-[60%]">{source}</span>}
+              {date && <span className="text-white/65 normal-case font-medium tracking-normal whitespace-nowrap shrink-0">{date}</span>}
+            </div>
+          )}
+          <h2 className={`font-bold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] ${immersiveTitleClass(titre.length)}`}>
+            {titre}
+          </h2>
+          {isCurrent && showSummary && resume && (
+            <div
+              className="mt-3 max-h-[40vh] overflow-y-auto overscroll-contain touch-pan-y rounded-xl bg-black/40 p-3 text-[0.9rem] leading-relaxed text-white/95"
+              onTouchStart={e => e.stopPropagation()}
+              onTouchMove={e => e.stopPropagation()}
+            >
+              {resume}
+            </div>
+          )}
+          {isCurrent && resume && (
+            <div className="mt-2 text-[11px] text-white/55">
+              {showSummary ? 'Appuyez pour masquer le résumé' : 'Appuyez pour afficher le résumé'}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Mode immersif plein écran (mobile) : chaque article occupe tout l'écran,
+ * image agrandie (cover) recadrée sur le sujet, titre overlay en bas à gauche.
+ * Navigation par swipe vertical aimanté ; un appui affiche/masque le résumé.
+ */
+function ImmersiveViewer({ articles, startIndex, onClose }) {
+  const last = articles.length - 1
+  const [current, setCurrent]   = useState(Math.min(Math.max(startIndex, 0), Math.max(last, 0)))
+  const [drag, setDrag]         = useState(0)
+  const [dragX, setDragX]       = useState(0)   // décalage horizontal en cours (pan image)
+  const [panX, setPanX]         = useState(0)   // pan horizontal validé (points de %)
+  const [dragging, setDragging] = useState(false)
+  const [showSummary, setShowSummary] = useState(false)
+  const startY = useRef(0)
+  const startX = useRef(0)
+  const axis   = useRef(null)   // 'h' (pan image) | 'v' (navigation) — verrouillé au 1er mouvement
+  const moved  = useRef(false)
+
+  const goNext = useCallback(() => setCurrent(c => Math.min(c + 1, last)), [last])
+  const goPrev = useCallback(() => setCurrent(c => Math.max(c - 1, 0)), [])
+
+  // Réinitialise résumé + pan horizontal à chaque changement d'article
+  useEffect(() => { setShowSummary(false); setPanX(0); setDragX(0) }, [current])
+
+  // Pan horizontal appliqué à la diapo courante : pan validé + glissement en cours.
+  // Un glissement d'une largeur d'écran ≈ 100 points de %. Doigt vers la droite →
+  // on révèle la gauche de l'image (position X décroît).
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1
+  const appliedPan = panX - (dragX / vw) * 100
+
+  // Verrouille le scroll de l'arrière-plan tant que le viewer est ouvert
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  // Raccourcis clavier (desktop / debug)
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key === 'Escape') onClose()
+      else if (e.key === 'ArrowDown') goNext()
+      else if (e.key === 'ArrowUp') goPrev()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose, goNext, goPrev])
+
+  const onTouchStart = e => {
+    startY.current = e.touches[0].clientY
+    startX.current = e.touches[0].clientX
+    axis.current = null
+    moved.current = false
+    setDragging(true)
+  }
+  const onTouchMove = e => {
+    const dy = e.touches[0].clientY - startY.current
+    const dx = e.touches[0].clientX - startX.current
+    // Verrouille l'axe au premier mouvement franc : horizontal → pan image,
+    // vertical → navigation entre articles.
+    if (axis.current === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+      axis.current = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v'
+      moved.current = true
+    }
+    if (axis.current === 'h') {
+      setDragX(dx)
+    } else if (axis.current === 'v') {
+      // Résistance élastique aux extrémités
+      const atEdge = (current === 0 && dy > 0) || (current === last && dy < 0)
+      setDrag(atEdge ? dy * 0.3 : dy)
+    }
+  }
+  const onTouchEnd = () => {
+    setDragging(false)
+    if (axis.current === 'h') {
+      // Valide le pan horizontal (borné large ; la diapo clampe la position 0–100 %)
+      setPanX(p => Math.max(-100, Math.min(100, p - (dragX / vw) * 100)))
+      setDragX(0)
+      axis.current = null
+      return
+    }
+    const threshold = (typeof window !== 'undefined' ? window.innerHeight : 800) * 0.14
+    if (drag <= -threshold && current < last) goNext()
+    else if (drag >= threshold && current > 0) goPrev()
+    else if (!moved.current) setShowSummary(s => !s)
+    setDrag(0)
+    axis.current = null
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] bg-black overflow-hidden touch-none select-none"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {articles.map((a, i) =>
+        Math.abs(i - current) <= 1 ? (
+          <ImmersiveSlide
+            key={a['URL'] ?? i}
+            article={a}
+            offset={i - current}
+            drag={drag}
+            dragging={dragging}
+            isCurrent={i === current}
+            showSummary={showSummary}
+            panX={i === current ? appliedPan : 0}
+          />
+        ) : null
+      )}
+
+      {/* Compteur */}
+      <div
+        className="absolute left-4 z-10 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md text-white/85 text-xs font-medium tabular-nums pointer-events-none"
+        style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
+      >
+        {current + 1} / {articles.length}
+      </div>
+
+      {/* Fermer */}
+      <button
+        onClick={onClose}
+        onTouchStart={e => e.stopPropagation()}
+        aria-label="Fermer le mode plein écran"
+        className="absolute right-4 z-10 w-10 h-10 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-transform"
+        style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
+      >
+        <X size={20} />
       </button>
     </div>
   )
@@ -473,7 +769,7 @@ function hasObsidianReport(article, localReportsByUrl) {
 }
 
 /** Carte article complète (vue grille / large) — style Liquid Glass. */
-function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, onWarmEntityDialog, onWarmReportDialog, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged, localRapports = [], onOpenFile, isExpanded, onToggleExpanded }) {
+function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, onWarmEntityDialog, onWarmReportDialog, annotation, onAnnotate, filePath, availableProviders, isFirstUnread, isLarge, obsidianVault, onMerged, localRapports = [], onOpenFile, isExpanded, onToggleExpanded, onImmersive }) {
   const heroRef = useRef(null)
   const [localExpanded, setLocalExpanded]         = useState(index < 3)
   const [lightbox, setLightbox]                   = useState(false)
@@ -603,7 +899,11 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
         <button
           ref={heroRef}
           type="button"
-          onClick={() => setLightbox(true)}
+          onClick={() => {
+            // Sur mobile : ouvre le mode immersif plein écran (toute la liste) ; sinon lightbox classique
+            if (onImmersive && typeof window !== 'undefined' && window.innerWidth < 768) onImmersive(index)
+            else setLightbox(true)
+          }}
           className={`group relative w-full ${isLarge ? 'h-[432px] sm:h-[576px]' : 'h-44 sm:h-52'} overflow-hidden bg-slate-100 dark:bg-slate-900 block text-left`}
           title="Agrandir l'image"
         >
@@ -945,6 +1245,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   const [selectedSources, setSelectedSources] = useState(new Set())
   const [selectedEntity, setSelectedEntity]   = useState(null) // { type, value }
   const [reportArticle, setReportArticle]     = useState(null) // article pour le rapport complet
+  const [immersiveIndex, setImmersiveIndex]   = useState(null) // index article ouvert en mode immersif plein écran (mobile)
   const [localReports, setLocalReports]       = useState({})   // rapports sauvegardés dans la session courante, par URL
   const [typesOpen, setTypesOpen]             = useState(false)
   const [sourcesOpen, setSourcesOpen]         = useState(false)
@@ -1735,6 +2036,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
                 isFirstUnread={article['URL'] === firstUnreadUrl}
                 obsidianVault={obsidianVault}
                 isLarge
+                onImmersive={setImmersiveIndex}
                 localRapports={localReports[article['URL']] || []}
                 onMerged={url => { pendingScrollUrlRef.current = url; onMerged?.() }}
                 onOpenFile={onOpenFile}
@@ -1781,6 +2083,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
                 localRapports={localReports[article['URL']] || []}
                 onMerged={url => { pendingScrollUrlRef.current = url; onMerged?.() }}
                 onOpenFile={onOpenFile}
+                onImmersive={setImmersiveIndex}
                 isExpanded={expandedRows.has(rowIndex)}
                 onToggleExpanded={() => toggleGridRowExpansion(rowIndex)}
               />
@@ -1823,6 +2126,14 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           />
         )}
       </Suspense>
+
+      {immersiveIndex !== null && displayedArticles.length > 0 && (
+        <ImmersiveViewer
+          articles={displayedArticles}
+          startIndex={immersiveIndex}
+          onClose={() => setImmersiveIndex(null)}
+        />
+      )}
     </div>
   )
 })
