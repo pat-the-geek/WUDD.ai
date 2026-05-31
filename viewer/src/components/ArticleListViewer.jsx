@@ -410,6 +410,12 @@ function ImmersiveViewer({ articles, startIndex, onClose }) {
   const goNext = useCallback(() => setCurrent(c => Math.min(c + 1, last)), [last])
   const goPrev = useCallback(() => setCurrent(c => Math.max(c - 1, 0)), [])
 
+  // On remonte l'index courant à la fermeture pour que la liste sous-jacente
+  // se synchronise sur le dernier article consulté (cf. ArticleListViewer).
+  const currentRef = useRef(current)
+  currentRef.current = current
+  const handleClose = useCallback(() => onClose(currentRef.current), [onClose])
+
   // Réinitialise résumé + pan horizontal à chaque changement d'article
   useEffect(() => { setShowSummary(false); setPanX(0); setDragX(0) }, [current])
 
@@ -429,13 +435,13 @@ function ImmersiveViewer({ articles, startIndex, onClose }) {
   // Raccourcis clavier (desktop / debug)
   useEffect(() => {
     const onKey = e => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') handleClose()
       else if (e.key === 'ArrowDown') goNext()
       else if (e.key === 'ArrowUp') goPrev()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, goNext, goPrev])
+  }, [handleClose, goNext, goPrev])
 
   const onTouchStart = e => {
     startY.current = e.touches[0].clientY
@@ -510,7 +516,7 @@ function ImmersiveViewer({ articles, startIndex, onClose }) {
 
       {/* Fermer */}
       <button
-        onClick={onClose}
+        onClick={handleClose}
         onTouchStart={e => e.stopPropagation()}
         aria-label="Fermer le mode plein écran"
         className="absolute right-4 z-10 w-10 h-10 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-transform"
@@ -1339,6 +1345,7 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
   const gridRef             = useRef(null)   // ref sur le div de la vue grille/large (pour compatibilité interne)
   const scrolledFileRef     = useRef(null)   // filePath pour lequel on a déjà défilé (évite la course avec le reset des filtres)
   const pendingScrollUrlRef = useRef(null)   // URL source d'une fusion — scroll après rechargement
+  const pendingImmersiveScrollRef = useRef(null)   // URL du dernier article vu en mode immersif — scroll en haut de liste à la fermeture
   // Capture le snapshot des annotations au moment du chargement du fichier
   const annotationsRef = useRef(annotations)
   useEffect(() => { annotationsRef.current = annotations })
@@ -1562,6 +1569,21 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }, [articles])
+
+  // À la fermeture du mode immersif (mobile) : on amène le dernier article consulté
+  // en haut de la liste. L'article peut être au-delà de visibleCount : le handler de
+  // fermeture augmente visibleCount, et cet effet se redéclenche (dép. visibleCount)
+  // jusqu'à ce que l'élément soit présent dans le DOM.
+  useEffect(() => {
+    const url = pendingImmersiveScrollRef.current
+    if (!url || immersiveIndex !== null) return
+    const el = containerRef.current?.querySelector(`[data-article-url="${CSS.escape(url)}"]`)
+    if (!el) return
+    pendingImmersiveScrollRef.current = null
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ block: 'start' })
+    })
+  }, [immersiveIndex, visibleCount])
 
   // Défile vers le premier article non lu après le rendu de la liste.
   // scrolledFileRef stocke le filePath du dernier scroll — on ne scrolle qu'une fois par fichier,
@@ -2131,7 +2153,17 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
         <ImmersiveViewer
           articles={displayedArticles}
           startIndex={immersiveIndex}
-          onClose={() => setImmersiveIndex(null)}
+          onClose={(lastIndex) => {
+            setImmersiveIndex(null)
+            if (typeof lastIndex === 'number' && lastIndex >= 0 && lastIndex < displayedArticles.length) {
+              const url = displayedArticles[lastIndex]?.['URL']
+              if (url) {
+                pendingImmersiveScrollRef.current = url
+                // S'assure que l'article visé est rendu (au-delà de la tranche paginée)
+                setVisibleCount(c => Math.max(c, lastIndex + 1))
+              }
+            }
+          }}
         />
       )}
     </div>
