@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from .date_utils import parse_article_date
 from .logging import default_logger
 
 # v3 : force une reconstruction quand l'index existant a été généré avant
@@ -81,6 +82,33 @@ def _cap_score(s: str) -> int:
 def _normalize_entity_key(etype: str, name: str) -> str:
     """Retourne la clé d'index normalisée (valeur en minuscules)."""
     return f"{etype}:{name.strip().lower()}"
+
+
+def _normalize_index_date(date_raw: str) -> str:
+    """Normalise une date d'article en ``YYYY-MM-DD`` pour l'index.
+
+    Le cutoff de fraîcheur (``load_articles(cutoff_date=…)``) compare les dates
+    **lexicographiquement**. Une date stockée brute au format RFC 2822
+    (``"Mon, 04 May 2026 13:21:25 GMT"``) commence par une lettre — qui est
+    supérieure à ``"2"`` — et passerait donc TOUT cutoff ``"YYYY-MM-DD"``,
+    faisant paraître l'article frais à vie. On normalise via
+    ``parse_article_date`` (DD/MM/YYYY, ISO, RFC 2822…) pour éviter ce piège.
+
+    Repli : si le parsing échoue, on tente l'ancien découpage DD/MM/YYYY ; en
+    dernier ressort on ne stocke qu'une chaîne commençant par un chiffre (jamais
+    une date brute non comparable qui fausserait le cutoff), sinon ``""``.
+    """
+    if not date_raw:
+        return ""
+    dt = parse_article_date(date_raw)
+    if dt is not None:
+        return dt.strftime("%Y-%m-%d")
+    date_short = date_raw[:10]
+    if "/" in date_short:
+        parts = date_short.split("/")
+        if len(parts) == 3:
+            return f"{parts[2]}-{parts[1]}-{parts[0]}"
+    return date_short if date_short[:1].isdigit() else ""
 
 
 def _update_caps(caps: dict, key: str, name: str) -> None:
@@ -253,13 +281,7 @@ class EntityIndex:
                 entities = article.get("entities", {})
                 if not isinstance(entities, dict):
                     continue
-                date_raw = article.get("Date de publication", "")
-                date_short = date_raw[:10] if date_raw else ""
-                # Normaliser le format de date court (DD/MM/YYYY → YYYY-MM-DD)
-                if date_short and "/" in date_short:
-                    parts = date_short.split("/")
-                    if len(parts) == 3:
-                        date_short = f"{parts[2]}-{parts[1]}-{parts[0]}"
+                date_short = _normalize_index_date(article.get("Date de publication", ""))
 
                 for etype, names in entities.items():
                     if etype not in _INDEXED_ENTITY_TYPES:
@@ -309,12 +331,7 @@ class EntityIndex:
                         entities = article.get("entities", {})
                         if not isinstance(entities, dict):
                             continue
-                        date_raw = article.get("Date de publication", "")
-                        date_short = date_raw[:10] if date_raw else ""
-                        if date_short and "/" in date_short:
-                            parts = date_short.split("/")
-                            if len(parts) == 3:
-                                date_short = f"{parts[2]}-{parts[1]}-{parts[0]}"
+                        date_short = _normalize_index_date(article.get("Date de publication", ""))
                         for etype, names in entities.items():
                             if etype not in _INDEXED_ENTITY_TYPES:
                                 continue

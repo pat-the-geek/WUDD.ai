@@ -160,6 +160,24 @@ def _article_sort_key(article: dict):
     return dt or datetime.min
 
 
+def _is_fresh(article: dict, window_days: int) -> bool:
+    """Vrai si la date de publication RÉELLE de l'article est < window_days jours.
+
+    Re-vérification défensive : ne se fie pas à la seule date de l'index. Une
+    date mal normalisée (ex. RFC 2822 stockée brute) pouvait passer le
+    ``cutoff_date`` lexicographique de l'index et faire paraître un vieil article
+    frais. On reparse ici la date du champ ``Date de publication`` et on écarte
+    tout ce qui ne tombe pas dans la fenêtre (date non parsable → écarté : on ne
+    notifie jamais un article dont la fraîcheur n'est pas prouvée).
+    """
+    dt = parse_article_date(article.get("Date de publication", ""), date_only_policy="end")
+    if dt is None:
+        return False
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt >= datetime.now(timezone.utc) - timedelta(days=window_days)
+
+
 def collect_candidates(project_root: Path, watched: list[dict], window_days: int) -> list[dict]:
     """Retourne les articles récents mentionnant une entité surveillée.
 
@@ -185,6 +203,9 @@ def collect_candidates(project_root: Path, watched: list[dict], window_days: int
         for art in arts:
             url = (art.get("URL") or "").strip()
             if not url or url in seen_urls:
+                continue
+            # Garde-fou de fraîcheur sur la VRAIE date (pas seulement l'index).
+            if not _is_fresh(art, window_days):
                 continue
             seen_urls.add(url)
             candidates.append({
