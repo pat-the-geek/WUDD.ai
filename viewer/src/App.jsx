@@ -1041,7 +1041,7 @@ function AppShell({ nextRssLabel, rssStatus, authUser, onLogout }) {
       {/* ── Corps principal ── */}
       {/* iPhone : réserve haute minimale sans décalage négatif (évite les artefacts visuels). */}
       <div
-        className="flex flex-1 overflow-hidden relative pb-16 md:pb-0"
+        className="flex flex-1 overflow-hidden relative"
         style={{ paddingTop: isIPhone ? '0px' : 'env(safe-area-inset-top)' }}
       >
         {showPortBadge && (
