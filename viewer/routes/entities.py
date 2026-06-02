@@ -194,6 +194,43 @@ def _canonicalize_watched_entity(entity_type: str, entity_value: str) -> tuple[s
     return canonicalizer.canonicalize(entity_type, entity_value)
 
 
+# Types retenus pour l'auto-correction d'une entité surveillée. On ne corrige
+# pas vers des types « bruit » (DATE, CARDINAL, PERCENT, MONEY, TIME…).
+_WATCH_CANDIDATE_TYPES = (
+    "PERSON", "ORG", "GPE", "LOC", "PRODUCT", "EVENT",
+    "DISEASE", "NORP", "FAC", "LAW", "WORK_OF_ART",
+)
+
+
+def _autocorrect_watched_entity(entity_type: str, entity_value: str) -> tuple[str, str]:
+    """Auto-corrige (silencieusement) le type et la casse d'une entité surveillée
+    d'après la liste des entités réellement détectées (``entity_index``).
+
+    - Type : retient celui qui compte le plus de mentions pour cette valeur
+      (corrige p. ex. ``ORG:AI Act`` → ``LAW:AI Act`` si le corpus l'atteste).
+    - Casse : applique la forme canonique d'affichage (``caps``) du corpus.
+    - Si la valeur est absente du corpus (0 mention, tous types confondus), on
+      conserve le type/valeur fournis (on ne devine pas une entité inexistante).
+
+    Robuste : toute erreur (index absent, etc.) renvoie l'entrée d'origine.
+    """
+    try:
+        idx = get_entity_index(PROJECT_ROOT)
+        best_type = entity_type
+        best_count = len(idx.get_refs(entity_type, entity_value))
+        for t in _WATCH_CANDIDATE_TYPES:
+            if t == entity_type:
+                continue
+            cnt = len(idx.get_refs(t, entity_value))
+            if cnt > best_count:
+                best_type, best_count = t, cnt
+        if best_count == 0:
+            return entity_type, entity_value
+        return best_type, idx.get_display_name(best_type, entity_value)
+    except Exception:
+        return entity_type, entity_value
+
+
 def _watched_file_stamp() -> tuple:
     """Empreinte filesystem du fichier watchlist (mtime_ns, taille, inode).
 
@@ -2866,6 +2903,10 @@ def api_watched_post():
     if not requested_type or not requested_value:
         return jsonify({"error": "Champs type et value requis"}), 400
     etype, value = _canonicalize_watched_entity(requested_type, requested_value)
+    # Contrôle qualité : auto-correction silencieuse du type et de la casse
+    # d'après la liste des entités réellement détectées (entity_index). Appliqué
+    # aussi côté suppression pour retrouver l'entrée stockée sous sa forme corrigée.
+    etype, value = _autocorrect_watched_entity(etype, value)
 
     with _watched_lock:
         watched = _load_watched()
@@ -2924,6 +2965,10 @@ def api_watched_delete():
     if not requested_type or not requested_value:
         return jsonify({"error": "Paramètres type et value requis"}), 400
     etype, value = _canonicalize_watched_entity(requested_type, requested_value)
+    # Contrôle qualité : auto-correction silencieuse du type et de la casse
+    # d'après la liste des entités réellement détectées (entity_index). Appliqué
+    # aussi côté suppression pour retrouver l'entrée stockée sous sa forme corrigée.
+    etype, value = _autocorrect_watched_entity(etype, value)
 
     with _watched_lock:
         watched = _load_watched()

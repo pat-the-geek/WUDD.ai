@@ -45,6 +45,8 @@ from utils.logging import default_logger
 from utils.config import get_config
 from utils.date_utils import parse_article_date
 from utils.entity_index import get_entity_index
+from utils.deduplication import Deduplicator
+from utils.entity_canonicalization import get_entity_canonicalizer
 
 _WATCHED_FILE = _PROJECT_ROOT / "data" / "watched_entities.json"
 _STATE_FILE = _PROJECT_ROOT / "data" / "watched_article_state.json"
@@ -52,6 +54,20 @@ _STATE_FILE = _PROJECT_ROOT / "data" / "watched_article_state.json"
 _DEFAULT_MAX_PER_RUN = 1     # 1 article max par passage horaire
 _DEFAULT_WINDOW_DAYS = 2     # ne considérer que les articles récents
 _MAX_STATE_URLS = 1000       # borne la taille du fichier d'état
+
+# Dédup inter-sources / inter-entités d'une MÊME histoire (anti-spam) : deux
+# articles couvrant le même événement depuis des sources différentes ont des
+# titres/résumés distincts (résumés générés par article) mais partagent leurs
+# entités nommées saillantes. On déduplique donc par recouvrement d'entités
+# (Jaccard), persisté entre passages, en complément du Deduplicator (doublons
+# exacts URL/texte). Empêche qu'une même histoire soit notifiée plusieurs fois
+# via plusieurs entités surveillées.
+_STORY_SALIENT_TYPES = {
+    "PERSON", "ORG", "LAW", "GPE", "PRODUCT", "EVENT", "WORK_OF_ART", "NORP", "FAC",
+}
+_STORY_SIM_THRESHOLD = 0.5   # Jaccard d'entités ≥ seuil → même histoire
+_STORY_MIN_ENTITIES = 3      # en deçà, signature trop pauvre pour décider
+_MAX_STATE_SIGS = 300        # borne la mémoire des histoires déjà notifiées
 
 # Fenêtre horaire d'envoi des notifications (heure locale du conteneur).
 # 7h00 inclus → 22h00 exclu (dernière notification possible à 21h59).
@@ -141,17 +157,69 @@ def _load_state() -> dict:
         return {}
 
 
-def _save_state(notified_urls: list[str], entity_daily: dict | None = None) -> None:
+def _save_state(
+    notified_urls: list[str],
+    entity_daily: dict | None = None,
+    notified_sigs: list[list[str]] | None = None,
+) -> None:
     try:
         _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "notified": notified_urls[-_MAX_STATE_URLS:],
             "entity_daily": entity_daily or {},
+            # Signatures d'entités des histoires déjà notifiées (dédup inter-sources).
+            "notified_sigs": (notified_sigs or [])[-_MAX_STATE_SIGS:],
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         _STATE_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except OSError as exc:
         default_logger.warning(f"Impossible d'écrire {_STATE_FILE.name} : {exc}")
+
+
+def _entity_signature(article: dict, canonicalizer=None) -> frozenset[str]:
+    """Empreinte d'une histoire = ensemble de ses entités nommées saillantes.
+
+    Robuste entre sources (contrairement au titre/résumé qui varient) : deux
+    articles sur le même événement partagent l'essentiel de leurs entités. Les
+    entités sont canonicalisées (« l'AI Act » → « AI Act ») pour que les
+    variantes ne fassent pas diverger artificiellement la signature.
+    """
+    ents = article.get("entities") or {}
+    if not isinstance(ents, dict):
+        return frozenset()
+    tokens: set[str] = set()
+    for etype, values in ents.items():
+        if etype not in _STORY_SALIENT_TYPES or not isinstance(values, list):
+            continue
+        for v in values:
+            if not isinstance(v, str) or not v.strip():
+                continue
+            if canonicalizer is not None:
+                ctype, cval = canonicalizer.canonicalize(etype, v)
+                tokens.add(f"{ctype}:{cval.strip().lower()}")
+            else:
+                tokens.add(f"{etype}:{v.strip().lower()}")
+    return frozenset(tokens)
+
+
+def _same_story(sig: frozenset[str], seen_sigs: list[frozenset[str]]) -> bool:
+    """Vrai si la signature recouvre fortement (Jaccard ≥ seuil) une histoire vue.
+
+    Ignore les signatures trop pauvres (< _STORY_MIN_ENTITIES) pour éviter de
+    fusionner à tort des articles peu annotés.
+    """
+    if len(sig) < _STORY_MIN_ENTITIES:
+        return False
+    for seen in seen_sigs:
+        if len(seen) < _STORY_MIN_ENTITIES:
+            continue
+        inter = len(sig & seen)
+        if inter == 0:
+            continue
+        union = len(sig | seen)
+        if union and inter / union >= _STORY_SIM_THRESHOLD:
+            return True
+    return False
 
 
 def _article_sort_key(article: dict):
@@ -196,7 +264,12 @@ def collect_candidates(project_root: Path, watched: list[dict], window_days: int
         if not etype or not value:
             continue
         try:
-            arts = eidx.load_articles(etype, value, max_articles=20, cutoff_date=cutoff)
+            # canonicalize=True : fusionne les variantes d'une même entité
+            # (ex. « l'AI Act » → « AI Act ») via config/entity_canonicalization.json,
+            # pour une couverture et un plafond/dédup cohérents.
+            arts = eidx.load_articles(
+                etype, value, max_articles=20, cutoff_date=cutoff, canonicalize=True
+            )
         except Exception as exc:
             default_logger.debug(f"load_articles({etype}:{value}) a échoué : {exc}")
             continue
@@ -377,7 +450,14 @@ def main():
 
     # Sélection : on écarte les articles promotionnels et on limite à
     # 1 notification par entité et par jour (jour calendaire local).
-    entity_daily = dict(_load_state().get("entity_daily", {}))
+    _state = _load_state()
+    entity_daily = dict(_state.get("entity_daily", {}))
+    # Signatures d'entités des histoires déjà notifiées (dédup inter-sources) :
+    # conservées en listes pour la persistance JSON, dérivées en frozensets pour
+    # la comparaison de recouvrement.
+    persisted_sigs: list[list[str]] = [
+        s for s in _state.get("notified_sigs", []) if isinstance(s, list)
+    ]
     today = now.strftime("%Y-%m-%d")
 
     eligible: list[dict] = []
@@ -419,16 +499,37 @@ def main():
     eligible.sort(key=_presence_of)
 
     # Au plus 1 article par entité, même au sein d'un passage à --max > 1.
+    # + Dédup d'une MÊME histoire entre sources/entités : on n'envoie pas un
+    #   article qui couvre un événement déjà notifié (signature d'entités), ni un
+    #   doublon exact (URL/texte via Deduplicator). seen_sigs est amorcé avec les
+    #   histoires déjà notifiées lors des passages précédents (anti-répétition).
     a_notifier: list[dict] = []
     seen_ekeys: set[str] = set()
+    seen_sigs: list[frozenset[str]] = [frozenset(s) for s in persisted_sigs]
+    run_dedup = Deduplicator()
+    canonicalizer = get_entity_canonicalizer(project_root)
+    skipped_story = 0
     for c in eligible:
         if len(a_notifier) >= max(1, args.max):
             break
         ek = c.get("entity_key", "")
         if ek in seen_ekeys:
             continue
+        art = c["article"]
+        sig = _entity_signature(art, canonicalizer)
+        if not args.force and (run_dedup.is_duplicate(art) or _same_story(sig, seen_sigs)):
+            skipped_story += 1
+            continue
         seen_ekeys.add(ek)
+        seen_sigs.append(sig)
+        run_dedup.register(art)
+        c["_story_sig"] = sorted(sig)
         a_notifier.append(c)
+
+    if skipped_story:
+        default_logger.info(
+            f"{skipped_story} article(s) écarté(s) (même histoire déjà notifiée — dédup inter-sources)."
+        )
 
     if a_notifier:
         choix = ", ".join(
@@ -446,7 +547,7 @@ def main():
                     notified.append(url)
                     notified_set.add(url)
             entity_daily = {k: v for k, v in entity_daily.items() if v == today}
-            _save_state(notified, entity_daily)
+            _save_state(notified, entity_daily, persisted_sigs)
         return
 
     default_logger.info(
@@ -478,6 +579,10 @@ def main():
         if ok:
             sent += 1
             entity_daily[ekey] = today
+            # Mémorise la signature de l'histoire notifiée (dédup inter-sources).
+            story_sig = c.get("_story_sig")
+            if story_sig:
+                persisted_sigs.append(story_sig)
             if url and url not in notified_set:
                 notified.append(url)
                 notified_set.add(url)
@@ -491,7 +596,7 @@ def main():
     if not args.dry_run and not args.force:
         # On ne conserve que les entrées du jour : reset quotidien implicite.
         entity_daily = {k: v for k, v in entity_daily.items() if v == today}
-        _save_state(notified, entity_daily)
+        _save_state(notified, entity_daily, persisted_sigs)
 
     default_logger.info(f"{sent} notification(s) envoyée(s).")
 
