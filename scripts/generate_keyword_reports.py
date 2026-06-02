@@ -31,6 +31,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from utils.api_client import get_ai_client
 from utils.logging import print_console
+from utils.date_utils import parse_article_date
 
 def get_month_period():
     now = datetime.now()
@@ -60,18 +61,8 @@ def main():
         filtered = []
         for article in articles:
             pub_date = article.get("Date de publication", "")
-            pub_dt = None
-            # Essayer ISO 8601 (YYYY-MM-DD...)
-            try:
-                pub_dt = datetime.strptime(pub_date[:10], "%Y-%m-%d")
-            except Exception:
-                pass
-            # Essayer RFC822 (ex: Fri, 20 Feb 2026 04:24:00 +0100)
-            if not pub_dt:
-                try:
-                    pub_dt = parsedate_to_datetime(pub_date)
-                except Exception:
-                    pass
+            # Corpus mixte ISO 8601 (avec/sans Z) / DD/MM/YYYY / RFC 2822.
+            pub_dt = parse_article_date(pub_date)
             if not pub_dt:
                 print_console(f"  Article ignoré (date non reconnue) : {pub_date}", level="warning")
                 continue

@@ -26,6 +26,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.logging import print_console, setup_logger, default_logger
+from utils.date_utils import parse_article_date
 
 from utils.config import get_config
 from utils.api_client import get_ai_client
@@ -57,10 +58,15 @@ def get_new_articles_count(json_path: Path, last_run_date: str) -> int:
         return 0
     with open(json_path, 'r', encoding='utf-8') as f:
         articles = json.load(f)
+    # Comparaison datetime (et non lexicographique) : le corpus mêle ISO 8601 et
+    # DD/MM/YYYY, qui ne se trient pas de la même façon en texte brut.
+    cutoff = parse_article_date(last_run_date)
+    if cutoff is None:
+        return 0
     count = 0
     for art in articles:
-        date_pub = art.get("Date de publication", "")
-        if date_pub > last_run_date:
+        dt = parse_article_date(art.get("Date de publication", ""))
+        if dt is not None and dt > cutoff:
             count += 1
     return count
 

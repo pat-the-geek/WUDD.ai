@@ -27,6 +27,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.config import get_config
 from utils.logging import default_logger as LOG
+from utils.date_utils import parse_article_date
 
 # Messages d'erreur reconnus dans les résumés (issus de l'API)
 _ERROR_MARKERS = [
@@ -47,25 +48,9 @@ OUTPUT_FILE = PROJECT_ROOT / "data" / "source_health.json"
 
 
 def _parse_date(d: str) -> datetime | None:
-    """Parse les formats de dates courants."""
-    if not d:
-        return None
-    fmts = [
-        "%Y-%m-%dT%H:%M:%S%z",
-        "%Y-%m-%dT%H:%M:%SZ",
-        "%Y-%m-%dT%H:%M:%S",
-        "%d/%m/%Y",
-        "%Y-%m-%d",
-    ]
-    for fmt in fmts:
-        try:
-            dt = datetime.strptime(d[:19] + ("+00:00" if "Z" in d and "+" not in d else ""), fmt) if "T" in d else datetime.strptime(d[:10], fmt)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            return dt
-        except Exception:
-            continue
-    return None
+    """Datetime UTC (tz-aware) ou None — corpus mixte ISO 8601 / DD/MM/YYYY / RFC 2822."""
+    dt = parse_article_date(d or "")
+    return dt.replace(tzinfo=timezone.utc) if dt is not None else None
 
 
 def _is_error_summary(resume: str) -> bool:

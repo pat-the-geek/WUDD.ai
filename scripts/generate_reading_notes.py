@@ -29,6 +29,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from utils.article_index import get_article_index
 from utils.config import get_config
 from utils.logging import print_console
+from utils.date_utils import parse_article_date
 from utils.scheduler_toggle import should_run_task
 
 ANNOTATIONS_FILE = PROJECT_ROOT / "data" / "annotations.json"
@@ -64,20 +65,12 @@ def build_article_index(project_root: Path) -> dict:
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def parse_date(date_str: str) -> datetime | None:
-    if not date_str:
-        return None
-    try:
-        dt = parsedate_to_datetime(date_str)
-        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
-    except Exception:
-        pass
-    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%d"):
-        try:
-            dt = datetime.strptime(date_str[:19], fmt)
-            return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
-        except Exception:
-            continue
-    return None
+    """Datetime UTC (tz-aware) ou None — corpus mixte ISO 8601 / DD/MM/YYYY / RFC 2822.
+
+    L'ancienne version ne gérait pas le DD/MM/YYYY ni l'ISO sans Z.
+    """
+    dt = parse_article_date(date_str or "")
+    return dt.replace(tzinfo=timezone.utc) if dt is not None else None
 
 
 def format_datetime(date_str: str) -> str:

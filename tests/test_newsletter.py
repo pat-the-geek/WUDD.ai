@@ -228,11 +228,13 @@ class TestGenerateNewsletterHtml:
         result = self._fn()([article])
         assert "https://img.com/photo.jpg" in result
 
-    def test_date_truncated_to_10_chars(self):
+    def test_date_displayed_as_ddmmyyyy(self):
+        # Le corpus mêle ISO 8601 et DD/MM/YYYY : l'affichage est normalisé en
+        # DD/MM/YYYY (format français) au lieu de tronquer la chaîne ISO brute.
         article = self._make_article(**{"Date de publication": "2026-03-06T10:00:00Z"})
         result = self._fn()([article])
-        assert "2026-03-06" in result
-        # Full ISO string should NOT appear
+        assert "06/03/2026" in result
+        # La chaîne ISO complète (heure) ne doit pas apparaître
         assert "T10:00:00" not in result
 
     def test_article_url_defaults_to_hash(self):

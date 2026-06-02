@@ -40,6 +40,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.config import get_config
 from utils.logging import default_logger as LOG
+from utils.date_utils import parse_article_date
 
 # ── Constantes ────────────────────────────────────────────────────────────────
 VEILLE_ROOT = "Veille"          # Dossier racine dans le vault
@@ -106,21 +107,8 @@ def _md5(text: str) -> str:
 
 
 def _parse_date(date_str: str) -> Optional[datetime]:
-    """Tente de parser une date depuis les formats courants WUDD.ai."""
-    if not date_str:
-        return None
-    formats = [
-        "%Y-%m-%dT%H:%M:%SZ",
-        "%d/%m/%Y",
-        "%Y-%m-%d",
-        "%d/%m/%Y %H:%M:%S",
-    ]
-    for fmt in formats:
-        try:
-            return datetime.strptime(date_str.strip(), fmt)
-        except ValueError:
-            continue
-    return None
+    """Datetime naïf ou None — corpus mixte ISO 8601 (avec/sans Z) / DD/MM/YYYY / RFC 2822."""
+    return parse_article_date(date_str or "")
 
 
 def _date_iso(d: datetime) -> str:

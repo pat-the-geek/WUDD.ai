@@ -25,6 +25,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.config import get_config
 from utils.logging import default_logger as LOG
+from utils.date_utils import parse_article_date
 
 
 def _load_profiles(project_root: Path) -> list[dict]:
@@ -171,7 +172,8 @@ def generate_profile_digest(
         for rank, (score, art) in enumerate(top, 1):
             src = art.get("Sources", "Source inconnue")
             url = art.get("URL", "#")
-            date_pub = (art.get("Date de publication") or "")[:10]
+            _dt_pub = parse_article_date(art.get("Date de publication") or "")
+            date_pub = _dt_pub.strftime("%d/%m/%Y") if _dt_pub else (art.get("Date de publication") or "")[:10]
             resume = art.get("Résumé", "") or ""
             resume_lines = [l.strip() for l in resume.splitlines() if l.strip()]
             titre = resume_lines[0] if resume_lines else f"{src} — {date_pub}"

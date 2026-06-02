@@ -38,6 +38,7 @@ from urllib.parse import urlparse
 
 from flask import Blueprint, jsonify, request
 
+from utils.date_utils import parse_article_date
 from viewer.helpers import PROJECT_ROOT, require_json_body
 
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
@@ -440,13 +441,11 @@ def keyword_articles(keyword_id: str):
             cutoff = datetime.now() - timedelta(days=int(days))
             kept: list[dict] = []
             for a in articles:
-                date_str = str(a.get("Date de publication", "")).strip()
-                try:
-                    dt = datetime.strptime(date_str, "%d/%m/%Y")
-                    if dt >= cutoff:
-                        kept.append(a)
-                except ValueError:
-                    continue
+                # Corpus mixte ISO 8601 / DD/MM/YYYY : parsing robuste, sinon
+                # l'ancien strptime("%d/%m/%Y") rendait les articles ISO invisibles.
+                dt = parse_article_date(str(a.get("Date de publication", "")).strip())
+                if dt is not None and dt >= cutoff:
+                    kept.append(a)
             articles = kept
         except ValueError:
             return jsonify({"error": "days doit être un entier"}), 400

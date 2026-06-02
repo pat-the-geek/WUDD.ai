@@ -31,6 +31,7 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
 from utils.config import get_config
 from utils.api_client import get_ai_client
+from utils.date_utils import parse_article_date
 from utils.claim_extractor import extract_claims
 from utils.contradiction_engine import compare_claims_deterministic, arbitrate_with_llm
 
@@ -94,14 +95,8 @@ def jaccard(text_a: str, text_b: str) -> float:
 # ── Chargement des articles ───────────────────────────────────────────────────
 
 def _parse_date(raw: str) -> datetime | None:
-    if not raw:
-        return None
-    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S"):
-        try:
-            return datetime.strptime(raw[:19], fmt)
-        except ValueError:
-            continue
-    return None
+    """Datetime naïf ou None — corpus mixte ISO 8601 / DD/MM/YYYY / RFC 2822."""
+    return parse_article_date(raw or "")
 
 
 def load_articles(days: int = 3, flux: str | None = None) -> list[dict]:
