@@ -31,6 +31,8 @@ except ImportError:
     def print_console(msg, level="info"):
         print(f"[{level.upper()}] {msg}")
 
+from utils.date_utils import parse_article_date
+
 
 ENTITY_TYPES = {"PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "LOC"}
 
@@ -48,16 +50,9 @@ THEMATIC_KEYWORDS = {
 
 
 def _parse_date(date_str: str):
-    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d", "%d/%m/%Y"):
-        try:
-            return datetime.strptime(date_str[:19], fmt).replace(tzinfo=timezone.utc)
-        except ValueError:
-            continue
-    try:
-        from email.utils import parsedate_to_datetime
-        return parsedate_to_datetime(date_str).astimezone(timezone.utc)
-    except Exception:
-        return None
+    """Datetime UTC (tz-aware) ou None — corpus mixte ISO 8601 / DD/MM/YYYY / RFC 2822."""
+    dt = parse_article_date(date_str or "")
+    return dt.replace(tzinfo=timezone.utc) if dt is not None else None
 
 
 def load_articles(project_root: Path, days: int = 7) -> list[dict]:
@@ -149,7 +144,11 @@ def cluster_articles(articles: list[dict], min_similarity: float = 0.15) -> list
         top_entities = sorted(entity_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
         cluster_articles_list = []
-        for art, _ in sorted(group, key=lambda x: x[0].get("Date de publication", ""), reverse=True)[:20]:
+        for art, _ in sorted(
+            group,
+            key=lambda x: _parse_date(x[0].get("Date de publication", "")) or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )[:20]:
             cluster_articles_list.append({
                 "Date de publication": art.get("Date de publication", ""),
                 "Sources": art.get("Sources", ""),

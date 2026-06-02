@@ -226,7 +226,8 @@ def generate_watched_report(project_root: Path, days: int = 7, dry_run: bool = F
             for art in articles:
                 src = art.get("Sources", "")
                 url = art.get("URL", "#")
-                date_pub = art.get("Date de publication", "")[:10]
+                _dt_pub = parse_article_date(art.get("Date de publication", ""))
+                date_pub = _dt_pub.strftime("%d/%m/%Y") if _dt_pub else art.get("Date de publication", "")[:10]
                 resume = art.get("Résumé", "")[:120].replace("\n", " ")
                 lines.append(f"- [{src} — {date_pub}]({url}) : {resume}…")
             lines.append("")

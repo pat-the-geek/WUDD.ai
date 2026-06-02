@@ -25,6 +25,7 @@ from viewer.helpers import PROJECT_ROOT
 from viewer.state import _annotations_lock, _invalidate_files_manifest_cache
 from utils.article_index import get_article_index
 from utils.scoring import get_scoring_engine
+from utils.date_utils import parse_article_date
 
 export_bp = Blueprint("export", __name__)
 
@@ -301,7 +302,10 @@ def api_export_atom():
             if not kw_file.exists():
                 return jsonify({"error": "Fichier keyword introuvable"}), 404
             articles = json.loads(kw_file.read_text(encoding="utf-8"))
-            articles.sort(key=lambda a: a.get("Date de publication", ""), reverse=True)
+            articles.sort(
+                key=lambda a: parse_article_date(a.get("Date de publication", "")) or datetime.datetime.min,
+                reverse=True,
+            )
             from utils.exporters.atom_feed import _FEED_ID_BASE
             xml = generate_atom_feed(
                 articles, feed_title=f"WUDD.ai · {keyword}",
@@ -348,7 +352,10 @@ def api_export_atom():
                                 all_articles.extend(data)
                         except Exception:
                             continue
-            all_articles.sort(key=lambda a: a.get("Date de publication", ""), reverse=True)
+            all_articles.sort(
+                key=lambda a: parse_article_date(a.get("Date de publication", "")) or datetime.datetime.min,
+                reverse=True,
+            )
             xml = generate_atom_feed(all_articles, feed_title="WUDD.ai · Veille complète",
                                      self_url=actual_self_url,
                                      max_entries=max_entries)

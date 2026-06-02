@@ -19,6 +19,7 @@ from flask import Blueprint, jsonify, request, abort, send_file, Response, strea
 from pathlib import Path
 
 from viewer.helpers import safe_path, collect_files, PROJECT_ROOT, require_json_body
+from utils.date_utils import parse_article_date
 from viewer.state import (
     _get_files_manifest,
     _invalidate_bias_cache,
@@ -171,11 +172,15 @@ def api_search():
                     src = art.get("Sources", "").lower()
                     if filter_source not in src:
                         continue
-                date_str = art.get("Date de publication", "")[:10]
-                if filter_from and date_str and date_str < filter_from:
-                    continue
-                if filter_to and date_str and date_str > filter_to:
-                    continue
+                if filter_from or filter_to:
+                    _dt = parse_article_date(art.get("Date de publication", ""))
+                    # Normalisé en YYYY-MM-DD → comparaison fiable avec date_from/
+                    # date_to (corpus mixte ISO 8601 / DD/MM/YYYY).
+                    _day = _dt.strftime("%Y-%m-%d") if _dt else ""
+                    if filter_from and _day and _day < filter_from:
+                        continue
+                    if filter_to and _day and _day > filter_to:
+                        continue
                 # Vérifier si la requête textuelle matche
                 resume = art.get("Résumé", "") or ""
                 if pattern.search(resume) or pattern.search(art.get("URL", "") or "") or pattern.search(art.get("Sources", "") or ""):

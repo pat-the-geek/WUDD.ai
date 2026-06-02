@@ -40,6 +40,7 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from utils.logging import default_logger
+from utils.date_utils import parse_article_date
 from utils.entity_canonicalization import get_entity_canonicalizer
 from utils.entity_index import STRUCTURAL_ENTITY_TYPES
 from utils.entity_matching import (
@@ -58,30 +59,16 @@ _MONITORED_TYPES = {
     "PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "LOC", "FAC", "LAW", "WORK_OF_ART"
 }
 
-_DATE_FMTS = (
-    "%Y-%m-%dT%H:%M:%SZ",
-    "%Y-%m-%d",
-    "%d/%m/%Y",
-)
-
-
 # ── Parsing de date ───────────────────────────────────────────────────────────
 
 def _parse_date(date_str: str) -> datetime | None:
-    """Retourne un datetime UTC ou None."""
-    if not date_str:
-        return None
-    for fmt in _DATE_FMTS:
-        try:
-            return datetime.strptime(date_str[:len(fmt)], fmt).replace(tzinfo=timezone.utc)
-        except ValueError:
-            continue
-    try:
-        from email.utils import parsedate_to_datetime
-        return parsedate_to_datetime(date_str).astimezone(timezone.utc)
-    except Exception:
-        pass
-    return None
+    """Datetime UTC (tz-aware) ou None — corpus mixte ISO 8601 / DD/MM/YYYY / RFC 2822.
+
+    Délègue au parseur canonique (gère l'ISO avec/sans Z et le DD/MM/YYYY) puis
+    réattache UTC pour rester comparable aux datetime tz-aware du script.
+    """
+    dt = parse_article_date(date_str or "")
+    return dt.replace(tzinfo=timezone.utc) if dt is not None else None
 
 
 # ── Collecte ──────────────────────────────────────────────────────────────────

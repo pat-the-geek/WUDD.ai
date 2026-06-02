@@ -36,6 +36,7 @@ from utils.config import get_config
 from utils.logging import print_console
 from utils.scoring import get_scoring_engine
 from utils.scheduler_toggle import should_run_task
+from utils.date_utils import parse_article_date
 
 # Types d'entités pertinentes pour le classement
 ENTITY_TYPES_PERTINENTS = {"PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "FAC", "LOC"}
@@ -282,18 +283,9 @@ def _format_article_card(article: dict, rank: int) -> str:
 
     sent_emoji = SENTIMENT_EMOJI.get(sentiment.lower(), "") if sentiment else ""
 
-    # Date lisible
-    date_label = ""
-    try:
-        from email.utils import parsedate_to_datetime
-        dt = parsedate_to_datetime(date_raw)
-        date_label = dt.strftime("%-d %b %Y, %Hh%M")
-    except Exception:
-        try:
-            dt = datetime.strptime(date_raw[:19], "%Y-%m-%dT%H:%M:%S")
-            date_label = dt.strftime("%-d %b %Y, %Hh%M")
-        except Exception:
-            date_label = date_raw[:10] if date_raw else ""
+    # Date lisible — corpus mixte ISO 8601 / DD/MM/YYYY / RFC 2822.
+    _dt_lbl = parse_article_date(date_raw)
+    date_label = _dt_lbl.strftime("%-d %b %Y, %Hh%M") if _dt_lbl else (date_raw[:10] if date_raw else "")
 
     lines = [f"### {rank}. {titre}"]
     meta_parts = []
@@ -440,7 +432,8 @@ def build_digest_markdown(
         lines.append("| Date | Source | URL |")
         lines.append("|------|--------|-----|")
         for article in top_articles:
-            date_raw = article.get("Date de publication", "")[:10]
+            _dt_ref = parse_article_date(article.get("Date de publication", ""))
+            date_raw = _dt_ref.strftime("%d/%m/%Y") if _dt_ref else article.get("Date de publication", "")[:10]
             source = article.get("Sources", "")
             url = article.get("URL", "")
             if url:

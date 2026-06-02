@@ -26,6 +26,7 @@ from utils.api_client import get_ai_client
 from utils.config import get_config
 from utils.logging import print_console
 from utils.scheduler_toggle import should_run_task
+from utils.date_utils import parse_article_date
 
 # Types d'entités pertinentes pour le classement (personnes, orgs, pays, produits, événements)
 ENTITY_TYPES_PERTINENTS = {"PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "FAC", "LOC"}
@@ -164,13 +165,8 @@ def build_slim_articles(articles: list, top_entities: list, max_per_entity: int 
     # Trier les articles par date (les plus récents d'abord)
     # Supporte les formats RFC 822 (flux_watcher) et DD/MM/YYYY (web_watcher)
     def _safe_date(a: dict):
-        dp = a.get("Date de publication", "")
-        for fmt in (DATE_FORMAT_RSS, "%d/%m/%Y", "%Y-%m-%dT%H:%M:%SZ"):
-            try:
-                return datetime.strptime(dp[:25], fmt)
-            except Exception:
-                continue
-        return datetime.min
+        # Corpus mixte ISO 8601 (avec/sans Z) / DD/MM/YYYY / RFC 2822.
+        return parse_article_date(a.get("Date de publication", "")) or datetime.min
 
     sorted_articles = sorted(articles, key=_safe_date, reverse=True)
 
@@ -373,13 +369,8 @@ def generate_48h_report(dry_run: bool = False) -> None:
         )
 
         def _safe_date_fallback(a: dict):
-            dp = a.get("Date de publication", "")
-            for fmt in (DATE_FORMAT_RSS, "%d/%m/%Y", "%Y-%m-%dT%H:%M:%SZ"):
-                try:
-                    return datetime.strptime(dp[:25], fmt)
-                except Exception:
-                    continue
-            return datetime.min
+            # Corpus mixte ISO 8601 (avec/sans Z) / DD/MM/YYYY / RFC 2822.
+            return parse_article_date(a.get("Date de publication", "")) or datetime.min
 
         slim_articles = sorted(articles, key=_safe_date_fallback, reverse=True)[:50]
         slim_articles = [

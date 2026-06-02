@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from ..date_utils import parse_article_date
 from ..logging import default_logger
 
 
@@ -183,7 +184,11 @@ def generate_atom_from_flux(project_root: Path, flux: str, max_entries: int = 50
             except Exception:
                 continue
 
-    articles.sort(key=lambda a: a.get("Date de publication", ""), reverse=True)
+    # Tri chronologique robuste (corpus mixte ISO 8601 / DD/MM/YYYY / RFC 2822).
+    articles.sort(
+        key=lambda a: parse_article_date(a.get("Date de publication", "")) or datetime.min,
+        reverse=True,
+    )
     return generate_atom_feed(
         articles,
         feed_title=f"WUDD.ai · {flux}",

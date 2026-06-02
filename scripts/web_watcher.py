@@ -39,6 +39,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from utils.api_client import get_ai_client, get_summary_client
 from utils.article_index import get_article_index
+from utils.date_utils import parse_article_date
 from utils.entity_index import get_entity_index
 from utils.logging import print_console
 from utils.quota import get_quota_manager
@@ -157,6 +158,11 @@ def _parse_date(date_str: str, langue: str = "en") -> datetime:
         except (ValueError, TypeError):
             continue
 
+    # Dernier recours multi-format (RFC 2822, ISO avec offset…) avant de se
+    # rabattre sur l'heure courante.
+    dt = parse_article_date(date_str)
+    if dt is not None:
+        return dt
     return datetime.now()
 
 
@@ -427,7 +433,9 @@ def _process_article(
     # Date de publication
     pub_date_str = page["pub_date_str"] or lastmod
     pub_dt = _parse_date(pub_date_str, langue=langue)
-    pub_date_fmt = _fmt_ddmmyyyy(pub_dt)
+    # ISO 8601 avec heure — cohérent avec flux_watcher / get-keyword-from-rss
+    # (mêmes fichiers articles-from-rss/). Le viewer affiche l'heure si présente.
+    pub_date_fmt = pub_dt.isoformat()
 
     # Résumé via API IA
     lang_label = "français" if langue == "fr" else "français (article source en anglais)"
@@ -497,8 +505,8 @@ def _save_and_index_articles(
     """
     existing_articles.sort(
         key=lambda a: (
-            datetime.strptime(a.get("Date de publication", ""), "%d/%m/%Y")
-            if a.get("Date de publication") else datetime.min
+            # parse_article_date gère ISO 8601 (avec heure), DD/MM/YYYY et RFC 2822.
+            parse_article_date(a.get("Date de publication", "")) or datetime.min
         ),
         reverse=True,
     )

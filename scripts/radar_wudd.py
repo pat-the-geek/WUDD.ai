@@ -24,6 +24,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.logging import print_console
 from utils.config import get_config
+from utils.date_utils import parse_article_date
 from utils.api_client import get_ai_client
 
 # ─── CONFIG ──────────────────────────────────────────────────────────────────
@@ -59,12 +60,11 @@ def load_articles(data_dir):
 
 
 def parse_date(raw):
-    if not raw:
-        return None
-    try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except Exception:
-        return None
+    """Datetime naïf ou None — corpus mixte ISO 8601 / DD/MM/YYYY / RFC 2822.
+
+    L'ancienne version ne gérait que l'ISO (rejetait DD/MM/YYYY des vieux articles).
+    """
+    return parse_article_date(raw or "")
 
 
 def split_periods(articles):

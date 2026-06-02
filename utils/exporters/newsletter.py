@@ -23,7 +23,21 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Optional
 
+from ..date_utils import parse_article_date
 from ..logging import default_logger
+
+
+def _display_date_fr(raw: str) -> str:
+    """Formate une date article (ISO 8601, DD/MM/YYYY, RFC 2822) en DD/MM/YYYY.
+
+    Le corpus mélange les formats ; on normalise l'affichage pour éviter de
+    montrer « 2026-05-25 » à côté de « 25/05/2026 ». Repli sur la chaîne brute
+    tronquée si non parsable.
+    """
+    dt = parse_article_date(raw or "")
+    if dt is not None:
+        return dt.strftime("%d/%m/%Y")
+    return (raw or "")[:10]
 
 
 # ── Template HTML ─────────────────────────────────────────────────────────────
@@ -153,7 +167,7 @@ def generate_newsletter_html(
     for article in articles_to_render:
         url = article.get("URL", "#")
         source = article.get("Sources", "Source inconnue")
-        date = article.get("Date de publication", "")[:10]
+        date = _display_date_fr(article.get("Date de publication", ""))
         resume = article.get("Résumé", "")
         if not isinstance(resume, str):
             resume = ""
@@ -225,7 +239,10 @@ def generate_newsletter_from_48h(project_root: Path, title: str = None) -> str:
     if articles and "score_pertinence" in articles[0]:
         articles.sort(key=lambda a: a.get("score_pertinence", 0), reverse=True)
     else:
-        articles.sort(key=lambda a: a.get("Date de publication", ""), reverse=True)
+        articles.sort(
+            key=lambda a: parse_article_date(a.get("Date de publication", "")) or datetime.min,
+            reverse=True,
+        )
 
     return generate_newsletter_html(articles, title=title)
 
@@ -339,17 +356,6 @@ def generate_newsletter_auto(
                 if not isinstance(data, list):
                     continue
                 for art in data:
-                    d = art.get("Date de publication", "")
-                    try:
-                        dt = datetime.fromisoformat(d.replace("Z", "+00:00").replace("/", "-")
-                                                    if "T" in d
-                                                    else datetime.strptime(d, "%d/%m/%Y")
-                                                    .replace(tzinfo=timezone.utc)
-                                                    .isoformat())
-                        if hasattr(dt, "tzinfo"):
-                            pass
-                    except Exception:
-                        pass
                     url = art.get("URL", "")
                     if url and url not in sent_urls:
                         articles.append(art)
@@ -367,7 +373,11 @@ def generate_newsletter_auto(
         scored.sort(key=lambda a: a.get("score_pertinence", 0), reverse=True)
     except Exception as e:
         default_logger.warning(f"[newsletter_auto] ScoringEngine indisponible ({e}), tri par date")
-        scored = sorted(articles, key=lambda a: a.get("Date de publication", ""), reverse=True)
+        scored = sorted(
+            articles,
+            key=lambda a: parse_article_date(a.get("Date de publication", "")) or datetime.min,
+            reverse=True,
+        )
 
     top_articles = scored[:top_n]
     default_logger.info(f"[newsletter_auto] {len(top_articles)} articles sélectionnés sur {len(articles)} éligibles")

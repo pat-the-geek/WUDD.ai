@@ -170,7 +170,7 @@ class ArticleDB:
                 "temps_lecture_label"
             FROM read_json_auto('{glob}', ignore_errors=true)
             WHERE
-                "Date de publication" >= '{cutoff}'
+                {self._date_key_expr()} >= '{cutoff}'
                 AND (
                     json_extract_string(entities, '$.PERSON') LIKE '%{entity_name}%'
                     OR json_extract_string(entities, '$.ORG') LIKE '%{entity_name}%'
@@ -178,7 +178,7 @@ class ArticleDB:
                     OR json_extract_string(entities, '$.PRODUCT') LIKE '%{entity_name}%'
                     OR json_extract_string(entities, '$.EVENT') LIKE '%{entity_name}%'
                 )
-            ORDER BY "Date de publication" DESC
+            ORDER BY {self._date_key_expr()} DESC
             LIMIT 100
         """
         return self._exec(sql)
@@ -197,9 +197,9 @@ class ArticleDB:
                 "Sources" AS source,
                 COUNT(*) AS article_count,
                 ROUND(AVG(TRY_CAST("score_sentiment" AS DOUBLE)), 2) AS avg_score_sentiment,
-                MAX("Date de publication") AS last_article
+                MAX({self._date_key_expr()}) AS last_article
             FROM read_json_auto('{glob}', ignore_errors=true)
-            WHERE "Date de publication" >= '{cutoff}'
+            WHERE {self._date_key_expr()} >= '{cutoff}'
             GROUP BY "Sources"
             ORDER BY article_count DESC
             LIMIT 50
@@ -216,11 +216,11 @@ class ArticleDB:
         glob = self._glob_pattern("articles-from-rss/*.json")
         sql = f"""
             SELECT
-                LEFT("Date de publication", 10) AS date,
+                {self._date_key_expr()} AS date,
                 COUNT(*) AS article_count
             FROM read_json_auto('{glob}', ignore_errors=true)
-            WHERE "Date de publication" >= '{cutoff}'
-            GROUP BY LEFT("Date de publication", 10)
+            WHERE {self._date_key_expr()} >= '{cutoff}'
+            GROUP BY {self._date_key_expr()}
             ORDER BY date ASC
         """
         return self._exec(sql)
@@ -237,7 +237,7 @@ class ArticleDB:
             WITH base AS (
                 SELECT "sentiment"
                 FROM read_json_auto('{glob}', ignore_errors=true)
-                WHERE "Date de publication" >= '{cutoff}'
+                WHERE {self._date_key_expr()} >= '{cutoff}'
                     AND "sentiment" IS NOT NULL
                     AND "sentiment" != ''
             )
@@ -265,7 +265,7 @@ class ArticleDB:
                 COUNT(*) AS article_count,
                 ROUND(AVG(TRY_CAST("score_source" AS DOUBLE)), 1) AS avg_score_source
             FROM read_json_auto('{glob}', ignore_errors=true)
-            WHERE "Date de publication" >= '{cutoff}'
+            WHERE {self._date_key_expr()} >= '{cutoff}'
                 AND "score_source" IS NOT NULL
             GROUP BY "Sources"
             HAVING COUNT(*) >= 3
@@ -288,7 +288,7 @@ class ArticleDB:
                 ROUND(MEDIAN(TRY_CAST("temps_lecture_minutes" AS DOUBLE)), 1) AS median_minutes,
                 COUNT(*) AS total_articles
             FROM read_json_auto('{glob}', ignore_errors=true)
-            WHERE "Date de publication" >= '{cutoff}'
+            WHERE {self._date_key_expr()} >= '{cutoff}'
                 AND "temps_lecture_minutes" IS NOT NULL
         """
         rows = self._exec(sql)
@@ -344,7 +344,7 @@ class ArticleDB:
                     END
                 ) AS ok_status
             FROM read_json_auto('{glob}', ignore_errors=true)
-            WHERE "Date de publication" >= '{cutoff}'
+            WHERE {self._date_key_expr()} >= '{cutoff}'
         """
         rows = self._exec(sql)
         return rows[0] if rows else {
@@ -546,9 +546,9 @@ class ArticleDB:
                 "temps_lecture_label"
             FROM read_json_auto('{glob}', ignore_errors=true)
             WHERE
-                "Date de publication" >= '{cutoff}'
+                {self._date_key_expr()} >= '{cutoff}'
                 AND LOWER("Résumé") LIKE LOWER('%{safe_query}%')
-            ORDER BY "Date de publication" DESC
+            ORDER BY {self._date_key_expr()} DESC
             LIMIT {int(limit)}
         """
         return self._exec(sql)

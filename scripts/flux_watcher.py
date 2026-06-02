@@ -36,6 +36,7 @@ from utils.api_client import get_ai_client, get_summary_client
 from utils.http_utils import fetch_and_extract_text, extract_top_n_largest_images, RSS_FEED_HEADERS, fetch_rss_feed
 from utils.logging import print_console
 from utils.quota import get_quota_manager
+from utils.date_utils import parse_article_date
 from utils.article_index import get_article_index
 from utils.entity_index import get_entity_index
 from utils.rolling_window import update_rolling_window
@@ -108,7 +109,10 @@ def _parse_feed_items(xml_root) -> list:
         try:
             pub_dt = datetime.strptime(pub_date[:25], DATE_FORMAT_RSS)
         except Exception:
-            continue
+            # Flux non conformes RFC 2822 (ISO, dates localisées…) : repli robuste.
+            pub_dt = parse_article_date(pub_date)
+            if pub_dt is None:
+                continue
         normalized.append((title, link, pub_date, pub_dt, desc))
 
     for entry in xml_root.findall(f".//{{{ATOM_NS}}}entry"):
@@ -131,9 +135,12 @@ def _parse_feed_items(xml_root) -> list:
         try:
             pub_dt_aware = datetime.fromisoformat(pub_date_iso.replace("Z", "+00:00"))
             pub_dt = pub_dt_aware.replace(tzinfo=None)
-            pub_date_rfc = pub_dt.strftime(DATE_FORMAT_RSS)
         except Exception:
-            continue
+            # Atom non conforme : repli robuste multi-format.
+            pub_dt = parse_article_date(pub_date_iso)
+            if pub_dt is None:
+                continue
+        pub_date_rfc = pub_dt.strftime(DATE_FORMAT_RSS)
         # Atom : description dans <summary> ou <content>
         desc = _strip_html(
             entry.findtext(f"{{{ATOM_NS}}}summary") or
@@ -341,7 +348,10 @@ def main(dry_run: bool = False) -> None:
 
             article = {
                 "Titre": title,
-                "Date de publication": pub_dt.strftime("%d/%m/%Y"),
+                # ISO 8601 avec heure (pub_dt vient du flux RSS/Atom). Les index
+                # (article_index, entity_index) normalisent via parse_article_date,
+                # et le viewer affiche l'heure quand elle est présente.
+                "Date de publication": pub_dt.isoformat(),
                 "Sources": feed_title,
                 "URL": link,
                 "Résumé": resume,
