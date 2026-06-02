@@ -67,7 +67,11 @@
         { "type": "EVENT", "value": "AI Act" },
         { "type": "PRODUCT", "value": "AI Act" },
         { "type": "PRODUCT", "value": "AI Act européen" },
-        { "type": "ORG", "value": "AI Act European" }
+        { "type": "ORG", "value": "AI Act European" },
+        { "type": "LAW", "value": "l'AI Act" },
+        { "type": "LAW", "value": "l'AI Act européen" },
+        { "type": "ORG", "value": "l'AI Act" },
+        { "type": "EVENT", "value": "l'AI Act" }
       ]
     },
     {

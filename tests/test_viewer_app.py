@@ -662,8 +662,15 @@ class TestEntityRoutes:
 
         watched_file = tmp_path / "watched_entities.json"
         entities_module._watched_cache.clear()
+        # Date récente (dans la fenêtre 7j) pour que le test ne dépende pas du
+        # jour d'exécution.
+        from datetime import datetime, timezone, timedelta
+        recent = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
         mock_idx = MagicMock()
-        mock_idx.get_canonical_refs.return_value = [{"date": "2026-05-09"}]
+        mock_idx.get_canonical_refs.return_value = [{"date": recent}]
+        # Auto-correction (entity_index) : 0 mention détectée → conserve le type
+        # déjà canonicalisé par config (LAW:AI Act), sans le modifier.
+        mock_idx.get_refs.return_value = []
 
         with patch.object(entities_module, "_WATCHED_FILE", watched_file), \
              patch("viewer.routes.entities.get_entity_index", return_value=mock_idx):
@@ -682,6 +689,56 @@ class TestEntityRoutes:
         assert watched[0]["value"] == "AI Act"
         assert watched[0]["mentions_7d"] == 1
         mock_idx.get_canonical_refs.assert_called_with("LAW", "AI Act")
+
+    def test_watched_entities_post_autocorrects_type_and_caps_from_index(self, client, tmp_path):
+        """Contrôle qualité à la création : le type et la casse sont auto-corrigés
+        d'après la liste des entités détectées (entity_index)."""
+        from viewer.routes import entities as entities_module
+
+        watched_file = tmp_path / "watched_entities.json"
+        entities_module._watched_cache.clear()
+        mock_idx = MagicMock()
+        # "anthropic" est détecté comme ORG (5 mentions), jamais comme PERSON.
+        mock_idx.get_refs.side_effect = lambda t, v: ([{"date": "2026-06-01"}] * 5) if t == "ORG" else []
+        mock_idx.get_display_name.return_value = "Anthropic"
+        mock_idx.get_canonical_refs.return_value = []
+
+        with patch.object(entities_module, "_WATCHED_FILE", watched_file), \
+             patch("viewer.routes.entities.get_entity_index", return_value=mock_idx):
+            resp = client.post(
+                "/api/watched-entities",
+                json={"type": "PERSON", "value": "anthropic"},
+                content_type="application/json",
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["type"] == "ORG"            # type auto-corrigé PERSON → ORG
+        assert data["value"] == "Anthropic"     # casse auto-corrigée
+        assert data["requested_type"] == "PERSON"
+
+    def test_watched_entities_post_keeps_unknown_entity_as_is(self, client, tmp_path):
+        """Une entité absente du corpus (0 mention) est conservée telle quelle."""
+        from viewer.routes import entities as entities_module
+
+        watched_file = tmp_path / "watched_entities.json"
+        entities_module._watched_cache.clear()
+        mock_idx = MagicMock()
+        mock_idx.get_refs.return_value = []          # inconnue partout
+        mock_idx.get_canonical_refs.return_value = []
+
+        with patch.object(entities_module, "_WATCHED_FILE", watched_file), \
+             patch("viewer.routes.entities.get_entity_index", return_value=mock_idx):
+            resp = client.post(
+                "/api/watched-entities",
+                json={"type": "ORG", "value": "Entité Inexistante XYZ"},
+                content_type="application/json",
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["type"] == "ORG"
+        assert data["value"] == "Entité Inexistante XYZ"
 
     def test_watched_entities_counts_date_only_yesterday_in_24h_window(self, client, tmp_path):
         from datetime import datetime, timedelta, timezone
