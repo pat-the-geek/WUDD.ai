@@ -443,9 +443,11 @@ function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummar
           )}
           {isCurrent && showSummary && resume && (
             <div
-              className="mt-3 max-h-[40vh] overflow-y-auto overscroll-contain touch-pan-y rounded-xl bg-black/40 p-3 text-[0.9rem] leading-relaxed text-white/95"
+              className="mt-3 max-h-[55vh] overflow-y-auto overscroll-contain touch-pan-y rounded-xl bg-black/40 p-3 text-[0.9rem] leading-relaxed text-white/95"
               onTouchStart={e => e.stopPropagation()}
               onTouchMove={e => e.stopPropagation()}
+              onTouchEnd={e => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
             >
               {resumeMd
                 ? <ReportMarkdownContent md={resumeMd} components={IMMERSIVE_MD_COMPONENTS} />
