@@ -77,13 +77,21 @@ def _save_state(idx: int, total: int, file_path: str, enriched: int) -> None:
 # ── Collecte ─────────────────────────────────────────────────────────────────
 
 def collect_all_json_files(config) -> list[Path]:
-    """Liste triée des fichiers JSON d'articles (rss + flux), hors cache."""
+    """Liste triée des fichiers JSON d'articles (rss + flux), hors cache.
+
+    Exclut `_WUDD.AI_` : ce sont des fichiers DÉRIVÉS (48-heures.json, merged…)
+    reconstruits par flux_watcher — les enrichir est inutile et leur Résumé_md
+    serait immédiatement écrasé. Les articles sources (fichiers par flux/mot-clé)
+    sont enrichis directement.
+    """
     files = []
     rss_dir = config.project_root / "data" / "articles-from-rss"
     if rss_dir.exists():
         for f in sorted(rss_dir.rglob("*.json")):
-            if "cache" not in f.relative_to(rss_dir).parts:
-                files.append(f)
+            parts = f.relative_to(rss_dir).parts
+            if "cache" in parts or "_WUDD.AI_" in parts:
+                continue
+            files.append(f)
     flux_dir = config.project_root / "data" / "articles"
     if flux_dir.exists():
         for f in sorted(flux_dir.rglob("*.json")):
@@ -146,7 +154,7 @@ def enrich_file(json_file: Path, dry_run: bool, force: bool, delay: float,
 
     enriched = 0
     skipped = 0
-    modified = False
+    results: dict[str, str] = {}   # URL → Résumé_md généré (appliqué en merge à l'écriture)
 
     for article in articles:
         if not _in_period(article, since, until):
@@ -173,36 +181,65 @@ def enrich_file(json_file: Path, dry_run: bool, force: bool, delay: float,
 
         md = format_summary_markdown(resume)
         if md:
-            article["Résumé_md"] = md
-            enriched += 1
-            modified = True
+            url = (article.get("URL") or article.get("url") or "").strip()
+            if url:
+                results[url] = md
+                enriched += 1
+            else:
+                skipped += 1
         else:
             # Échec IA : on n'écrit rien, l'article sera retenté plus tard.
             skipped += 1
 
-        if modified and enriched % SAVE_EVERY == 0:
-            _write_atomic(json_file, articles)
-            default_logger.info(f"  ↳ Sauvegarde intermédiaire ({enriched}) → {json_file.name}")
+        if results and enriched % SAVE_EVERY == 0:
+            n = _merge_write(json_file, results)
+            default_logger.info(f"  ↳ Sauvegarde intermédiaire ({n} appliqués) → {json_file.name}")
 
         if delay > 0:
             time.sleep(delay)
 
-    if modified and not dry_run:
-        _write_atomic(json_file, articles)
-        default_logger.info(f"  Sauvegardé → {json_file.name}")
+    if results and not dry_run:
+        n = _merge_write(json_file, results)
+        default_logger.info(f"  Sauvegardé ({n} appliqués) → {json_file.name}")
 
     return enriched, skipped
 
 
-def _write_atomic(json_file: Path, articles: list) -> None:
+def _merge_write(json_file: Path, results: dict) -> int:
+    """Applique les Résumé_md générés sur la version DISQUE la plus récente.
+
+    Re-lit le fichier juste avant d'écrire et ne pose `Résumé_md` que sur les
+    articles dont l'URL correspond. Évite d'écraser les modifications concurrentes
+    (enrichissements NER/sentiment, ajout d'articles par un watcher) survenues
+    pendant le reformatage. Écriture atomique.
+    """
+    try:
+        current = json.loads(json_file.read_text(encoding="utf-8"))
+        if not isinstance(current, list):
+            return 0
+    except (json.JSONDecodeError, OSError) as e:
+        default_logger.warning(f"  Relecture impossible avant écriture {json_file}: {e}")
+        return 0
+
+    applied = 0
+    for art in current:
+        if not isinstance(art, dict):
+            continue
+        url = (art.get("URL") or art.get("url") or "").strip()
+        if url in results:
+            art["Résumé_md"] = results[url]
+            applied += 1
+
     tmp = json_file.with_suffix(".tmp")
     try:
-        tmp.write_text(json.dumps(articles, ensure_ascii=False, indent=4), encoding="utf-8")
+        tmp.write_text(json.dumps(current, ensure_ascii=False, indent=4), encoding="utf-8")
         tmp.replace(json_file)
     except OSError as e:
         default_logger.error(f"  Erreur d'écriture {json_file}: {e}")
         if tmp.exists():
             tmp.unlink()
+        return 0
+    return applied
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────

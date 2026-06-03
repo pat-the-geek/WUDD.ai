@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { lazy, Suspense, useMemo, useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle, Children } from 'react'
 import {
   ExternalLink, ChevronDown, ChevronUp, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import YouTubePanel from './YouTubePanel'
 import ArticleGalleryPanel from './ArticleGalleryPanel'
-import EntityHighlighter from './EntityHighlighter'
+import EntityHighlighter, { EntityHighlighterSegments } from './EntityHighlighter'
 import ReportMarkdownContent from './ReportMarkdownContent'
 import { openInObsidian } from '../utils/obsidian'
 import TTSButton from './TTSButton'
@@ -308,6 +308,40 @@ const IMMERSIVE_MD_COMPONENTS = {
   li: ({ node, ...p }) => <li className="mb-0.5" {...p} />,
 }
 
+// Styles Markdown du résumé formaté (Résumé_md) dans la carte article (thème clair/sombre).
+const CARD_MD_COMPONENTS = {
+  h1: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-[0.95rem] font-bold text-slate-800 dark:text-slate-100 first:mt-0" {...p} />,
+  h2: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-[0.95rem] font-bold text-slate-800 dark:text-slate-100 first:mt-0" {...p} />,
+  h3: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-sm font-bold text-slate-700 dark:text-slate-200 first:mt-0" {...p} />,
+  p:  ({ node, ...p }) => <p className="mb-2 text-slate-600 dark:text-slate-300" {...p} />,
+  strong: ({ node, ...p }) => <strong className="font-semibold text-slate-800 dark:text-slate-100" {...p} />,
+  em: ({ node, ...p }) => <em className="italic" {...p} />,
+  ul: ({ node, ...p }) => <ul className="mb-2 ml-4 list-disc text-slate-600 dark:text-slate-300" {...p} />,
+  li: ({ node, ...p }) => <li className="mb-0.5" {...p} />,
+}
+
+// Remplace les enfants de type chaîne par des segments surlignant les entités
+// (les enfants éléments — strong/em imbriqués — passent tels quels, leur propre
+// rendu surligne leurs chaînes à son tour → couverture récursive).
+function highlightMdChildren(children, entities, onEntityClick) {
+  return Children.map(children, (child, i) =>
+    typeof child === 'string'
+      ? <EntityHighlighterSegments key={i} text={child} entities={entities} onEntityClick={onEntityClick} />
+      : child
+  )
+}
+
+// Construit des composants Markdown qui surlignent les entités dans le texte,
+// en réutilisant le style de `base` (CARD_MD_COMPONENTS / IMMERSIVE_MD_COMPONENTS).
+function makeEntityMdComponents(base, entities, onEntityClick) {
+  const wrapped = {}
+  for (const [tag, Comp] of Object.entries(base)) {
+    wrapped[tag] = ({ node, children, ...rest }) =>
+      <Comp {...rest}>{highlightMdChildren(children, entities, onEntityClick)}</Comp>
+  }
+  return wrapped
+}
+
 // Types affichés sous le titre, par ordre de priorité ; les types numériques /
 // temporels peu informatifs (DATE, CARDINAL, ORDINAL, QUANTITY…) sont masqués.
 const IMMERSIVE_ENTITY_PRIORITY = ['PERSON', 'ORG', 'GPE', 'PRODUCT', 'EVENT', 'NORP', 'LOC', 'FAC', 'WORK_OF_ART', 'LAW', 'MONEY', 'PERCENT', 'LANGUAGE']
@@ -381,6 +415,13 @@ function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummar
   const source = article['Sources'] || ''
   const date   = formatDate(article['Date de publication'])
   const entityChips = useMemo(() => immersiveEntities(article.entities), [article.entities])
+  // Composants Markdown surlignant les entités dans le résumé (non cliquables ici).
+  const immersiveMdComponents = useMemo(
+    () => (article.entities && Object.keys(article.entities).length > 0
+      ? makeEntityMdComponents(IMMERSIVE_MD_COMPONENTS, article.entities, undefined)
+      : IMMERSIVE_MD_COMPONENTS),
+    [article.entities]
+  )
 
   // Pan horizontal : décale la position X du cadrage pour explorer les parties
   // de l'image masquées par le recadrage (visible uniquement sur la diapo courante).
@@ -450,7 +491,7 @@ function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummar
               onClick={e => e.stopPropagation()}
             >
               {resumeMd
-                ? <ReportMarkdownContent md={resumeMd} components={IMMERSIVE_MD_COMPONENTS} />
+                ? <ReportMarkdownContent md={resumeMd} components={immersiveMdComponents} />
                 : resume}
             </div>
           )}
@@ -870,8 +911,14 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
 
   const titre    = article['Titre']?.trim() || ''
   const resume   = displayArticle['Résumé'] ?? ''
+  const resumeMd = displayArticle['Résumé_md'] ?? ''
   const entities = displayArticle.entities ?? null
   const hasEntities = entities && Object.keys(entities).length > 0
+  // Composants Markdown surlignant les entités (déplié) ; sinon styles simples.
+  const summaryMdComponents = useMemo(
+    () => (hasEntities ? makeEntityMdComponents(CARD_MD_COMPONENTS, entities, onEntityClick) : CARD_MD_COMPONENTS),
+    [hasEntities, entities, onEntityClick]
+  )
   const imgUrl   = firstImage(article['Images'])
   const date     = formatDate(article['Date de publication'])
   const time     = formatTime(article['Date de publication'])
@@ -1131,9 +1178,11 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
           onMouseEnter={hasEntities ? onWarmEntityDialog : undefined}
           onFocus={hasEntities ? onWarmEntityDialog : undefined}
         >
-          {hasEntities
-            ? <EntityHighlighter text={resume} entities={entities} onEntityClick={onEntityClick} />
-            : <SearchHighlighter text={resume} query={highlight} />
+          {expanded && resumeMd
+            ? <ReportMarkdownContent md={resumeMd} components={summaryMdComponents} />
+            : hasEntities
+              ? <EntityHighlighter text={resume} entities={entities} onEntityClick={onEntityClick} />
+              : <SearchHighlighter text={resume} query={highlight} />
           }
         </div>
         {(url || resume.length > 300) && (
