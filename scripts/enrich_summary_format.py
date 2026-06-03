@@ -21,6 +21,7 @@ Usage :
     python3 scripts/enrich_summary_format.py --flux Intelligence-artificielle
     python3 scripts/enrich_summary_format.py --dry-run
     python3 scripts/enrich_summary_format.py --force         # Régénère même si Résumé_md existe
+    python3 scripts/enrich_summary_format.py --all --since 2026-06-01   # Limiter à une période
     python3 scripts/enrich_summary_format.py --status
 """
 
@@ -38,6 +39,7 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 from utils.config import get_config
 from utils.logging import default_logger
 from utils.summary_formatter import format_summary_markdown
+from utils.date_utils import parse_article_date
 
 _STATE_FILE = _PROJECT_ROOT / "data" / "enrich_summary_format_state.json"
 _MIN_RESUME_LEN = 60          # En deçà, inutile de structurer en chapitres
@@ -116,8 +118,23 @@ def _looks_like_error(resume: str) -> bool:
 
 # ── Enrichissement ───────────────────────────────────────────────────────────
 
+def _in_period(article: dict, since, until) -> bool:
+    """True si la date de publication de l'article est dans [since, until]."""
+    if since is None and until is None:
+        return True
+    dt = parse_article_date(article.get("Date de publication", ""))
+    if dt is None:
+        return False  # Date inexploitable : exclue d'un filtre de période explicite
+    d = dt.date()
+    if since is not None and d < since:
+        return False
+    if until is not None and d > until:
+        return False
+    return True
+
+
 def enrich_file(json_file: Path, dry_run: bool, force: bool, delay: float,
-                max_articles: int = -1) -> tuple[int, int]:
+                max_articles: int = -1, since=None, until=None) -> tuple[int, int]:
     """Ajoute `Résumé_md` aux articles éligibles. Retourne (enrichis, ignorés)."""
     try:
         articles = json.loads(json_file.read_text(encoding="utf-8"))
@@ -132,6 +149,9 @@ def enrich_file(json_file: Path, dry_run: bool, force: bool, delay: float,
     modified = False
 
     for article in articles:
+        if not _in_period(article, since, until):
+            skipped += 1
+            continue
         resume = article.get("Résumé", "")
         if not isinstance(resume, str) or len(resume) < _MIN_RESUME_LEN or _looks_like_error(resume):
             skipped += 1
@@ -198,8 +218,23 @@ def parse_args():
     p.add_argument("--delay", type=float, default=0.2, help="Délai entre appels IA (s, défaut 0.2)")
     p.add_argument("--max-articles", type=int, default=80, dest="max_articles",
                    help="Plafond de reformatages par exécution (défaut 80, -1 = illimité)")
+    p.add_argument("--since", help="Ne traiter que les articles publiés à partir de cette date (YYYY-MM-DD)")
+    p.add_argument("--until", help="Ne traiter que les articles publiés jusqu'à cette date incluse (YYYY-MM-DD)")
     p.add_argument("--status", action="store_true", help="Affiche l'état Round-Robin et quitte")
     return p.parse_args()
+
+
+def _parse_bound(value: str | None):
+    """Parse une borne de date YYYY-MM-DD en date, ou None."""
+    if not value:
+        return None
+    from datetime import date as _date
+    try:
+        y, m, d = (int(x) for x in value.split("-"))
+        return _date(y, m, d)
+    except (ValueError, AttributeError):
+        default_logger.warning(f"Date invalide ignorée : {value!r} (format attendu YYYY-MM-DD)")
+        return None
 
 
 def main():
@@ -227,6 +262,10 @@ def main():
     default_logger.info(
         f"[Plafond : {limit} reformatages/run]" if limit >= 0 else "[Plafond : illimité]"
     )
+    since = _parse_bound(args.since)
+    until = _parse_bound(args.until)
+    if since or until:
+        default_logger.info(f"[Filtre période : {since or '…'} → {until or '…'}]")
 
     # ── Mode ciblé (--flux / --keyword) ──────────────────────────────────────
     if args.flux or args.keyword:
@@ -240,7 +279,7 @@ def main():
             if limit >= 0 and remaining <= 0:
                 break
             default_logger.info(f"→ {f.relative_to(config.project_root)}")
-            e, s = enrich_file(f, args.dry_run, args.force, args.delay, max_articles=remaining)
+            e, s = enrich_file(f, args.dry_run, args.force, args.delay, max_articles=remaining, since=since, until=until)
             total_e += e
             total_s += s
         default_logger.info(f"=== Terminé : {total_e} enrichis, {total_s} ignorés ===")
@@ -261,7 +300,7 @@ def main():
                 default_logger.info(f"Plafond de {limit} atteint — arrêt.")
                 break
             default_logger.info(f"→ {f.relative_to(config.project_root)}")
-            e, s = enrich_file(f, args.dry_run, args.force, args.delay, max_articles=remaining)
+            e, s = enrich_file(f, args.dry_run, args.force, args.delay, max_articles=remaining, since=since, until=until)
             total_e += e
             total_s += s
         default_logger.info(f"=== Terminé : {total_e} enrichis, {total_s} ignorés ===")
@@ -282,7 +321,7 @@ def main():
         if limit >= 0 and remaining <= 0:
             break
         default_logger.info(f"Round-Robin — fichier {cur_idx + 1}/{total} → {rel}")
-        e, s = enrich_file(json_file, args.dry_run, args.force, args.delay, max_articles=remaining)
+        e, s = enrich_file(json_file, args.dry_run, args.force, args.delay, max_articles=remaining, since=since, until=until)
         total_e += e
         total_s += s
         last_idx = cur_idx
