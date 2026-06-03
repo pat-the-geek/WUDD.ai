@@ -63,6 +63,14 @@ class QuotaManager:
         self._state_mtime_ns = 0
         self._last_disk_sync_ts = 0.0
         self._disk_sync_interval_seconds = 2.0
+        # Chemins capturés à la construction : une instance écrit toujours vers
+        # les fichiers résolus au moment de son __init__. Garantit l'isolation
+        # des tests (paths patchés) sur toute la durée de vie de l'instance —
+        # sinon _persist() écrirait dans le vrai data/quota_state.json après la
+        # sortie du contexte de patch.
+        self._config_path = QUOTA_CONFIG_PATH
+        self._state_path = QUOTA_STATE_PATH
+        self._48h_path = WUDD_48H_PATH
         self._reload()
         # Reset au démarrage si la date de l'état ne correspond pas à aujourd'hui
         # (évite de conserver des compteurs d'un jour précédent si le process
@@ -82,14 +90,14 @@ class QuotaManager:
             self._state = self._build_state_from_48h(today)
             self._persist()
 
-        self._config_mtime_ns = self._safe_mtime_ns(QUOTA_CONFIG_PATH)
-        self._state_mtime_ns = self._safe_mtime_ns(QUOTA_STATE_PATH)
+        self._config_mtime_ns = self._safe_mtime_ns(self._config_path)
+        self._state_mtime_ns = self._safe_mtime_ns(self._state_path)
         self._last_disk_sync_ts = time.monotonic()
 
     def _persist(self) -> None:
         """Écriture atomique de l'état dans data/quota_state.json."""
-        json_write(QUOTA_STATE_PATH, self._state)
-        self._state_mtime_ns = self._safe_mtime_ns(QUOTA_STATE_PATH)
+        json_write(self._state_path, self._state)
+        self._state_mtime_ns = self._safe_mtime_ns(self._state_path)
 
     # ─── API publique ─────────────────────────────────────────────────────────
 
@@ -312,7 +320,13 @@ class QuotaManager:
             self._persist()
 
     def save_config(self, new_config: dict) -> None:
-        """Sauvegarde une nouvelle configuration (depuis l'UI)."""
+        """Sauvegarde une nouvelle configuration (depuis l'UI).
+
+        Fusionne avec la configuration existante sur disque : les clés non
+        fournies dans ``new_config`` conservent leur valeur courante au lieu de
+        retomber silencieusement sur ``DEFAULT_CONFIG`` à la relecture. Évite
+        qu'un payload partiel de l'UI ne réinitialise les quotas non envoyés.
+        """
         allowed_keys = {
             "enabled", "global_daily_limit", "per_keyword_daily_limit",
             "per_source_daily_limit", "per_entity_daily_limit",
@@ -320,17 +334,20 @@ class QuotaManager:
             "adaptive_sorting", "summary_max_lines",
             "ignored_entity_types",
         }
-        config = {k: v for k, v in new_config.items() if k in allowed_keys}
+        # Repartir de la config existante (disque + défauts) et n'écraser que
+        # les clés effectivement fournies par l'appelant.
+        config = self._load_config_from_disk()
+        config.update({k: v for k, v in new_config.items() if k in allowed_keys})
         # Validation des entiers
         for int_key in ("global_daily_limit", "per_keyword_daily_limit", "per_source_daily_limit",
                         "per_entity_daily_limit", "per_run_limit", "global_source_daily_limit",
                         "summary_max_lines"):
             if int_key in config:
                 config[int_key] = max(1, int(config[int_key]))
-        json_write(QUOTA_CONFIG_PATH, config)
+        json_write(self._config_path, config)
         with self._lock:
             self._config = config
-            self._config_mtime_ns = self._safe_mtime_ns(QUOTA_CONFIG_PATH)
+            self._config_mtime_ns = self._safe_mtime_ns(self._config_path)
 
     # ─── Interne ─────────────────────────────────────────────────────────────
 
@@ -375,12 +392,12 @@ class QuotaManager:
         self._last_disk_sync_ts = now
         today = str(date.today())
 
-        config_mtime = self._safe_mtime_ns(QUOTA_CONFIG_PATH)
+        config_mtime = self._safe_mtime_ns(self._config_path)
         if config_mtime != self._config_mtime_ns:
             self._config = self._load_config_from_disk()
             self._config_mtime_ns = config_mtime
 
-        state_mtime = self._safe_mtime_ns(QUOTA_STATE_PATH)
+        state_mtime = self._safe_mtime_ns(self._state_path)
         if state_mtime != self._state_mtime_ns:
             disk_state = self._load_state_from_disk(today)
             if disk_state:
@@ -394,10 +411,10 @@ class QuotaManager:
             return 0
 
     def _load_config_from_disk(self) -> dict:
-        if not QUOTA_CONFIG_PATH.exists():
+        if not self._config_path.exists():
             return dict(DEFAULT_CONFIG)
         try:
-            data = json_read(QUOTA_CONFIG_PATH)
+            data = json_read(self._config_path)
             if isinstance(data, dict):
                 return {**DEFAULT_CONFIG, **data}
         except Exception:
@@ -405,10 +422,10 @@ class QuotaManager:
         return dict(DEFAULT_CONFIG)
 
     def _load_state_from_disk(self, today: str) -> dict:
-        if not QUOTA_STATE_PATH.exists():
+        if not self._state_path.exists():
             return {}
         try:
-            data = json_read(QUOTA_STATE_PATH)
+            data = json_read(self._state_path)
             if not isinstance(data, dict):
                 return {}
             if data.get("date") != today:
@@ -433,10 +450,10 @@ class QuotaManager:
             "entities": {},
             "global_sources": {},
         }
-        if not WUDD_48H_PATH.exists():
+        if not self._48h_path.exists():
             return state
         try:
-            articles = json_read(WUDD_48H_PATH)
+            articles = json_read(self._48h_path)
         except Exception:
             return state
         if not isinstance(articles, list):

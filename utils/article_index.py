@@ -200,37 +200,60 @@ class ArticleIndex:
             self.project_root / "data" / "articles-from-rss",
         ]
 
+        # Charger l'index existant : sert de filet pour les fichiers illisibles
+        # (écriture concurrente) et de référence pour le garde-fou anti-rétrécissement.
+        with self._lock:
+            self._load()
+            existing_articles = list(self._data.get("articles", []))
+        existing_count = len(existing_articles)
+
         new_articles: list[dict] = []
+        failed_files: set[str] = set()
         for scan_dir in scan_dirs:
             if not scan_dir.exists():
                 continue
             for json_file in sorted(scan_dir.rglob("*.json")):
                 if "cache" in json_file.relative_to(scan_dir).parts:
                     continue
+                rel = str(json_file.relative_to(self.project_root)).replace("\\", "/")
                 try:
                     data = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
                     if not isinstance(data, list):
                         continue
-                    rel = str(json_file.relative_to(self.project_root)).replace("\\", "/")
-                    for i, article in enumerate(data):
-                        url = (article.get("URL") or article.get("url") or "").strip()
-                        if not url:
-                            continue
-                        date_raw = article.get("Date de publication", "")
-                        date_iso = _parse_date_iso(date_raw)
-                        new_articles.append({
-                            "url": url,
-                            "source": str(article.get("Sources") or article.get("source") or ""),
-                            "date": date_iso[:10] if date_iso else "",
-                            "date_iso": date_iso or "",
-                            "has_entities": bool(article.get("entities")),
-                            "has_sentiment": bool(article.get("sentiment")),
-                            "has_images": bool(article.get("Images")),
-                            "file": rel,
-                            "idx": i,
-                        })
                 except (json.JSONDecodeError, OSError):
+                    # Lecture échouée — typiquement un fichier en cours de
+                    # réécriture par un watcher. Ne PAS perdre ses entrées :
+                    # on les reportera depuis l'index existant.
+                    failed_files.add(rel)
                     continue
+                for i, article in enumerate(data):
+                    url = (article.get("URL") or article.get("url") or "").strip()
+                    if not url:
+                        continue
+                    date_raw = article.get("Date de publication", "")
+                    date_iso = _parse_date_iso(date_raw)
+                    new_articles.append({
+                        "url": url,
+                        "source": str(article.get("Sources") or article.get("source") or ""),
+                        "date": date_iso[:10] if date_iso else "",
+                        "date_iso": date_iso or "",
+                        "has_entities": bool(article.get("entities")),
+                        "has_sentiment": bool(article.get("sentiment")),
+                        "has_images": bool(article.get("Images")),
+                        "file": rel,
+                        "idx": i,
+                    })
+
+        # Reporter les entrées des fichiers dont la lecture a échoué (préserve
+        # le corpus malgré une écriture concurrente transitoire).
+        if failed_files:
+            carried = [e for e in existing_articles if e.get("file") in failed_files]
+            if carried:
+                default_logger.warning(
+                    f"[article_index] rebuild : {len(failed_files)} fichier(s) illisible(s), "
+                    f"{len(carried)} entrée(s) conservée(s) depuis l'index existant."
+                )
+                new_articles.extend(carried)
 
         # Déduplication par URL (garder la plus récente)
         seen: dict[str, dict] = {}
@@ -238,6 +261,16 @@ class ArticleIndex:
             url = entry["url"]
             if url not in seen or entry["date_iso"] > seen[url]["date_iso"]:
                 seen[url] = entry
+
+        # Garde-fou anti-rétrécissement : ne jamais écraser un index volumineux
+        # par un index brutalement plus petit (corpus à moitié réécrit / course
+        # avec les watchers). On conserve l'index existant et on journalise.
+        if existing_count and len(seen) < existing_count * 0.5:
+            default_logger.warning(
+                f"[article_index] rebuild ABANDONNÉ : scan = {len(seen)} entrées "
+                f"(< 50% de l'index existant = {existing_count}). Index conservé intact."
+            )
+            return existing_count
 
         with self._lock:
             self._data = {

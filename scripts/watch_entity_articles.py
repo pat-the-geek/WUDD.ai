@@ -292,68 +292,18 @@ def collect_candidates(project_root: Path, watched: list[dict], window_days: int
     return candidates
 
 
-_BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
-
-
-def _degrade_overbold(text: str) -> str:
-    """Garde-fou contre le sur-gras des petits modèles (ex. qwen2.5:7b).
-
-    Pour chaque ligne hors titre : si une part trop importante du texte est en
-    **gras** (≥ 60 % des caractères) ou si la ligne entière est gras, on retire
-    les marqueurs ** de cette ligne. Préserve les titres `### …` intacts.
-    """
-    out_lines = []
-    for line in text.split("\n"):
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            out_lines.append(line)
-            continue
-        bold_chars = sum(len(m.group(1)) for m in _BOLD_RE.finditer(line))
-        plain_len = len(_BOLD_RE.sub(r"\1", line).strip())
-        # Ligne entièrement gras, ou ratio de gras trop élevé → on déshabille.
-        whole_line_bold = bool(re.fullmatch(r"\*\*.+\*\*", stripped, re.DOTALL))
-        if whole_line_bold or (plain_len and bold_chars / plain_len >= 0.6):
-            line = _BOLD_RE.sub(r"\1", line)
-        out_lines.append(line)
-    return "\n".join(out_lines)
-
-
 def _format_summary_markdown(article: dict, entity_label: str) -> str:
-    """Reformate le résumé en Markdown Discord (chapitres + gras/italique) via l'IA.
+    """Reformate le résumé d'un article en Markdown (chapitres + gras/italique).
 
-    Repli : chaîne vide en cas d'échec → l'appelant utilisera le résumé brut.
+    Délègue au helper partagé `utils.summary_formatter`. Compatible Discord
+    (Markdown standard). Repli : chaîne vide → l'appelant utilise le résumé brut.
     """
-    resume = (article.get("Résumé") or "").strip()
-    if not resume:
-        return ""
-    prompt = (
-        "Reformate le résumé d'article ci-dessous en Markdown compatible Discord, EN FRANÇAIS, "
-        "pour une notification de veille. Règles STRICTES :\n"
-        "- N'invente AUCUN fait : utilise uniquement les informations du résumé.\n"
-        "- Structure en chapitres avec des titres de niveau 3 (### Titre).\n"
-        "- Commence par « ### En bref » suivi d'une phrase d'accroche (texte normal, NON gras).\n"
-        "- Ajoute 1 à 2 chapitres supplémentaires SEULEMENT si le contenu le justifie "
-        "(ex. ### Contexte, ### Enjeux). Si le résumé est court, garde uniquement « En bref ».\n"
-        "- Le texte des paragraphes reste en clair (non gras). Utilise le **gras** avec "
-        f"PARCIMONIE : mets en gras UNIQUEMENT la première mention de l'entité « {entity_label} » "
-        "et au plus 2 ou 3 chiffres réellement clés. N'écris JAMAIS une phrase ou une ligne "
-        "entière en gras. *Italique* possible pour une nuance ponctuelle.\n"
-        "- Réponds UNIQUEMENT avec le Markdown, sans préambule. Maximum ~1200 caractères.\n\n"
-        f"Résumé :\n{resume}"
+    from utils.summary_formatter import format_summary_markdown
+    return format_summary_markdown(
+        article.get("Résumé") or "",
+        entity_label=entity_label,
+        max_chars=1200,
     )
-    try:
-        # Reformatage = texte libre → on privilégie Ollama local (AI_PROVIDER_SUMMARY)
-        # pour économiser des tokens cloud ; fallback EurIA/Claude automatique si Ollama
-        # est injoignable ou lève une exception.
-        from utils.api_client import get_summary_client
-        out = get_summary_client().ask(prompt, timeout=45, max_tokens=600)
-    except Exception as exc:
-        default_logger.warning(f"Reformatage IA indisponible ({exc}) — résumé brut conservé.")
-        return ""
-    if not out or out.strip().lower().startswith("erreur"):
-        default_logger.warning("Reformatage IA en échec — résumé brut conservé.")
-        return ""
-    return _degrade_overbold(out.strip())
 
 
 def _resolve_image(article: dict) -> tuple[str, str]:

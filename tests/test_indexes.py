@@ -183,6 +183,50 @@ class TestArticleIndex:
         assert s["with_sentiment"] == 2
         assert s["with_images"] == 1
 
+    def test_rebuild_ne_retrecit_pas_sur_corpus_tronque(self, tmp_root, sample_articles):
+        """Garde-fou : un rebuild contre un corpus brutalement réduit
+        (course avec un watcher qui réécrit les fichiers) ne doit PAS écraser
+        un index volumineux."""
+        from utils.article_index import ArticleIndex
+        rss = tmp_root / "data" / "articles-from-rss"
+        rss.mkdir()
+        # Index initial volumineux : 100 articles
+        big = [
+            {"URL": f"http://x.test/{i}", "Sources": "S", "Date de publication": "2026-06-01"}
+            for i in range(100)
+        ]
+        (rss / "feed.json").write_text(json.dumps(big), encoding="utf-8")
+        idx = ArticleIndex(tmp_root)
+        assert idx.rebuild() == 100
+        # Le corpus tombe à 2 articles (fichier tronqué/à moitié réécrit)
+        (rss / "feed.json").write_text(json.dumps(big[:2]), encoding="utf-8")
+        # rebuild() doit conserver l'index existant (100), pas le réduire à 2
+        assert idx.rebuild() == 100
+        assert ArticleIndex(tmp_root).count() == 100
+
+    def test_rebuild_conserve_entrees_fichier_illisible(self, tmp_root, sample_articles):
+        """Un fichier illisible (JSON corrompu en cours d'écriture) ne doit pas
+        faire disparaître ses entrées : elles sont reportées depuis l'index."""
+        from utils.article_index import ArticleIndex
+        rss = tmp_root / "data" / "articles-from-rss"
+        rss.mkdir()
+        good = [
+            {"URL": f"http://g.test/{i}", "Sources": "S", "Date de publication": "2026-06-01"}
+            for i in range(60)
+        ]
+        other = [
+            {"URL": f"http://o.test/{i}", "Sources": "S", "Date de publication": "2026-06-01"}
+            for i in range(60)
+        ]
+        (rss / "good.json").write_text(json.dumps(good), encoding="utf-8")
+        (rss / "other.json").write_text(json.dumps(other), encoding="utf-8")
+        idx = ArticleIndex(tmp_root)
+        assert idx.rebuild() == 120
+        # other.json devient illisible (JSON tronqué)
+        (rss / "other.json").write_text('[{"URL": "http://o.test/0", "Da', encoding="utf-8")
+        # rebuild() conserve les 60 entrées de other.json reportées + les 60 de good
+        assert idx.rebuild() == 120
+
     def test_get_articles_retourne_toutes_entrees(self, tmp_root, sample_articles, articles_on_disk):
         from utils.article_index import ArticleIndex
         idx = ArticleIndex(tmp_root)

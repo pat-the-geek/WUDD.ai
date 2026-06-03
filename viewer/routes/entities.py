@@ -633,8 +633,23 @@ def api_entities_dashboard():
             from datetime import datetime as _dt
             gen_at = precomp.get("generated_at", "")
             if gen_at:
-                age_h = (_dt.now(_tz.utc) - _dt.fromisoformat(gen_at)).total_seconds() / 3600
-                if age_h < 25:
+                gen_dt = _dt.fromisoformat(gen_at)
+                age_h = (_dt.now(_tz.utc) - gen_dt).total_seconds() / 3600
+                # Invalider si l'index des articles a été modifié APRÈS la
+                # génération des stats : l'index a changé depuis (reconstruction,
+                # croissance) → le cache est périmé. Évite de servir un
+                # instantané pris sur un index partiel/en cours de rebuild.
+                index_newer = False
+                try:
+                    _index_path = PROJECT_ROOT / "data" / "article_index.json"
+                    if _index_path.exists():
+                        _idx_mtime = _dt.fromtimestamp(
+                            _index_path.stat().st_mtime, _tz.utc
+                        )
+                        index_newer = _idx_mtime > gen_dt
+                except Exception:
+                    index_newer = False
+                if age_h < 25 and not index_newer:
                     # Enrichir avec DuckDB temps-réel (rapide) puis mettre en cache
                     duckdb_stats = {}
                     try:

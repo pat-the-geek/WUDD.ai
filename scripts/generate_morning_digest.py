@@ -10,7 +10,7 @@ Sources de données (lecture seule) :
   - data/alertes.json                                  (tendances, générées à 7h00)
 
 Sorties :
-  - rapports/markdown/_MORNING_DIGEST_/digest_YYYY-MM-DD.md
+  - rapports/markdown/_WUDD.AI_/digest_YYYY-MM-DD.md
 
 Usage :
     python3 scripts/generate_morning_digest.py
@@ -563,7 +563,7 @@ def generate_morning_digest(
         return
 
     # 6. Sauvegarder le Markdown
-    output_dir = PROJECT_ROOT / "rapports" / "markdown" / "_MORNING_DIGEST_"
+    output_dir = PROJECT_ROOT / "rapports" / "markdown" / "_WUDD.AI_"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / f"digest_{today_iso}.md"
     output_file.write_text(digest_md, encoding="utf-8")

@@ -358,3 +358,52 @@ class TestGetStats:
         qm.record_article("IA", "lemonde.fr", entities={"PERSON": ["Macron"]})
         stats = qm.get_stats()
         assert stats["global"]["count"] == 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# save_config — fusion avec la config existante (payload partiel)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSaveConfig:
+    def test_partial_payload_preserves_unsent_keys(self, tmp_path):
+        """Un payload partiel ne doit PAS réinitialiser les clés absentes.
+
+        Régression : auparavant save_config n'écrivait que les clés fournies,
+        faisant retomber les autres sur DEFAULT_CONFIG (valeurs basses) à la
+        relecture — cause des quotas « revenus à des valeurs basses ».
+        """
+        config_path = tmp_path / "quota.json"
+        qm = _make_quota(
+            tmp_path,
+            global_limit=400,
+            keyword_limit=50,
+            source_limit=8,
+            entity_limit=18,
+        )
+
+        # L'UI n'envoie QUE le quota global
+        with (
+            patch("utils.quota.QUOTA_CONFIG_PATH", config_path),
+            patch("utils.quota.QUOTA_STATE_PATH", tmp_path / "quota_state.json"),
+            patch("utils.quota.WUDD_48H_PATH", tmp_path / "48-heures.json"),
+        ):
+            qm.save_config({"global_daily_limit": 420})
+
+        on_disk = json.loads(config_path.read_text(encoding="utf-8"))
+        assert on_disk["global_daily_limit"] == 420       # mis à jour
+        assert on_disk["per_keyword_daily_limit"] == 50    # préservé
+        assert on_disk["per_source_daily_limit"] == 8      # préservé
+        assert on_disk["per_entity_daily_limit"] == 18     # préservé
+
+    def test_ignores_unknown_keys(self, tmp_path):
+        config_path = tmp_path / "quota.json"
+        qm = _make_quota(tmp_path, keyword_limit=25)
+        with (
+            patch("utils.quota.QUOTA_CONFIG_PATH", config_path),
+            patch("utils.quota.QUOTA_STATE_PATH", tmp_path / "quota_state.json"),
+            patch("utils.quota.WUDD_48H_PATH", tmp_path / "48-heures.json"),
+        ):
+            qm.save_config({"per_keyword_daily_limit": 40, "clef_inconnue": "x"})
+        on_disk = json.loads(config_path.read_text(encoding="utf-8"))
+        assert on_disk["per_keyword_daily_limit"] == 40
+        assert "clef_inconnue" not in on_disk
