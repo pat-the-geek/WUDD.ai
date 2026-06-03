@@ -6,8 +6,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 1 0 * * * root cd /app && python3 -c "from utils.quota import get_quota_manager; get_quota_manager().reset_day(); print('[quota] Remise à zéro des quotas journaliers OK')" 2>&1 | tee -a /app/rapports/cron_quota_reset.log
 
 # Surveillance round-robin des flux RSS WUDD.opml : 1 flux par exécution, toutes les 5 minutes
-# Maintient 48-heures.json à jour, puis rafraîchit la timeline, l'analyse croisée et les temps de lecture (calculs locaux, < 1 s)
-*/5 * * * * root cd /app && { python3 scripts/flux_watcher.py 2>&1 | tee -a /app/rapports/cron_flux_watcher.log; python3 scripts/entity_timeline.py >> /app/rapports/cron_flux_watcher.log 2>&1; python3 scripts/cross_flux_analysis.py >> /app/rapports/cron_flux_watcher.log 2>&1; python3 scripts/enrich_reading_time.py >> /app/rapports/cron_flux_watcher.log 2>&1; }
+# Maintient 48-heures.json à jour, puis rafraîchit la timeline et les temps de lecture (calculs locaux, < 1 s)
+*/5 * * * * root cd /app && { python3 scripts/flux_watcher.py 2>&1 | tee -a /app/rapports/cron_flux_watcher.log; python3 scripts/entity_timeline.py >> /app/rapports/cron_flux_watcher.log 2>&1; python3 scripts/enrich_reading_time.py >> /app/rapports/cron_flux_watcher.log 2>&1; }
+# Analyse croisée des flux : une fois par jour à 6h30 — rapports/markdown/_WUDD.AI_/cross_flux_YYYY-MM-DD.md
+30 6 * * * root cd /app && python3 scripts/cross_flux_analysis.py 2>&1 | tee -a /app/rapports/cron_cross_flux.log
 # Surveillance des sources web sans RSS (sitemap) : toutes les 2h — max 5 articles par source par run
 # Complète 48-heures.json et data/articles-from-rss/ de façon isolée, sans impacter le pipeline RSS
 0 */2 * * * root cd /app && python3 scripts/web_watcher.py 2>&1 | tee -a /app/rapports/cron_web_watcher.log
@@ -48,7 +50,12 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Enrichissement NER Round-Robin : 1 fichier/source par jour à 2h00
 # Ajoute le champ "entities" aux articles qui n'en ont pas encore (tous les répertoires data/)
 0 2 * * * root cd /app && python3 scripts/enrich_entities.py 2>&1 | tee -a /app/rapports/cron_enrich_entities.log
-# Pré-calcul des stats d'entités (entity_stats.json) à 2h45 — après enrich_entities
+# Reconstruction autoritative de l'index articles à 2h40 — après enrich_entities (2h00)
+# et enrich_images (2h30), juste avant precompute (2h45) : garantit un index complet
+# et déterministe (ne dépend plus du timing de rebuild au démarrage du viewer).
+# rebuild() est protégé (report fichiers illisibles + anti-rétrécissement < 50%).
+40 2 * * * root cd /app && python3 scripts/migrate_build_indexes.py --only article 2>&1 | tee -a /app/rapports/cron_rebuild_index.log
+# Pré-calcul des stats d'entités (entity_stats.json) à 2h45 — après le rebuild d'index
 # Alimente le cache chaud de api_entities_dashboard() pour le viewer
 45 2 * * * root cd /app && python3 scripts/precompute_entity_stats.py 2>&1 | tee -a /app/rapports/cron_precompute_entity_stats.log
 # Enrichissement images : fetch og:image pour les articles sans images à 2h30

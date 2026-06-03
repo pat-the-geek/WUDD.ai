@@ -96,8 +96,19 @@ def repair_file(path: Path, client, dry_run: bool, delay: float) -> tuple[int, i
             time.sleep(delay)
 
     if modified and not dry_run:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(articles, f, ensure_ascii=False, indent=4)
+        # Écriture atomique (tmp + replace) : un rebuild d'index concurrent ne
+        # lira jamais un fichier à moitié écrit.
+        tmp = path.with_suffix(".tmp")
+        try:
+            tmp.write_text(
+                json.dumps(articles, ensure_ascii=False, indent=4),
+                encoding="utf-8",
+            )
+            tmp.replace(path)
+        except OSError:
+            if tmp.exists():
+                tmp.unlink()
+            raise
         print_console(f"  ✓ Fichier sauvegardé : {path.name}")
 
     return repaired, failed

@@ -85,6 +85,13 @@ def require_json_body(
     return data
 
 
+# Répertoires masqués dans l'explorateur (technique / interne / exemples)
+HIDDEN_DIRS = {
+    "cache", ".git",
+    "top_articles", "quota_history", "entity_timeline_cache", "merged",
+}
+
+
 def collect_files() -> list:
     files = []
 
@@ -101,12 +108,15 @@ def collect_files() -> list:
                 paths = []
             for f in paths:
                 parts = f.relative_to(PROJECT_ROOT).parts
-                if any(p in ("cache", ".git") for p in parts):
+                if any(p in HIDDEN_DIRS for p in parts):
                     continue
                 try:
                     stat = f.stat()
                     rel = f.relative_to(PROJECT_ROOT)
                     flux = flux_override or (f.parent.name if f.parent != directory else "")
+                    # Masquer la racine (fichiers d'état directement sous data/)
+                    if not flux:
+                        continue
                     files.append({
                         "name": f.name,
                         "path": str(rel).replace("\\", "/"),
@@ -122,9 +132,6 @@ def collect_files() -> list:
     # autre structure que l'utilisateur pourrait avoir sous data/
     scan(PROJECT_ROOT / "data", "json")
     scan(PROJECT_ROOT / "rapports", "markdown")
-    # Fichiers d'exemple (visibles tant que data/ et rapports/ sont vides)
-    scan(PROJECT_ROOT / "samples", "json",     "Samples")
-    scan(PROJECT_ROOT / "samples", "markdown", "Samples")
     return sorted(files, key=lambda x: x["modified"], reverse=True)
 
 

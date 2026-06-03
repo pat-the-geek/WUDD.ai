@@ -6,7 +6,7 @@ Détecte les entités et thèmes communs entre plusieurs flux de veille, révél
 les sujets qui transcendent les domaines surveillés. Utile pour identifier les
 signaux forts et les convergences thématiques.
 
-Sortie : data/cross_flux_report.json + rapports/markdown/_CROSSFLUX_/cross_flux_YYYY-MM-DD.md
+Sortie : data/cross_flux_report.json + rapports/markdown/_WUDD.AI_/cross_flux_YYYY-MM-DD.md
 
 Usage :
     python3 scripts/cross_flux_analysis.py
@@ -34,7 +34,7 @@ from utils.date_utils import parse_article_date
 # ── Constantes ───────────────────────────────────────────────────────────────
 
 _OUTPUT_JSON = _PROJECT_ROOT / "data" / "cross_flux_report.json"
-_OUTPUT_DIR  = _PROJECT_ROOT / "rapports" / "markdown" / "_CROSSFLUX_"
+_OUTPUT_DIR  = _PROJECT_ROOT / "rapports" / "markdown" / "_WUDD.AI_"
 
 _ENTITY_TYPES_PERTINENTS = {
     "PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "DISEASE", "NORP"

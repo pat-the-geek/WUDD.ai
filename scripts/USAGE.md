@@ -686,7 +686,7 @@ python3 scripts/cross_flux_analysis.py --dry-run
 
 **Sorties** :
 - `data/cross_flux_report.json`
-- `rapports/markdown/_CROSSFLUX_/cross_flux_YYYY-MM-DD.md`
+- `rapports/markdown/_WUDD.AI_/cross_flux_YYYY-MM-DD.md`
 
 ---
 

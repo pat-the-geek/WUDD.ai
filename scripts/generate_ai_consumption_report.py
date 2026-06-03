@@ -7,7 +7,7 @@ Agrège les articles traités par jour (quota_state.json + quota_history/),
 parse les tokens EurIA/Claude depuis les logs cron, et produit un rapport
 Markdown avec diagramme Mermaid xychart-beta.
 
-Sortie : rapports/markdown/_MORNING_DIGEST_/ai_consumption_report.md
+Sortie : rapports/markdown/_WUDD.AI_/ai_consumption_report.md
          (même nom à chaque exécution — fichier remplacé)
 
 Usage :
@@ -768,7 +768,7 @@ def main():
         print_console("(dry-run — rapport non sauvegardé)")
         return
 
-    output_dir  = PROJECT_ROOT / "rapports" / "markdown" / "_MORNING_DIGEST_"
+    output_dir  = PROJECT_ROOT / "rapports" / "markdown" / "_WUDD.AI_"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / "ai_consumption_report.md"
     output_file.write_text(report_md, encoding="utf-8")
