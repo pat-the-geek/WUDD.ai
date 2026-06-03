@@ -298,25 +298,25 @@ const IMMERSIVE_ENTITY_FALLBACK = 'bg-white/15 text-white/90 ring-white/30'
 
 // Styles Markdown du résumé formaté (Résumé_md) sur l'overlay immersif sombre.
 const IMMERSIVE_MD_COMPONENTS = {
-  h1: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-sm font-bold text-white first:mt-0" {...p} />,
-  h2: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-sm font-bold text-white first:mt-0" {...p} />,
-  h3: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-sm font-bold text-white/95 first:mt-0" {...p} />,
-  p:  ({ node, ...p }) => <p className="mb-2 text-white/90" {...p} />,
+  h1: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-xl font-bold text-white first:mt-0" {...p} />,
+  h2: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-xl font-bold text-white first:mt-0" {...p} />,
+  h3: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-lg font-bold text-white/95 first:mt-0" {...p} />,
+  p:  ({ node, ...p }) => <p className="mb-2 text-lg text-white/90" {...p} />,
   strong: ({ node, ...p }) => <strong className="font-semibold text-white" {...p} />,
   em: ({ node, ...p }) => <em className="italic text-white/90" {...p} />,
-  ul: ({ node, ...p }) => <ul className="mb-2 ml-4 list-disc text-white/90" {...p} />,
+  ul: ({ node, ...p }) => <ul className="mb-2 ml-4 list-disc text-lg text-white/90" {...p} />,
   li: ({ node, ...p }) => <li className="mb-0.5" {...p} />,
 }
 
 // Styles Markdown du résumé formaté (Résumé_md) dans la carte article (thème clair/sombre).
 const CARD_MD_COMPONENTS = {
-  h1: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-[0.95rem] font-bold text-slate-800 dark:text-slate-100 first:mt-0" {...p} />,
-  h2: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-[0.95rem] font-bold text-slate-800 dark:text-slate-100 first:mt-0" {...p} />,
-  h3: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-sm font-bold text-slate-700 dark:text-slate-200 first:mt-0" {...p} />,
-  p:  ({ node, ...p }) => <p className="mb-2 text-slate-600 dark:text-slate-300" {...p} />,
+  h1: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-xl font-bold text-slate-800 dark:text-slate-100 first:mt-0" {...p} />,
+  h2: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-xl font-bold text-slate-800 dark:text-slate-100 first:mt-0" {...p} />,
+  h3: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-lg font-bold text-slate-700 dark:text-slate-200 first:mt-0" {...p} />,
+  p:  ({ node, ...p }) => <p className="mb-2 text-lg text-slate-600 dark:text-slate-300" {...p} />,
   strong: ({ node, ...p }) => <strong className="font-semibold text-slate-800 dark:text-slate-100" {...p} />,
   em: ({ node, ...p }) => <em className="italic" {...p} />,
-  ul: ({ node, ...p }) => <ul className="mb-2 ml-4 list-disc text-slate-600 dark:text-slate-300" {...p} />,
+  ul: ({ node, ...p }) => <ul className="mb-2 ml-4 list-disc text-lg text-slate-600 dark:text-slate-300" {...p} />,
   li: ({ node, ...p }) => <li className="mb-0.5" {...p} />,
 }
 
