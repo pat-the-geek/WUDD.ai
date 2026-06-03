@@ -64,6 +64,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Enrichissement sentiment Round-Robin : 1 fichier/source par jour à 3h00
 # Tourne sur tous les fichiers data/articles-from-rss/ ET data/articles/<flux>/ de façon cyclique
 0 3 * * * root cd /app && python3 scripts/enrich_sentiment.py 2>&1 | tee -a /app/rapports/cron_sentiment.log
+# Enrichissement Résumé_md (Markdown) Round-Robin à 3h30 — ajoute le résumé formaté
+# (chapitres ###, gras/italique) pour l'affichage enrichi. Reformatage local (Ollama),
+# plafonné à 150 reformatages/run. Le champ Résumé brut reste inchangé.
+30 3 * * * root cd /app && python3 scripts/enrich_summary_format.py --max-articles 150 2>&1 | tee -a /app/rapports/cron_summary_format.log
 # Réparation des résumés en erreur : chaque dimanche à 4h00 (maintenance hebdomadaire)
 # Régénère les articles dont le Résumé contient un message d'erreur API EurIA
 0 4 * * 0 root cd /app && python3 scripts/repair_failed_summaries.py 2>&1 | tee -a /app/rapports/cron_repair.log

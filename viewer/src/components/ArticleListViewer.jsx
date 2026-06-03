@@ -8,6 +8,7 @@ import {
 import YouTubePanel from './YouTubePanel'
 import ArticleGalleryPanel from './ArticleGalleryPanel'
 import EntityHighlighter from './EntityHighlighter'
+import ReportMarkdownContent from './ReportMarkdownContent'
 import { openInObsidian } from '../utils/obsidian'
 import TTSButton from './TTSButton'
 import useFacePosition from '../hooks/useFacePosition'
@@ -295,6 +296,18 @@ const IMMERSIVE_ENTITY_COLORS = {
 }
 const IMMERSIVE_ENTITY_FALLBACK = 'bg-white/15 text-white/90 ring-white/30'
 
+// Styles Markdown du résumé formaté (Résumé_md) sur l'overlay immersif sombre.
+const IMMERSIVE_MD_COMPONENTS = {
+  h1: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-sm font-bold text-white first:mt-0" {...p} />,
+  h2: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-sm font-bold text-white first:mt-0" {...p} />,
+  h3: ({ node, ...p }) => <h3 className="mt-3 mb-1 text-sm font-bold text-white/95 first:mt-0" {...p} />,
+  p:  ({ node, ...p }) => <p className="mb-2 text-white/90" {...p} />,
+  strong: ({ node, ...p }) => <strong className="font-semibold text-white" {...p} />,
+  em: ({ node, ...p }) => <em className="italic text-white/90" {...p} />,
+  ul: ({ node, ...p }) => <ul className="mb-2 ml-4 list-disc text-white/90" {...p} />,
+  li: ({ node, ...p }) => <li className="mb-0.5" {...p} />,
+}
+
 // Types affichés sous le titre, par ordre de priorité ; les types numériques /
 // temporels peu informatifs (DATE, CARDINAL, ORDINAL, QUANTITY…) sont masqués.
 const IMMERSIVE_ENTITY_PRIORITY = ['PERSON', 'ORG', 'GPE', 'PRODUCT', 'EVENT', 'NORP', 'LOC', 'FAC', 'WORK_OF_ART', 'LAW', 'MONEY', 'PERCENT', 'LANGUAGE']
@@ -364,6 +377,7 @@ function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummar
   }, [imgUrl])
   const titre  = article['Titre']?.trim() || article['Sources'] || '—'
   const resume = article['Résumé'] || ''
+  const resumeMd = article['Résumé_md'] || ''
   const source = article['Sources'] || ''
   const date   = formatDate(article['Date de publication'])
   const entityChips = useMemo(() => immersiveEntities(article.entities), [article.entities])
@@ -433,7 +447,9 @@ function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummar
               onTouchStart={e => e.stopPropagation()}
               onTouchMove={e => e.stopPropagation()}
             >
-              {resume}
+              {resumeMd
+                ? <ReportMarkdownContent md={resumeMd} components={IMMERSIVE_MD_COMPONENTS} />
+                : resume}
             </div>
           )}
           {isCurrent && resume && (

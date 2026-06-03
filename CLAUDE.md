@@ -226,6 +226,7 @@ The Docker container installs `archives/crontab` at startup and runs `cron -f` i
 | 02:00 daily | `enrich_entities.py` | Round-robin NER enrichment — adds `entities` field to articles that don't have it yet |
 | 02:30 daily | `enrich_images.py` | Fetch `og:image`/`twitter:image` for articles without images (HTTP only, no AI) |
 | 03:00 daily | `enrich_sentiment.py` | Round-robin sentiment enrichment — adds `sentiment`, `score_sentiment`, `ton_editorial`, `score_ton` |
+| 03:30 daily | `enrich_summary_format.py` | Round-robin Markdown summary enrichment — adds `Résumé_md` (chapters `###`, sparing bold/italic) for rich display; raw `Résumé` unchanged |
 | 04:00 Sunday | `repair_failed_summaries.py` | Weekly maintenance — re-generates summaries containing API error messages |
 
 **Morning reports (post-collection)**
@@ -263,6 +264,7 @@ The Docker container installs `archives/crontab` at startup and runs `cron -f` i
 | `analyse_thematiques.py` | Thematic classification statistics | (none; reads `data/articles/`) |
 | `enrich_entities.py` | Enrich existing articles with named entities (NER) | `--flux`, `--keyword`, `--dry-run`, `--delay`, `--force` |
 | `enrich_sentiment.py` | Round-robin sentiment enrichment — adds `sentiment`, `score_sentiment`, `ton_editorial`, `score_ton` | `--flux`, `--keyword`, `--dry-run`, `--delay`, `--force` |
+| `enrich_summary_format.py` | Round-robin enrichment — adds `Résumé_md` (Markdown formatté : chapitres `###`, gras/italique parcimonieux) à partir du `Résumé` brut, pour l'affichage enrichi. Reformatage local (Ollama) via `utils/summary_formatter.py` | `--flux`, `--keyword`, `--all`, `--dry-run`, `--force`, `--delay`, `--max-articles`, `--status` |
 | `trend_detector.py` | Detect trending entities (Laplace-smoothed 24h/7j ratio) and generate `data/alertes.json`; notifies webhooks with a multi-day cooldown | `--dry-run`, `--no-notify`, `--force-notify` |
 | `watch_entity_articles.py` | Hourly watch: notify Discord of the latest freshly-detected article mentioning a watched entity (`data/watched_entities.json`) — large image (og:image fetched if missing) + AI-formatted summary (chapters/bold/italic). 1 article/run; **max 1 notification per watched entity per day** (daily reset); notifications **only between 07:00 and 22:00** local time; **promotional/ad articles filtered out** (bons plans, codes promo, sponsored, affiliation…); **under-mediatized entities prioritized** (lowest ~24h media presence first, freshness as tiebreak); state (notified URLs + per-entity last-notified date) in `data/watched_article_state.json` | `--dry-run`, `--force`, `--max`, `--window-days`, `--no-format`, `--no-commercial-filter`, `--ignore-window` |
 | `repair_failed_summaries.py` | Re-generate summaries that contain error messages | `--dir`, `--dry-run`, `--delay` |
@@ -313,6 +315,7 @@ All utility modules are importable as `from utils.X import Y`. They are the corr
 | `utils/deduplication.py` | `Deduplicator` — detects near-duplicate articles using 3 signals: URL MD5 + résumé MD5 + Jaccard bigrammes (threshold 0.80). Methods: `deduplicate()`, `deduplicate_incremental()`, `is_duplicate()` |
 | `utils/source_credibility.py` | `CredibilityEngine` — source credibility score (0–100) from `config/sources_credibility.json`; influences article ranking via `scoring.py` multiplier. Methods: `get_score()`, `get_multiplier()`, `rate_articles()` |
 | `utils/reading_time.py` | Reading time estimation at 230 wpm (francophone average). Returns `temps_lecture_minutes` (float) and `temps_lecture_label` (str). Functions: `estimate_reading_time()`, `enrich_reading_time()` |
+| `utils/summary_formatter.py` | Reformate un `Résumé` brut en Markdown léger (chapitres `###`, **gras**/*italique* parcimonieux, pas de souligné) sans inventer de faits — via `get_summary_client()` (Ollama local privilégié, fallback cloud). Fonctions : `format_summary_markdown()`, `degrade_overbold()` (garde-fou anti sur-gras). Utilisé par `enrich_summary_format.py` et `watch_entity_articles.py` |
 | `utils/rolling_window.py` | Shared rolling-window helper — maintains `48-heures.json` incrementally or by full rebuild from source dir. Used by `flux_watcher.py`, `get-keyword-from-rss.py` and `web_watcher.py`. Function: `update_rolling_window(new_articles, output_path, hours, source_dir)` |
 | `utils/article_index.py` | `ArticleIndex` — lightweight index of article metadata (`data/article_index.json`): URL, source, date, presence of entities/sentiment/images, file path + array index. Avoids full `data/` scans for scoring and reports. Methods: `update()`, `get_articles()`, `get_by_url()` |
 | `utils/entity_index.py` | `EntityIndex` — inverted index entity → articles (`data/entity_index.json`): maps `TYPE:value` keys to `[{file, idx, date}]` references. Keys are lowercase; canonical display form stored in `caps`. Methods: `update()`, `get_refs()`, `load_articles()` |
@@ -456,6 +459,7 @@ rapports/
     "Sources": "Le Monde",
     "URL": "https://...",
     "Résumé": "20-line AI-generated summary in French",
+    "Résumé_md": "### En bref\n... Markdown formatté (chapitres, gras/italique) — affichage enrichi, optionnel",
     "Images": [
       {"URL": "https://...", "Width": 1200}
     ],
@@ -485,6 +489,8 @@ The `sentiment` / `score_sentiment` / `ton_editorial` / `score_ton` fields are o
 The `temps_lecture_minutes` / `temps_lecture_label` fields are optional — added by `enrich_reading_time.py` using `utils/reading_time.py` (230 wpm).
 
 The `score_source` field is optional — added by `utils/source_credibility.py` based on `config/sources_credibility.json`; influences article ranking.
+
+The `Résumé_md` field is optional — added by `enrich_summary_format.py` (Round-Robin nightly). It is a **display-only** Markdown rendering of `Résumé` (chapters `###`, sparing bold/italic). The raw `Résumé` remains the source of truth for newsletter, Atom, TTS, deduplication and scoring — never substitute `Résumé_md` for those. The viewer immersive view renders `Résumé_md` via `ReportMarkdownContent`, falling back to plain `Résumé` when absent.
 
 ---
 
