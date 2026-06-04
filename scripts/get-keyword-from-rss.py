@@ -29,6 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.api_client import get_ai_client, get_summary_client
+from utils.summary_formatter import format_summary_markdown
 from utils.article_index import get_article_index
 from utils.date_utils import parse_article_date
 from utils.deduplication import Deduplicator
@@ -346,6 +347,7 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                     entities = cached["entities"]
                     images   = cached["images"]
                     resume   = combined.get("resume", "")
+                    resume_md = cached.get("resume_md", "")
                 else:
                     # ── Premier traitement de cet URL : fetch + IA
                     print_console(f"      Extraction du texte de l'article...")
@@ -375,8 +377,11 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                         entities = sanitize_entities(entities, validate_person_p31=validate_person_p31)
                     print_console(f"      Extraction de l'image principale...")
                     images = extract_top_n_largest_images(link, n=1, min_width=500)
+                    # Résumé Markdown formaté (best-effort ; sinon enrichissement nocturne)
+                    resume_md = format_summary_markdown(resume)
                     # Mémoriser pour les mots-clés suivants dans ce run
-                    _processed_in_run[link] = {"combined": combined, "entities": entities, "images": images}
+                    _processed_in_run[link] = {"combined": combined, "entities": entities,
+                                               "images": images, "resume_md": resume_md}
 
                 # Vérifier le quota par entité (après détection, avant ajout) — sauf si bypassQuota activé
                 if entities and not bypass_quota:
@@ -406,6 +411,8 @@ for feed_idx, (feed_url, feed_title, bypass_quota) in enumerate(feeds, 1):
                 for _field in ("sentiment", "score_sentiment", "ton_editorial", "score_ton"):
                     if _field in combined:
                         article[_field] = combined[_field]
+                if resume_md:
+                    article["Résumé_md"] = resume_md
                 results[kw][link] = article
                 _seen_titles.add(title.strip().lower())
                 # Pour les flux bypassQuota, on n'incrémente pas les compteurs

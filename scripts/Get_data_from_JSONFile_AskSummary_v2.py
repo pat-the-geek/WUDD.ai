@@ -33,6 +33,7 @@ from datetime import datetime
 from utils.logging import print_console, setup_logger, default_logger
 from utils.config import get_config
 from utils.api_client import get_ai_client, get_summary_client
+from utils.summary_formatter import format_summary_markdown
 from utils.http_utils import fetch_and_extract_text, extract_top_n_largest_images
 from utils.date_utils import (
     parse_iso_date,
@@ -344,6 +345,10 @@ def main():
         for _field in ("sentiment", "score_sentiment", "ton_editorial", "score_ton"):
             if _field in _sentiment_data:
                 article[_field] = _sentiment_data[_field]
+        # Résumé Markdown formaté (best-effort ; sinon enrichissement nocturne).
+        _md = format_summary_markdown(resume)
+        if _md:
+            article["Résumé_md"] = _md
         articles_data.append(article)
     
     # Sauvegarde des résultats dans un fichier JSON (dans le sous-répertoire du flux)
