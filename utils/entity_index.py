@@ -224,7 +224,33 @@ class EntityIndex:
                 default_logger.warning(f"Impossible de charger entity_index.json : {e}")
         self._loaded = True
 
-    def _save(self) -> None:
+    def _save(self, force: bool = False) -> None:
+        # Garde anti-rétrécissement : si une lecture concurrente a échoué, _data peut
+        # être (presque) vide ; un update()+save l'écraserait l'index complet sur
+        # disque. On refuse alors d'écrire un index drastiquement plus petit (sauf
+        # rebuild explicite via force=True).
+        if not force:
+            new_n = len(self._data.get("index", {}))
+            try:
+                if self._index_path.exists():
+                    cur = json.loads(self._index_path.read_text(encoding="utf-8"))
+                    cur_n = len(cur.get("index", {})) if isinstance(cur, dict) else 0
+                    if cur_n >= 50 and new_n < cur_n * 0.5:
+                        default_logger.warning(
+                            f"entity_index : sauvegarde IGNORÉE (anti-rétrécissement : "
+                            f"{new_n} clés en mémoire < 50% des {cur_n} sur disque). "
+                            f"Reconstruire via migrate_build_indexes.py si nécessaire."
+                        )
+                        return
+            except (json.JSONDecodeError, OSError):
+                # Fichier disque illisible (tronqué/concurrent) : ne pas l'écraser
+                # avec un petit index en mémoire.
+                if new_n < 50:
+                    default_logger.warning(
+                        "entity_index : disque illisible et index mémoire trop petit — "
+                        "sauvegarde ignorée pour éviter un écrasement."
+                    )
+                    return
         self._data["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         tmp = self._index_path.with_suffix(".tmp")
         try:
@@ -353,7 +379,7 @@ class EntityIndex:
             self._search_entries = None
             self._canonical_entries = {}
             self._canonical_lookup = {}
-            self._save()
+            self._save(force=True)  # rebuild = remplacement intégral légitime
             self._loaded = True
             return total_refs
 
