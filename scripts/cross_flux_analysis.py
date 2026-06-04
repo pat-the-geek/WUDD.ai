@@ -104,6 +104,19 @@ def _render_flux_chart_png(counts: dict, top_n: int = 10) -> bytes | None:
             return ImageFont.load_default()
 
     f_title, f_lbl, f_val = _font(18), _font(14), _font(13)
+    # Palette de couleurs (une par barre, cyclique)
+    palette = [
+        (52, 152, 219),   # bleu
+        (46, 204, 113),   # vert
+        (231, 76, 60),    # rouge
+        (155, 89, 182),   # violet
+        (241, 196, 15),   # jaune
+        (26, 188, 156),   # turquoise
+        (230, 126, 34),   # orange
+        (52, 73, 94),     # ardoise
+        (233, 30, 99),    # rose
+        (149, 165, 166),  # gris
+    ]
     mx = sorted_flux[0][1] or 1
     W, pad, label_w, row_h, top_off = 760, 16, 190, 30, 48
     bar_x = pad + label_w + 8
@@ -119,7 +132,7 @@ def _render_flux_chart_png(counts: dict, top_n: int = 10) -> bytes | None:
         short = (short[:21] + "…") if len(short) > 22 else short
         d.text((pad, y + 5), short, fill=(45, 45, 45), font=f_lbl)
         bw = max(3, int(c / mx * bar_max))
-        d.rectangle([bar_x, y + 4, bar_x + bw, y + row_h - 8], fill=(52, 152, 219))
+        d.rectangle([bar_x, y + 4, bar_x + bw, y + row_h - 8], fill=palette[i % len(palette)])
         d.text((bar_x + bw + 6, y + 5), str(c), fill=(45, 45, 45), font=f_val)
 
     import io
