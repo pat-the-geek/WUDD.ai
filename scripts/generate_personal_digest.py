@@ -26,6 +26,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from utils.config import get_config
 from utils.logging import default_logger as LOG
 from utils.date_utils import parse_article_date
+from utils.report_cleanup import cleanup_old_dated_reports
 
 
 def _load_profiles(project_root: Path) -> list[dict]:
@@ -215,6 +216,7 @@ def generate_profile_digest(
     if not dry_run:
         out_file.write_text("\n".join(lines), encoding="utf-8")
         LOG.info(f"[digest] Rapport créé : {out_file}")
+        cleanup_old_dated_reports(out_file)
     else:
         LOG.info(f"[digest] dry-run — {out_file}")
 

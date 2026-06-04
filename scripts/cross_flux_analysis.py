@@ -30,6 +30,7 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 
 from utils.logging import print_console, default_logger
 from utils.date_utils import parse_article_date
+from utils.report_cleanup import cleanup_old_dated_reports
 
 # ── Constantes ───────────────────────────────────────────────────────────────
 
@@ -587,6 +588,7 @@ def main():
     md_path = _OUTPUT_DIR / f"cross_flux_{date_str}.md"
     md_path.write_text(report_md, encoding="utf-8")
     print_console(f"Rapport Markdown sauvegardé : {md_path}")
+    cleanup_old_dated_reports(md_path)
 
 
 if __name__ == "__main__":

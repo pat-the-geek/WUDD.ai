@@ -30,6 +30,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.logging import print_console
+from utils.report_cleanup import cleanup_old_dated_reports
 
 
 def parse_args() -> argparse.Namespace:
@@ -225,6 +226,8 @@ def main() -> None:
     try:
         out_path.write_text(report, encoding="utf-8")
         print_console(f"Rapport sauvegardé : {out_path}", level="info")
+        if not args.output:
+            cleanup_old_dated_reports(out_path)
     except OSError as e:
         print_console(f"Erreur d'écriture : {e}", level="error")
         sys.exit(1)
