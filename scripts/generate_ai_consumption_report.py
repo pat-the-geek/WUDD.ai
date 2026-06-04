@@ -27,6 +27,8 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.scheduler_toggle import should_run_task
+from utils.ai_usage import aggregate_usage
+from utils.exporters.webhook import send_text_discord
 
 # Fichiers de log à analyser pour la consommation de tokens
 LOG_FILES = [
@@ -500,6 +502,243 @@ def _provider_totals(token_stats: dict, provider: str) -> dict:
     return t
 
 
+# ── Local vs Cloud, coûts, efficacité, projection (#4,#5,#6,#7,#9) ────────────
+
+_CLOUD_PROVIDERS = ("euria", "claude")
+
+
+def _provider_grand_totals(token_stats: dict, usage_jsonl: dict | None = None) -> dict:
+    """Totaux par provider {euria,claude,ollama}. Préfère le JSONL persistant (#3)."""
+    out = {p: _empty_provider() for p in ("euria", "claude", "ollama")}
+    if usage_jsonl:
+        for prov, d in usage_jsonl.items():
+            low = prov.strip().lower()
+            key = ("ollama" if low.startswith("ollama")
+                   else "claude" if low.startswith("claude")
+                   else "euria" if low.startswith("eur") else None)
+            if key:
+                out[key]["prompt"] += d.get("prompt", 0)
+                out[key]["completion"] += d.get("completion", 0)
+                out[key]["total"] += d.get("total", 0)
+                out[key]["calls"] += d.get("calls", 0)
+        if any(out[p]["total"] for p in out):
+            return out
+    for p in out:
+        out[p] = _provider_totals(token_stats, p)
+    return out
+
+
+def load_pricing(project_root: Path) -> dict:
+    """Prix configurables (config/ai_pricing.json) ; défauts à 0 si absent."""
+    f = project_root / "config" / "ai_pricing.json"
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"devise": "€", "prix_par_1k": {}, "reference_cloud": {},
+                "alerte_cout_cloud_par_jour": 0, "alerte_tokens_cloud_par_jour": 0}
+
+
+def _cost_of(p: dict, price: dict) -> float:
+    return (p["prompt"] / 1000.0) * price.get("prompt", 0) + \
+           (p["completion"] / 1000.0) * price.get("completion", 0)
+
+
+def compute_local_cloud(prov: dict) -> dict:
+    local_tok = prov["ollama"]["total"]
+    cloud_tok = prov["euria"]["total"] + prov["claude"]["total"]
+    tot = local_tok + cloud_tok
+    return {
+        "local_tok": local_tok, "cloud_tok": cloud_tok,
+        "local_calls": prov["ollama"]["calls"],
+        "cloud_calls": prov["euria"]["calls"] + prov["claude"]["calls"],
+        "local_pct": round(local_tok / tot * 100) if tot else 0,
+        "total": tot,
+    }
+
+
+def compute_costs(prov: dict, pricing: dict) -> dict:
+    pp = pricing.get("prix_par_1k", {})
+    per = {p: round(_cost_of(prov[p], pp.get(p, {})), 4) for p in ("euria", "claude", "ollama")}
+    cloud_cost = round(per["euria"] + per["claude"], 4)
+    savings = round(_cost_of(prov["ollama"], pricing.get("reference_cloud", {})), 4)
+    return {"per": per, "cloud_cost": cloud_cost, "savings": savings,
+            "devise": pricing.get("devise", "€")}
+
+
+def compute_projection(token_by_date: dict) -> dict:
+    today = datetime.now()
+    ym = today.strftime("%Y-%m")
+    mtd = sum(v for d, v in token_by_date.items() if d.startswith(ym))
+    elapsed = max(1, today.day)
+    dim = monthrange(today.year, today.month)[1]
+    return {"mtd_tokens": mtd, "proj_tokens": round(mtd / elapsed * dim),
+            "elapsed": today.day, "days": dim}
+
+
+def budget_alerts(lc: dict, costs: dict, pricing: dict) -> list:
+    msgs = []
+    seuil_c = pricing.get("alerte_cout_cloud_par_jour") or 0
+    seuil_t = pricing.get("alerte_tokens_cloud_par_jour") or 0
+    if seuil_c and costs["cloud_cost"] > seuil_c:
+        msgs.append(f"coût cloud {costs['cloud_cost']} {costs['devise']} > seuil {seuil_c} {costs['devise']}")
+    if seuil_t and lc["cloud_tok"] > seuil_t:
+        msgs.append(f"{lc['cloud_tok']:,} tokens cloud > seuil {seuil_t:,}")
+    return msgs
+
+
+def generate_ai_synthesis(prov: dict, lc: dict, costs: dict, trend_str: str,
+                          articles: int, use_ai: bool = True) -> str:
+    """Synthèse IA de l'activité (#1) — un appel, repli "" si indisponible."""
+    if not use_ai:
+        return ""
+    ctx = (
+        f"- Tokens aujourd'hui : {lc['total']:,} ({lc['cloud_calls'] + lc['local_calls']} appels)\n"
+        f"- Local (Ollama) : {lc['local_tok']:,} tokens ({lc['local_pct']} %)\n"
+        f"- Cloud : {lc['cloud_tok']:,} tokens — EurIA {prov['euria']['total']:,}, "
+        f"Claude {prov['claude']['total']:,}\n"
+        f"- Coût cloud estimé : {costs['cloud_cost']} {costs['devise']} · "
+        f"économies via local : {costs['savings']} {costs['devise']}\n"
+        f"- Tendance : {trend_str}\n- Articles traités : {articles}"
+    )
+    prompt = (
+        "Tu es analyste FinOps spécialisé IA. Rédige en français une SYNTHÈSE de l'activité IA "
+        "du jour (2 à 3 paragraphes), à partir des chiffres ci-dessous : volume, répartition "
+        "local vs cloud, coût et économies, tendance, puis 1 à 2 recommandations d'optimisation "
+        "(p. ex. router davantage vers le modèle local). Commence DIRECTEMENT, sans préambule. "
+        "N'invente aucun chiffre.\n\n" + ctx
+    )
+    try:
+        from utils.api_client import get_ai_client
+        out = (get_ai_client().ask(prompt, timeout=90, max_tokens=650) or "").strip()
+    except Exception:
+        return ""
+    if not out or out.lower().startswith(("erreur", "désolé")) or re.search(r"[一-鿿]", out):
+        return ""
+    return out
+
+
+def _acr_font(size: int):
+    from PIL import ImageFont
+    for p in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+              "/System/Library/Fonts/Supplemental/Arial.ttf"):
+        try:
+            return ImageFont.truetype(p, size)
+        except Exception:
+            continue
+    try:
+        return ImageFont.load_default(size)
+    except Exception:
+        return ImageFont.load_default()
+
+
+def render_localcloud_png(prov: dict) -> bytes | None:
+    """Camembert de répartition des tokens local vs cloud (Pillow). #2/#4."""
+    try:
+        from PIL import Image, ImageDraw
+        import io
+    except Exception:
+        return None
+    slices = [("Ollama (local)", prov["ollama"]["total"], (46, 204, 113)),
+              ("EurIA (cloud)", prov["euria"]["total"], (52, 152, 219)),
+              ("Claude (cloud)", prov["claude"]["total"], (230, 126, 34))]
+    slices = [s for s in slices if s[1] > 0]
+    if not slices:
+        return None
+    total = sum(s[1] for s in slices) or 1
+    W, H = 740, 430
+    img = Image.new("RGB", (W, H), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    f, ft = _acr_font(15), _acr_font(20)
+    d.text((20, 16), "Répartition des tokens — local vs cloud", fill=(20, 20, 20), font=ft)
+    cx, cy, r = 210, 240, 150
+    box = [cx - r, cy - r, cx + r, cy + r]
+    start = -90.0
+    for _name, val, col in slices:
+        ang = val / total * 360
+        d.pieslice(box, start, start + ang, fill=col)
+        start += ang
+    ly = 120
+    for name, val, col in slices:
+        d.rectangle([440, ly, 462, ly + 20], fill=col)
+        d.text((472, ly + 1), f"{name} — {val:,} ({round(val/total*100)} %)",
+               fill=(40, 40, 40), font=f)
+        ly += 38
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def render_trend_png(history_7d: list, token_by_date: dict) -> bytes | None:
+    """Histogramme des tokens sur 7 jours (Pillow). #11."""
+    try:
+        from PIL import Image, ImageDraw
+        import io
+    except Exception:
+        return None
+    pts = [(e["date"][5:], token_by_date.get(e["date"], 0)) for e in history_7d]
+    if not any(v for _, v in pts):
+        return None
+    W, H = 740, 360
+    pad, base, top = 50, 300, 70
+    img = Image.new("RGB", (W, H), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    f, ft = _acr_font(13), _acr_font(20)
+    d.text((20, 16), "Tokens — 7 derniers jours", fill=(20, 20, 20), font=ft)
+    mx = max(v for _, v in pts) or 1
+    n = len(pts)
+    bw = (W - 2 * pad) / n
+    for i, (lbl, v) in enumerate(pts):
+        x = pad + i * bw
+        h = int((base - top) * v / mx)
+        d.rectangle([x + 6, base - h, x + bw - 6, base], fill=(52, 152, 219))
+        d.text((x + 6, base + 6), lbl, fill=(60, 60, 60), font=f)
+        if v:
+            d.text((x + 6, base - h - 16), f"{v//1000}k" if v >= 1000 else str(v),
+                   fill=(40, 40, 40), font=f)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def build_local_cloud_section(prov: dict, lc: dict, costs: dict, proj: dict,
+                              eff: dict, alerts: list) -> str:
+    """Sections Markdown : Local vs Cloud, coûts, efficacité, projection (#4,#5,#7,#9)."""
+    dev = costs["devise"]
+    parts = []
+    if alerts:
+        parts.append("> ⚠️ **Alerte budget** : " + " ; ".join(alerts) + "\n")
+    parts.append("## Local vs Cloud")
+    parts.append("")
+    parts.append("| | Tokens | Appels | Part | Coût estimé |")
+    parts.append("|---|---:|---:|---:|---:|")
+    parts.append(f"| 🟢 Local (Ollama) | {lc['local_tok']:,} | {lc['local_calls']} | "
+                 f"**{lc['local_pct']} %** | 0 {dev} |")
+    parts.append(f"| ☁️ Cloud (EurIA+Claude) | {lc['cloud_tok']:,} | {lc['cloud_calls']} | "
+                 f"{100 - lc['local_pct']} % | {costs['cloud_cost']} {dev} |")
+    parts.append("")
+    parts.append(f"> 💶 **Coût cloud estimé : {costs['cloud_cost']} {dev}/jour** · "
+                 f"**économies grâce au local : ~{costs['savings']} {dev}/jour** "
+                 f"(prix configurables dans `config/ai_pricing.json`).")
+    parts.append("")
+    parts.append("### Détail par fournisseur")
+    parts.append("")
+    parts.append("| Fournisseur | Tokens | Coût estimé |")
+    parts.append("|---|---:|---:|")
+    for key, label in (("ollama", "Ollama (local)"), ("euria", "EurIA"), ("claude", "Claude")):
+        parts.append(f"| {label} | {prov[key]['total']:,} | {costs['per'][key]} {dev} |")
+    parts.append("")
+    parts.append("## Efficacité & projection")
+    parts.append("")
+    parts.append("| Indicateur | Valeur |")
+    parts.append("|---|---|")
+    parts.append(f"| Tokens / article traité | {eff['tokens_per_article']:,} |")
+    parts.append(f"| Tokens ce mois (à ce jour) | {proj['mtd_tokens']:,} |")
+    parts.append(f"| Projection fin de mois | ~{proj['proj_tokens']:,} tokens "
+                 f"({proj['elapsed']}/{proj['days']} j) |")
+    parts.append("")
+    return "\n".join(parts)
+
+
 def build_token_table(token_stats: dict) -> str:
     if not token_stats:
         return "_Aucun token tracé dans les logs aujourd'hui._"
@@ -573,7 +812,8 @@ def build_token_table(token_stats: dict) -> str:
 
 def build_report(history: list, token_stats: dict, quota_cfg: dict,
                  all_history: list | None = None,
-                 token_by_date: dict | None = None) -> str:
+                 token_by_date: dict | None = None,
+                 synthesis: str = "", lc_section: str = "") -> str:
     """history contient 30 entrées (les 30 derniers jours).
     all_history contient toutes les entrées disponibles (tous les mois).
     token_by_date : dict {YYYY-MM-DD: total_tokens} pour l'historique des graphiques.
@@ -643,6 +883,10 @@ def build_report(history: list, token_stats: dict, quota_cfg: dict,
     else:
         trend_str = "— premier jour de données"
 
+    synthesis_block = (f"\n## 🤖 Synthèse de l'activité IA\n\n"
+                       + "\n".join(("> " + l) if l.strip() else ">" for l in synthesis.splitlines())
+                       + "\n\n---\n") if synthesis else ""
+
     report = f"""---
 title: "Rapport de consommation IA — {today_fr}"
 date: {today_str}
@@ -650,7 +894,7 @@ type: ai-consumption
 ---
 
 # Rapport de consommation IA — {today_fr}
-
+{synthesis_block}
 ## Résumé du jour
 
 | Indicateur | Valeur |
@@ -712,9 +956,12 @@ type: ai-consumption
 
 {token_table}
 
-> ⚠️ Les tokens sont extraits des fichiers de log cron.
+> ⚠️ Les tokens sont extraits des fichiers de log cron / de la persistance `data/ai_usage/`.
 > Seules les lignes `[EurIA] Usage`, `[Claude/...] Usage` et `[Ollama/...] Usage` du jour courant sont comptabilisées.
 
+---
+
+{lc_section}
 ---
 
 ## Consommation par mot-clé (aujourd'hui)
@@ -739,6 +986,8 @@ def main():
         "--dry-run", action="store_true",
         help="Affiche les 3000 premiers caractères du rapport sans le sauvegarder",
     )
+    parser.add_argument("--no-ai", action="store_true", help="Désactive la synthèse IA")
+    parser.add_argument("--no-discord", action="store_true", help="N'envoie pas la notif Discord")
     args = parser.parse_args()
 
     from utils.logging import print_console
@@ -749,6 +998,7 @@ def main():
     token_stats = parse_tokens_from_logs(PROJECT_ROOT)
     quota_cfg   = load_quota_config(PROJECT_ROOT)
 
+    today_str    = history[-1]["date"]
     today_count  = history[-1]["global_count"]
     global_limit = quota_cfg["global_daily_limit"]
     total_tokens = sum(s["total"] for s in token_stats.values())
@@ -756,12 +1006,45 @@ def main():
     all_history     = load_all_quota_history(PROJECT_ROOT)
     token_by_date   = parse_tokens_history(PROJECT_ROOT, all_history)
 
-    print_console(f"  Quota aujourd'hui   : {today_count} / {global_limit} articles")
-    print_console(f"  Tokens aujourd'hui  : {total_tokens:,} (depuis {len(token_stats)} services)")
-    print_console(f"  Historique chargé   : {len(history)} jours (30j) / {len(all_history)} jours (total)")
-    print_console(f"  Jours avec tokens   : {sum(1 for v in token_by_date.values() if v > 0)} / {len(token_by_date)}")
+    # #3 — totaux providers (persistance JSONL prioritaire, sinon logs)
+    usage_jsonl = aggregate_usage(PROJECT_ROOT, today_str)
+    prov = _provider_grand_totals(token_stats, usage_jsonl)
+    pricing = load_pricing(PROJECT_ROOT)
+    lc = compute_local_cloud(prov)
+    costs = compute_costs(prov, pricing)
+    proj = compute_projection(token_by_date)
+    eff = {"tokens_per_article": round(lc["total"] / today_count) if today_count else 0}
+    alerts = budget_alerts(lc, costs, pricing)
+    if usage_jsonl and lc["total"]:
+        total_tokens = lc["total"]  # source persistée plus fiable que les logs
 
-    report_md = build_report(history, token_stats, quota_cfg, all_history=all_history, token_by_date=token_by_date)
+    # Tendance (pour la synthèse) — réutilise la logique du rapport
+    hist7 = history[-7:]
+    prev6 = [token_by_date.get(e["date"], 0) for e in hist7[:-1] if token_by_date.get(e["date"], 0) > 0]
+    if prev6:
+        pavg = sum(prev6) / len(prev6)
+        tp = round((total_tokens - pavg) / pavg * 100) if pavg else 0
+        trend_str = f"{'↑ +' if tp > 0 else '↓ ' if tp < 0 else '→ '}{tp} % vs moyenne 6j"
+    else:
+        trend_str = "premier jour de données"
+
+    # #1 — synthèse IA
+    synthesis = ""
+    if not args.dry_run and not args.no_ai:
+        synthesis = generate_ai_synthesis(prov, lc, costs, trend_str, today_count, use_ai=True)
+        if synthesis:
+            print_console("  → synthèse IA générée")
+
+    lc_section = build_local_cloud_section(prov, lc, costs, proj, eff, alerts)
+
+    print_console(f"  Quota aujourd'hui   : {today_count} / {global_limit} articles")
+    print_console(f"  Tokens aujourd'hui  : {total_tokens:,} · local {lc['local_pct']} % / cloud {100 - lc['local_pct']} %")
+    print_console(f"  Coût cloud estimé   : {costs['cloud_cost']} {costs['devise']} · économies local ~{costs['savings']} {costs['devise']}")
+    if alerts:
+        print_console("  ⚠️ Alerte budget : " + " ; ".join(alerts), level="warning")
+
+    report_md = build_report(history, token_stats, quota_cfg, all_history=all_history,
+                             token_by_date=token_by_date, synthesis=synthesis, lc_section=lc_section)
 
     if args.dry_run:
         print(report_md[:3000])
@@ -773,6 +1056,36 @@ def main():
     output_file = output_dir / "ai_consumption_report.md"
     output_file.write_text(report_md, encoding="utf-8")
     print_console(f"Rapport sauvegardé → {output_file.relative_to(PROJECT_ROOT)}")
+
+    # #2/#11 — notification Discord : synthèse + graphes (local/cloud + tendance 7j)
+    if not args.no_discord and lc["total"]:
+        images = []
+        pie = render_localcloud_png(prov)
+        if pie:
+            images.append(("local_cloud.png", pie))
+        trend = render_trend_png(hist7, token_by_date)
+        if trend:
+            images.append(("tendance7j.png", trend))
+        dev = costs["devise"]
+        parts = []
+        if alerts:
+            parts.append("⚠️ **Alerte budget** : " + " ; ".join(alerts))
+        if synthesis:
+            parts.append(synthesis)
+        parts.append(
+            f"**Local vs Cloud** — 🟢 local {lc['local_tok']:,} ({lc['local_pct']} %) · "
+            f"☁️ cloud {lc['cloud_tok']:,}\n"
+            f"💶 Coût cloud ~{costs['cloud_cost']} {dev}/j · économies local ~{costs['savings']} {dev}/j"
+        )
+        try:
+            send_text_discord(
+                title=f"🤖 Consommation IA — {today_str}",
+                description="\n\n".join(parts),
+                footer=f"{total_tokens:,} tokens · {today_count} articles · WUDD.ai",
+                images=images,
+            )
+        except Exception as exc:
+            print_console(f"Notification Discord échouée : {exc}", level="warning")
 
 
 if __name__ == "__main__":
