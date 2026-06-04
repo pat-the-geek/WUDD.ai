@@ -534,7 +534,7 @@ def load_pricing(project_root: Path) -> dict:
     try:
         return json.loads(f.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {"devise": "€", "prix_par_1k": {}, "reference_cloud": {},
+        return {"devise": "CHF", "prix_par_1k": {}, "reference_cloud": {},
                 "alerte_cout_cloud_par_jour": 0, "alerte_tokens_cloud_par_jour": 0}
 
 
@@ -562,7 +562,7 @@ def compute_costs(prov: dict, pricing: dict) -> dict:
     cloud_cost = round(per["euria"] + per["claude"], 4)
     savings = round(_cost_of(prov["ollama"], pricing.get("reference_cloud", {})), 4)
     return {"per": per, "cloud_cost": cloud_cost, "savings": savings,
-            "devise": pricing.get("devise", "€")}
+            "devise": pricing.get("devise", "CHF")}
 
 
 def compute_projection(token_by_date: dict) -> dict:
