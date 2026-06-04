@@ -1,12 +1,17 @@
 {
-  "_comment": "Prix ESTIMÉS en francs suisses (CHF) par 1000 tokens (à ajuster selon vos contrats). Ollama (local) = 0. 'reference_cloud' sert à estimer les économies réalisées grâce au local.",
+  "_comment": "Prix en CHF par 1000 tokens. Estimations basées sur les tarifs publics (juin 2026) : Claude Haiku 4.5 = $1/$5 par M tokens (in/out) ; Infomaniak EurIA grand modèle ~ €1.0/€1.5 par M tokens. Conversion : USD/CHF≈0.79, EUR/CHF≈0.912. Ollama (local) = 0. Ajuster selon vos contrats réels.",
+  "_sources": [
+    "https://www.anthropic.com/news/claude-haiku-4-5",
+    "https://www.infomaniak.com/en/hosting/llm-api",
+    "EUR/CHF≈0.912 USD/CHF≈0.79 (juin 2026)"
+  ],
   "devise": "CHF",
   "prix_par_1k": {
-    "euria":  {"prompt": 0.0006, "completion": 0.0018},
+    "euria":  {"prompt": 0.0009, "completion": 0.0014},
     "claude": {"prompt": 0.0008, "completion": 0.0040},
     "ollama": {"prompt": 0.0,    "completion": 0.0}
   },
-  "reference_cloud": {"prompt": 0.0006, "completion": 0.0018},
+  "reference_cloud": {"prompt": 0.0009, "completion": 0.0014},
   "alerte_cout_cloud_par_jour": 1.0,
   "alerte_tokens_cloud_par_jour": 2000000
 }
