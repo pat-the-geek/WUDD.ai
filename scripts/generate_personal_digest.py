@@ -64,6 +64,115 @@ def _highlight_entities(text: str, entities: dict) -> str:
     return pattern.sub(_repl, text)
 
 
+# Thématiques de veille (config/thematiques_societales.json) — emoji par thème
+_THEME_EMOJI = {
+    "Intelligence Artificielle & Technologie": "🤖",
+    "Économie & Entreprises": "📈",
+    "Protection des Consommateurs": "🛒",
+    "Politique & Géopolitique": "🌍",
+    "Médias & Information": "📰",
+    "Éthique & Droits": "🧭",
+    "Sécurité & Cybersécurité": "🔒",
+    "Justice & Réglementation": "⚖️",
+    "Santé": "🏥",
+    "Emploi & Travail": "💼",
+    "Éducation & Formation": "🎓",
+    "Environnement": "🌱",
+}
+_THEME_AUTRES = "Autres"
+
+
+def _load_thematiques(project_root: Path) -> list[tuple[str, "re.Pattern"]]:
+    """Charge les thématiques de veille triées par rang.
+
+    Retourne une liste de (nom, regex compilée des mots-clés, bornée par \\b).
+    """
+    path = project_root / "config" / "thematiques_societales.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    them = data.get("thematiques", {})
+    ordered = sorted(them.items(), key=lambda kv: kv[1].get("rang", 999))
+    result: list[tuple[str, "re.Pattern"]] = []
+    for name, info in ordered:
+        mots = [m for m in info.get("mots_cles", []) if isinstance(m, str) and m.strip()]
+        if not mots:
+            continue
+        pattern = re.compile(
+            r"\b(" + "|".join(re.escape(m) for m in mots) + r")\b", re.IGNORECASE
+        )
+        result.append((name, pattern))
+    return result
+
+
+def _classify_article(art: dict, thematiques: list) -> str | None:
+    """Retourne la thématique dominante (plus d'occurrences de mots-clés) ou None."""
+    parts = [str(art.get("Titre") or ""), str(art.get("Résumé") or "")]
+    for vals in (art.get("entities") or {}).values():
+        if isinstance(vals, list):
+            parts.extend(str(v) for v in vals)
+    text = " ".join(parts)
+    best, best_n = None, 0
+    for name, pattern in thematiques:
+        n = len(pattern.findall(text))
+        if n > best_n:
+            best_n, best = n, name
+    return best
+
+
+def _render_article_block(art: dict, score: float) -> list[str]:
+    """Rend un article du digest : titre H3, image cliquable, résumé NER, lien."""
+    src = art.get("Sources", "Source inconnue")
+    url = art.get("URL", "#")
+    _dt_pub = parse_article_date(art.get("Date de publication") or "")
+    date_pub = _dt_pub.strftime("%d/%m/%Y") if _dt_pub else (art.get("Date de publication") or "")[:10]
+    resume = art.get("Résumé", "") or ""
+    resume_lines = [l.strip() for l in resume.splitlines() if l.strip()]
+    ents = art.get("entities", {}) or {}
+
+    titre_field = (art.get("Titre") or "").strip()
+    if titre_field:
+        titre = titre_field
+        body_lines = resume_lines
+    else:
+        titre = resume_lines[0] if resume_lines else f"{src} — {date_pub}"
+        body_lines = resume_lines[1:]
+
+    resume_body = _highlight_entities(" ".join(body_lines), ents)
+    sentiment = art.get("sentiment", "")
+    sentiment_emoji = {"positif": "🟢", "négatif": "🔴", "neutre": "⚪"}.get(sentiment, "")
+
+    img_url = ""
+    images = art.get("Images") or []
+    if isinstance(images, list) and images:
+        first_img = images[0]
+        if isinstance(first_img, dict):
+            # Données hétérogènes : clé « URL » (doc) ou « url » (flux RSS)
+            img_url = (first_img.get("URL") or first_img.get("url") or "").strip()
+        elif isinstance(first_img, str):
+            img_url = first_img.strip()
+    titre_alt = titre.replace("[", "(").replace("]", ")")
+
+    block = [
+        f"### {titre} {sentiment_emoji}".rstrip(),
+        "",
+        f"*{src} · {date_pub} · score profil {score:.2f}*",
+        "",
+    ]
+    if img_url:
+        block += [f"[![{titre_alt}]({img_url})]({url})", ""]
+    if resume_body:
+        block += [resume_body, ""]
+    block += [
+        f"[🔗 Lire l'article original]({url})",
+        "",
+        "---",
+        "",
+    ]
+    return block
+
+
 def _load_profiles(project_root: Path) -> list[dict]:
     f = project_root / "config" / "user_profiles.json"
     if not f.exists():
@@ -205,63 +314,29 @@ def generate_profile_digest(
     if not top:
         lines.append("*Aucun article pertinent trouvé pour ce profil sur cette période.*")
     else:
-        for rank, (score, art) in enumerate(top, 1):
-            src = art.get("Sources", "Source inconnue")
-            url = art.get("URL", "#")
-            _dt_pub = parse_article_date(art.get("Date de publication") or "")
-            date_pub = _dt_pub.strftime("%d/%m/%Y") if _dt_pub else (art.get("Date de publication") or "")[:10]
-            resume = art.get("Résumé", "") or ""
-            resume_lines = [l.strip() for l in resume.splitlines() if l.strip()]
-            ents = art.get("entities", {}) or {}
+        # Regroupe les articles (déjà triés par score) par thématique de veille dominante
+        thematiques = _load_thematiques(project_root)
+        grouped: dict[str, list] = {}
+        for score, art in top:
+            theme = _classify_article(art, thematiques) or _THEME_AUTRES
+            grouped.setdefault(theme, []).append((score, art))
 
-            # Titre : champ « Titre » de l'article si présent, sinon 1re ligne du
-            # résumé (et le corps repart alors de la 2e ligne).
-            titre_field = (art.get("Titre") or "").strip()
-            if titre_field:
-                titre = titre_field
-                body_lines = resume_lines
-            else:
-                titre = resume_lines[0] if resume_lines else f"{src} — {date_pub}"
-                body_lines = resume_lines[1:]
+        # Ordre d'affichage : thématiques par rang, « Autres » en dernier
+        theme_order = [name for name, _ in thematiques if name in grouped]
+        if _THEME_AUTRES in grouped:
+            theme_order.append(_THEME_AUTRES)
 
-            # Résumé en paragraphe, avec NER mises en gras
-            resume_body = _highlight_entities(" ".join(body_lines), ents)
+        # Sommaire des thématiques
+        lines += ["**Thématiques :** " + " · ".join(
+            f"{_THEME_EMOJI.get(t, '🗂️')} {t} ({len(grouped[t])})" for t in theme_order
+        ), "", "---", ""]
 
-            sentiment = art.get("sentiment", "")
-            sentiment_emoji = {"positif": "🟢", "négatif": "🔴", "neutre": "⚪"}.get(sentiment, "")
-
-            # Image principale (1re image disponible)
-            img_url = ""
-            images = art.get("Images") or []
-            if isinstance(images, list) and images:
-                first_img = images[0]
-                if isinstance(first_img, dict):
-                    # Données hétérogènes : clé « URL » (doc) ou « url » (flux RSS)
-                    img_url = (first_img.get("URL") or first_img.get("url") or "").strip()
-                elif isinstance(first_img, str):
-                    img_url = first_img.strip()
-            titre_alt = titre.replace("[", "(").replace("]", ")")
-
-            # Titre de l'article en titre de niveau 2 (Markdown)
-            lines += [
-                f"## {rank}. {titre} {sentiment_emoji}".rstrip(),
-                "",
-                f"*{src} · {date_pub} · score profil {score:.2f}*",
-                "",
-            ]
-            # Image cliquable renvoyant vers l'article
-            if img_url:
-                lines += [f"[![{titre_alt}]({img_url})]({url})", ""]
-            if resume_body:
-                lines += [resume_body, ""]
-
-            # Lien vers l'article en fin d'article
-            lines += [
-                f"[🔗 Lire l'article original]({url})",
-                "",
-                "---",
-                "",
-            ]
+        for theme in theme_order:
+            arts = grouped[theme]
+            emoji = _THEME_EMOJI.get(theme, "🗂️")
+            lines += [f"## {emoji} {theme} ({len(arts)})", ""]
+            for score, art in arts:
+                lines += _render_article_block(art, score)
 
     lines += [
         "",
