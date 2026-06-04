@@ -41,6 +41,16 @@ _ENTITY_TYPES_PERTINENTS = {
     "PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "DISEASE", "NORP"
 }
 
+# Sous-répertoire des fichiers DÉRIVÉS (agrégats : 48-heures.json, direct.json,
+# merged/…). Ils dupliquent les articles des vrais flux → exclus du rapport pour
+# éviter le double comptage et un faux flux « rss:_WUDD.AI_/… ».
+_DERIVED_SUBDIR = "_WUDD.AI_"
+
+
+def _is_derived_path(parts) -> bool:
+    """Vrai si le chemin (parts) traverse le sous-répertoire dérivé _WUDD.AI_."""
+    return _DERIVED_SUBDIR in parts
+
 # ── Parsing de date ───────────────────────────────────────────────────────────
 
 def _parse_date(date_str: str) -> datetime | None:
@@ -60,6 +70,9 @@ def _file_path_to_flux_name(file_path: str) -> str:
     if not file_path:
         return ""
     parts = Path(file_path).parts
+    # Ignore les agrégats dérivés (_WUDD.AI_/48-heures.json…)
+    if _is_derived_path(parts):
+        return ""
     # data/articles/<flux_dir>/...json
     if len(parts) >= 3 and parts[1] == "articles":
         return parts[2]
@@ -222,7 +235,7 @@ def collect_article_counts_by_flux(
     articles_dir = project_root / "data" / "articles"
     if articles_dir.exists():
         for flux_dir in articles_dir.iterdir():
-            if not flux_dir.is_dir():
+            if not flux_dir.is_dir() or flux_dir.name == _DERIVED_SUBDIR:
                 continue
             flux_name = flux_dir.name
             for json_file in flux_dir.rglob("*.json"):
@@ -233,7 +246,8 @@ def collect_article_counts_by_flux(
     rss_dir = project_root / "data" / "articles-from-rss"
     if rss_dir.exists():
         for json_file in rss_dir.rglob("*.json"):
-            if "cache" in json_file.relative_to(rss_dir).parts:
+            rel_parts = json_file.relative_to(rss_dir).parts
+            if "cache" in rel_parts or _is_derived_path(rel_parts):
                 continue
             flux_name = (
                 f"rss:{json_file.parent.name}/{json_file.stem}"
@@ -270,7 +284,7 @@ def collect_entities_by_flux(
     articles_dir = project_root / "data" / "articles"
     if articles_dir.exists():
         for flux_dir in articles_dir.iterdir():
-            if not flux_dir.is_dir():
+            if not flux_dir.is_dir() or flux_dir.name == _DERIVED_SUBDIR:
                 continue
             flux_name = flux_dir.name
             for json_file in flux_dir.rglob("*.json"):
@@ -282,7 +296,8 @@ def collect_entities_by_flux(
     rss_dir = project_root / "data" / "articles-from-rss"
     if rss_dir.exists():
         for json_file in rss_dir.rglob("*.json"):
-            if "cache" in json_file.relative_to(rss_dir).parts:
+            rel_parts = json_file.relative_to(rss_dir).parts
+            if "cache" in rel_parts or _is_derived_path(rel_parts):
                 continue
             flux_name = f"rss:{json_file.parent.name}/{json_file.stem}" if json_file.parent != rss_dir else f"rss:{json_file.stem}"
             _collect_from_file(json_file, flux_name, cutoff, flux_entities)
