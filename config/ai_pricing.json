@@ -1,0 +1,12 @@
+{
+  "_comment": "Prix ESTIMÉS en euros par 1000 tokens (à ajuster selon vos contrats). Ollama (local) = 0. 'reference_cloud' sert à estimer les économies réalisées grâce au local.",
+  "devise": "€",
+  "prix_par_1k": {
+    "euria":  {"prompt": 0.0006, "completion": 0.0018},
+    "claude": {"prompt": 0.0008, "completion": 0.0040},
+    "ollama": {"prompt": 0.0,    "completion": 0.0}
+  },
+  "reference_cloud": {"prompt": 0.0006, "completion": 0.0018},
+  "alerte_cout_cloud_par_jour": 1.0,
+  "alerte_tokens_cloud_par_jour": 2000000
+}

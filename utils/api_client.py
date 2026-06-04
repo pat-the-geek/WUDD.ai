@@ -1045,6 +1045,13 @@ class EurIAClient:
                             f"completion: {usage.get('completion_tokens', '?')} tokens, "
                             f"total: {usage.get('total_tokens', '?')} tokens"
                         )
+                        try:
+                            from .ai_usage import record_ai_usage
+                            record_ai_usage(self._provider_label,
+                                            usage.get("prompt_tokens", 0),
+                                            usage.get("completion_tokens", 0))
+                        except Exception:
+                            pass
                     default_logger.info(f"Réponse reçue de l'API: {len(content)} caractères")
                     _euria_breaker.record_success()
                     return content
@@ -1641,6 +1648,12 @@ class ClaudeClient:
                         f"[Claude/{active_model}] Usage — input: {usage.get('input_tokens', '?')} tokens, "
                         f"output: {usage.get('output_tokens', '?')} tokens"
                     )
+                    try:
+                        from .ai_usage import record_ai_usage
+                        record_ai_usage("Claude", usage.get("input_tokens", 0),
+                                        usage.get("output_tokens", 0))
+                    except Exception:
+                        pass
                 default_logger.info(f"[Claude] Réponse reçue : {len(content)} caractères")
                 _claude_breaker.record_success()
                 return content.strip()
