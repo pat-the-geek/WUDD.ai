@@ -20,7 +20,17 @@ from utils.logging import default_logger
 
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 
+# Caractères CJK (han) — symptôme de dérive de langue des modèles Qwen.
+_CJK_RE = re.compile(
+    r"[㐀-䶿一-鿿豈-﫿\U00020000-\U0002EBEF]"
+)
+
 __all__ = ["format_summary_markdown", "degrade_overbold"]
+
+
+def _contains_cjk(text: str) -> bool:
+    """Détecte la présence de caractères chinois (CJK Han) dans un texte."""
+    return bool(text) and _CJK_RE.search(text) is not None
 
 
 def degrade_overbold(text: str) -> str:
@@ -104,7 +114,27 @@ def format_summary_markdown(
     prompt = _build_prompt(resume, entity_label, max_chars)
     try:
         from utils.api_client import get_summary_client
-        out = get_summary_client().ask(prompt, timeout=timeout, max_tokens=700)
+        client = get_summary_client()
+        out = client.ask(prompt, timeout=timeout, max_tokens=700)
+
+        # Garde-fou langue : les modèles (Qwen) dérivent parfois vers le chinois.
+        # On régénère une fois avec une consigne corrective, puis on abandonne le
+        # reformatage (l'appelant conserve alors le résumé brut, garanti français).
+        if _contains_cjk(out or ""):
+            default_logger.warning(
+                "Reformatage Markdown contient des caractères chinois — régénération."
+            )
+            retry_prompt = (
+                "Le reformatage précédent contenait des caractères chinois. "
+                "Recommence en produisant un Markdown 100 % en français, "
+                "sans aucun caractère chinois.\n\n" + prompt
+            )
+            out = client.ask(retry_prompt, timeout=timeout, max_tokens=700)
+            if _contains_cjk(out or ""):
+                default_logger.warning(
+                    "Reformatage Markdown toujours en chinois — résumé brut conservé."
+                )
+                return ""
     except Exception as exc:
         default_logger.warning(f"Reformatage Markdown indisponible ({exc}) — résumé brut conservé.")
         return ""
