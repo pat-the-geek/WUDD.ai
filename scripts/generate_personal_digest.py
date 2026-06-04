@@ -30,6 +30,16 @@ from utils.date_utils import parse_article_date
 from utils.report_cleanup import cleanup_old_dated_reports
 from utils.deduplication import Deduplicator
 from utils.source_credibility import CredibilityEngine
+from utils.exporters.webhook import send_digest_discord
+
+
+def _article_title(art: dict) -> str:
+    """Titre d'un article : champ « Titre », sinon 1re ligne du résumé, sinon source."""
+    t = (art.get("Titre") or "").strip()
+    if t:
+        return t
+    rl = [l.strip() for l in (art.get("Résumé") or "").splitlines() if l.strip()]
+    return rl[0] if rl else (art.get("Sources") or "Article")
 
 
 def _highlight_entities(text: str, entities: dict) -> str:
@@ -509,6 +519,7 @@ def generate_profile_digest(
     days: int = 7,
     dry_run: bool = False,
     use_ai: bool = True,
+    notify_discord: bool = True,
 ) -> Path | None:
     """Génère le digest Markdown pour un profil donné."""
     profile_id = profile.get("id", "unknown")
@@ -553,11 +564,18 @@ def generate_profile_digest(
         "",
     ]
 
+    # Données pour la notification Discord (remplies si articles)
+    discord_synthese = ""
+    discord_sections: list = []
+    discord_image = ""
+    discord_nb_themes = 0
+
     if not top:
         lines.append("*Aucun article pertinent trouvé pour ce profil sur cette période.*")
     else:
         # Synthèse & mise en perspective IA (en tête, en encadré)
         synthese = _generate_synthesis(top, profile_name, days, use_ai=use_ai)
+        discord_synthese = synthese
         if synthese:
             lines += [
                 "## 🧭 Synthèse & mise en perspective",
@@ -591,6 +609,19 @@ def generate_profile_digest(
             lines += [f"## {emoji} {theme} ({len(arts)})", ""]
             for score, art in arts:
                 lines += _render_article_block(art, score, use_ai=use_ai)
+            discord_sections.append(
+                (f"{emoji} {theme}", [(_article_title(a), a.get("URL", "")) for _s, a in arts])
+            )
+
+        discord_nb_themes = len(theme_order)
+        # Image bannière : 1re image valide parmi les articles sélectionnés
+        for _s, a in top:
+            imgs = a.get("Images")
+            if isinstance(imgs, list) and imgs and isinstance(imgs[0], dict):
+                u = (imgs[0].get("URL") or imgs[0].get("url") or "").strip()
+                if u and _image_is_valid(u):
+                    discord_image = u
+                    break
 
     lines += [
         "",
@@ -605,6 +636,19 @@ def generate_profile_digest(
         out_file.write_text("\n".join(lines), encoding="utf-8")
         LOG.info(f"[digest] Rapport créé : {out_file}")
         cleanup_old_dated_reports(out_file)
+
+        # Notification Discord (silencieuse si WEBHOOK_DISCORD non configuré)
+        if notify_discord and top:
+            try:
+                send_digest_discord(
+                    title=f"🗞️ Digest {profile_name} — {now.strftime('%d/%m/%Y')}",
+                    synthesis=discord_synthese,
+                    sections=discord_sections,
+                    footer=f"{len(top)} articles · {discord_nb_themes} thématiques · WUDD.ai",
+                    image_url=discord_image,
+                )
+            except Exception as exc:
+                LOG.warning(f"[digest] Notification Discord échouée : {exc}")
     else:
         LOG.info(f"[digest] dry-run — {out_file}")
 
@@ -618,6 +662,8 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Simulation sans écriture")
     parser.add_argument("--no-ai", action="store_true",
                         help="Désactive la synthèse IA et la génération des chapitres manquants")
+    parser.add_argument("--no-discord", action="store_true",
+                        help="N'envoie pas la notification Discord du digest")
     args = parser.parse_args()
 
     config = get_config()
@@ -636,6 +682,7 @@ def main() -> None:
         out = generate_profile_digest(
             config.project_root, profile, days=args.days,
             dry_run=args.dry_run, use_ai=not args.no_ai,
+            notify_discord=not args.no_discord,
         )
         if out:
             print(f"Digest généré : {out}")

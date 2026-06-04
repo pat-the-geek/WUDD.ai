@@ -250,6 +250,69 @@ def send_article_discord(
         return False
 
 
+def send_digest_discord(
+    *,
+    title: str,
+    synthesis: str = "",
+    sections: Optional[list] = None,
+    footer: str = "",
+    image_url: str = "",
+    webhook_url: Optional[str] = None,
+) -> bool:
+    """Envoie un digest sous forme de notification Discord (un embed).
+
+    Args:
+        title     : titre de l'embed (ex. « 🗞️ Digest WUDD.ai — 04/06/2026 »)
+        synthesis : texte de synthèse/mise en perspective (Markdown) en tête
+        sections  : liste de (libellé_thème, [(titre_article, url), …]) — liens cliquables
+        footer    : pied d'embed (ex. « 10 articles · 9 thématiques »)
+        image_url : image bannière (1re image valide du digest)
+    """
+    url = webhook_url or os.getenv("WEBHOOK_DISCORD", "")
+    if not url:
+        default_logger.debug("WEBHOOK_DISCORD non configuré — digest Discord ignoré")
+        return False
+
+    parts: list[str] = []
+    if synthesis.strip():
+        parts.append(synthesis.strip())
+    for theme_label, arts in (sections or []):
+        if not arts:
+            continue
+        block = [f"**{theme_label}**"]
+        for art_title, art_url in arts:
+            t = " ".join((art_title or "").split())
+            if len(t) > 110:
+                t = t[:109].rstrip() + "…"
+            block.append(f"• [{t}]({art_url})" if art_url else f"• {t}")
+        parts.append("\n".join(block))
+
+    description = "\n\n".join(parts).strip()
+    if len(description) > _DISCORD_DESC_LIMIT:
+        description = description[: _DISCORD_DESC_LIMIT - 1].rstrip() + "…"
+
+    embed: dict = {
+        "title": (title or "Digest WUDD.ai")[:256],
+        "description": description or "_(digest vide)_",
+        "color": _NIVEAU_COLOR["info"],
+    }
+    if footer:
+        embed["footer"] = {"text": footer[:2048]}
+    if image_url.startswith(("http://", "https://")):
+        embed["image"] = {"url": image_url}
+
+    payload = {"embeds": [embed]}
+    try:
+        session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
+        r = session.post(url, json=payload, timeout=10)
+        r.raise_for_status()
+        default_logger.info("Notification Discord digest envoyée")
+        return True
+    except Exception as e:
+        default_logger.warning(f"Erreur Discord (digest) : {e}")
+        return False
+
+
 def send_watched_entity_added(
     entity_type: str,
     value: str,
