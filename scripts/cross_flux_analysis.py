@@ -135,12 +135,25 @@ def _normalize_keyword_stem(kw: str) -> str:
     return kw.strip().lower().replace(' ', '-')
 
 
-def _build_keyword_graph_block(
+def _keyword_sort_key(keyword: str) -> str:
+    """Clé de tri alphabétique : sans accents, en minuscules, sans crochets de tête."""
+    ascii_form = unicodedata.normalize("NFKD", keyword).encode("ascii", "ignore").decode()
+    return ascii_form.lower().lstrip("[](){} ").strip()
+
+
+def _md_cell(terms: list[str]) -> str:
+    """Formate une liste de termes pour une cellule de tableau Markdown."""
+    cleaned = [str(t).strip().replace("|", "\\|") for t in (terms or []) if str(t).strip()]
+    return ", ".join(cleaned) if cleaned else "—"
+
+
+def _build_keyword_table_block(
     project_root: Path,
     active_stems: set[str] | None = None,
 ) -> str:
-    """Génère un bloc ``\`\`\`keyword-graph`` avec le JSON des mots-clés actifs.
-    Ce bloc est rendu par KeywordForceGraph dans le viewer WUDD.ai.
+    """Génère un tableau Markdown des mots-clés de veille, trié alphabétiquement.
+
+    Colonnes : mot-clé, variantes « OU » (au moins une) et termes « ET » (tous requis).
 
     Args:
         project_root  : racine du projet
@@ -166,7 +179,17 @@ def _build_keyword_graph_block(
     if not keywords:
         return ""
 
-    return "```keyword-graph\n" + json.dumps(keywords, ensure_ascii=False) + "\n```"
+    keywords = sorted(keywords, key=lambda e: _keyword_sort_key(e.get("keyword", "")))
+
+    rows = [
+        "| Mot-clé | Variantes (OU) | Termes requis (ET) |",
+        "|---|---|---|",
+    ]
+    for entry in keywords:
+        kw = str(entry.get("keyword", "")).strip().replace("|", "\\|")
+        rows.append(f"| **{kw}** | {_md_cell(entry.get('or'))} | {_md_cell(entry.get('and'))} |")
+
+    return "\n".join(rows)
 
 
 def _count_articles_in_file(json_file: Path, cutoff: datetime | None) -> int:
@@ -483,13 +506,13 @@ def build_cross_flux_markdown(
             for k, v in counts.items()
             if k.startswith("rss:") and v > 0
         } or None  # None si vide = afficher tous (fallback)
-    kw_graph = _build_keyword_graph_block(root, active_stems=active_stems)
-    if kw_graph:
+    kw_table = _build_keyword_table_block(root, active_stems=active_stems)
+    if kw_table:
         lines += [
             "",
-            "## Carte des mots-clés de veille",
+            "## Mots-clés de veille",
             "",
-            kw_graph,
+            kw_table,
             "",
         ]
 
