@@ -783,6 +783,78 @@ def _cooccurrence_mermaid(cross_entities: list, top_n: int = 12, min_w: int = 2)
     return "\n".join(lines)
 
 
+def _render_cooc_png(cross_entities: list, top_n: int = 12, min_w: int = 2) -> bytes | None:
+    """Rend le graphe de co-occurrence en PNG (layout circulaire, via Pillow)."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        import io
+        import math
+    except Exception:
+        return None
+    sel = cross_entities[:top_n]
+    ids = {e["entity_key"]: i for i, e in enumerate(sel)}
+    edges, seen = [], set()
+    for e in sel:
+        for k, w in (e.get("_cooc") or {}).items():
+            if k in ids and w >= min_w:
+                pair = tuple(sorted((e["entity_key"], k)))
+                if pair in seen:
+                    continue
+                seen.add(pair)
+                edges.append((ids[pair[0]], ids[pair[1]], w))
+    if not edges:
+        return None
+    used = sorted({a for a, _, _ in edges} | {b for _, b, _ in edges})
+
+    def _font(size):
+        for p in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                  "/System/Library/Fonts/Supplemental/Arial.ttf"):
+            try:
+                return ImageFont.truetype(p, size)
+            except Exception:
+                continue
+        try:
+            return ImageFont.load_default(size)
+        except Exception:
+            return ImageFont.load_default()
+
+    W = H = 860
+    cx = cy = H // 2 + 10
+    R = 290
+    f, ft = _font(15), _font(20)
+    pos = {}
+    n = len(used)
+    for idx, node in enumerate(used):
+        ang = 2 * math.pi * idx / n - math.pi / 2
+        pos[node] = (cx + R * math.cos(ang), cy + R * math.sin(ang))
+
+    img = Image.new("RGB", (W, H), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    d.text((20, 16), "Graphe de co-occurrence des entités", fill=(20, 20, 20), font=ft)
+    mxw = max(w for _, _, w in edges) or 1
+    for a, b, w in edges:
+        xa, ya = pos[a]
+        xb, yb = pos[b]
+        d.line([xa, ya, xb, yb], fill=(170, 185, 200), width=max(1, int(1 + 4 * w / mxw)))
+    palette = [(52, 152, 219), (46, 204, 113), (231, 76, 60), (155, 89, 182),
+               (241, 196, 15), (26, 188, 156), (230, 126, 34), (52, 73, 94),
+               (233, 30, 99), (149, 165, 166), (26, 102, 204), (192, 57, 43)]
+    for j, node in enumerate(used):
+        x, y = pos[node]
+        d.ellipse([x - 8, y - 8, x + 8, y + 8], fill=palette[j % len(palette)])
+        label = sel[node]["entity_value"][:20]
+        try:
+            tw = d.textlength(label, font=f)
+        except Exception:
+            tw = len(label) * 7
+        tx = (x - tw - 12) if x < cx else (x + 12)
+        d.text((tx, y - 8), label, fill=(35, 35, 35), font=f)
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
 def _entity_minianalyses(cross_entities: list, use_ai: bool, top_n: int = 8) -> dict:
     """1 phrase IA par entité phare (un seul appel, JSON {entity_value: phrase})."""
     if not use_ai or not cross_entities:
@@ -1301,9 +1373,15 @@ def main():
     if not args.no_obsidian:
         _export_obsidian_crossflux(md_path)
 
-    # Notification Discord (#15) : synthèse + top entités + graphique flux (image PNG)
+    # Notification Discord (#15) : synthèse + top entités + 2 images (flux + co-occurrence)
     if not args.no_discord and (synthesis or cross_entities or flux_article_counts):
         chart_png = _render_flux_chart_png(flux_article_counts, top_n=10)
+        cooc_png = _render_cooc_png(cross_entities, top_n=12)
+        images = []
+        if cooc_png:
+            images.append(("cooccurrence.png", cooc_png))
+        if chart_png:
+            images.append(("flux.png", chart_png))
         parts = [synthesis] if synthesis else []
         top_ent = _top_entities_discord(cross_entities)
         if top_ent:
@@ -1318,8 +1396,7 @@ def main():
                 title=f"🔀 Analyse croisée des flux — {date_str}",
                 description=description,
                 footer=f"{len(cross_entities)} entités multi-flux · {len(flux_names)} flux · WUDD.ai",
-                image_bytes=chart_png,
-                image_name="flux.png",
+                images=images,
             )
         except Exception as exc:
             print_console(f"Notification Discord échouée : {exc}", level="warning")

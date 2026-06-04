@@ -394,36 +394,52 @@ def send_text_discord(
     color: Optional[int] = None,
     image_bytes: Optional[bytes] = None,
     image_name: str = "chart.png",
+    images: Optional[list] = None,
     webhook_url: Optional[str] = None,
 ) -> bool:
     """Envoie une notification Discord générique : un embed titre + description Markdown.
 
-    Si `image_bytes` est fourni, l'image est jointe (multipart) et affichée dans
-    l'embed via ``attachment://`` (utilisé pour le graphique des flux en PNG).
+    Images : `image_bytes` (une seule) OU `images` = liste de (nom, bytes) pour en
+    joindre plusieurs (Discord n'affiche qu'une image par embed → on crée un embed
+    par image, en réutilisant titre/description sur le premier).
     """
     url = webhook_url or os.getenv("WEBHOOK_DISCORD", "")
     if not url:
         default_logger.debug("WEBHOOK_DISCORD non configuré — Discord ignoré")
         return False
-    embed = {
+
+    # Normalise la/les image(s) en liste (nom, bytes)
+    imgs: list = []
+    if images:
+        imgs = [(n, b) for (n, b) in images if b]
+    elif image_bytes:
+        imgs = [(image_name, image_bytes)]
+
+    base = {
         "title": (title or "WUDD.ai")[:256],
         "description": (description or "")[:_DISCORD_DESC_LIMIT] or "_(vide)_",
         "color": color if color is not None else _NIVEAU_COLOR["info"],
     }
     if footer:
-        embed["footer"] = {"text": footer[:2048]}
-    if image_bytes:
-        embed["image"] = {"url": f"attachment://{image_name}"}
-    payload = {"embeds": [embed]}
+        base["footer"] = {"text": footer[:2048]}
+
+    embeds: list = []
+    files: dict = {}
+    if imgs:
+        for i, (name, data) in enumerate(imgs[:_DISCORD_MAX_EMBEDS]):
+            emb = base if i == 0 else {"color": base["color"]}
+            emb["image"] = {"url": f"attachment://{name}"}
+            embeds.append(emb)
+            files[f"file{i}"] = (name, data, "image/png")
+    else:
+        embeds.append(base)
+
+    payload = {"embeds": embeds}
     try:
         session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
-        if image_bytes:
-            r = session.post(
-                url,
-                data={"payload_json": json.dumps(payload)},
-                files={"file": (image_name, image_bytes, "image/png")},
-                timeout=15,
-            )
+        if files:
+            r = session.post(url, data={"payload_json": json.dumps(payload)},
+                             files=files, timeout=20)
         else:
             r = session.post(url, json=payload, timeout=10)
         r.raise_for_status()
