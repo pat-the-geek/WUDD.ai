@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -27,6 +28,40 @@ from utils.config import get_config
 from utils.logging import default_logger as LOG
 from utils.date_utils import parse_article_date
 from utils.report_cleanup import cleanup_old_dated_reports
+
+
+def _highlight_entities(text: str, entities: dict) -> str:
+    """Met en **gras** la première occurrence de chaque entité nommée dans le texte.
+
+    Une seule passe regex (alternatives triées par longueur décroissante) pour
+    éviter les imbrications ; chaque entité n'est mise en gras qu'une fois.
+    """
+    if not text or not isinstance(entities, dict):
+        return text
+    values = {
+        v.strip()
+        for vals in entities.values() if isinstance(vals, list)
+        for v in vals
+        if isinstance(v, str) and len(v.strip()) >= 3
+    }
+    if not values:
+        return text
+    ordered = sorted(values, key=len, reverse=True)
+    pattern = re.compile(
+        r"(?<!\*)\b(" + "|".join(re.escape(v) for v in ordered) + r")\b(?!\*)",
+        re.IGNORECASE,
+    )
+    seen: set[str] = set()
+
+    def _repl(m: re.Match) -> str:
+        val = m.group(0)
+        key = val.lower()
+        if key in seen:
+            return val
+        seen.add(key)
+        return f"**{val}**"
+
+    return pattern.sub(_repl, text)
 
 
 def _load_profiles(project_root: Path) -> list[dict]:
@@ -177,32 +212,56 @@ def generate_profile_digest(
             date_pub = _dt_pub.strftime("%d/%m/%Y") if _dt_pub else (art.get("Date de publication") or "")[:10]
             resume = art.get("Résumé", "") or ""
             resume_lines = [l.strip() for l in resume.splitlines() if l.strip()]
-            titre = resume_lines[0] if resume_lines else f"{src} — {date_pub}"
-            resume_body = "\n".join(resume_lines[1:4]) if len(resume_lines) > 1 else ""
+            ents = art.get("entities", {}) or {}
+
+            # Titre : champ « Titre » de l'article si présent, sinon 1re ligne du
+            # résumé (et le corps repart alors de la 2e ligne).
+            titre_field = (art.get("Titre") or "").strip()
+            if titre_field:
+                titre = titre_field
+                body_lines = resume_lines
+            else:
+                titre = resume_lines[0] if resume_lines else f"{src} — {date_pub}"
+                body_lines = resume_lines[1:]
+
+            # Résumé en paragraphe, avec NER mises en gras
+            resume_body = _highlight_entities(" ".join(body_lines), ents)
 
             sentiment = art.get("sentiment", "")
             sentiment_emoji = {"positif": "🟢", "négatif": "🔴", "neutre": "⚪"}.get(sentiment, "")
 
+            # Image principale (1re image disponible)
+            img_url = ""
+            images = art.get("Images") or []
+            if isinstance(images, list) and images:
+                first_img = images[0]
+                if isinstance(first_img, dict):
+                    # Données hétérogènes : clé « URL » (doc) ou « url » (flux RSS)
+                    img_url = (first_img.get("URL") or first_img.get("url") or "").strip()
+                elif isinstance(first_img, str):
+                    img_url = first_img.strip()
+            titre_alt = titre.replace("[", "(").replace("]", ")")
+
+            # Titre de l'article en titre de niveau 2 (Markdown)
             lines += [
-                f"## {rank}. [{titre}]({url}) {sentiment_emoji}",
+                f"## {rank}. {titre} {sentiment_emoji}".rstrip(),
                 "",
-                f"> **{src}** · {date_pub} · Score profil : {score:.2f}",
+                f"*{src} · {date_pub} · score profil {score:.2f}*",
                 "",
             ]
+            # Image cliquable renvoyant vers l'article
+            if img_url:
+                lines += [f"[![{titre_alt}]({img_url})]({url})", ""]
             if resume_body:
                 lines += [resume_body, ""]
 
-            # Entités clés
-            ents = art.get("entities", {}) or {}
-            ent_list = []
-            for etype, vals in ents.items():
-                if isinstance(vals, list):
-                    ent_list.extend([f"**{v}** ({etype})" for v in vals[:2]])
-            if ent_list:
-                lines += [f"Entités : {', '.join(ent_list[:5])}", ""]
-
-            lines.append("---")
-            lines.append("")
+            # Lien vers l'article en fin d'article
+            lines += [
+                f"[🔗 Lire l'article original]({url})",
+                "",
+                "---",
+                "",
+            ]
 
     lines += [
         "",
