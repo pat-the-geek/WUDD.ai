@@ -31,6 +31,68 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 from utils.logging import print_console, default_logger
 from utils.date_utils import parse_article_date
 from utils.report_cleanup import cleanup_old_dated_reports
+from utils.api_client import get_ai_client
+from utils.exporters.webhook import send_text_discord
+
+_CJK_RE = re.compile(r"[一-鿿㐀-䶿豈-﫿]")
+
+
+def _generate_cross_flux_synthesis(cross_entities: list, counts: dict, days: int,
+                                   use_ai: bool = True) -> str:
+    """Génère une synthèse IA des éléments de l'analyse croisée (provider configuré).
+
+    Retourne du Markdown (paragraphes) ou "" si IA désactivée/indisponible.
+    """
+    if not use_ai or (not cross_entities and not counts):
+        return ""
+    ent_lines = [
+        f"- {e['entity_value']} ({e['entity_type']}) : {e['nb_flux']} flux, "
+        f"{e['total_mentions']} mentions"
+        for e in cross_entities[:15]
+    ]
+    ent_block = "\n".join(ent_lines) if ent_lines else "(aucune entité transversale détectée)"
+    top_flux = sorted(counts.items(), key=lambda x: -x[1])[:10]
+    flux_lines = [f"- {n.replace('rss:', '')} : {c} articles" for n, c in top_flux]
+    flux_block = "\n".join(flux_lines) if flux_lines else "(aucun volume disponible)"
+    prompt = (
+        "Tu es analyste de veille informationnelle. Voici une analyse croisée des flux "
+        f"de veille (fenêtre {days} jours) : des entités apparaissant dans plusieurs flux, "
+        "et le volume d'articles par flux. Rédige en français une SYNTHÈSE des éléments.\n"
+        "Règles STRICTES :\n"
+        "- Commence DIRECTEMENT par la synthèse, sans phrase d'introduction, sans mentionner "
+        "ton rôle, ni d'éventuelles données manquantes.\n"
+        "- 2 à 3 paragraphes rédigés (pas de liste) ;\n"
+        "- mets en évidence les convergences entre flux, les entités transversales et les "
+        "tendances de fond ;\n"
+        "- mets en **gras** quelques points-clés, avec parcimonie ;\n"
+        "- n'invente aucun fait : appuie-toi uniquement sur les données fournies.\n\n"
+        "Entités présentes dans plusieurs flux :\n" + ent_block +
+        "\n\nVolume d'articles par flux :\n" + flux_block
+    )
+    try:
+        out = (get_ai_client().ask(prompt, timeout=120, max_tokens=800) or "").strip()
+    except Exception as exc:
+        default_logger.warning(f"[cross-flux] Synthèse IA indisponible : {exc}")
+        return ""
+    low = out.lower()
+    if not out or low.startswith(("erreur", "désolé")) or _CJK_RE.search(out):
+        return ""
+    return out
+
+
+def _flux_bar_chart_text(counts: dict, top_n: int = 10, width: int = 18) -> str:
+    """Représente le top flux en barres Unicode (pour une notification Discord)."""
+    sorted_flux = sorted(counts.items(), key=lambda x: -x[1])[:top_n]
+    if not sorted_flux:
+        return ""
+    mx = sorted_flux[0][1] or 1
+    out = []
+    for name, c in sorted_flux:
+        short = name.replace("rss:", "")
+        short = (short[:19] + "…") if len(short) > 20 else short
+        bar = "█" * max(1, round(c / mx * width))
+        out.append(f"{short:<20} {bar} {c}")
+    return "\n".join(out)
 
 # ── Constantes ───────────────────────────────────────────────────────────────
 
@@ -354,7 +416,9 @@ def collect_entities_by_flux(
         { "nom_flux" : { "TYPE:valeur" : count } }
     """
     result = _collect_entities_from_index(project_root, days)
-    if result is not None:
+    # Un dict vide signifie un index absent/dégradé (ou dominé par les dérivés
+    # _WUDD.AI_ exclus) : on bascule alors sur le scan rglob complet.
+    if result:
         return result
 
     # Fallback : scan rglob complet
@@ -511,6 +575,7 @@ def build_cross_flux_markdown(
     cross_entities: list[dict],
     flux_article_counts: dict[str, int] | None = None,
     project_root: Path | None = None,
+    synthesis: str = "",
 ) -> str:
     """Génère le rapport Markdown de l'analyse croisée."""
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -552,6 +617,11 @@ def build_cross_flux_markdown(
         flux_items.append(f"**{letter}** `{f}` ({nb} article(s))")
     lines.append(", ".join(flux_items))
     lines.append("")
+
+    # Synthèse des éléments (IA) — en encadré, juste après les flux
+    if synthesis.strip():
+        quoted = "\n".join(("> " + l) if l.strip() else ">" for l in synthesis.strip().splitlines())
+        lines += ["## 🧭 Synthèse des éléments", "", quoted, "", "---", ""]
 
     if not cross_entities:
         lines += [
@@ -648,6 +718,14 @@ def parse_args():
         "--dry-run", action="store_true",
         help="Affiche le résultat sans sauvegarder"
     )
+    parser.add_argument(
+        "--no-ai", action="store_true",
+        help="Désactive la synthèse IA"
+    )
+    parser.add_argument(
+        "--no-discord", action="store_true",
+        help="N'envoie pas la notification Discord"
+    )
     return parser.parse_args()
 
 
@@ -689,6 +767,15 @@ def main():
     flux_article_counts = collect_article_counts_by_flux(project_root, days=args.days)
     print_console(f"  → {sum(flux_article_counts.values())} article(s) comptabilisé(s) au total")
 
+    # Synthèse IA des éléments (sautée en dry-run pour éviter un appel API inutile)
+    synthesis = ""
+    if not args.dry_run and not args.no_ai:
+        synthesis = _generate_cross_flux_synthesis(
+            cross_entities, flux_article_counts, args.days, use_ai=True
+        )
+        if synthesis:
+            print_console("  → synthèse IA générée")
+
     report_md = build_cross_flux_markdown(
         date_str=date_str,
         days=args.days,
@@ -696,6 +783,7 @@ def main():
         cross_entities=cross_entities,
         flux_article_counts=flux_article_counts,
         project_root=project_root,
+        synthesis=synthesis,
     )
 
     if args.dry_run:
@@ -717,6 +805,24 @@ def main():
     md_path.write_text(report_md, encoding="utf-8")
     print_console(f"Rapport Markdown sauvegardé : {md_path}")
     cleanup_old_dated_reports(md_path)
+
+    # Notification Discord : uniquement la synthèse + le graphique des flux (barres)
+    if not args.no_discord and (synthesis or flux_article_counts):
+        chart = _flux_bar_chart_text(flux_article_counts, top_n=10)
+        parts = []
+        if synthesis:
+            parts.append(synthesis)
+        if chart:
+            parts.append("**Top flux (articles)**\n```\n" + chart + "\n```")
+        description = "\n\n".join(parts)
+        try:
+            send_text_discord(
+                title=f"🔀 Analyse croisée des flux — {date_str}",
+                description=description,
+                footer=f"{len(cross_entities)} entités multi-flux · {len(flux_names)} flux · WUDD.ai",
+            )
+        except Exception as exc:
+            print_console(f"Notification Discord échouée : {exc}", level="warning")
 
 
 if __name__ == "__main__":

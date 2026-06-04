@@ -385,6 +385,41 @@ def send_watched_entity_added(
 
 # ── Slack ─────────────────────────────────────────────────────────────────────
 
+def send_text_discord(
+    *,
+    title: str,
+    description: str,
+    footer: str = "",
+    color: Optional[int] = None,
+    webhook_url: Optional[str] = None,
+) -> bool:
+    """Envoie une notification Discord générique : un embed titre + description Markdown.
+
+    Utilisé p. ex. pour la synthèse du rapport d'analyse croisée des flux.
+    """
+    url = webhook_url or os.getenv("WEBHOOK_DISCORD", "")
+    if not url:
+        default_logger.debug("WEBHOOK_DISCORD non configuré — Discord ignoré")
+        return False
+    embed = {
+        "title": (title or "WUDD.ai")[:256],
+        "description": (description or "")[:_DISCORD_DESC_LIMIT] or "_(vide)_",
+        "color": color if color is not None else _NIVEAU_COLOR["info"],
+    }
+    if footer:
+        embed["footer"] = {"text": footer[:2048]}
+    payload = {"embeds": [embed]}
+    try:
+        session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
+        r = session.post(url, json=payload, timeout=10)
+        r.raise_for_status()
+        default_logger.info("Notification Discord (texte) envoyée")
+        return True
+    except Exception as e:
+        default_logger.warning(f"Erreur Discord (texte) : {e}")
+        return False
+
+
 def send_slack(
     alerts: list,
     webhook_url: Optional[str] = None,
