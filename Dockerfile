@@ -16,6 +16,7 @@ FROM python:3.14-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cron \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Création des dossiers de travail
