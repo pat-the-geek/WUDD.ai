@@ -1,6 +1,6 @@
 {
-  "_comment": "Prix ESTIMÉS en euros par 1000 tokens (à ajuster selon vos contrats). Ollama (local) = 0. 'reference_cloud' sert à estimer les économies réalisées grâce au local.",
-  "devise": "€",
+  "_comment": "Prix ESTIMÉS en francs suisses (CHF) par 1000 tokens (à ajuster selon vos contrats). Ollama (local) = 0. 'reference_cloud' sert à estimer les économies réalisées grâce au local.",
+  "devise": "CHF",
   "prix_par_1k": {
     "euria":  {"prompt": 0.0006, "completion": 0.0018},
     "claude": {"prompt": 0.0008, "completion": 0.0040},
