@@ -28,7 +28,8 @@ from utils.config import get_config
 from utils.logging import default_logger as LOG
 from utils.date_utils import parse_article_date
 from utils.report_cleanup import cleanup_old_dated_reports
-from utils.summary_formatter import format_summary_markdown
+from utils.deduplication import Deduplicator
+from utils.source_credibility import CredibilityEngine
 
 
 def _highlight_entities(text: str, entities: dict) -> str:
@@ -188,9 +189,74 @@ def _generate_synthesis(top: list, profile_name: str, days: int, use_ai: bool = 
     return out
 
 
+_IMG_VALID_CACHE: dict[str, bool] = {}
+
+
+def _image_is_valid(url: str) -> bool:
+    """Vérifie qu'une URL d'image est accessible (pas de lien cassé dans le rapport).
+
+    HEAD puis GET de secours ; exige un statut 200 et un Content-Type image/*.
+    Résultats mis en cache pour la durée du run.
+    """
+    if not url or not url.lower().startswith(("http://", "https://")):
+        return False
+    if url in _IMG_VALID_CACHE:
+        return _IMG_VALID_CACHE[url]
+    ok = False
+    try:
+        import requests
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.head(url, timeout=5, allow_redirects=True, headers=headers)
+        ctype = r.headers.get("Content-Type", "").lower()
+        if r.status_code >= 400 or r.status_code == 405 or not ctype.startswith("image"):
+            # HEAD non supporté / Content-Type absent → GET de secours
+            r = requests.get(url, timeout=6, stream=True, headers=headers)
+            ctype = r.headers.get("Content-Type", "").lower()
+        ok = (r.status_code == 200) and ctype.startswith("image")
+        r.close()
+    except Exception:
+        ok = False
+    _IMG_VALID_CACHE[url] = ok
+    return ok
+
+
+_CJK_RE = re.compile(r"[一-鿿㐀-䶿豈-﫿]")
+
+
+def _chapter_via_ai(resume: str) -> str:
+    """Reformate le résumé en chapitres Markdown via le provider cloud configuré
+    (EurIA/Claude) — qualité éditoriale, français propre, espaces corrects.
+
+    Retourne "" en cas d'échec ou de dérive de langue (l'appelant garde le brut).
+    """
+    resume = (resume or "").strip()
+    if not resume:
+        return ""
+    prompt = (
+        "Reformate fidèlement le résumé d'article ci-dessous en Markdown, EN FRANÇAIS, "
+        "structuré en chapitres. Règles STRICTES :\n"
+        "- N'invente AUCUN fait ; n'ajoute ni ne retire rien au fond.\n"
+        "- Commence par « ### En bref » (1 à 2 phrases d'accroche), puis ajoute 1 à 3 "
+        "chapitres ### seulement si le contenu le justifie (### Contexte, ### Enjeux, ### Détails).\n"
+        "- Rédige des phrases complètes et bien espacées ; AUCUN mot collé.\n"
+        "- Réponds UNIQUEMENT avec le Markdown, sans préambule ni commentaire.\n\n"
+        f"Résumé :\n{resume}"
+    )
+    try:
+        from utils.api_client import get_ai_client
+        out = (get_ai_client().ask(prompt, timeout=90, max_tokens=700) or "").strip()
+    except Exception as exc:
+        LOG.warning(f"[digest] Chapitrage IA indisponible : {exc}")
+        return ""
+    low = out.lower()
+    if not out or low.startswith(("erreur", "désolé")) or _CJK_RE.search(out):
+        return ""
+    return out
+
+
 def _render_article_block(art: dict, score: float, use_ai: bool = True) -> list[str]:
-    """Rend un article du digest : titre H3, image cliquable, corps chapitré (Résumé_md
-    ou généré par IA si absent) avec NER, lien en fin."""
+    """Rend un article du digest : titre H3, image cliquable (vérifiée), corps chapitré
+    (Résumé_md ou généré par IA si absent) avec NER, lien en fin."""
     src = art.get("Sources", "Source inconnue")
     url = art.get("URL", "#")
     _dt_pub = parse_article_date(art.get("Date de publication") or "")
@@ -202,13 +268,9 @@ def _render_article_block(art: dict, score: float, use_ai: bool = True) -> list[
     titre_field = (art.get("Titre") or "").strip()
     titre = titre_field or (resume_lines[0] if resume_lines else f"{src} — {date_pub}")
 
-    # Corps chapitré : Résumé_md si présent, sinon généré par IA, sinon paragraphe brut.
-    md_body = (art.get("Résumé_md") or "").strip()
-    if not md_body and use_ai and resume.strip():
-        try:
-            md_body = (format_summary_markdown(resume) or "").strip()
-        except Exception:
-            md_body = ""
+    # Corps : chapitrage via le cloud configuré (qualité) si IA activée, sinon
+    # paragraphe à partir du résumé brut (propre, espaces garantis).
+    md_body = _chapter_via_ai(resume) if (use_ai and resume.strip()) else ""
     if md_body:
         resume_body = _highlight_md_body(_demote_headings(md_body), ents)
     else:
@@ -235,7 +297,7 @@ def _render_article_block(art: dict, score: float, use_ai: bool = True) -> list[
         f"*{src} · {date_pub} · score profil {score:.2f}*",
         "",
     ]
-    if img_url:
+    if img_url and _image_is_valid(img_url):
         block += [f"[![{titre_alt}]({img_url})]({url})", ""]
     if resume_body:
         block += [resume_body, ""]
@@ -259,36 +321,67 @@ def _load_profiles(project_root: Path) -> list[dict]:
         return []
 
 
+def _to_utc(dt):
+    """Rend un datetime conscient en UTC (suppose UTC si naïf)."""
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def _collect_articles(project_root: Path, days: int) -> list[dict]:
-    """Collecte les articles récents des N derniers jours."""
+    """Collecte et déduplique les articles publiés dans la fenêtre des N derniers jours.
+
+    - Exclut cache, index et agrégats dérivés `_WUDD.AI_` (évite les doublons).
+    - Ne lit que les fichiers modifiés récemment (perf), puis filtre CHAQUE article
+      par sa date de publication réelle (`parse_article_date`).
+    - Déduplique (URL exacte / résumé / similarité Jaccard).
+    """
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=days)
-    articles = []
+    # Un article publié dans la fenêtre a forcément été écrit dans la fenêtre :
+    # on ignore les fichiers non modifiés récemment (marge de sécurité d'1 jour).
+    file_mtime_cutoff = (cutoff - timedelta(days=1)).timestamp()
+    articles: list[dict] = []
 
     for source_dir in [project_root / "data" / "articles-from-rss",
                         project_root / "data" / "articles"]:
         if not source_dir.exists():
             continue
-        for json_file in sorted(source_dir.rglob("*.json"),
-                                key=lambda f: f.stat().st_mtime, reverse=True)[:30]:
-            if "cache" in str(json_file) or "index" in json_file.name:
+        for json_file in source_dir.rglob("*.json"):
+            rel_parts = json_file.relative_to(source_dir).parts
+            if "cache" in rel_parts or "_WUDD.AI_" in rel_parts or "index" in json_file.name:
                 continue
             try:
+                if json_file.stat().st_mtime < file_mtime_cutoff:
+                    continue
                 data = json.loads(json_file.read_text(encoding="utf-8"))
                 if not isinstance(data, list):
                     continue
-                for art in data:
-                    d = art.get("Date de publication", "") or ""
-                    # Accepter les dates récentes
-                    articles.append(art)
             except Exception:
                 continue
+            for art in data:
+                if not isinstance(art, dict):
+                    continue
+                dt = _to_utc(parse_article_date(art.get("Date de publication") or ""))
+                # Dans la fenêtre ; on tolère les dates illisibles (dt None)
+                if dt is not None and dt < cutoff:
+                    continue
+                articles.append(art)
 
+    try:
+        articles = Deduplicator().deduplicate(articles)
+    except Exception as exc:
+        LOG.warning(f"[digest] Déduplication ignorée : {exc}")
     return articles
 
 
-def _score_article_for_profile(article: dict, profile: dict) -> float:
-    """Calcule un score de pertinence d'un article pour un profil (0.0 à 1.0+)."""
+def _score_article_for_profile(article: dict, profile: dict, now=None,
+                               days: int = 7, cred: "CredibilityEngine | None" = None) -> float:
+    """Calcule un score de pertinence d'un article pour un profil (0.0 à 1.0+).
+
+    Ajoute un score de BASE (récence + crédibilité source) afin que les profils sans
+    préférences (ex. « default ») soient tout de même classés de façon pertinente.
+    """
     score = 0.0
     entities = profile.get("entities", [])
     themes = profile.get("themes", [])
@@ -337,7 +430,77 @@ def _score_article_for_profile(article: dict, profile: dict) -> float:
     if existing is not None:
         score += float(existing) / 10.0
 
+    # Score de BASE — récence (0–0.3) : départage même sans préférences
+    if now is not None:
+        dt = _to_utc(parse_article_date(article.get("Date de publication") or ""))
+        if dt is not None:
+            age_days = max(0.0, (now - dt).total_seconds() / 86400.0)
+            score += 0.3 * max(0.0, 1.0 - age_days / max(days, 1))
+
+    # Score de BASE — crédibilité de la source (0–0.2)
+    cred_val = article.get("score_source")
+    if cred_val is None and cred is not None:
+        try:
+            cred_val = cred.get_score(src)
+        except Exception:
+            cred_val = None
+    if cred_val is not None:
+        try:
+            score += 0.2 * (float(cred_val) / 100.0)
+        except (TypeError, ValueError):
+            pass
+
     return score
+
+
+def _select_digest(scored: list, top_n: int, thematiques: list,
+                   max_per_source: int = 2) -> list:
+    """Sélection « vrai digest » : round-robin par thématique pour maximiser la
+    diversité des sujets, en plafonnant chaque source (`max_per_source`).
+
+    `scored` est trié par score décroissant. On groupe par thématique dominante,
+    puis on pioche tour à tour le meilleur article de chaque thème (en sautant les
+    sources saturées). Si la contrainte empêche d'atteindre `top_n`, on complète en
+    relâchant le plafond de source.
+    """
+    from collections import OrderedDict
+    by_theme: "OrderedDict[str, list]" = OrderedDict()
+    for item in scored:
+        theme = _classify_article(item[1], thematiques) or _THEME_AUTRES
+        by_theme.setdefault(theme, []).append(item)
+
+    # Thèmes ordonnés par le meilleur score qu'ils contiennent
+    theme_keys = sorted(by_theme, key=lambda t: by_theme[t][0][0], reverse=True)
+    idx = {t: 0 for t in theme_keys}
+    selected, per_source = [], {}
+    chosen_ids = set()
+
+    progress = True
+    while len(selected) < top_n and progress:
+        progress = False
+        for t in theme_keys:
+            lst = by_theme[t]
+            while idx[t] < len(lst):
+                cand = lst[idx[t]]
+                idx[t] += 1
+                src = str(cand[1].get("Sources", ""))
+                if per_source.get(src, 0) < max_per_source:
+                    selected.append(cand)
+                    chosen_ids.add(id(cand[1]))
+                    per_source[src] = per_source.get(src, 0) + 1
+                    progress = True
+                    break
+            if len(selected) >= top_n:
+                break
+
+    # Complément (sources saturées) : on relâche le plafond pour atteindre top_n
+    if len(selected) < top_n:
+        for item in scored:
+            if len(selected) >= top_n:
+                break
+            if id(item[1]) not in chosen_ids:
+                selected.append(item)
+    return selected[:top_n]
 
 
 def generate_profile_digest(
@@ -359,14 +522,17 @@ def generate_profile_digest(
         LOG.info(f"[digest] Profil '{profile_id}' : aucun article trouvé")
         return None
 
-    # Scorer et filtrer
+    # Scorer (préférences profil + base récence/crédibilité), filtrer, puis
+    # sélectionner en round-robin thématique pour un vrai digest diversifié.
+    cred = CredibilityEngine(project_root)
+    thematiques = _load_thematiques(project_root)
     scored = []
     for art in articles:
-        s = _score_article_for_profile(art, profile)
+        s = _score_article_for_profile(art, profile, now=now, days=days, cred=cred)
         if s >= 0:
             scored.append((s, art))
     scored.sort(key=lambda x: x[0], reverse=True)
-    top = scored[:top_n]
+    top = _select_digest(scored, top_n, thematiques, max_per_source=2)
 
     lines = [
         "---",
@@ -403,7 +569,7 @@ def generate_profile_digest(
             ]
 
         # Regroupe les articles (déjà triés par score) par thématique de veille dominante
-        thematiques = _load_thematiques(project_root)
+        # (thematiques déjà chargées plus haut pour la sélection)
         grouped: dict[str, list] = {}
         for score, art in top:
             theme = _classify_article(art, thematiques) or _THEME_AUTRES
