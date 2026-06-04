@@ -1,9 +1,9 @@
 import { lazy, Suspense, useMemo, useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle, Children } from 'react'
 import {
-  ExternalLink, ChevronDown, ChevronUp, Tag, X,
+  ExternalLink, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Tag, X,
   Filter, Search, ArrowUpDown, Newspaper,
   Download, LayoutGrid, AlignLeft, LayoutList, Maximize2, Clock,
-  Star, Eye, EyeOff, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge, FolderOpen, Hash, PlayCircle, Images,
+  Star, Eye, EyeOff, Pencil, Check, RefreshCw, FileText, Scale, BookOpen, GitMerge, FolderOpen, Hash, PlayCircle, Play, Pause, Images,
 } from 'lucide-react'
 import YouTubePanel from './YouTubePanel'
 import ArticleGalleryPanel from './ArticleGalleryPanel'
@@ -369,11 +369,12 @@ function immersiveEntities(entities, max = 8) {
 
 /** Taille de police adaptée à la longueur du titre : court → grande police, long → petite. */
 function immersiveTitleClass(len) {
-  if (len <= 30)  return 'text-[2rem] leading-[1.1]'
-  if (len <= 60)  return 'text-[1.6rem] leading-[1.12]'
-  if (len <= 100) return 'text-[1.3rem] leading-snug'
-  if (len <= 150) return 'text-[1.1rem] leading-snug'
-  return 'text-[0.95rem] leading-snug'
+  // Tailles mobiles + variantes desktop (md:) agrandies pour les grands écrans.
+  if (len <= 30)  return 'text-[2rem] leading-[1.1] md:text-[3.25rem]'
+  if (len <= 60)  return 'text-[1.6rem] leading-[1.12] md:text-[2.5rem]'
+  if (len <= 100) return 'text-[1.3rem] leading-snug md:text-[2rem]'
+  if (len <= 150) return 'text-[1.1rem] leading-snug md:text-[1.6rem]'
+  return 'text-[0.95rem] leading-snug md:text-[1.3rem]'
 }
 
 /** Parse une backgroundPosition "NN% MM%" en [x, y] numériques (défaut 50/35). */
@@ -383,7 +384,7 @@ function parsePosition(pos) {
 }
 
 /** Une diapositive plein écran du mode immersif (image cover recadrée sur le sujet + titre overlay). */
-function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummary, panX = 0 }) {
+function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummary, panX = 0, isDesktop = false }) {
   const imgUrl = firstImage(article['Images'])
   // Cadrage agrandi sur le visage dominant (yeux au tiers supérieur), calculé
   // pour le ratio du viewport et recalculé à la rotation/redimensionnement.
@@ -455,12 +456,12 @@ function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummar
       {/* Scrim bas pour garantir le contraste du texte sans masquer l'image */}
       <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/85 via-black/30 to-transparent pointer-events-none" />
 
-      {/* Bloc texte cadré en bas à gauche */}
+      {/* Bloc texte cadré en bas à gauche (largeur contrainte sur grand écran) */}
       <div
-        className="absolute left-0 right-0 bottom-0 px-4"
-        style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+        className="absolute left-0 right-0 bottom-0 px-4 md:px-12 lg:px-16"
+        style={{ paddingBottom: isDesktop ? '3rem' : 'max(1.5rem, env(safe-area-inset-bottom))' }}
       >
-        <div className="inline-block max-w-[94%] rounded-2xl bg-black/35 backdrop-blur-md px-4 py-3 shadow-xl shadow-black/30">
+        <div className="inline-block max-w-[94%] md:max-w-2xl lg:max-w-3xl rounded-2xl bg-black/35 backdrop-blur-md px-4 py-3 md:px-6 md:py-5 shadow-xl shadow-black/30">
           {(source || date) && (
             <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-white/85 min-w-0">
               {source && <span className="bg-white/15 px-2.5 py-0.5 rounded-full truncate max-w-[60%]">{source}</span>}
@@ -484,10 +485,11 @@ function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummar
           )}
           {isCurrent && showSummary && resume && (
             <div
-              className="mt-3 max-h-[55vh] overflow-y-auto overscroll-contain touch-pan-y rounded-xl bg-black/40 p-3 text-[0.9rem] leading-relaxed text-white/95"
+              className="mt-3 max-h-[55vh] md:max-h-[60vh] overflow-y-auto overscroll-contain touch-pan-y rounded-xl bg-black/40 p-3 md:p-4 text-[0.9rem] md:text-[1rem] leading-relaxed text-white/95"
               onTouchStart={e => e.stopPropagation()}
               onTouchMove={e => e.stopPropagation()}
               onTouchEnd={e => e.stopPropagation()}
+              onWheel={e => e.stopPropagation()}
               onClick={e => e.stopPropagation()}
             >
               {resumeMd
@@ -497,7 +499,9 @@ function ImmersiveSlide({ article, offset, drag, dragging, isCurrent, showSummar
           )}
           {isCurrent && resume && (
             <div className="mt-2 text-[11px] text-white/55">
-              {showSummary ? 'Appuyez pour masquer le résumé' : 'Appuyez pour afficher le résumé'}
+              {isDesktop
+                ? (showSummary ? 'Cliquez pour masquer le résumé' : 'Cliquez pour afficher le résumé')
+                : (showSummary ? 'Appuyez pour masquer le résumé' : 'Appuyez pour afficher le résumé')}
             </div>
           )}
         </div>
@@ -519,13 +523,19 @@ function ImmersiveViewer({ articles, startIndex, onClose }) {
   const [panX, setPanX]         = useState(0)   // pan horizontal validé (points de %)
   const [dragging, setDragging] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
+  const [slideshow, setSlideshow] = useState(false)   // diaporama auto (10 s)
+  // Desktop : souris/clavier + vrai plein écran ; mobile : tactile. Figé à l'ouverture.
+  const [isDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768)
   const startY = useRef(0)
   const startX = useRef(0)
   const axis   = useRef(null)   // 'h' (pan image) | 'v' (navigation) — verrouillé au 1er mouvement
   const moved  = useRef(false)
+  const wheelLock = useRef(0)   // anti-rebond molette (desktop)
 
   const goNext = useCallback(() => setCurrent(c => Math.min(c + 1, last)), [last])
   const goPrev = useCallback(() => setCurrent(c => Math.max(c - 1, 0)), [])
+  // Diaporama : défile comme la flèche droite, en bouclant à la fin.
+  const advanceLoop = useCallback(() => setCurrent(c => (c >= last ? 0 : c + 1)), [last])
 
   // On remonte l'index courant à la fermeture pour que la liste sous-jacente
   // se synchronise sur le dernier article consulté (cf. ArticleListViewer).
@@ -549,16 +559,44 @@ function ImmersiveViewer({ articles, startIndex, onClose }) {
     return () => { document.body.style.overflow = prev }
   }, [])
 
-  // Raccourcis clavier (desktop / debug)
+  // Raccourcis clavier : ↑/↓ et ←/→ changent d'article, Échap ferme, Espace (dé)plie le résumé.
   useEffect(() => {
     const onKey = e => {
       if (e.key === 'Escape') handleClose()
-      else if (e.key === 'ArrowDown') goNext()
-      else if (e.key === 'ArrowUp') goPrev()
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') goNext()
+      else if (e.key === 'ArrowUp'   || e.key === 'ArrowLeft')  goPrev()
+      else if (e.key === ' ') { e.preventDefault(); setShowSummary(s => !s) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [handleClose, goNext, goPrev])
+
+  // Diaporama : avance automatiquement toutes les 10 s (en bouclant). Le timer est
+  // ré-armé à chaque changement d'article — une navigation manuelle relance le délai.
+  useEffect(() => {
+    if (!slideshow) return
+    const id = setTimeout(advanceLoop, 10000)
+    return () => clearTimeout(id)
+  }, [slideshow, current, advanceLoop])
+
+  // Plein écran réel (desktop) : si l'utilisateur quitte le plein écran (Échap
+  // navigateur, F11…), on ferme aussi le viewer pour rester cohérent.
+  useEffect(() => {
+    const onFsChange = () => { if (!document.fullscreenElement) handleClose() }
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [handleClose])
+
+  // Molette (desktop) : équivalent du swipe vertical — change d'article, anti-rebond.
+  const onWheel = e => {
+    if (Math.abs(e.deltaY) < 20) return
+    const now = e.timeStamp || performance.now()
+    if (now - wheelLock.current < 500) return
+    wheelLock.current = now
+    if (e.deltaY > 0) goNext(); else goPrev()
+  }
+  // Clic (desktop, hors gestes tactiles) : (dé)plie le résumé.
+  const onClick = () => { if (isDesktop) setShowSummary(s => !s) }
 
   const onTouchStart = e => {
     startY.current = e.touches[0].clientY
@@ -607,6 +645,8 @@ function ImmersiveViewer({ articles, startIndex, onClose }) {
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
+      onWheel={onWheel}
+      onClick={onClick}
     >
       {articles.map((a, i) =>
         Math.abs(i - current) <= 1 ? (
@@ -619,6 +659,7 @@ function ImmersiveViewer({ articles, startIndex, onClose }) {
             isCurrent={i === current}
             showSummary={showSummary}
             panX={i === current ? appliedPan : 0}
+            isDesktop={isDesktop}
           />
         ) : null
       )}
@@ -631,9 +672,24 @@ function ImmersiveViewer({ articles, startIndex, onClose }) {
         {current + 1} / {articles.length}
       </div>
 
+      {/* Diaporama (haut, centré) : défile comme la flèche droite toutes les 10 s */}
+      <button
+        onClick={e => { e.stopPropagation(); setSlideshow(s => !s) }}
+        onTouchStart={e => e.stopPropagation()}
+        aria-label={slideshow ? 'Arrêter le diaporama' : 'Lancer le diaporama (10 s)'}
+        aria-pressed={slideshow}
+        className={`absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full backdrop-blur-md text-xs font-semibold transition-colors active:scale-95 ${
+          slideshow ? 'bg-emerald-500/80 text-white' : 'bg-black/45 text-white/85 hover:bg-black/60'
+        }`}
+        style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
+      >
+        {slideshow ? <Pause size={15} /> : <Play size={15} />}
+        <span>Diaporama</span>
+      </button>
+
       {/* Fermer */}
       <button
-        onClick={handleClose}
+        onClick={e => { e.stopPropagation(); handleClose() }}
         onTouchStart={e => e.stopPropagation()}
         aria-label="Fermer le mode plein écran"
         className="absolute right-4 z-10 w-10 h-10 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-transform"
@@ -641,6 +697,26 @@ function ImmersiveViewer({ articles, startIndex, onClose }) {
       >
         <X size={20} />
       </button>
+
+      {/* Flèches de navigation (desktop) : haut = précédent, bas = suivant */}
+      <div className="hidden md:flex flex-col gap-3 absolute right-5 top-1/2 -translate-y-1/2 z-10">
+        <button
+          onClick={e => { e.stopPropagation(); goPrev() }}
+          disabled={current === 0}
+          aria-label="Article précédent"
+          className="w-12 h-12 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/65 disabled:opacity-30 disabled:cursor-default transition-colors active:scale-90"
+        >
+          <ChevronUp size={26} />
+        </button>
+        <button
+          onClick={e => { e.stopPropagation(); goNext() }}
+          disabled={current === last}
+          aria-label="Article suivant"
+          className="w-12 h-12 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/65 disabled:opacity-30 disabled:cursor-default transition-colors active:scale-90"
+        >
+          <ChevronDown size={26} />
+        </button>
+      </div>
     </div>
   )
 }
@@ -981,7 +1057,7 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
       })
       const d = await r.json()
       if (d.ok) {
-        const enriched = { 'Résumé': d.resume }
+        const enriched = { 'Résumé': d.resume, 'Résumé_md': d.resume_md || '' }
         if (d.entities && Object.keys(d.entities).length > 0) enriched.entities = d.entities
         if (d.sentiment)               enriched.sentiment              = d.sentiment
         if (d.score_sentiment != null) enriched.score_sentiment        = d.score_sentiment
@@ -1029,9 +1105,16 @@ function ArticleCard({ article, index, highlight, onEntityClick, onFullReport, o
           ref={heroRef}
           type="button"
           onClick={() => {
-            // Sur mobile : ouvre le mode immersif plein écran (toute la liste) ; sinon lightbox classique
-            if (onImmersive && typeof window !== 'undefined' && window.innerWidth < 768) onImmersive(index)
-            else setLightbox(true)
+            // Clic image → mode immersif plein écran (mobile ET desktop). Sur desktop,
+            // on bascule en vrai plein écran (Fullscreen API) dans le geste utilisateur.
+            if (onImmersive) {
+              if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+                document.documentElement.requestFullscreen?.().catch(() => {})
+              }
+              onImmersive(index)
+            } else {
+              setLightbox(true)
+            }
           }}
           className={`group relative w-full ${isLarge ? 'h-[432px] sm:h-[576px]' : 'h-44 sm:h-52'} overflow-hidden bg-slate-100 dark:bg-slate-900 block text-left`}
           title="Agrandir l'image"
@@ -2279,6 +2362,10 @@ const ArticleListViewer = forwardRef(function ArticleListViewer({ content, annot
           articles={displayedArticles}
           startIndex={immersiveIndex}
           onClose={(lastIndex) => {
+            // Sort du vrai plein écran (desktop) si actif
+            if (typeof document !== 'undefined' && document.fullscreenElement) {
+              document.exitFullscreen?.().catch(() => {})
+            }
             setImmersiveIndex(null)
             if (typeof lastIndex === 'number' && lastIndex >= 0 && lastIndex < displayedArticles.length) {
               const url = displayedArticles[lastIndex]?.['URL']
