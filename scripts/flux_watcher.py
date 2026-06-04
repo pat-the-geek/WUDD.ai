@@ -33,6 +33,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.api_client import get_ai_client, get_summary_client
+from utils.summary_formatter import format_summary_markdown
 from utils.http_utils import fetch_and_extract_text, extract_top_n_largest_images, RSS_FEED_HEADERS, fetch_rss_feed
 from utils.logging import print_console
 from utils.quota import get_quota_manager
@@ -362,6 +363,11 @@ def main(dry_run: bool = False) -> None:
             }
             if entities:
                 article["entities"] = entities
+            # Résumé Markdown formaté (chapitres/gras) pour l'affichage enrichi.
+            # Best-effort : si l'IA échoue, pas de clé → l'enrichissement nocturne réessaiera.
+            _md = format_summary_markdown(resume)
+            if _md:
+                article["Résumé_md"] = _md
 
             # Relire le fichier cible (peut avoir changé entre deux itérations)
             existing_list: list = []

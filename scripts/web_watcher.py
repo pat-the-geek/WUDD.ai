@@ -38,6 +38,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.api_client import get_ai_client, get_summary_client
+from utils.summary_formatter import format_summary_markdown
 from utils.article_index import get_article_index
 from utils.date_utils import parse_article_date
 from utils.entity_index import get_entity_index
@@ -475,6 +476,10 @@ def _process_article(
         article["entities"] = entities
     if page["title"]:
         article["Titre"] = page["title"]
+    # Résumé Markdown formaté (best-effort ; sinon enrichissement nocturne).
+    _md = format_summary_markdown(resume)
+    if _md:
+        article["Résumé_md"] = _md
 
     quota.record_article(keyword, title_src, entities)
     src_state["processed_urls"].append(url)
