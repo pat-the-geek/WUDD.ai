@@ -30,3 +30,6 @@ pytest-cov>=7.1.0,<8.0.0
 
 # Métriques Prometheus (endpoint /metrics pour Grafana/Netdata)
 prometheus_client>=0.21.0
+
+# Rendu d'images (graphique des flux en PNG pour les notifications Discord)
+pillow>=10.0.0

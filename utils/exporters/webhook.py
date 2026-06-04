@@ -14,6 +14,7 @@ Usage :
     notify_alerts(alerts)  # alerts = liste retournée par trend_detector.py
 """
 
+import json
 import os
 from typing import Optional
 
@@ -391,11 +392,14 @@ def send_text_discord(
     description: str,
     footer: str = "",
     color: Optional[int] = None,
+    image_bytes: Optional[bytes] = None,
+    image_name: str = "chart.png",
     webhook_url: Optional[str] = None,
 ) -> bool:
     """Envoie une notification Discord générique : un embed titre + description Markdown.
 
-    Utilisé p. ex. pour la synthèse du rapport d'analyse croisée des flux.
+    Si `image_bytes` est fourni, l'image est jointe (multipart) et affichée dans
+    l'embed via ``attachment://`` (utilisé pour le graphique des flux en PNG).
     """
     url = webhook_url or os.getenv("WEBHOOK_DISCORD", "")
     if not url:
@@ -408,10 +412,20 @@ def send_text_discord(
     }
     if footer:
         embed["footer"] = {"text": footer[:2048]}
+    if image_bytes:
+        embed["image"] = {"url": f"attachment://{image_name}"}
     payload = {"embeds": [embed]}
     try:
         session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
-        r = session.post(url, json=payload, timeout=10)
+        if image_bytes:
+            r = session.post(
+                url,
+                data={"payload_json": json.dumps(payload)},
+                files={"file": (image_name, image_bytes, "image/png")},
+                timeout=15,
+            )
+        else:
+            r = session.post(url, json=payload, timeout=10)
         r.raise_for_status()
         default_logger.info("Notification Discord (texte) envoyée")
         return True

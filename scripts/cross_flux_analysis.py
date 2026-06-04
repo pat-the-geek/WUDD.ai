@@ -80,6 +80,54 @@ def _generate_cross_flux_synthesis(cross_entities: list, counts: dict, days: int
     return out
 
 
+def _render_flux_chart_png(counts: dict, top_n: int = 10) -> bytes | None:
+    """Rend un graphique en barres du top flux (PNG via Pillow). None si indisponible."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except Exception:
+        return None
+    sorted_flux = sorted(counts.items(), key=lambda x: -x[1])[:top_n]
+    if not sorted_flux:
+        return None
+
+    def _font(size: int):
+        for p in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                  "/System/Library/Fonts/Supplemental/Arial.ttf",
+                  "/Library/Fonts/Arial.ttf"):
+            try:
+                return ImageFont.truetype(p, size)
+            except Exception:
+                continue
+        try:
+            return ImageFont.load_default(size)
+        except Exception:
+            return ImageFont.load_default()
+
+    f_title, f_lbl, f_val = _font(18), _font(14), _font(13)
+    mx = sorted_flux[0][1] or 1
+    W, pad, label_w, row_h, top_off = 760, 16, 190, 30, 48
+    bar_x = pad + label_w + 8
+    bar_max = W - bar_x - 70
+    H = top_off + row_h * len(sorted_flux) + pad
+
+    img = Image.new("RGB", (W, H), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    d.text((pad, 16), "Top flux — articles", fill=(20, 20, 20), font=f_title)
+    for i, (name, c) in enumerate(sorted_flux):
+        y = top_off + i * row_h
+        short = name.replace("rss:", "")
+        short = (short[:21] + "…") if len(short) > 22 else short
+        d.text((pad, y + 5), short, fill=(45, 45, 45), font=f_lbl)
+        bw = max(3, int(c / mx * bar_max))
+        d.rectangle([bar_x, y + 4, bar_x + bw, y + row_h - 8], fill=(52, 152, 219))
+        d.text((bar_x + bw + 6, y + 5), str(c), fill=(45, 45, 45), font=f_val)
+
+    import io
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
 def _flux_bar_chart_text(counts: dict, top_n: int = 10, width: int = 18) -> str:
     """Représente le top flux en barres Unicode (pour une notification Discord)."""
     sorted_flux = sorted(counts.items(), key=lambda x: -x[1])[:top_n]
@@ -806,20 +854,23 @@ def main():
     print_console(f"Rapport Markdown sauvegardé : {md_path}")
     cleanup_old_dated_reports(md_path)
 
-    # Notification Discord : uniquement la synthèse + le graphique des flux (barres)
+    # Notification Discord : uniquement la synthèse + le graphique des flux.
+    # Graphique en image PNG (Pillow) ; repli sur barres texte si indisponible.
     if not args.no_discord and (synthesis or flux_article_counts):
-        chart = _flux_bar_chart_text(flux_article_counts, top_n=10)
-        parts = []
-        if synthesis:
-            parts.append(synthesis)
-        if chart:
-            parts.append("**Top flux (articles)**\n```\n" + chart + "\n```")
+        chart_png = _render_flux_chart_png(flux_article_counts, top_n=10)
+        parts = [synthesis] if synthesis else []
+        if not chart_png:
+            bars = _flux_bar_chart_text(flux_article_counts, top_n=10)
+            if bars:
+                parts.append("**Top flux (articles)**\n```\n" + bars + "\n```")
         description = "\n\n".join(parts)
         try:
             send_text_discord(
                 title=f"🔀 Analyse croisée des flux — {date_str}",
                 description=description,
                 footer=f"{len(cross_entities)} entités multi-flux · {len(flux_names)} flux · WUDD.ai",
+                image_bytes=chart_png,
+                image_name="flux.png",
             )
         except Exception as exc:
             print_console(f"Notification Discord échouée : {exc}", level="warning")
