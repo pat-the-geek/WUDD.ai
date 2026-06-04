@@ -566,8 +566,7 @@ def generate_profile_digest(
 
     # Données pour la notification Discord (remplies si articles)
     discord_synthese = ""
-    discord_sections: list = []
-    discord_image = ""
+    discord_articles: list = []
     discord_nb_themes = 0
 
     if not top:
@@ -606,22 +605,29 @@ def generate_profile_digest(
         for theme in theme_order:
             arts = grouped[theme]
             emoji = _THEME_EMOJI.get(theme, "🗂️")
-            lines += [f"## {emoji} {theme} ({len(arts)})", ""]
+            theme_label = f"{emoji} {theme}"
+            lines += [f"## {theme_label} ({len(arts)})", ""]
             for score, art in arts:
                 lines += _render_article_block(art, score, use_ai=use_ai)
-            discord_sections.append(
-                (f"{emoji} {theme}", [(_article_title(a), a.get("URL", "")) for _s, a in arts])
-            )
+                # Données Discord par article : vignette validée + accroche courte
+                img = ""
+                imgs = art.get("Images")
+                if isinstance(imgs, list) and imgs and isinstance(imgs[0], dict):
+                    u = (imgs[0].get("URL") or imgs[0].get("url") or "").strip()
+                    if u and _image_is_valid(u):
+                        img = u
+                snippet = " ".join((art.get("Résumé") or "").split())
+                if len(snippet) > 220:
+                    snippet = snippet[:219].rstrip() + "…"
+                discord_articles.append({
+                    "title": _article_title(art),
+                    "url": art.get("URL", ""),
+                    "image": img,
+                    "theme": theme_label,
+                    "snippet": snippet,
+                })
 
         discord_nb_themes = len(theme_order)
-        # Image bannière : 1re image valide parmi les articles sélectionnés
-        for _s, a in top:
-            imgs = a.get("Images")
-            if isinstance(imgs, list) and imgs and isinstance(imgs[0], dict):
-                u = (imgs[0].get("URL") or imgs[0].get("url") or "").strip()
-                if u and _image_is_valid(u):
-                    discord_image = u
-                    break
 
     lines += [
         "",
@@ -643,9 +649,8 @@ def generate_profile_digest(
                 send_digest_discord(
                     title=f"🗞️ Digest {profile_name} — {now.strftime('%d/%m/%Y')}",
                     synthesis=discord_synthese,
-                    sections=discord_sections,
+                    articles=discord_articles,
                     footer=f"{len(top)} articles · {discord_nb_themes} thématiques · WUDD.ai",
-                    image_url=discord_image,
                 )
             except Exception as exc:
                 LOG.warning(f"[digest] Notification Discord échouée : {exc}")

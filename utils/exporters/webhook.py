@@ -254,59 +254,68 @@ def send_digest_discord(
     *,
     title: str,
     synthesis: str = "",
-    sections: Optional[list] = None,
+    articles: Optional[list] = None,
     footer: str = "",
-    image_url: str = "",
     webhook_url: Optional[str] = None,
 ) -> bool:
-    """Envoie un digest sous forme de notification Discord (un embed).
+    """Envoie un digest sous forme de notification Discord MULTI-EMBED.
+
+    Un embed « synthèse » en tête, puis un embed par article (vignette de l'image
+    de l'article + titre cliquable + thématique + accroche). Discord limite à 10
+    embeds par message : on garde la synthèse + les premiers articles.
 
     Args:
-        title     : titre de l'embed (ex. « 🗞️ Digest WUDD.ai — 04/06/2026 »)
-        synthesis : texte de synthèse/mise en perspective (Markdown) en tête
-        sections  : liste de (libellé_thème, [(titre_article, url), …]) — liens cliquables
-        footer    : pied d'embed (ex. « 10 articles · 9 thématiques »)
-        image_url : image bannière (1re image valide du digest)
+        title     : titre de l'embed de synthèse (ex. « 🗞️ Digest — 04/06/2026 »)
+        synthesis : texte de synthèse/mise en perspective (Markdown)
+        articles  : liste de dicts {title, url, image, theme, snippet}
+        footer    : pied du dernier embed (ex. « 10 articles · 9 thématiques »)
     """
     url = webhook_url or os.getenv("WEBHOOK_DISCORD", "")
     if not url:
         default_logger.debug("WEBHOOK_DISCORD non configuré — digest Discord ignoré")
         return False
 
-    parts: list[str] = []
+    articles = articles or []
+    embeds: list[dict] = []
+
+    # Embed de tête : titre + synthèse
+    head: dict = {"title": (title or "Digest WUDD.ai")[:256], "color": _NIVEAU_COLOR["info"]}
     if synthesis.strip():
-        parts.append(synthesis.strip())
-    for theme_label, arts in (sections or []):
-        if not arts:
-            continue
-        block = [f"**{theme_label}**"]
-        for art_title, art_url in arts:
-            t = " ".join((art_title or "").split())
-            if len(t) > 110:
-                t = t[:109].rstrip() + "…"
-            block.append(f"• [{t}]({art_url})" if art_url else f"• {t}")
-        parts.append("\n".join(block))
+        head["description"] = synthesis.strip()[:_DISCORD_DESC_LIMIT]
+    embeds.append(head)
 
-    description = "\n\n".join(parts).strip()
-    if len(description) > _DISCORD_DESC_LIMIT:
-        description = description[: _DISCORD_DESC_LIMIT - 1].rstrip() + "…"
+    # Un embed par article (avec sa vignette) — dans la limite des 10 embeds
+    slots = _DISCORD_MAX_EMBEDS - len(embeds)
+    shown = articles[:slots]
+    for art in shown:
+        t = " ".join(str(art.get("title") or "Article").split())
+        e: dict = {"title": t[:256], "color": _NIVEAU_COLOR["info"]}
+        if art.get("url"):
+            e["url"] = art["url"]
+        bits = []
+        if art.get("theme"):
+            bits.append(f"*{art['theme']}*")
+        if art.get("snippet"):
+            bits.append(str(art["snippet"]))
+        if bits:
+            e["description"] = "\n".join(bits)[:_DISCORD_DESC_LIMIT]
+        img = str(art.get("image") or "")
+        if img.startswith(("http://", "https://")):
+            e["thumbnail"] = {"url": img}
+        embeds.append(e)
 
-    embed: dict = {
-        "title": (title or "Digest WUDD.ai")[:256],
-        "description": description or "_(digest vide)_",
-        "color": _NIVEAU_COLOR["info"],
-    }
-    if footer:
-        embed["footer"] = {"text": footer[:2048]}
-    if image_url.startswith(("http://", "https://")):
-        embed["image"] = {"url": image_url}
+    # Mention des articles non affichés (au-delà de la limite d'embeds)
+    overflow = len(articles) - len(shown)
+    foot = footer + (f" · +{overflow} autres" if overflow > 0 else "")
+    if foot:
+        embeds[-1]["footer"] = {"text": foot[:2048]}
 
-    payload = {"embeds": [embed]}
+    payload = {"embeds": embeds}
     try:
         session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
         r = session.post(url, json=payload, timeout=10)
         r.raise_for_status()
-        default_logger.info("Notification Discord digest envoyée")
+        default_logger.info(f"Notification Discord digest envoyée ({len(shown)} articles)")
         return True
     except Exception as e:
         default_logger.warning(f"Erreur Discord (digest) : {e}")
