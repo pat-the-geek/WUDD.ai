@@ -154,24 +154,47 @@ def _keyword_sort_key(keyword: str) -> str:
     return ascii_form.lower().lstrip("[](){} ").strip()
 
 
-def _md_cell(terms: list[str]) -> str:
-    """Formate une liste de termes pour une cellule de tableau Markdown."""
-    cleaned = [str(t).strip().replace("|", "\\|") for t in (terms or []) if str(t).strip()]
-    return ", ".join(cleaned) if cleaned else "—"
+def _md_terms_with_counts(terms: list[str], trigger_counts: dict[str, int]) -> str:
+    """Formate une liste de termes, chacun suivi de son nombre de détections.
+
+    Préfixe la cellule du nombre de termes ; trie par détections décroissantes
+    puis alphabétiquement. ``trigger_counts`` est indexé par terme en minuscules.
+    """
+    items: list[tuple[str, int]] = []
+    for t in (terms or []):
+        t = str(t).strip()
+        if not t:
+            continue
+        items.append((t, trigger_counts.get(t.lower(), 0)))
+    if not items:
+        return "—"
+    items.sort(key=lambda it: (-it[1], it[0].lower()))
+    parts = []
+    for term, count in items:
+        esc = term.replace("|", "\\|")
+        parts.append(f"{esc} ({count})")
+    return f"**{len(items)}** — " + ", ".join(parts)
 
 
 def _build_keyword_table_block(
     project_root: Path,
     active_stems: set[str] | None = None,
+    counts: dict[str, int] | None = None,
+    triggers: dict[str, dict[str, int]] | None = None,
 ) -> str:
     """Génère un tableau Markdown des mots-clés de veille, trié alphabétiquement.
 
-    Colonnes : mot-clé, variantes « OU » (au moins une) et termes « ET » (tous requis).
+    Colonnes : mot-clé, nombre d'articles détectés (sur la période), variantes
+    « OU » et termes « ET », chaque terme suivi de son nombre de détections.
 
     Args:
         project_root  : racine du projet
         active_stems  : si fourni, ne conserve que les mots-clés dont le stem
                         normalisé est dans cet ensemble (mots-clés avec articles).
+        counts        : comptage d'articles par flux (clés ``rss:<stem>``) sur la
+                        période, pour la colonne « Articles détectés ».
+        triggers      : détections par terme et par flux (clés ``rss:<stem>`` →
+                        { terme_minuscule : count }), pour annoter les mots OU/ET.
     """
     kw_file = project_root / "config" / "keyword-to-search.json"
     if not kw_file.exists():
@@ -194,13 +217,22 @@ def _build_keyword_table_block(
 
     keywords = sorted(keywords, key=lambda e: _keyword_sort_key(e.get("keyword", "")))
 
+    counts = counts or {}
+    triggers = triggers or {}
     rows = [
-        "| Mot-clé | Variantes (OU) | Termes requis (ET) |",
-        "|---|---|---|",
+        "| Mot-clé | Articles détectés | Variantes OU (détections) | Termes requis ET (détections) |",
+        "|---|---:|---|---|",
     ]
     for entry in keywords:
         kw = str(entry.get("keyword", "")).strip().replace("|", "\\|")
-        rows.append(f"| **{kw}** | {_md_cell(entry.get('or'))} | {_md_cell(entry.get('and'))} |")
+        stem = _normalize_keyword_stem(entry.get("keyword", ""))
+        n_articles = counts.get(f"rss:{stem}", 0)
+        tc = triggers.get(f"rss:{stem}", {})
+        rows.append(
+            f"| **{kw}** | {n_articles} "
+            f"| {_md_terms_with_counts(entry.get('or'), tc)} "
+            f"| {_md_terms_with_counts(entry.get('and'), tc)} |"
+        )
 
     return "\n".join(rows)
 
@@ -257,6 +289,57 @@ def collect_article_counts_by_flux(
             counts[flux_name] += _count_articles_in_file(json_file, cutoff)
 
     return dict(counts)
+
+
+def collect_trigger_terms_by_flux(
+    project_root: Path,
+    days: int = 30,
+) -> dict[str, dict[str, int]]:
+    """Compte, par flux RSS, le nombre de détections de chaque terme déclencheur.
+
+    Lit le champ ``terme_declencheur`` des articles (clé normalisée en minuscules)
+    dans la fenêtre temporelle. Sert à annoter les mots OU/ET du tableau.
+
+    Returns:
+        { "rss:<stem>" : { "<terme en minuscules>" : nombre de détections } }
+    """
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=days) if days > 0 else None
+    result: dict[str, dict[str, int]] = {}
+
+    rss_dir = project_root / "data" / "articles-from-rss"
+    if not rss_dir.exists():
+        return result
+
+    for json_file in rss_dir.rglob("*.json"):
+        rel_parts = json_file.relative_to(rss_dir).parts
+        if "cache" in rel_parts or _is_derived_path(rel_parts):
+            continue
+        try:
+            data = json.loads(json_file.read_text(encoding="utf-8", errors="replace"))
+            if not isinstance(data, list):
+                continue
+        except (json.JSONDecodeError, OSError):
+            continue
+        flux_name = (
+            f"rss:{json_file.parent.name}/{json_file.stem}"
+            if json_file.parent != rss_dir
+            else f"rss:{json_file.stem}"
+        )
+        bucket = result.setdefault(flux_name, {})
+        for article in data:
+            if not isinstance(article, dict):
+                continue
+            if cutoff is not None:
+                dt = _parse_date(article.get("Date de publication", ""))
+                if dt is None or dt < cutoff:
+                    continue
+            term = article.get("terme_declencheur")
+            if isinstance(term, str) and term.strip():
+                key = term.strip().lower()
+                bucket[key] = bucket.get(key, 0) + 1
+
+    return result
 
 
 def collect_entities_by_flux(
@@ -521,11 +604,18 @@ def build_cross_flux_markdown(
             for k, v in counts.items()
             if k.startswith("rss:") and v > 0
         } or None  # None si vide = afficher tous (fallback)
-    kw_table = _build_keyword_table_block(root, active_stems=active_stems)
+    triggers = collect_trigger_terms_by_flux(root, days=days)
+    kw_table = _build_keyword_table_block(
+        root, active_stems=active_stems, counts=counts, triggers=triggers
+    )
     if kw_table:
         lines += [
             "",
             "## Mots-clés de veille",
+            "",
+            f"> *« Articles détectés » : nombre d'articles collectés par mot-clé sur les {days} derniers jours. "
+            f"Le nombre entre parenthèses après chaque terme OU/ET indique combien de fois ce terme a "
+            f"effectivement déclenché la détection d'un article (champ `terme_declencheur`).*",
             "",
             kw_table,
             "",
