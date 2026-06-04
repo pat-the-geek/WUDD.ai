@@ -32,6 +32,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from utils.api_client import get_ai_client
 from utils.logging import print_console
 from utils.date_utils import parse_article_date
+from utils.report_cleanup import cleanup_old_dated_reports
 
 def get_month_period():
     now = datetime.now()
@@ -84,6 +85,7 @@ def main():
             with open(rapport_path, "w", encoding="utf-8") as f:
                 f.write(rapport_md)
             print_console(f"✓ Rapport généré : {rapport_path}")
+            cleanup_old_dated_reports(rapport_path)
         except Exception as e:
             print_console(f"Erreur génération rapport pour {keyword} : {e}", level="error")
 

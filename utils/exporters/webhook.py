@@ -14,6 +14,7 @@ Usage :
     notify_alerts(alerts)  # alerts = liste retournée par trend_detector.py
 """
 
+import json
 import os
 from typing import Optional
 
@@ -250,6 +251,78 @@ def send_article_discord(
         return False
 
 
+def send_digest_discord(
+    *,
+    title: str,
+    synthesis: str = "",
+    articles: Optional[list] = None,
+    footer: str = "",
+    webhook_url: Optional[str] = None,
+) -> bool:
+    """Envoie un digest sous forme de notification Discord MULTI-EMBED.
+
+    Un embed « synthèse » en tête, puis un embed par article (vignette de l'image
+    de l'article + titre cliquable + thématique + accroche). Discord limite à 10
+    embeds par message : on garde la synthèse + les premiers articles.
+
+    Args:
+        title     : titre de l'embed de synthèse (ex. « 🗞️ Digest — 04/06/2026 »)
+        synthesis : texte de synthèse/mise en perspective (Markdown)
+        articles  : liste de dicts {title, url, image, theme, snippet}
+        footer    : pied du dernier embed (ex. « 10 articles · 9 thématiques »)
+    """
+    url = webhook_url or os.getenv("WEBHOOK_DISCORD", "")
+    if not url:
+        default_logger.debug("WEBHOOK_DISCORD non configuré — digest Discord ignoré")
+        return False
+
+    articles = articles or []
+    embeds: list[dict] = []
+
+    # Embed de tête : titre + synthèse
+    head: dict = {"title": (title or "Digest WUDD.ai")[:256], "color": _NIVEAU_COLOR["info"]}
+    if synthesis.strip():
+        head["description"] = synthesis.strip()[:_DISCORD_DESC_LIMIT]
+    embeds.append(head)
+
+    # Un embed par article (avec sa vignette) — dans la limite des 10 embeds
+    slots = _DISCORD_MAX_EMBEDS - len(embeds)
+    shown = articles[:slots]
+    for art in shown:
+        t = " ".join(str(art.get("title") or "Article").split())
+        e: dict = {"title": t[:256], "color": _NIVEAU_COLOR["info"]}
+        if art.get("url"):
+            e["url"] = art["url"]
+        bits = []
+        if art.get("theme"):
+            bits.append(f"*{art['theme']}*")
+        if art.get("snippet"):
+            bits.append(str(art["snippet"]))
+        if bits:
+            e["description"] = "\n".join(bits)[:_DISCORD_DESC_LIMIT]
+        img = str(art.get("image") or "")
+        if img.startswith(("http://", "https://")):
+            e["thumbnail"] = {"url": img}
+        embeds.append(e)
+
+    # Mention des articles non affichés (au-delà de la limite d'embeds)
+    overflow = len(articles) - len(shown)
+    foot = footer + (f" · +{overflow} autres" if overflow > 0 else "")
+    if foot:
+        embeds[-1]["footer"] = {"text": foot[:2048]}
+
+    payload = {"embeds": embeds}
+    try:
+        session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
+        r = session.post(url, json=payload, timeout=10)
+        r.raise_for_status()
+        default_logger.info(f"Notification Discord digest envoyée ({len(shown)} articles)")
+        return True
+    except Exception as e:
+        default_logger.warning(f"Erreur Discord (digest) : {e}")
+        return False
+
+
 def send_watched_entity_added(
     entity_type: str,
     value: str,
@@ -312,6 +385,54 @@ def send_watched_entity_added(
 
 
 # ── Slack ─────────────────────────────────────────────────────────────────────
+
+def send_text_discord(
+    *,
+    title: str,
+    description: str,
+    footer: str = "",
+    color: Optional[int] = None,
+    image_bytes: Optional[bytes] = None,
+    image_name: str = "chart.png",
+    webhook_url: Optional[str] = None,
+) -> bool:
+    """Envoie une notification Discord générique : un embed titre + description Markdown.
+
+    Si `image_bytes` est fourni, l'image est jointe (multipart) et affichée dans
+    l'embed via ``attachment://`` (utilisé pour le graphique des flux en PNG).
+    """
+    url = webhook_url or os.getenv("WEBHOOK_DISCORD", "")
+    if not url:
+        default_logger.debug("WEBHOOK_DISCORD non configuré — Discord ignoré")
+        return False
+    embed = {
+        "title": (title or "WUDD.ai")[:256],
+        "description": (description or "")[:_DISCORD_DESC_LIMIT] or "_(vide)_",
+        "color": color if color is not None else _NIVEAU_COLOR["info"],
+    }
+    if footer:
+        embed["footer"] = {"text": footer[:2048]}
+    if image_bytes:
+        embed["image"] = {"url": f"attachment://{image_name}"}
+    payload = {"embeds": [embed]}
+    try:
+        session = create_session_with_retries(total_retries=3, backoff_factor=0.5)
+        if image_bytes:
+            r = session.post(
+                url,
+                data={"payload_json": json.dumps(payload)},
+                files={"file": (image_name, image_bytes, "image/png")},
+                timeout=15,
+            )
+        else:
+            r = session.post(url, json=payload, timeout=10)
+        r.raise_for_status()
+        default_logger.info("Notification Discord (texte) envoyée")
+        return True
+    except Exception as e:
+        default_logger.warning(f"Erreur Discord (texte) : {e}")
+        return False
+
 
 def send_slack(
     alerts: list,

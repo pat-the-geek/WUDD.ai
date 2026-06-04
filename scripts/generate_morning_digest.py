@@ -37,6 +37,7 @@ from utils.logging import print_console
 from utils.scoring import get_scoring_engine
 from utils.scheduler_toggle import should_run_task
 from utils.date_utils import parse_article_date
+from utils.report_cleanup import cleanup_old_dated_reports
 
 # Types d'entités pertinentes pour le classement
 ENTITY_TYPES_PERTINENTS = {"PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "NORP", "FAC", "LOC"}
@@ -568,6 +569,7 @@ def generate_morning_digest(
     output_file = output_dir / f"digest_{today_iso}.md"
     output_file.write_text(digest_md, encoding="utf-8")
     print_console(f"✓ Digest sauvegardé : {output_file}")
+    cleanup_old_dated_reports(output_file)
 
     # 7. Envoi email (optionnel)
     if send_email:

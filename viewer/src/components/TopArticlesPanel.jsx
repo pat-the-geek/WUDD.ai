@@ -392,7 +392,7 @@ function ArticleCard({ article, rank, onEntityClick, isCurrentPodcast, annotatio
       })
       const d = await r.json()
       if (d.ok) {
-        const enriched = { 'Résumé': d.resume }
+        const enriched = { 'Résumé': d.resume, 'Résumé_md': d.resume_md || '' }
         if (d.entities && Object.keys(d.entities).length > 0) enriched.entities = d.entities
         if (d.sentiment)               enriched.sentiment              = d.sentiment
         if (d.score_sentiment != null) enriched.score_sentiment        = d.score_sentiment

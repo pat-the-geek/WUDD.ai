@@ -253,7 +253,7 @@ def api_article_refresh_resume():
       file_path   (str) — chemin relatif du fichier JSON dans PROJECT_ROOT
       article_url (str) — URL de l'article à rafraîchir
       provider    (str) — 'euria', 'claude', ou 'auto' (utilise AI_PROVIDER depuis .env)
-    Retourne : { ok: bool, resume: str, entities: dict, sentiment: str,
+    Retourne : { ok: bool, resume: str, resume_md: str, entities: dict, sentiment: str,
                  score_sentiment: int, ton_editorial: str, score_ton: int,
                  temps_lecture_minutes: float, temps_lecture_label: str }
     """
@@ -355,8 +355,23 @@ def api_article_refresh_resume():
     except Exception:
         pass
 
+    # Résumé Markdown formaté (affichage enrichi) — via le formateur canonique
+    # (Ollama local privilégié, garde-fou anti-chinois). Chaîne vide si échec.
+    resume_md = ""
+    try:
+        from utils.summary_formatter import format_summary_markdown
+        resume_md = format_summary_markdown(new_resume) or ""
+    except Exception:
+        resume_md = ""
+
     # Mettre à jour l'article avec tous les enrichissements
     article["Résumé"] = new_resume
+    # Régénère le Résumé_md ; si le formatage a échoué, on retire l'ancien
+    # (potentiellement obsolète) pour que l'affichage retombe sur le brut.
+    if resume_md:
+        article["Résumé_md"] = resume_md
+    elif "Résumé_md" in article:
+        del article["Résumé_md"]
     if entities:
         article["entities"] = entities
     for field in ("sentiment", "score_sentiment", "ton_editorial", "score_ton"):
@@ -378,6 +393,7 @@ def api_article_refresh_resume():
     return jsonify({
         "ok": True,
         "resume": new_resume,
+        "resume_md": resume_md,
         "entities": entities,
         "sentiment": sentiment_data.get("sentiment"),
         "score_sentiment": sentiment_data.get("score_sentiment"),

@@ -28,6 +28,7 @@ from utils.logging import default_logger as LOG
 from utils.entity_index import get_entity_index
 from utils.date_utils import parse_article_date
 from utils.scheduler_toggle import should_run_task
+from utils.report_cleanup import cleanup_old_dated_reports
 
 
 def _load_watched(project_root: Path) -> list[dict]:
@@ -259,6 +260,7 @@ def generate_watched_report(project_root: Path, days: int = 7, dry_run: bool = F
     if not dry_run:
         out_file.write_text("\n".join(lines), encoding="utf-8")
         LOG.info(f"[watched_report] Rapport créé : {out_file}")
+        cleanup_old_dated_reports(out_file)
     else:
         LOG.info(f"[watched_report] dry-run — rapport serait créé : {out_file}")
 

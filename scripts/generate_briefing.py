@@ -34,6 +34,7 @@ from utils.scoring import get_scoring_engine
 from utils.date_utils import parse_article_date
 from utils.article_index import get_article_index
 from utils.scheduler_toggle import should_run_task
+from utils.report_cleanup import cleanup_old_dated_reports
 
 # ── Constantes ───────────────────────────────────────────────────────────────
 
@@ -640,6 +641,7 @@ def main():
     output_path = _BRIEFING_DIR / filename
     output_path.write_text(briefing_md, encoding="utf-8")
     print_console(f"Briefing sauvegardé : {output_path}")
+    cleanup_old_dated_reports(output_path)
 
     # Texte podcast (TTS)
     podcast_md = build_podcast_markdown(
@@ -656,6 +658,7 @@ def main():
     podcast_path = _BRIEFING_DIR / podcast_filename
     podcast_path.write_text(podcast_md, encoding="utf-8")
     print_console(f"Texte podcast sauvegardé : {podcast_path}")
+    cleanup_old_dated_reports(podcast_path)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
 """
 Script : repair_failed_summaries.py
 
-Corrige les articles dont le Résumé contient un message d'erreur API.
+Corrige les articles dont le Résumé contient un message d'erreur API
+ou a dérivé vers le chinois (caractères CJK — typique des modèles Qwen).
 Pour chaque article affecté :
   1. Récupère le texte de l'article depuis son URL
   2. Régénère le résumé via l'API EurIA
@@ -22,7 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from utils.api_client import get_ai_client, get_summary_client
+from utils.api_client import get_ai_client, get_summary_client, _contains_chinese_chars
 from utils.http_utils import fetch_and_extract_text
 from utils.logging import print_console
 
@@ -31,6 +32,14 @@ ERROR_PREFIX = "Désolé, je n'ai pas pu obtenir de réponse"
 
 def is_error_summary(resume: str) -> bool:
     return isinstance(resume, str) and resume.startswith(ERROR_PREFIX)
+
+
+def needs_repair(resume: str) -> bool:
+    """Un résumé doit être régénéré s'il contient un message d'erreur API
+    ou s'il a dérivé vers le chinois (caractères CJK — typique de Qwen)."""
+    if not isinstance(resume, str):
+        return False
+    return is_error_summary(resume) or _contains_chinese_chars(resume)
 
 
 def repair_file(path: Path, client, dry_run: bool, delay: float) -> tuple[int, int]:
@@ -54,7 +63,7 @@ def repair_file(path: Path, client, dry_run: bool, delay: float) -> tuple[int, i
         if not isinstance(article, dict):
             continue
         resume = article.get("Résumé", "")
-        if not is_error_summary(resume):
+        if not needs_repair(resume):
             continue
 
         url = article.get("URL", "")
@@ -81,6 +90,11 @@ def repair_file(path: Path, client, dry_run: bool, delay: float) -> tuple[int, i
 
         article["Résumé"] = new_resume
         modified = True
+
+        # Invalider le Résumé_md dérivé (peut être obsolète ou lui aussi en chinois) :
+        # enrich_summary_format.py le régénérera proprement avec le garde-fou langue.
+        if "Résumé_md" in article:
+            del article["Résumé_md"]
 
         # Régénérer les entités NER
         new_entities = client.generate_entities(new_resume)
@@ -155,7 +169,7 @@ def main():
                 data = json.load(f)
             if not isinstance(data, list):
                 continue
-            n = sum(1 for a in data if isinstance(a, dict) and is_error_summary(a.get("Résumé", "")))
+            n = sum(1 for a in data if isinstance(a, dict) and needs_repair(a.get("Résumé", "")))
             if n:
                 total_errors += n
                 affected_files.append((path, n))

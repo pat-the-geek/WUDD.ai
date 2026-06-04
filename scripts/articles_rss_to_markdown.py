@@ -24,6 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from scripts.articles_json_to_markdown import json_to_markdown
 from utils.logging import print_console
+from utils.report_cleanup import cleanup_old_dated_reports
 
 ARTICLES_DIR = PROJECT_ROOT / "data" / "articles-from-rss"
 RAPPORTS_BASE = PROJECT_ROOT / "rapports" / "markdown" / "keyword"
@@ -98,6 +99,7 @@ def process_file(json_file: Path) -> None:
     try:
         print_console(f"Conversion : {json_file.name} ({len(filtered)} articles du {month_start} au {month_end}) → {output_file.relative_to(PROJECT_ROOT)}")
         json_to_markdown(tmp_path, str(output_file))
+        cleanup_old_dated_reports(output_file)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 

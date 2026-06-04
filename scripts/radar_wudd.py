@@ -26,6 +26,7 @@ from utils.logging import print_console
 from utils.config import get_config
 from utils.date_utils import parse_article_date
 from utils.api_client import get_ai_client
+from utils.report_cleanup import cleanup_old_dated_reports
 
 # ─── CONFIG ──────────────────────────────────────────────────────────────────
 
@@ -682,6 +683,7 @@ def main():
     radar_md_path = radar_md_dir / radar_md_name
     radar_md_path.write_text(md_content, encoding="utf-8")
     print_console(f"      Radar MD : {radar_md_path.stat().st_size // 1024} KB → rapports/markdown/radar/{radar_md_name}", level="info")
+    cleanup_old_dated_reports(radar_md_path)
 
     print_console(f'✓  open "{output_path.resolve()}"', level="info")
     print_console(f'✓  open "{radar_md_path.resolve()}"', level="info")
