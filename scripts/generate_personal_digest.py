@@ -28,6 +28,7 @@ from utils.config import get_config
 from utils.logging import default_logger as LOG
 from utils.date_utils import parse_article_date
 from utils.report_cleanup import cleanup_old_dated_reports
+from utils.summary_formatter import format_summary_markdown
 
 
 def _highlight_entities(text: str, entities: dict) -> str:
@@ -121,8 +122,75 @@ def _classify_article(art: dict, thematiques: list) -> str | None:
     return best
 
 
-def _render_article_block(art: dict, score: float) -> list[str]:
-    """Rend un article du digest : titre H3, image cliquable, résumé NER, lien."""
+def _demote_headings(md: str) -> str:
+    """Ajoute un niveau (#) à chaque titre pour l'imbriquer sous le titre d'article (###)."""
+    out = []
+    for line in md.splitlines():
+        s = line.lstrip()
+        if s.startswith("#"):
+            n = len(s) - len(s.lstrip("#"))
+            out.append("#" * min(n + 1, 6) + s[n:])
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
+def _highlight_md_body(md: str, entities: dict) -> str:
+    """Surligne les NER ligne par ligne, en laissant les titres `#` intacts."""
+    return "\n".join(
+        line if line.lstrip().startswith("#") else _highlight_entities(line, entities)
+        for line in md.splitlines()
+    )
+
+
+def _as_blockquote(text: str) -> str:
+    """Transforme un texte multi-lignes en citation Markdown (encadré visuel)."""
+    return "\n".join(("> " + l) if l.strip() else ">" for l in text.splitlines())
+
+
+def _generate_synthesis(top: list, profile_name: str, days: int, use_ai: bool = True) -> str:
+    """Génère une synthèse & mise en perspective via l'IA configurée (EurIA/Claude/Ollama).
+
+    Retourne du Markdown (paragraphes) ou "" si IA désactivée / indisponible.
+    """
+    if not use_ai or not top:
+        return ""
+    items = []
+    for _score, art in top[:15]:
+        titre = (art.get("Titre") or "").strip()
+        if not titre:
+            rl = [l.strip() for l in (art.get("Résumé") or "").splitlines() if l.strip()]
+            titre = rl[0] if rl else (art.get("Sources") or "")
+        src = art.get("Sources", "")
+        extrait = " ".join((art.get("Résumé") or "").split())[:300]
+        items.append(f"- [{src}] {titre} — {extrait}")
+    contexte = "\n".join(items)
+    prompt = (
+        "Tu es analyste de veille informationnelle. À partir de la sélection d'articles "
+        f"ci-dessous (profil « {profile_name} », {days} derniers jours), rédige en français une "
+        "SYNTHÈSE & MISE EN PERSPECTIVE de qualité éditoriale. Règles :\n"
+        "- 2 à 4 paragraphes rédigés (pas de liste, pas de titre) ;\n"
+        "- dégage les tendances de fond, les liens entre sujets et les signaux faibles ;\n"
+        "- mets en **gras** quelques points-clés, avec parcimonie ;\n"
+        "- n'invente aucun fait : appuie-toi uniquement sur les articles fournis ;\n"
+        "- style fluide et soigné (lissage global de la qualité).\n\n"
+        f"Articles :\n{contexte}"
+    )
+    try:
+        from utils.api_client import get_ai_client
+        out = (get_ai_client().ask(prompt, timeout=120, max_tokens=900) or "").strip()
+    except Exception as exc:
+        LOG.warning(f"[digest] Synthèse IA indisponible : {exc}")
+        return ""
+    low = out.lower()
+    if not out or low.startswith("erreur") or low.startswith("désolé"):
+        return ""
+    return out
+
+
+def _render_article_block(art: dict, score: float, use_ai: bool = True) -> list[str]:
+    """Rend un article du digest : titre H3, image cliquable, corps chapitré (Résumé_md
+    ou généré par IA si absent) avec NER, lien en fin."""
     src = art.get("Sources", "Source inconnue")
     url = art.get("URL", "#")
     _dt_pub = parse_article_date(art.get("Date de publication") or "")
@@ -132,14 +200,21 @@ def _render_article_block(art: dict, score: float) -> list[str]:
     ents = art.get("entities", {}) or {}
 
     titre_field = (art.get("Titre") or "").strip()
-    if titre_field:
-        titre = titre_field
-        body_lines = resume_lines
-    else:
-        titre = resume_lines[0] if resume_lines else f"{src} — {date_pub}"
-        body_lines = resume_lines[1:]
+    titre = titre_field or (resume_lines[0] if resume_lines else f"{src} — {date_pub}")
 
-    resume_body = _highlight_entities(" ".join(body_lines), ents)
+    # Corps chapitré : Résumé_md si présent, sinon généré par IA, sinon paragraphe brut.
+    md_body = (art.get("Résumé_md") or "").strip()
+    if not md_body and use_ai and resume.strip():
+        try:
+            md_body = (format_summary_markdown(resume) or "").strip()
+        except Exception:
+            md_body = ""
+    if md_body:
+        resume_body = _highlight_md_body(_demote_headings(md_body), ents)
+    else:
+        body_lines = resume_lines if titre_field else resume_lines[1:]
+        resume_body = _highlight_entities(" ".join(body_lines), ents)
+
     sentiment = art.get("sentiment", "")
     sentiment_emoji = {"positif": "🟢", "négatif": "🔴", "neutre": "⚪"}.get(sentiment, "")
 
@@ -270,6 +345,7 @@ def generate_profile_digest(
     profile: dict,
     days: int = 7,
     dry_run: bool = False,
+    use_ai: bool = True,
 ) -> Path | None:
     """Génère le digest Markdown pour un profil donné."""
     profile_id = profile.get("id", "unknown")
@@ -314,6 +390,18 @@ def generate_profile_digest(
     if not top:
         lines.append("*Aucun article pertinent trouvé pour ce profil sur cette période.*")
     else:
+        # Synthèse & mise en perspective IA (en tête, en encadré)
+        synthese = _generate_synthesis(top, profile_name, days, use_ai=use_ai)
+        if synthese:
+            lines += [
+                "## 🧭 Synthèse & mise en perspective",
+                "",
+                _as_blockquote(synthese),
+                "",
+                "---",
+                "",
+            ]
+
         # Regroupe les articles (déjà triés par score) par thématique de veille dominante
         thematiques = _load_thematiques(project_root)
         grouped: dict[str, list] = {}
@@ -336,7 +424,7 @@ def generate_profile_digest(
             emoji = _THEME_EMOJI.get(theme, "🗂️")
             lines += [f"## {emoji} {theme} ({len(arts)})", ""]
             for score, art in arts:
-                lines += _render_article_block(art, score)
+                lines += _render_article_block(art, score, use_ai=use_ai)
 
     lines += [
         "",
@@ -362,6 +450,8 @@ def main() -> None:
     parser.add_argument("--profile", help="ID du profil à générer (tous si absent)")
     parser.add_argument("--days", type=int, default=7, help="Fenêtre en jours (défaut: 7)")
     parser.add_argument("--dry-run", action="store_true", help="Simulation sans écriture")
+    parser.add_argument("--no-ai", action="store_true",
+                        help="Désactive la synthèse IA et la génération des chapitres manquants")
     args = parser.parse_args()
 
     config = get_config()
@@ -377,7 +467,10 @@ def main() -> None:
             return
 
     for profile in profiles:
-        out = generate_profile_digest(config.project_root, profile, days=args.days, dry_run=args.dry_run)
+        out = generate_profile_digest(
+            config.project_root, profile, days=args.days,
+            dry_run=args.dry_run, use_ai=not args.no_ai,
+        )
         if out:
             print(f"Digest généré : {out}")
 
