@@ -727,8 +727,16 @@ def _render_article_block(art: dict, score: float, chapter_md: str = "") -> list
 
     # #10 — métadonnées : temps de lecture, crédibilité source, ton éditorial
     meta = [f"**{src}**", date_pub, f"score {score:.2f}"]
-    if art.get("temps_lecture_label"):
-        meta.append(f"⏱ {art['temps_lecture_label']}")
+    # Temps de lecture : champ stocké si présent, sinon estimé depuis le résumé
+    label = art.get("temps_lecture_label")
+    if not label and resume.strip():
+        try:
+            from utils.reading_time import estimate_reading_time
+            label = estimate_reading_time(resume).get("temps_lecture_label")
+        except Exception:
+            label = None
+    if label:
+        meta.append(f"⏱ {label}")
     if art.get("score_source") is not None:
         meta.append(f"🛡 crédibilité {art['score_source']}/100")
     if art.get("ton_editorial"):
