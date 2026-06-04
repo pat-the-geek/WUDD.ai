@@ -629,6 +629,316 @@ def _build_flux_chart_block(
     return "```flux-chart\n" + json.dumps(items, ensure_ascii=False) + "\n```"
 
 
+# ── Enrichissement & analyses avancées ───────────────────────────────────────
+
+_TYPE_EMOJI = {
+    "PERSON": "👤", "ORG": "🏢", "GPE": "🌍", "LOC": "📍", "PRODUCT": "📦",
+    "EVENT": "📅", "DISEASE": "🦠", "NORP": "🏳️", "LAW": "⚖️", "WORK_OF_ART": "🎨",
+}
+
+
+def _slug(text: str) -> str:
+    """Ancre Markdown façon GitHub."""
+    s = "".join(c for c in unicodedata.normalize("NFKD", text.lower())
+                if not unicodedata.combining(c))
+    s = re.sub(r"[^a-z0-9\s-]", "", s)
+    return re.sub(r"-{2,}", "-", re.sub(r"\s+", "-", s.strip()))
+
+
+def _enrich_cross_entities(project_root: Path, cross_entities: list, days: int) -> None:
+    """Enrichit chaque entité cross-flux (in place) : articles, sentiments, source
+    représentative, crédibilité moyenne, co-occurrences. Via l'entity_index (sain)."""
+    try:
+        from utils.entity_index import get_entity_index
+        from utils.source_credibility import CredibilityEngine
+        eidx = get_entity_index(project_root)
+        cred = CredibilityEngine(project_root)
+    except Exception as exc:
+        default_logger.warning(f"[cross-flux] Enrichissement indisponible : {exc}")
+        return
+    cutoff_iso = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d") if days > 0 else ""
+    top_keys = {e["entity_key"] for e in cross_entities}
+    for e in cross_entities:
+        try:
+            arts = eidx.load_articles(e["entity_type"], e["entity_value"],
+                                      max_articles=60, cutoff_date=cutoff_iso)
+        except Exception:
+            arts = []
+        sent = {"positif": 0, "neutre": 0, "négatif": 0}
+        creds, rep, cooc = [], None, defaultdict(int)
+        pos_src, neg_src = set(), set()
+        for a in arts:
+            s = a.get("sentiment", "")
+            if s in sent:
+                sent[s] += 1
+                src = a.get("Sources", "")
+                if s == "positif" and src:
+                    pos_src.add(src)
+                elif s == "négatif" and src:
+                    neg_src.add(src)
+            cv = a.get("score_source")
+            if cv is None:
+                try:
+                    cv = cred.get_score(a.get("Sources", ""))
+                except Exception:
+                    cv = None
+            if cv is not None:
+                try:
+                    creds.append(float(cv))
+                except (TypeError, ValueError):
+                    pass
+            if rep is None and (a.get("URL") or "").strip():
+                rep = {"url": a.get("URL", ""), "title": (a.get("Titre") or "").strip(),
+                       "source": a.get("Sources", "")}
+            # co-occurrences avec les autres entités cross-flux
+            for etype, vals in (a.get("entities") or {}).items():
+                if isinstance(vals, list):
+                    for v in vals:
+                        k = f"{etype}:{v}".strip()
+                        if k in top_keys and k != e["entity_key"]:
+                            cooc[k] += 1
+        e["_sentiments"] = sent
+        e["_credibility"] = round(sum(creds) / len(creds), 1) if creds else None
+        e["_representative"] = rep
+        e["_cooc"] = dict(cooc)
+        e["_pos_src"] = sorted(pos_src)[:4]
+        e["_neg_src"] = sorted(neg_src)[:4]
+        # Articles légers (pour la détection de contradictions opt-in)
+        e["_articles"] = [{"Résumé": a.get("Résumé", ""), "Sources": a.get("Sources", "")}
+                          for a in arts[:5]]
+
+
+def _load_entity_timeline(project_root: Path) -> dict:
+    f = project_root / "data" / "entity_timeline.json"
+    try:
+        return json.loads(f.read_text(encoding="utf-8")).get("timeline", {})
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _entity_trend(timeline: dict, entity_key: str) -> tuple[str, float]:
+    """(flèche, ratio) de tendance à partir de la timeline (7j récents vs 7j précédents)."""
+    series = timeline.get(entity_key)
+    if not isinstance(series, dict) or len(series) < 8:
+        return "", 1.0
+    counts = [series[d] for d in sorted(series)]
+    recent = sum(counts[-7:])
+    prev = sum(counts[-14:-7]) if len(counts) >= 14 else 0
+    if prev <= 0:
+        return ("📈", float("inf")) if recent > 0 else ("", 1.0)
+    ratio = recent / prev
+    if ratio >= 1.5:
+        return "📈", ratio
+    if ratio <= 0.67:
+        return "📉", ratio
+    return "", ratio
+
+
+def _composite_importance(e: dict, trend_ratio: float) -> float:
+    """Score d'importance cross-flux : diversité flux × mentions × crédibilité × tendance."""
+    import math
+    cred = (e.get("_credibility") or 50.0) / 100.0
+    trend = 1.0 + min(0.5, max(0.0, (trend_ratio - 1.0))) if trend_ratio != float("inf") else 1.5
+    return e["nb_flux"] * (1 + math.log1p(e["total_mentions"])) * (0.5 + cred) * trend
+
+
+def _flux_similarity(flux_entities: dict, top_pairs: int = 5) -> list[tuple]:
+    """Paires de flux partageant le plus d'entités (Jaccard)."""
+    sets = {f: set(ents) for f, ents in flux_entities.items() if ents}
+    names = list(sets)
+    pairs = []
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            a, b = sets[names[i]], sets[names[j]]
+            inter = len(a & b)
+            if inter < 2:
+                continue
+            jac = inter / len(a | b)
+            pairs.append((names[i], names[j], inter, round(jac, 2)))
+    pairs.sort(key=lambda x: (-x[3], -x[2]))
+    return pairs[:top_pairs]
+
+
+def _cooccurrence_mermaid(cross_entities: list, top_n: int = 12, min_w: int = 2) -> str:
+    """Bloc Mermaid du graphe de co-occurrence entre entités cross-flux."""
+    sel = cross_entities[:top_n]
+    ids = {e["entity_key"]: f"E{i}" for i, e in enumerate(sel)}
+    edges, seen = [], set()
+    for e in sel:
+        for k, w in (e.get("_cooc") or {}).items():
+            if k in ids and w >= min_w:
+                pair = tuple(sorted((e["entity_key"], k)))
+                if pair in seen:
+                    continue
+                seen.add(pair)
+                edges.append(f'    {ids[pair[0]]} --- {ids[pair[1]]}')
+    if not edges:
+        return ""
+    lines = ["```mermaid", "graph LR"]
+    for e in sel:
+        if any(ids[e["entity_key"]] in edge for edge in edges):
+            label = e["entity_value"].replace('"', "'")[:24]
+            lines.append(f'    {ids[e["entity_key"]]}["{label}"]')
+    lines += edges + ["```"]
+    return "\n".join(lines)
+
+
+def _entity_minianalyses(cross_entities: list, use_ai: bool, top_n: int = 8) -> dict:
+    """1 phrase IA par entité phare (un seul appel, JSON {entity_value: phrase})."""
+    if not use_ai or not cross_entities:
+        return {}
+    items = [f"- {e['entity_value']} ({e['entity_type']}, {e['nb_flux']} flux)"
+             for e in cross_entities[:top_n]]
+    prompt = (
+        "Pour chaque entité transversale ci-dessous (présente dans plusieurs flux de "
+        "veille), rédige UNE phrase en français expliquant pourquoi elle est au cœur de "
+        "l'actualité. Réponds UNIQUEMENT par un objet JSON {\"<entité>\": \"<phrase>\"}. "
+        "N'invente aucun fait.\n\n" + "\n".join(items)
+    )
+    try:
+        raw = (get_ai_client().ask(prompt, timeout=90, max_tokens=700) or "").strip()
+    except Exception as exc:
+        default_logger.warning(f"[cross-flux] Mini-analyses indisponibles : {exc}")
+        return {}
+    if _CJK_RE.search(raw):
+        return {}
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    try:
+        data = json.loads(m.group(0)) if m else json.loads(raw)
+    except Exception:
+        return {}
+    return {str(k).strip().lower(): str(v).strip() for k, v in data.items() if str(v).strip()}
+
+
+# ── Émergence / historique (#3, #18) ──────────────────────────────────────────
+
+def _cross_history_path(project_root: Path) -> Path:
+    return project_root / "data" / "cross_flux_history.json"
+
+
+def _mark_emerging(project_root: Path, cross_entities: list, date_str: str) -> None:
+    """Marque les entités cross-flux nouvellement apparues (in place : e['_new'])
+    et met à jour l'historique data/cross_flux_history.json."""
+    f = _cross_history_path(project_root)
+    try:
+        hist = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    except (OSError, json.JSONDecodeError):
+        hist = {}
+    seen = hist.get("seen", {}) if isinstance(hist, dict) else {}
+    for e in cross_entities:
+        e["_new"] = e["entity_key"] not in seen
+        seen.setdefault(e["entity_key"], date_str)
+    # purge des entités vues il y a > 90 jours
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d")
+        seen = {k: v for k, v in seen.items() if v >= cutoff}
+    except Exception:
+        pass
+    try:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        tmp = f.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"seen": seen, "updated_at": date_str},
+                                  ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(f)
+    except OSError as exc:
+        default_logger.warning(f"[cross-flux] Historique non sauvegardé : {exc}")
+
+
+# ── Contradictions (#5, opt-in) ───────────────────────────────────────────────
+
+def _detect_contradictions(cross_entities: list, enabled: bool, max_entities: int = 3) -> list:
+    """Détecte des contradictions entre sources sur les entités phares (opt-in, coûteux)."""
+    if not enabled:
+        return []
+    try:
+        from utils.claim_extractor import extract_claims
+        from utils.contradiction_engine import compare_claims_deterministic
+    except Exception:
+        return []
+    found = []
+    for e in cross_entities[:max_entities]:
+        arts = [a for a in (e.get("_articles") or [])][:3]
+        claim_sets = []
+        for a in arts:
+            try:
+                claim_sets.append((a, extract_claims(a.get("résumé", a.get("Résumé", "")), a.get("Sources", ""))))
+            except Exception:
+                continue
+        for i in range(len(claim_sets)):
+            for j in range(i + 1, len(claim_sets)):
+                for ca in claim_sets[i][1]:
+                    for cb in claim_sets[j][1]:
+                        res = compare_claims_deterministic(ca, cb)
+                        if res:
+                            found.append({"entity": e["entity_value"],
+                                          "desc": res.get("description", ""),
+                                          "src_a": claim_sets[i][0].get("Sources", ""),
+                                          "src_b": claim_sets[j][0].get("Sources", "")})
+    return found[:10]
+
+
+def _link_entities_in_text(text: str, cross_entities: list) -> str:
+    """Lie la 1re occurrence de chaque entité phare à son article représentatif (#8)."""
+    if not text:
+        return text
+    pairs = [(e["entity_value"], (e.get("_representative") or {}).get("url", ""))
+             for e in cross_entities if (e.get("_representative") or {}).get("url")]
+    pairs.sort(key=lambda p: len(p[0]), reverse=True)
+    for val, url in pairs:
+        pat = re.compile(r"(?<!\[)(?<!\w)(" + re.escape(val) + r")(?!\w)(?!\]\()")
+        text = pat.sub(lambda m: f"[{m.group(1)}]({url})", text, count=1)
+    return text
+
+
+def _top_entities_discord(cross_entities: list, n: int = 8) -> str:
+    """Liste compacte des top entités cross-flux pour la notification Discord (#15)."""
+    out = []
+    for e in cross_entities[:n]:
+        emoji = _TYPE_EMOJI.get(e["entity_type"], "•")
+        trend = f" {e['_trend']}" if e.get("_trend") else ""
+        new = " 🆕" if e.get("_new") else ""
+        out.append(f"{emoji} **{e['entity_value']}** ({e['nb_flux']} flux){trend}{new}")
+    return "\n".join(out)
+
+
+def _export_atom_crossflux(project_root: Path, cross_entities: list) -> None:
+    """Flux Atom des articles représentatifs des entités cross-flux (#16)."""
+    try:
+        from utils.exporters.atom_feed import generate_atom_feed
+        arts = []
+        for e in cross_entities[:30]:
+            rep = e.get("_representative") or {}
+            if rep.get("url"):
+                arts.append({"Titre": rep.get("title") or e["entity_value"],
+                             "URL": rep["url"], "Sources": rep.get("source", ""),
+                             "Résumé": f"Entité transversale ({e['nb_flux']} flux, "
+                                       f"{e['total_mentions']} mentions)."})
+        if not arts:
+            return
+        xml = generate_atom_feed(arts, feed_title="WUDD.ai · Analyse croisée des flux")
+        out_dir = project_root / "rapports" / "atom"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "cross_flux.xml").write_text(xml, encoding="utf-8")
+        default_logger.info("[cross-flux] Flux Atom écrit : rapports/atom/cross_flux.xml")
+    except Exception as exc:
+        default_logger.warning(f"[cross-flux] Export Atom échoué : {exc}")
+
+
+def _export_obsidian_crossflux(md_path: Path) -> None:
+    """Copie le rapport cross-flux dans le vault Obsidian si disponible (#16)."""
+    import os
+    base = os.getenv("OBSIDIAN_DIR", "").strip() or ("/obsidian" if Path("/obsidian").is_dir() else "")
+    if not base or not Path(base).is_dir():
+        return
+    try:
+        dest = Path(base) / "Veille"
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / md_path.name).write_text(md_path.read_text(encoding="utf-8"), encoding="utf-8")
+        default_logger.info(f"[cross-flux] Exporté vers Obsidian : {dest / md_path.name}")
+    except OSError as exc:
+        default_logger.warning(f"[cross-flux] Export Obsidian échoué : {exc}")
+
+
 def build_cross_flux_markdown(
     date_str: str,
     days: int,
@@ -637,6 +947,10 @@ def build_cross_flux_markdown(
     flux_article_counts: dict[str, int] | None = None,
     project_root: Path | None = None,
     synthesis: str = "",
+    flux_entities: dict | None = None,
+    timeline: dict | None = None,
+    minianalyses: dict | None = None,
+    contradictions: list | None = None,
 ) -> str:
     """Génère le rapport Markdown de l'analyse croisée."""
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -692,38 +1006,136 @@ def build_cross_flux_markdown(
         ]
         return "\n".join(lines)
 
+    timeline = timeline or {}
+    minianalyses = minianalyses or {}
+
+    def _ton_cell(e: dict) -> str:
+        s = e.get("_sentiments") or {}
+        pos, neg, neu = s.get("positif", 0), s.get("négatif", 0), s.get("neutre", 0)
+        tot = pos + neg + neu
+        if tot == 0:
+            return "—"
+        if pos and neg and min(pos, neg) / tot >= 0.25:
+            return "⚖️ divergent"
+        if pos >= neg and pos >= neu:
+            return "🟢 positif"
+        if neg >= pos and neg >= neu:
+            return "🔴 négatif"
+        return "⚪ neutre"
+
+    def _ent_link(e: dict) -> str:
+        rep = e.get("_representative") or {}
+        val = e["entity_value"]
+        return f"[**{val}**]({rep['url']})" if rep.get("url") else f"**{val}**"
+
+    # Tendance + importance composite (#2, #6, #7), puis tri par importance
+    for e in cross_entities:
+        arrow, ratio = _entity_trend(timeline, e["entity_key"])
+        e["_trend"] = arrow
+        e["_importance"] = _composite_importance(e, ratio)
+    cross_entities = sorted(cross_entities, key=lambda e: -e["_importance"])
+
+    # #14 — sommaire
+    lines += [
+        "## 🧭 Sommaire",
+        "",
+        "- [Entités transversales](#entites-presentes-dans-plusieurs-flux)",
+        "- [Entités à la une](#entites-a-la-une)",
+        "- [Co-occurrences](#graphe-de-co-occurrence)",
+        "- [Matrice entité × flux](#matrice-entite--flux)",
+        "- [Flux proches](#flux-proches)",
+        "",
+        "---",
+        "",
+    ]
+
     lines += [
         "## Entités présentes dans plusieurs flux",
         "",
-        f"*{len(cross_entities)} entité(s) détectée(s) dans ≥ 2 flux*",
+        f"*{len(cross_entities)} entité(s) détectée(s) dans ≥ 2 flux — triées par importance*",
         "",
-        "| Entité | Type | Flux | Mentions tot. | Flux principaux |",
-        "|--------|------|------|---------------|-----------------|",
+        "| Entité | Type | Flux | Mentions | Tendance | Ton | Crédib. | Flux principaux |",
+        "|--------|------|------|----------|----------|-----|---------|-----------------|",
     ]
     for e in cross_entities[:20]:
-        flux_str = " / ".join(
-            f"{fd['flux']} ({fd['mentions']})"
-            for fd in e["flux_details"][:3]
-        )
+        flux_str = " / ".join(f"{fd['flux']} ({fd['mentions']})" for fd in e["flux_details"][:3])
+        emoji = _TYPE_EMOJI.get(e["entity_type"], "")
+        new_badge = " 🆕" if e.get("_new") else ""
+        cred = f"{e['_credibility']:.0f}" if e.get("_credibility") is not None else "—"
         lines.append(
-            f"| **{e['entity_value']}** "
-            f"| {e['entity_type']} "
-            f"| {e['nb_flux']} "
-            f"| {e['total_mentions']} "
-            f"| {flux_str} |"
+            f"| {_ent_link(e)}{new_badge} | {emoji} {e['entity_type']} | {e['nb_flux']} "
+            f"| {e['total_mentions']} | {e.get('_trend') or '—'} | {_ton_cell(e)} | {cred} | {flux_str} |"
         )
     lines.append("")
 
-    # Détail des entités les plus cross-flux
-    if cross_entities:
-        lines += ["## Détail des entités multi-flux", ""]
-        for e in cross_entities[:5]:
-            lines.append(f"### {e['entity_value']} ({e['entity_type']})")
-            lines.append(f"Présente dans **{e['nb_flux']} flux** | "
-                          f"{e['total_mentions']} mentions au total\n")
-            for fd in e["flux_details"]:
-                lines.append(f"- **{fd['flux']}** : {fd['mentions']} mention(s)")
+    # #9 — signaux faibles : entités émergentes ou en forte hausse, peu mentionnées
+    weak = [e for e in cross_entities
+            if (e.get("_new") or e.get("_trend") == "📈") and e["total_mentions"] <= 8]
+    if weak:
+        lines += ["### 📡 Signaux faibles", ""]
+        for e in weak[:8]:
+            tag = "🆕 nouvelle" if e.get("_new") else "📈 en hausse"
+            lines.append(f"- {_ent_link(e)} ({e['entity_type']}) — {tag}, {e['nb_flux']} flux")
+        lines.append("")
+
+    # #1 — graphe de co-occurrence
+    cooc_block = _cooccurrence_mermaid(cross_entities, top_n=12)
+    if cooc_block:
+        lines += ["## Graphe de co-occurrence", "",
+                  "*Entités transversales apparaissant ensemble dans les mêmes articles.*",
+                  "", cooc_block, ""]
+
+    # Entités à la une (détail + mini-analyse IA + ton + sources divergentes)
+    lines += ["## Entités à la une", ""]
+    for e in cross_entities[:5]:
+        emoji = _TYPE_EMOJI.get(e["entity_type"], "")
+        lines.append(f"### {emoji} {e['entity_value']} ({e['entity_type']}){' 🆕' if e.get('_new') else ''}")
+        mini = minianalyses.get(e["entity_value"].lower())
+        if mini:
+            lines.append(f"*{mini}*\n")
+        cred = f" · crédibilité {e['_credibility']:.0f}/100" if e.get("_credibility") is not None else ""
+        lines.append(f"Présente dans **{e['nb_flux']} flux** · {e['total_mentions']} mentions "
+                     f"{e.get('_trend') or ''}{cred}\n")
+        # divergence de ton (#4)
+        if e.get("_pos_src") and e.get("_neg_src"):
+            lines.append(f"⚖️ **Traitement divergent** — 🟢 {', '.join(e['_pos_src'])} · "
+                         f"🔴 {', '.join(e['_neg_src'])}\n")
+        for fd in e["flux_details"][:6]:
+            lines.append(f"- **{fd['flux']}** : {fd['mentions']} mention(s)")
+        rep = e.get("_representative") or {}
+        if rep.get("url"):
+            lines.append(f"\n[🔗 Article représentatif]({rep['url']})")
+        lines.append("")
+
+    # #12 — matrice entité × flux (top entités × top flux)
+    matrix_flux = [f for f, _ in sorted(counts.items(), key=lambda x: -x[1])[:6]]
+    if matrix_flux:
+        lines += ["## Matrice entité × flux", "",
+                  "| Entité | " + " | ".join(f.replace("rss:", "") for f in matrix_flux) + " |",
+                  "|--------|" + "|".join(["---"] * len(matrix_flux)) + "|"]
+        for e in cross_entities[:10]:
+            per = {fd["flux"]: fd["mentions"] for fd in e["flux_details"]}
+            row = " | ".join(str(per.get(f, "·")) for f in matrix_flux)
+            lines.append(f"| **{e['entity_value']}** | {row} |")
+        lines.append("")
+
+    # #13 — flux proches (partage d'entités)
+    if flux_entities:
+        sim = _flux_similarity(flux_entities)
+        if sim:
+            lines += ["## Flux proches", "",
+                      "*Flux partageant le plus d'entités (entités communes · similarité).*", ""]
+            for a, b, inter, jac in sim:
+                lines.append(f"- `{a.replace('rss:', '')}` ↔ `{b.replace('rss:', '')}` — "
+                             f"{inter} entités communes ({jac})")
             lines.append("")
+
+    # #5 — contradictions entre sources (opt-in)
+    if contradictions:
+        lines += ["## ⚠️ Contradictions détectées", ""]
+        for c in contradictions:
+            lines.append(f"- **{c['entity']}** — {c['desc']} ({c['src_a']} vs {c['src_b']})")
+        lines.append("")
 
     # Mindmap des mots-clés de veille (avant le pied de page)
     # N'inclure que les mots-clés qui ont des articles dans la période analysée
@@ -787,6 +1199,12 @@ def parse_args():
         "--no-discord", action="store_true",
         help="N'envoie pas la notification Discord"
     )
+    parser.add_argument(
+        "--contradictions", action="store_true",
+        help="Détecte les contradictions entre sources (coûteux : appels IA)"
+    )
+    parser.add_argument("--no-atom", action="store_true", help="N'écrit pas le flux Atom")
+    parser.add_argument("--no-obsidian", action="store_true", help="N'exporte pas vers Obsidian")
     return parser.parse_args()
 
 
@@ -816,35 +1234,50 @@ def main():
         f"  → {len(cross_entities)} entité(s) présente(s) dans ≥ {args.min_flux} flux"
     )
 
-    output_data = {
-        "generated_at":   datetime.now(timezone.utc).isoformat(),
-        "window_days":    args.days,
-        "min_flux":       args.min_flux,
-        "flux_count":     len(flux_names),
-        "flux_list":      sorted(flux_names),
-        "cross_entities": cross_entities,
-    }
-
     flux_article_counts = collect_article_counts_by_flux(project_root, days=args.days)
     print_console(f"  → {sum(flux_article_counts.values())} article(s) comptabilisé(s) au total")
 
-    # Synthèse IA des éléments (sautée en dry-run pour éviter un appel API inutile)
+    # Enrichissement (#1,#4,#6,#7,#11) + tendances (#2) + émergence (#3,#18)
+    _enrich_cross_entities(project_root, cross_entities, args.days)
+    _mark_emerging(project_root, cross_entities, date_str)
+    timeline = _load_entity_timeline(project_root)
+
+    # Mini-analyses (#10) + contradictions (#5, opt-in) — sautées en dry-run
+    minianalyses, contradictions = {}, []
+    if not args.dry_run and not args.no_ai:
+        minianalyses = _entity_minianalyses(cross_entities, use_ai=True)
+    if not args.dry_run and getattr(args, "contradictions", False):
+        contradictions = _detect_contradictions(cross_entities, enabled=True)
+        if contradictions:
+            print_console(f"  → {len(contradictions)} contradiction(s) détectée(s)")
+
+    # Synthèse IA des éléments (puis liaison des entités citées #8)
     synthesis = ""
     if not args.dry_run and not args.no_ai:
         synthesis = _generate_cross_flux_synthesis(
             cross_entities, flux_article_counts, args.days, use_ai=True
         )
         if synthesis:
+            synthesis = _link_entities_in_text(synthesis, cross_entities)
             print_console("  → synthèse IA générée")
 
+    # JSON : on retire les champs internes « _… » (volumineux)
+    output_data = {
+        "generated_at":   datetime.now(timezone.utc).isoformat(),
+        "window_days":    args.days,
+        "min_flux":       args.min_flux,
+        "flux_count":     len(flux_names),
+        "flux_list":      sorted(flux_names),
+        "cross_entities": [{k: v for k, v in e.items() if not k.startswith("_")}
+                           for e in cross_entities],
+    }
+
     report_md = build_cross_flux_markdown(
-        date_str=date_str,
-        days=args.days,
-        flux_names=flux_names,
-        cross_entities=cross_entities,
-        flux_article_counts=flux_article_counts,
-        project_root=project_root,
-        synthesis=synthesis,
+        date_str=date_str, days=args.days, flux_names=flux_names,
+        cross_entities=cross_entities, flux_article_counts=flux_article_counts,
+        project_root=project_root, synthesis=synthesis,
+        flux_entities=flux_entities, timeline=timeline,
+        minianalyses=minianalyses, contradictions=contradictions,
     )
 
     if args.dry_run:
@@ -852,26 +1285,29 @@ def main():
         print(json.dumps(output_data, ensure_ascii=False, indent=2))
         return
 
-    # Sauvegarde JSON
     _OUTPUT_JSON.parent.mkdir(parents=True, exist_ok=True)
-    _OUTPUT_JSON.write_text(
-        json.dumps(output_data, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    _OUTPUT_JSON.write_text(json.dumps(output_data, ensure_ascii=False, indent=2), encoding="utf-8")
     print_console(f"Rapport JSON sauvegardé : {_OUTPUT_JSON}")
 
-    # Sauvegarde Markdown
     _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     md_path = _OUTPUT_DIR / f"cross_flux_{date_str}.md"
     md_path.write_text(report_md, encoding="utf-8")
     print_console(f"Rapport Markdown sauvegardé : {md_path}")
     cleanup_old_dated_reports(md_path)
 
-    # Notification Discord : uniquement la synthèse + le graphique des flux.
-    # Graphique en image PNG (Pillow) ; repli sur barres texte si indisponible.
-    if not args.no_discord and (synthesis or flux_article_counts):
+    # Exports (#16)
+    if not args.no_atom:
+        _export_atom_crossflux(project_root, cross_entities)
+    if not args.no_obsidian:
+        _export_obsidian_crossflux(md_path)
+
+    # Notification Discord (#15) : synthèse + top entités + graphique flux (image PNG)
+    if not args.no_discord and (synthesis or cross_entities or flux_article_counts):
         chart_png = _render_flux_chart_png(flux_article_counts, top_n=10)
         parts = [synthesis] if synthesis else []
+        top_ent = _top_entities_discord(cross_entities)
+        if top_ent:
+            parts.append("**Entités transversales**\n" + top_ent)
         if not chart_png:
             bars = _flux_bar_chart_text(flux_article_counts, top_n=10)
             if bars:
