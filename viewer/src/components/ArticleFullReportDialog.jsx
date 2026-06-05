@@ -22,7 +22,7 @@ import EntityHighlighter, { EntityHighlighterSegments } from './EntityHighlighte
 import ReportMarkdownContent from './ReportMarkdownContent'
 import StreamingReportPreview, { StreamingCursor } from './StreamingReportPreview'
 import { obsidianUri, openInObsidian } from '../utils/obsidian'
-import { getMermaid } from '../utils/mermaidLoader'
+import { getMermaid, OKIA_MERMAID } from '../utils/mermaidLoader'
 
 // ── Mermaid block ─────────────────────────────────────────────────────────────
 
@@ -92,7 +92,7 @@ function MermaidBlock({ code, isStreaming }) {
     // Annuler si le composant est démonté avant la fin du rendu
     let cancelled = false
 
-    getMermaid({ theme: 'default', securityLevel: 'loose' })
+    getMermaid({ ...OKIA_MERMAID, securityLevel: 'loose' })
       .then(mermaid => mermaid.parse(clean).then(() => mermaid.render(id.current, clean)))
       .then(({ svg }) => {
         if (!cancelled && containerRef.current) {

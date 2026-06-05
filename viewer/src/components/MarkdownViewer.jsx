@@ -3,7 +3,7 @@ import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import { lazy, Suspense, useMemo, useEffect, useRef, useState } from 'react'
 import TTSButton from './TTSButton'
-import { getMermaid } from '../utils/mermaidLoader'
+import { getMermaid, OKIA_MERMAID } from '../utils/mermaidLoader'
 
 const KeywordForceGraph = lazy(() => import('./KeywordForceGraph'))
 const FluxBarChart = lazy(() => import('./FluxBarChart'))
@@ -108,7 +108,7 @@ function MermaidBlock({ code }) {
     let cancelled = false
     // Debounce 300 ms — le SVG précédent reste affiché, aucun flickering
     const timer = setTimeout(() => {
-      getMermaid({ theme: 'default', securityLevel: 'loose' })
+      getMermaid({ ...OKIA_MERMAID, securityLevel: 'loose' })
         .then(mermaid => mermaid.parse(clean).then(() => mermaid.render(id.current, clean)))
         .then(({ svg }) => {
           if (cancelled) return

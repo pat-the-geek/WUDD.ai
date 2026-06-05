@@ -15,7 +15,7 @@ import {
   X, Maximize2, Minimize2, Copy, Download, RefreshCw,
   FileText, Check, BookOpen, Loader2,
 } from 'lucide-react'
-import { getMermaid } from '../utils/mermaidLoader'
+import { getMermaid, OKIA_MERMAID } from '../utils/mermaidLoader'
 import ReportMarkdownContent from './ReportMarkdownContent'
 import StreamingReportPreview, { StreamingCursor } from './StreamingReportPreview'
 
@@ -75,7 +75,7 @@ function MermaidBlock({ code, isStreaming }) {
     if (!containerRef.current) return
     setErrMsg(null)
     let cancelled = false
-    getMermaid({ theme: 'default', securityLevel: 'loose' })
+    getMermaid({ ...OKIA_MERMAID, securityLevel: 'loose' })
       .then(mermaid => mermaid.parse(clean).then(() => mermaid.render(id.current, clean)))
       .then(({ svg }) => {
         if (!cancelled && containerRef.current) {

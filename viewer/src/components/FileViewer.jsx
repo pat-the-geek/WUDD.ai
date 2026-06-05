@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState, useEffect, useRef } from 'react'
 import { Download, FileText, Calendar, HardDrive, ChevronRight, ChevronDown, Images, ArrowUp, Tag, Braces, LayoutList, Trash2, AlertTriangle, Printer, BookOpen, BookMarked, Network, MessageSquare } from 'lucide-react'
-import { preloadMermaid } from '../utils/mermaidLoader'
+import { preloadMermaid, OKIA_MERMAID } from '../utils/mermaidLoader'
 
 const JsonViewer = lazy(() => import('./JsonViewer'))
 const EntityPanel = lazy(() => import('./EntityPanel'))
@@ -232,7 +232,7 @@ export default function FileViewer({ file, content, loading, loadingProgress, on
   useEffect(() => {
     if (!file || file.type !== 'markdown' || typeof content !== 'string') return
     if (!content.includes('```mermaid')) return
-    preloadMermaid({ theme: 'default', securityLevel: 'loose' }).catch(() => {})
+    preloadMermaid({ ...OKIA_MERMAID, securityLevel: 'loose' }).catch(() => {})
   }, [file, content])
 
   // Garde une référence du fichier courant accessible depuis beforeprint
