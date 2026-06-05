@@ -47,7 +47,15 @@
                 "licorne",
                 "productivité",
                 "financier",
-                "gain"
+                "industrie",
+                "industriel",
+                "commerce",
+                "commercial",
+                "douane",
+                "droits de douane",
+                "tarifs douaniers",
+                "exportation",
+                "importation"
             ]
         },
         "Protection des Consommateurs": {
@@ -159,7 +167,7 @@
                 "maladie",
                 "thérapie",
                 "diagnostic",
-                "traitement",
+                "traitement médical",
                 "test hépatiques"
             ]
         },
@@ -203,7 +211,10 @@
                 "énergie",
                 "énergétique",
                 "empreinte",
-                "climat",
+                "climatique",
+                "changement climatique",
+                "réchauffement",
+                "biodiversité",
                 "écologique"
             ]
         }
