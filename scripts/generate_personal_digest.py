@@ -172,18 +172,83 @@ def _load_thematiques(project_root: Path) -> list[tuple[str, "re.Pattern"]]:
 
 
 def _classify_article(art: dict, thematiques: list) -> str | None:
-    """Retourne la thématique dominante (plus d'occurrences de mots-clés) ou None."""
-    parts = [str(art.get("Titre") or ""), str(art.get("Résumé") or "")]
+    """Retourne la thématique dominante ou None.
+
+    Le titre pèse plus lourd que le résumé : c'est le signal le plus topical
+    et le moins bruité. Un mot-clé polysémique croisé dans le corps du résumé
+    (ex. « climat économique », « traitement des syndiqués ») ne doit pas
+    l'emporter sur le sujet réel exprimé dans le titre.
+    """
+    title = str(art.get("Titre") or "")
+    body_parts = [str(art.get("Résumé") or "")]
     for vals in (art.get("entities") or {}).values():
         if isinstance(vals, list):
-            parts.extend(str(v) for v in vals)
-    text = " ".join(parts)
+            body_parts.extend(str(v) for v in vals)
+    body = " ".join(body_parts)
     best, best_n = None, 0
     for name, pattern in thematiques:
-        n = len(pattern.findall(text))
+        n = len(pattern.findall(body)) + 3 * len(pattern.findall(title))
         if n > best_n:
             best_n, best = n, name
     return best
+
+
+def _classify_articles_ai(top: list, thematiques: list, use_ai: bool = True) -> dict:
+    """Classe chaque article retenu dans UNE thématique de la liste fermée, via un
+    seul appel IA groupé.
+
+    Bien plus robuste que le comptage de mots-clés pour les termes polysémiques
+    (« climat économique », « traitement des syndiqués », « santé » incident) : le
+    modèle choisit la thématique *dominante* selon le sujet réel, pas un mot
+    accessoire. Repli automatique sur la classification par mots-clés
+    (`_classify_article`) si l'IA est désactivée, indisponible ou répond hors-liste.
+
+    Retourne {id(art): nom_thématique}.
+    """
+    # Repli mot-clé — toujours calculé pour garantir une valeur par article.
+    fallback = {id(art): (_classify_article(art, thematiques) or _THEME_AUTRES)
+                for _s, art in top}
+    if not use_ai or not top:
+        return fallback
+
+    theme_names = [name for name, _ in thematiques]
+    items = []
+    for i, (_s, art) in enumerate(top, 1):
+        extrait = " ".join((art.get("Résumé") or "").split())[:240]
+        items.append(f"[{i}] {_article_title(art)} — {extrait}")
+    liste = "\n".join(theme_names + [_THEME_AUTRES])
+    prompt = (
+        "Tu es documentaliste de veille. Classe chaque article ci-dessous dans UNE "
+        "SEULE thématique, choisie STRICTEMENT dans cette liste (recopie le libellé "
+        "exact) :\n"
+        f"{liste}\n\n"
+        "Retiens la thématique DOMINANTE selon le sujet réel de l'article, jamais un "
+        "mot accessoire cité au passage. Si aucune ne convient vraiment, réponds "
+        "« Autres ».\n"
+        "Réponds UNIQUEMENT par un objet JSON valide indexé par le numéro de "
+        "l'article, p. ex. {\"1\": \"Santé\", \"2\": \"Autres\"}. Aucun commentaire.\n\n"
+        "Articles :\n" + "\n".join(items)
+    )
+    try:
+        from utils.api_client import get_ai_client
+        raw = (get_ai_client().ask(prompt, timeout=90, max_tokens=400) or "").strip()
+    except Exception as exc:
+        LOG.warning(f"[digest] Classement thématique IA indisponible : {exc}")
+        return fallback
+    if _CJK_RE.search(raw):
+        return fallback
+    data = _parse_json_block(raw)
+    if not isinstance(data, dict) or not data:
+        return fallback
+
+    valid = {t.lower(): t for t in theme_names}
+    valid[_THEME_AUTRES.lower()] = _THEME_AUTRES
+    result = dict(fallback)
+    for i, (_s, art) in enumerate(top, 1):
+        label = str(data.get(str(i), "")).strip().lower()
+        if label in valid:
+            result[id(art)] = valid[label]
+    return result
 
 
 # ── Sources de signaux (entités surveillées, tendances) ──────────────────────
@@ -970,10 +1035,12 @@ def generate_profile_digest(
         if synth["synthese"] or synth["takeaways"]:
             lines += ["---", ""]
 
-        # Regroupement par thématique
+        # Regroupement par thématique — classement IA (repli mots-clés) des
+        # seuls articles retenus, robuste aux termes polysémiques.
+        ai_themes = _classify_articles_ai(top, thematiques, use_ai=use_ai)
         grouped: dict[str, list] = {}
         for score, art in top:
-            theme = _classify_article(art, thematiques) or _THEME_AUTRES
+            theme = ai_themes.get(id(art)) or _THEME_AUTRES
             grouped.setdefault(theme, []).append((score, art))
         theme_order = [name for name, _ in thematiques if name in grouped]
         if _THEME_AUTRES in grouped:
