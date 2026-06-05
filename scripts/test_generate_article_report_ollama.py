@@ -248,7 +248,12 @@ def build_prompt(article: dict, source_text: str, source_kind: str, chapter_leve
         "Le bloc doit commencer directement par le mot-clé du type de diagramme sur la première ligne du bloc. "
         "N'ajoute aucun texte avant le diagramme dans cette section. "
         "Labels sans accents ni caractères spéciaux ; si espaces ou ponctuation, utilise [\"label\"]. "
-        "Si les données sont limitées, produis un flowchart TD minimal mais valide à partir des acteurs, du produit et des effets mentionnés.\n"
+        "Si les données sont limitées, produis un flowchart TD minimal mais valide à partir des acteurs, du produit et des effets mentionnés. "
+        "CHARTE DE COULEURS OBLIGATOIRE (OK-ia) : pour fill: et stroke:, n'utilise QUE ces couleurs (aucune autre, "
+        "ni hex ni couleur nommée). Chaque classDef/style avec fill: DOIT définir le color: apparié : "
+        "fill:#E8972E→color:#111111 ; fill:#111111→color:#FAFAF8 ; fill:#9A9A90→color:#111111 ; "
+        "fill:#F0A840→color:#111111 ; fill:#FAFAF8→color:#111111 ; fill:#5A5A52→color:#FAFAF8. "
+        "stroke: uniquement #9A9A90 ou #E8972E.\n"
         f"7. ## Source — {source_link}\n\n"
         "Règles : Markdown uniquement, pas de balises <think>, pas de YAML frontmatter."
     )
