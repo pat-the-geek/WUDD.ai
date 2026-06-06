@@ -36,6 +36,81 @@ _HOMEPAGE_HEADERS = {
     "Upgrade-Insecure-Requests": "1",
 }
 
+# Longueur minimale (caractères) en dessous de laquelle le texte extrait est
+# considéré comme « contenu non récupéré » (mur JavaScript, redirection vide,
+# page de consentement). En dessous, on ne résume pas : on retombe sur la
+# description RSS d'origine côté appelant.
+MIN_ARTICLE_TEXT_LENGTH = 200
+
+# Signatures de pages de blocage servies en HTTP 200 à la place du contenu réel
+# de l'article : murs JavaScript, anti-bot, captcha, consentement cookies.
+# Ces tournures n'apparaissent quasiment jamais dans le corps d'un article, donc
+# la détection est indépendante de la longueur (un faux positif fait simplement
+# retomber l'appelant sur la description RSS — dégradation gracieuse, pas de perte).
+_BLOCK_PAGE_SIGNATURES = (
+    "veuillez activer javascript",
+    "activer le javascript",
+    "activez javascript",
+    "javascript est désactivé",
+    "javascript doit être activé",
+    "javascript is disabled",
+    "please enable javascript",
+    "enable javascript to",
+    "you need to enable javascript",
+    "pour utiliser mastodon",
+    "êtes-vous un robot",
+    "are you a robot",
+    "verifying you are human",
+    "vérifie que vous êtes humain",
+    "checking your browser before",
+    "merci de vérifier que vous n'êtes pas un robot",
+    "veuillez activer les cookies",
+    "activez les cookies",
+)
+
+
+# Motifs de chemin/URL trahissant une photo d'auteur / byline / avatar plutôt
+# qu'un visuel d'article. Sur certains médias (Mashable, etc.) la photo de la
+# journaliste est servie en très haute résolution (2000×2000) et l'emporte sur
+# l'image d'illustration au tri par surface → on l'écarte explicitement.
+_AUTHOR_IMAGE_URL_PATTERNS = (
+    "/authors/",
+    "/author/",
+    "/imagery/authors",
+    "/contributors/",
+    "/contributor/",
+    "/avatars/",
+    "/avatar/",
+    "/byline",
+    "/staff/",
+    "/profiles/",
+    "/profile-",
+    "gravatar.com",
+)
+
+
+def is_author_image(url: str) -> bool:
+    """Vrai si l'URL d'image pointe vers une photo d'auteur / byline / avatar
+    (à exclure des visuels d'article)."""
+    if not isinstance(url, str):
+        return False
+    low = url.lower()
+    return any(p in low for p in _AUTHOR_IMAGE_URL_PATTERNS)
+
+
+def is_block_page_text(text: str) -> bool:
+    """Détecte si un texte est en réalité une page de blocage (mur JavaScript,
+    anti-bot, captcha, mur de consentement) servie à la place du contenu réel.
+
+    Détection par signatures uniquement (indépendante de la longueur), pour
+    pouvoir s'appliquer aussi bien au texte HTML brut qu'à un résumé déjà généré
+    qui aurait paraphrasé un message de blocage.
+    """
+    if not isinstance(text, str):
+        return False
+    lowered = text.lower()
+    return any(sig in lowered for sig in _BLOCK_PAGE_SIGNATURES)
+
 
 def fetch_rss_feed(url: str, timeout: int = 15) -> requests.Response:
     """Récupère un flux RSS avec stratégie anti-403.
@@ -149,7 +224,21 @@ def fetch_and_extract_text(
             # Parser le HTML et extraire le texte
             soup = BeautifulSoup(response.content, 'html.parser')
             text = soup.get_text(separator=' ', strip=True)
-            
+
+            # Garde-fou : un HTTP 200 peut servir une page de blocage (mur JS,
+            # anti-bot, captcha, consentement) ou un contenu vide. La résumer
+            # produirait un faux résumé (« Veuillez activer JavaScript… »).
+            # On renvoie une erreur explicite : les appelants retombent alors
+            # sur la description RSS d'origine (cf. flux_watcher / get-keyword).
+            if is_block_page_text(text):
+                default_logger.warning(f"Page de blocage détectée (mur JS / anti-bot) pour {url} — texte ignoré.")
+                return f"Erreur: page de blocage (JavaScript/anti-bot) détectée pour {url}"
+            if len(text) < MIN_ARTICLE_TEXT_LENGTH:
+                default_logger.warning(
+                    f"Contenu trop court ({len(text)} car.) pour {url} — probablement non récupéré, ignoré."
+                )
+                return f"Erreur: contenu indisponible ou trop court ({len(text)} car.) pour {url}"
+
             default_logger.debug(f"Texte extrait de {url}: {len(text)} caractères")
             return text
             
@@ -232,7 +321,7 @@ def extract_top_n_largest_images(
         og_image = soup.find('meta', property='og:image')
         if og_image:
             og_url = og_image.get('content', '').strip()
-            if og_url.startswith(('http://', 'https://')):
+            if og_url.startswith(('http://', 'https://')) and not is_author_image(og_url):
                 try:
                     og_w = int(
                         soup.find('meta', property='og:image:width', content=True)
@@ -272,7 +361,8 @@ def extract_top_n_largest_images(
             tc_tag = soup.find('meta', attrs=twitter_attr)
             if tc_tag:
                 tc_url = tc_tag.get('content', '').strip()
-                if tc_url.startswith(('http://', 'https://')) and tc_url not in seen_urls:
+                if (tc_url.startswith(('http://', 'https://')) and tc_url not in seen_urls
+                        and not is_author_image(tc_url)):
                     images.append({
                         'url': tc_url,
                         'title': '',
@@ -289,6 +379,8 @@ def extract_top_n_largest_images(
             src = img.get('src', '').strip()
             if not src.startswith(('http://', 'https://')) or src in seen_urls:
                 continue
+            if is_author_image(src):
+                continue  # photo d'auteur / byline / avatar — pas un visuel d'article
             title = img.get('title', '').strip()
             alt = img.get('alt', '').strip()
             if _norm_text(alt) == _norm_text(article_title):

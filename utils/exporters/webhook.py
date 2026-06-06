@@ -18,7 +18,7 @@ import json
 import os
 from typing import Optional
 
-from ..http_utils import create_session_with_retries
+from ..http_utils import create_session_with_retries, is_author_image
 from ..logging import default_logger
 
 # Limites Discord
@@ -225,7 +225,10 @@ def send_article_discord(
     if not image_url:
         imgs = article.get("Images")
         if isinstance(imgs, list) and imgs and isinstance(imgs[0], dict):
-            image_url = (imgs[0].get("URL") or imgs[0].get("url") or "").strip()
+            candidate = (imgs[0].get("URL") or imgs[0].get("url") or "").strip()
+            # On ignore les photos d'auteur/byline : pas représentatives de l'article.
+            if not is_author_image(candidate):
+                image_url = candidate
 
     embed: dict = {
         "author": {"name": f"👁 Veille · {entity_label}"},

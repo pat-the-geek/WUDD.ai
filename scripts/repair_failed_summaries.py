@@ -24,22 +24,38 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.api_client import get_ai_client, get_summary_client, _contains_chinese_chars
-from utils.http_utils import fetch_and_extract_text
+from utils.http_utils import fetch_and_extract_text, is_block_page_text
 from utils.logging import print_console
 
 ERROR_PREFIX = "Désolé, je n'ai pas pu obtenir de réponse"
+
+# Fuites de gabarit de chat (tokens spéciaux de Qwen/ChatML) : un résumé qui les
+# contient a été généré sur un texte tronqué/corrompu.
+_GARBLE_SIGNATURES = ("<|im_start|>", "<|im_end|>", "<|endoftext|>")
 
 
 def is_error_summary(resume: str) -> bool:
     return isinstance(resume, str) and resume.startswith(ERROR_PREFIX)
 
 
-def needs_repair(resume: str) -> bool:
-    """Un résumé doit être régénéré s'il contient un message d'erreur API
-    ou s'il a dérivé vers le chinois (caractères CJK — typique de Qwen)."""
+def is_garbled_summary(resume: str) -> bool:
+    """Résumé corrompu : paraphrase d'une page de blocage (mur JavaScript,
+    anti-bot, consentement) ou fuite de tokens de gabarit de chat."""
     if not isinstance(resume, str):
         return False
-    return is_error_summary(resume) or _contains_chinese_chars(resume)
+    low = resume.lower()
+    if any(sig in low for sig in _GARBLE_SIGNATURES):
+        return True
+    return is_block_page_text(resume)
+
+
+def needs_repair(resume: str) -> bool:
+    """Un résumé doit être régénéré s'il contient un message d'erreur API,
+    s'il a dérivé vers le chinois (caractères CJK — typique de Qwen), ou s'il
+    paraphrase une page de blocage / contient une fuite de gabarit de chat."""
+    if not isinstance(resume, str):
+        return False
+    return is_error_summary(resume) or _contains_chinese_chars(resume) or is_garbled_summary(resume)
 
 
 def repair_file(path: Path, client, dry_run: bool, delay: float) -> tuple[int, int]:
@@ -77,6 +93,19 @@ def repair_file(path: Path, client, dry_run: bool, delay: float) -> tuple[int, i
 
         # Récupérer le texte
         text = fetch_and_extract_text(url)
+
+        # Garde-fou : si la source est inaccessible ou sert une page de blocage,
+        # ne pas régénérer (on remplacerait un résumé fautif par un autre). On
+        # laisse l'article tel quel et on le compte comme échec.
+        if text.startswith("Erreur") or is_block_page_text(text):
+            print_console(
+                f"       Source inaccessible / page de blocage — résumé laissé tel quel.",
+                level="warning",
+            )
+            failed += 1
+            if delay:
+                time.sleep(delay)
+            continue
 
         # Générer le résumé
         try:

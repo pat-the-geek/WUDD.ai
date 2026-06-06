@@ -42,6 +42,7 @@ from utils.logging import default_logger
 from utils.config import get_config
 from utils.date_utils import parse_article_date
 from utils.entity_index import get_entity_index
+from utils.http_utils import is_author_image
 from utils.scheduler_toggle import should_run_task
 
 
@@ -779,7 +780,9 @@ def _attach_top_articles(alerts: list[dict], project_root: Path) -> list[dict]:
             imgs = art.get("Images")
             if isinstance(imgs, list) and imgs and isinstance(imgs[0], dict):
                 img_url = (imgs[0].get("URL") or imgs[0].get("url") or "").strip()
-                if img_url.startswith(("http://", "https://")):
+                # On écarte les photos d'auteur/byline (cas Mashable & co.) : elles
+                # ne représentent pas l'article et trompent la notification.
+                if img_url.startswith(("http://", "https://")) and not is_author_image(img_url):
                     a["article_image"] = img_url
                     break
 

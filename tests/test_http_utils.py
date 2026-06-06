@@ -78,11 +78,43 @@ class TestFetchAndExtractText:
         self.fn = fetch_and_extract_text
 
     def test_successful_fetch_returns_text(self):
-        html = "<html><body><p>Bonjour le monde</p></body></html>"
+        # Contenu > MIN_ARTICLE_TEXT_LENGTH pour passer le garde-fou anti-page-courte
+        corps = "Bonjour le monde. " * 20
+        html = f"<html><body><p>{corps}</p></body></html>"
         with patch("utils.http_utils.requests.get", return_value=_make_response(html)):
             result = self.fn("https://example.com")
         assert "Bonjour" in result
         assert "le monde" in result
+
+    def test_block_page_javascript_returns_error(self):
+        # Page mur JavaScript servie en HTTP 200 (cas Mastodon/anti-bot)
+        html = (
+            "<html><body>Pour utiliser Mastodon, veuillez activer JavaScript. "
+            "Sinon, essayez l'une des applications natives pour votre plate-forme."
+            "</body></html>"
+        )
+        with patch("utils.http_utils.requests.get", return_value=_make_response(html)):
+            result = self.fn("https://amicale.net/@afpfr/123")
+        assert result.startswith("Erreur")
+
+    def test_too_short_content_returns_error(self):
+        html = "<html><body><p>Chargement…</p></body></html>"
+        with patch("utils.http_utils.requests.get", return_value=_make_response(html)):
+            result = self.fn("https://example.com/vide")
+        assert result.startswith("Erreur")
+
+    def test_article_mentioning_javascript_is_not_blocked(self):
+        # Un vrai article qui parle de JavaScript ne doit PAS être filtré
+        corps = (
+            "Cloudflare a racheté VoidZero, la société open source derrière Vite et "
+            "les outils de compilation JavaScript. L'objectif est d'intégrer ces outils "
+            "à sa plateforme pour développeurs au cœur du développement web assisté par IA. "
+        ) * 2
+        html = f"<html><body><article>{corps}</article></body></html>"
+        with patch("utils.http_utils.requests.get", return_value=_make_response(html)):
+            result = self.fn("https://example.com/article")
+        assert not result.startswith("Erreur")
+        assert "Cloudflare" in result
 
     def test_empty_url_returns_error(self):
         result = self.fn("")
@@ -114,8 +146,9 @@ class TestFetchAndExtractText:
         assert "Erreur" in result or "connexion" in result.lower()
 
     def test_strips_script_and_style_tags(self):
+        corps = "Texte utile et suffisamment long pour passer le garde-fou. " * 5
         html = ("<html><head><style>body{color:red}</style></head>"
-                "<body><script>alert(1)</script><p>Texte utile</p></body></html>")
+                f"<body><script>alert(1)</script><p>{corps}</p></body></html>")
         with patch("utils.http_utils.requests.get", return_value=_make_response(html)):
             result = self.fn("https://example.com")
         assert "Texte utile" in result
@@ -132,6 +165,49 @@ class TestFetchAndExtractText:
              patch("utils.http_utils.time.sleep"):  # éviter les délais en test
             self.fn("https://example.com", max_retries=3)
         assert mock_get.call_count == 3
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# is_author_image
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestIsAuthorImage:
+    def setup_method(self):
+        from utils.http_utils import is_author_image
+        self.fn = is_author_image
+
+    def test_mashable_author_url_detected(self):
+        url = ("https://helios-i.mashable.com/imagery/authors/"
+               "06zCn1kSynj5isBSHseBSiH/image.fill.size_2000x2000.v1684195073.jpg")
+        assert self.fn(url) is True
+
+    def test_avatar_and_gravatar_detected(self):
+        assert self.fn("https://cdn.site.com/avatar/123.png") is True
+        assert self.fn("https://www.gravatar.com/avatar/abc") is True
+
+    def test_article_hero_not_flagged(self):
+        url = ("https://helios-i.mashable.com/imagery/articles/"
+               "03kteZMHWF9pwCo2PnlyQAp/hero-image.fill.size_1248x702.jpg")
+        assert self.fn(url) is False
+
+    def test_non_string_is_safe(self):
+        assert self.fn(None) is False
+        assert self.fn(123) is False
+
+    def test_author_image_excluded_from_extraction(self):
+        html = (
+            "<html><head>"
+            "<meta property='og:image' content='https://cdn.site.com/authors/jane.jpg'>"
+            "</head><body>"
+            "<img src='https://cdn.site.com/articles/hero.jpg' width='1200' height='700'>"
+            "</body></html>"
+        )
+        from utils.http_utils import extract_top_n_largest_images
+        with patch("utils.http_utils.requests.get", return_value=_make_response(html)):
+            imgs = extract_top_n_largest_images("https://cdn.site.com/a", n=3, min_width=500)
+        urls = [im["url"] for im in imgs]
+        assert "https://cdn.site.com/authors/jane.jpg" not in urls
+        assert "https://cdn.site.com/articles/hero.jpg" in urls
 
 
 # ─────────────────────────────────────────────────────────────────────────────
