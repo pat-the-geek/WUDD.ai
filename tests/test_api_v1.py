@@ -60,9 +60,14 @@ def api_paths(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def client(api_paths):
+def client(api_paths, monkeypatch):
     """Client Flask pour interroger /api/v1."""
     from viewer.app import app as flask_app
+
+    # viewer.app exécute load_dotenv() au moment de l'import, ce qui réinjecte
+    # WUDD_API_TOKEN depuis .env après le delenv de api_paths. On le retire ici,
+    # une fois l'import effectué, pour garantir une API ouverte par défaut.
+    monkeypatch.delenv("WUDD_API_TOKEN", raising=False)
 
     flask_app.config["TESTING"] = True
     with flask_app.test_client() as c:
